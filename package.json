@@ -11,7 +11,8 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "js-yaml": "^4.1.0",
-    "vue": "^3.4.27"
+    "vue": "^3.4.27",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",

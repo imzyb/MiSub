@@ -8,6 +8,7 @@ export async function fetchInitialData() {
             console.error("Session invalid or API error, status:", response.status);
             return null;
         }
+        // 后端已经更新，会返回 { misubs, profiles, config }
         return await response.json();
     } catch (error) {
         console.error("Failed to fetch initial data:", error);
@@ -22,19 +23,21 @@ export async function login(password) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password })
         });
-        return response; // 返回完整的 response 对象供组件处理
+        return response;
     } catch (error) {
         console.error("Login request failed:", error);
         return { ok: false, error: '网络请求失败' };
     }
 }
 
-export async function saveMisubs(misubs) {
+// [核心修改] saveMisubs 现在接收并发送 profiles
+export async function saveMisubs(misubs, profiles) {
     try {
         const response = await fetch('/api/misubs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ misubs })
+            // 将 misubs 和 profiles 一起发送
+            body: JSON.stringify({ misubs, profiles })
         });
         return await response.json();
     } catch (error) {
@@ -50,11 +53,10 @@ export async function fetchNodeCount(subUrl) {
             body: JSON.stringify({ url: subUrl })
         });
         const data = await res.json();
-        console.log('后端返回:', data); // 调试日志
-        return typeof data.count === 'number' ? data.count : 0;
+        return data; // [修正] 直接返回整个对象 { count, userInfo }
     } catch (e) {
         console.error('fetchNodeCount error:', e);
-        return 0;
+        return { count: 0, userInfo: null };
     }
 }
 

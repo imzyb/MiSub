@@ -5,6 +5,11 @@ import { Transition } from 'vue';
 const props = defineProps({
   show: Boolean,
   confirmKeyword: String,
+  // [新增] 尺寸属性，'sm' 为小，'2xl' 为大
+  size: {
+    type: String,
+    default: 'sm', // 默认为小尺寸
+  },
 });
 
 const emit = defineEmits(['update:show', 'confirm']);
@@ -18,8 +23,8 @@ const handleKeydown = (e) => {
 };
 
 const handleConfirm = () => {
-  emit('confirm'); // 先发出确认事件
-  emit('update:show', false); // 再发出事件关闭模态框
+  emit('confirm');
+  emit('update:show', false);
 }
 
 onMounted(() => window.addEventListener('keydown', handleKeydown));
@@ -32,6 +37,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
       v-if="show"
       role="button"
       tabindex="0"
+      aria-label="关闭弹窗"
       class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99] flex items-center justify-center p-4"
       @click="emit('update:show', false)"
       @keydown.self.space.prevent="emit('update:show', false)"
@@ -40,7 +46,11 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
       <Transition name="modal-inner">
         <div
           v-if="show"
-          class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm text-left ring-1 ring-black/5 dark:ring-white/10"
+          class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full text-left ring-1 ring-black/5 dark:ring-white/10"
+          :class="{
+            'max-w-sm': size === 'sm',
+            'max-w-2xl': size === '2xl' // [新增] 应用大尺寸样式
+          }"
           @click.stop
         >
           <div class="mb-4">
