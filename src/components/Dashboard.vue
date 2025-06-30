@@ -45,6 +45,11 @@ const isNewNode = ref(false);
 const editingProfile = ref(null);
 const isNewProfile = ref(false);
 
+const showSubsMoreMenu = ref(false);
+const showNodesMoreMenu = ref(false);
+const showProfilesMoreMenu = ref(false);
+
+
 const initializeState = () => {
   isLoading.value = true;
   if (props.data) {
@@ -66,12 +71,14 @@ const initializeState = () => {
     }
     subscriptions.value = subsArray;
     manualNodes.value = nodesArray;
+    // [修改] 初始化時確保 customId 存在
     profiles.value = (props.data.profiles || []).map(p => ({
         ...p,
         id: p.id || crypto.randomUUID(),
         enabled: p.enabled ?? true,
         subscriptions: p.subscriptions || [],
-        manualNodes: p.manualNodes || []
+        manualNodes: p.manualNodes || [],
+        customId: p.customId || '' 
     }));
     config.value = props.data.config || {};
     subsArray.forEach(sub => handleUpdateNodeCount(sub.id, true));
@@ -149,11 +156,22 @@ const handleBulkImport = (importText) => {
   if (!importText) return;
   const lines = importText.split('\n').map(line => line.trim()).filter(Boolean);
   const newSubs = [], newNodes = [];
-  for (const line of lines) { const newItem = { id: crypto.randomUUID(), name: extractNodeName(line) || '未命名', url: line, enabled: true, isUpdating: false }; if (/^https?:\/\//.test(line)) { newSubs.push({ ...newItem, nodeCount: 0 }); } else if (/^(ss|vmess|trojan|vless|hysteria2?):\/\//.test(line)) { newNodes.push(newItem); }}
-  subscriptions.value = [...newSubs, ...subscriptions.value]; manualNodes.value = [...newNodes, ...manualNodes.value];
-  subsCurrentPage.value = 1; manualNodesCurrentPage.value = 1; markDirty();
+  for (const line of lines) {
+      const newItem = { id: crypto.randomUUID(), name: extractNodeName(line) || '未命名', url: line, enabled: true, status: 'unchecked' };
+      if (/^https?:\/\//.test(line)) {
+          newSubs.push(newItem);
+      // [更新] 新增 anytls 支援
+      } else if (/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls):\/\//.test(line)) {
+          newNodes.push(newItem);
+      }
+  }
+  subscriptions.value = [...newSubs, ...subscriptions.value];
+  manualNodes.value = [...newNodes, ...manualNodes.value];
+  subsCurrentPage.value = 1;
+  manualNodesCurrentPage.value = 1;
+  markDirty();
   showToast(`成功导入 ${newSubs.length} 条订阅和 ${newNodes.length} 个手动节点，请点击保存`, 'success');
-  newSubs.forEach(sub => handleUpdateNodeCount(sub.id));
+  newSubs.forEach(sub => handleTestSubscription(sub.id));
 };
 const handleProfileToggle = (updatedProfile) => {
     const index = profiles.value.findIndex(p => p.id === updatedProfile.id);
@@ -162,9 +180,10 @@ const handleProfileToggle = (updatedProfile) => {
         markDirty();
     }
 };
+// [修改] 建立新訂閱組時，加入 customId
 const handleAddProfile = () => {
     isNewProfile.value = true;
-    editingProfile.value = { name: '', enabled: true, subscriptions: [], manualNodes: [] };
+    editingProfile.value = { name: '', enabled: true, subscriptions: [], manualNodes: [], customId: '' };
     showProfileModal.value = true;
 };
 const handleEditProfile = (profileId) => {
@@ -175,10 +194,27 @@ const handleEditProfile = (profileId) => {
         showProfileModal.value = true;
     }
 };
+// [修改] 儲存訂閱組時，增加驗證
 const handleSaveProfile = (profileData) => {
-    if (!profileData || !profileData.name) { showToast('订阅组名称不能为空', 'error'); return; }
+    if (!profileData || !profileData.name) {
+        showToast('订阅组名称不能为空', 'error');
+        return;
+    }
+    
+    // 清理並驗證 customId
+    if (profileData.customId) {
+        profileData.customId = profileData.customId.replace(/[^a-zA-Z0-9-_]/g, '');
+        if (profileData.customId) {
+            const isDuplicate = profiles.value.some(p => p.id !== profileData.id && p.customId === profileData.customId);
+            if (isDuplicate) {
+                showToast(`自定义 ID "${profileData.customId}" 已存在，请使用其他 ID`, 'error');
+                return;
+            }
+        }
+    }
+
     if (isNewProfile.value) {
-        const profileToAdd = { ...profileData, id: crypto.randomUUID(), };
+        const profileToAdd = { ...profileData, id: crypto.randomUUID() };
         profiles.value.unshift(profileToAdd);
     } else {
         const index = profiles.value.findIndex(p => p.id === profileData.id);
@@ -189,29 +225,26 @@ const handleSaveProfile = (profileData) => {
 };
 const handleDeleteProfile = (profileId) => { profiles.value = profiles.value.filter(p => p.id !== profileId); markDirty(); };
 const handleDeleteAllProfiles = () => { profiles.value = []; markDirty(); showDeleteProfilesModal.value = false; };
+// [修改] 複製連結的邏輯
 const copyProfileLink = (profileId) => {
     const token = config.value?.mytoken;
-    if (!token || token === 'auto') { showToast('请在设置中配置固定Token', 'error'); return; }
-    const link = `${window.location.origin}/sub/${token}/${profileId}`;
+    if (!token || token === 'auto') {
+        showToast('请在设置中配置固定Token', 'error');
+        return;
+    }
+    const profile = profiles.value.find(p => p.id === profileId);
+    if (!profile) return;
+    
+    const identifier = profile.customId || profile.id;
+    const link = `${window.location.origin}/${token}/${identifier}`;
+    
     navigator.clipboard.writeText(link);
     showToast('订阅组链接已复制！', 'success');
 };
 const handleAutoSortNodes = () => {
-    const regionKeywords = {
-        HK: [/香港/, /HK/, /Hong Kong/i], TW: [/台湾/, /TW/, /Taiwan/i], SG: [/新加坡/, /SG/, /Singapore/i],
-        JP: [/日本/, /JP/, /Japan/i], US: [/美国/, /US/, /United States/i], KR: [/韩国/, /KR/, /Korea/i],
-        GB: [/英国/, /GB/, /UK/, /United Kingdom/i], DE: [/德国/, /DE/, /Germany/i], FR: [/法国/, /FR/, /France/i],
-        CA: [/加拿大/, /CA/, /Canada/i], AU: [/澳大利亚/, /AU/, /Australia/i],
-    };
+    const regionKeywords = { HK: [/香港/,/HK/,/Hong Kong/i], TW: [/台湾/,/TW/,/Taiwan/i], SG: [/新加坡/,/SG/,/Singapore/i], JP: [/日本/,/JP/,/Japan/i], US: [/美国/,/US/,/United States/i], KR: [/韩国/,/KR/,/Korea/i], GB: [/英国/,/GB/,/UK/,/United Kingdom/i], DE: [/德国/,/DE/,/Germany/i], FR: [/法国/,/FR/,/France/i], CA: [/加拿大/,/CA/,/Canada/i], AU: [/澳大利亚/,/AU/,/Australia/i], };
     const regionOrder = ['HK', 'TW', 'SG', 'JP', 'US', 'KR', 'GB', 'DE', 'FR', 'CA', 'AU'];
-    const getRegionCode = (name) => {
-        for (const code in regionKeywords) {
-            for (const keyword of regionKeywords[code]) {
-                if (keyword.test(name)) return code;
-            }
-        }
-        return 'ZZ';
-    };
+    const getRegionCode = (name) => { for (const code in regionKeywords) { for (const keyword of regionKeywords[code]) { if (keyword.test(name)) return code; } } return 'ZZ'; };
     manualNodes.value.sort((a, b) => {
         const regionA = getRegionCode(a.name);
         const regionB = getRegionCode(b.name);
@@ -227,15 +260,9 @@ const handleAutoSortNodes = () => {
 };
 
 const subsTotalPages = computed(() => Math.ceil(subscriptions.value.length / subsItemsPerPage));
-const paginatedSubscriptions = computed(() => {
-  const start = (subsCurrentPage.value - 1) * subsItemsPerPage;
-  return subscriptions.value.slice(start, start + subsItemsPerPage);
-});
+const paginatedSubscriptions = computed(() => { const start = (subsCurrentPage.value - 1) * subsItemsPerPage; return subscriptions.value.slice(start, start + subsItemsPerPage); });
 const manualNodesTotalPages = computed(() => Math.ceil(manualNodes.value.length / manualNodesPerPage));
-const paginatedManualNodes = computed(() => {
-  const start = (manualNodesCurrentPage.value - 1) * manualNodesPerPage;
-  return manualNodes.value.slice(start, start + manualNodesPerPage);
-});
+const paginatedManualNodes = computed(() => { const start = (manualNodesCurrentPage.value - 1) * manualNodesPerPage; return manualNodes.value.slice(start, start + manualNodesPerPage); });
 </script>
 
 <template>
@@ -268,16 +295,30 @@ const paginatedManualNodes = computed(() => {
       <div class="lg:col-span-2 space-y-12">
         
         <div>
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-3">
               <h2 class="text-xl font-bold text-gray-900 dark:text-white">机场订阅</h2>
               <span class="px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700/50 rounded-full">{{ subscriptions.length }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <button v-if="!isSortingSubs" @click="isSortingSubs = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-blue-500 border-2 border-blue-500/60 hover:bg-blue-500/10 transition-all">手动排序</button>
-              <button v-else @click="() => { isSortingSubs = false; markDirty(); }" class="text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 text-white transition-all">完成</button>
-              <button @click="showDeleteSubsModal = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
+              <div class="hidden md:flex items-center gap-2">
+                <button v-if="!isSortingSubs" @click="isSortingSubs = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-blue-500 border-2 border-blue-500/60 hover:bg-blue-500/10 transition-all">手动排序</button>
+                <button v-else @click="() => { isSortingSubs = false; markDirty(); }" class="text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 text-white transition-all">完成</button>
+                <button @click="showDeleteSubsModal = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
+              </div>
               <button @click="handleAddSubscription" class="text-sm font-semibold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm">新增</button>
+              <div class="relative md:hidden" v-on:mouseleave="showSubsMoreMenu = false">
+                <button @click="showSubsMoreMenu = !showSubsMoreMenu" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                </button>
+                <Transition name="slide-fade-sm">
+                  <div v-if="showSubsMoreMenu" class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-10 ring-1 ring-black ring-opacity-5">
+                    <button v-if="!isSortingSubs" @click="isSortingSubs = true; showSubsMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">手动排序</button>
+                    <button v-else @click="() => { isSortingSubs = false; markDirty(); showSubsMoreMenu=false; }" class="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700">完成排序</button>
+                    <button @click="showDeleteSubsModal = true; showSubsMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700">清空</button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </div>
           <div v-if="subscriptions.length > 0">
@@ -296,17 +337,32 @@ const paginatedManualNodes = computed(() => {
         </div>
 
         <div>
-          <div class="flex justify-between items-center mb-4">
+           <div class="flex items-center justify-between mb-4">
              <div class="flex items-center gap-3">
               <h2 class="text-xl font-bold text-gray-900 dark:text-white">手动节点</h2>
               <span class="px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700/50 rounded-full">{{ manualNodes.length }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <button @click="handleAutoSortNodes" class="text-sm font-medium px-3 py-1.5 rounded-lg text-green-500 border-2 border-green-500/60 hover:bg-green-500/10 transition-all">一键排序</button>
-              <button v-if="!isSortingNodes" @click="isSortingNodes = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-blue-500 border-2 border-blue-500/60 hover:bg-blue-500/10 transition-all">手动排序</button>
-              <button v-else @click="() => { isSortingNodes = false; markDirty(); }" class="text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 text-white transition-all">完成</button>
-              <button @click="showDeleteNodesModal = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
+              <div class="hidden md:flex items-center gap-2">
+                 <button @click="handleAutoSortNodes" class="text-sm font-medium px-3 py-1.5 rounded-lg text-green-500 border-2 border-green-500/60 hover:bg-green-500/10 transition-all">一键排序</button>
+                <button v-if="!isSortingNodes" @click="isSortingNodes = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-blue-500 border-2 border-blue-500/60 hover:bg-blue-500/10 transition-all">手动排序</button>
+                <button v-else @click="() => { isSortingNodes = false; markDirty(); }" class="text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 text-white transition-all">完成</button>
+                <button @click="showDeleteNodesModal = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
+              </div>
               <button @click="handleAddNode" class="text-sm font-semibold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm">新增</button>
+              <div class="relative md:hidden" v-on:mouseleave="showNodesMoreMenu = false">
+                <button @click="showNodesMoreMenu = !showNodesMoreMenu" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                </button>
+                 <Transition name="slide-fade-sm">
+                  <div v-if="showNodesMoreMenu" class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-10 ring-1 ring-black ring-opacity-5">
+                    <button @click="handleAutoSortNodes(); showNodesMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">一键排序</button>
+                    <button v-if="!isSortingNodes" @click="isSortingNodes = true; showNodesMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">手动排序</button>
+                    <button v-else @click="() => { isSortingNodes = false; markDirty(); showNodesMoreMenu=false; }" class="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700">完成排序</button>
+                    <button @click="showDeleteNodesModal = true; showNodesMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700">清空</button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </div>
           <div v-if="manualNodes.length > 0">
@@ -330,14 +386,24 @@ const paginatedManualNodes = computed(() => {
         <RightPanel :config="config" :profiles="profiles" />
         
         <div>
-          <div class="flex justify-between items-center mb-4">
+           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-3">
               <h2 class="text-xl font-bold text-gray-900 dark:text-white">我的订阅组</h2>
               <span class="px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700/50 rounded-full">{{ profiles.length }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <button @click="showDeleteProfilesModal = true" class="text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
+              <button @click="showDeleteProfilesModal = true" class="hidden md:inline-flex text-sm font-medium px-3 py-1.5 rounded-lg text-red-500 border-2 border-red-500/60 hover:bg-red-500 hover:text-white dark:text-red-400 dark:border-red-400/60 dark:hover:bg-red-400 dark:hover:text-white transition-all">清空</button>
               <button @click="handleAddProfile" class="text-sm font-semibold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm">新增</button>
+              <div class="relative md:hidden" v-on:mouseleave="showProfilesMoreMenu = false">
+                <button @click="showProfilesMoreMenu = !showProfilesMoreMenu" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                </button>
+                 <Transition name="slide-fade-sm">
+                  <div v-if="showProfilesMoreMenu" class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-10 ring-1 ring-black ring-opacity-5">
+                    <button @click="showDeleteProfilesModal = true; showProfilesMoreMenu=false" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700">清空</button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </div>
           <div v-if="profiles.length > 0" class="space-y-4">
@@ -399,5 +465,15 @@ const paginatedManualNodes = computed(() => {
 }
 .cursor-move {
   cursor: move;
+}
+
+.slide-fade-sm-enter-active,
+.slide-fade-sm-leave-active {
+  transition: all 0.2s ease-out;
+}
+.slide-fade-sm-enter-from,
+.slide-fade-sm-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
 }
 </style>

@@ -14,9 +14,13 @@ const getProtocol = (url) => {
   try {
     if (!url) return 'unknown';
     const lowerUrl = url.toLowerCase();
-    if (lowerUrl.startsWith('hy2://') || lowerUrl.startsWith('hysteria2://')) return 'hysteria2';
-    if (lowerUrl.startsWith('ss://')) return 'ss';
+    // [更新] 新增 anytls 支援
+    if (lowerUrl.startsWith('anytls://')) return 'anytls';
+    if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) return 'hysteria2';
+    if (lowerUrl.startsWith('hysteria://') || lowerUrl.startsWith('hy://')) return 'hysteria';
     if (lowerUrl.startsWith('ssr://')) return 'ssr';
+    if (lowerUrl.startsWith('tuic://')) return 'tuic';
+    if (lowerUrl.startsWith('ss://')) return 'ss';
     if (lowerUrl.startsWith('vmess://')) return 'vmess';
     if (lowerUrl.startsWith('vless://')) return 'vless';
     if (lowerUrl.startsWith('trojan://')) return 'trojan';
@@ -32,12 +36,21 @@ const protocol = computed(() => getProtocol(props.node.url));
 const protocolStyle = computed(() => {
   const p = protocol.value;
   switch (p) {
+    // [更新] 新增 anytls 的樣式
+    case 'anytls':
+      return { text: 'AnyTLS', style: 'bg-slate-500/20 text-slate-500 dark:text-slate-400' };
     case 'vless':
       return { text: 'VLESS', style: 'bg-blue-500/20 text-blue-500 dark:text-blue-400' };
     case 'hysteria2':
       return { text: 'HY2', style: 'bg-purple-500/20 text-purple-500 dark:text-purple-400' };
+    case 'hysteria':
+       return { text: 'Hysteria', style: 'bg-fuchsia-500/20 text-fuchsia-500 dark:text-fuchsia-400' };
+    case 'tuic':
+        return { text: 'TUIC', style: 'bg-cyan-500/20 text-cyan-500 dark:text-cyan-400' };
     case 'trojan':
       return { text: 'TROJAN', style: 'bg-red-500/20 text-red-500 dark:text-red-400' };
+    case 'ssr':
+      return { text: 'SSR', style: 'bg-rose-500/20 text-rose-500 dark:text-rose-400' };
     case 'ss':
       return { text: 'SS', style: 'bg-orange-500/20 text-orange-500 dark:text-orange-400' };
     case 'vmess':

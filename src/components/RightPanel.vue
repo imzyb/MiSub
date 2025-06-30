@@ -12,11 +12,9 @@ const { showToast } = useToast();
 const copied = ref(false);
 let copyTimeout = null;
 
-// 恢复客户端格式选择的状态
 const formats = ['自适应', 'Base64', 'Clash', 'Sing-Box', 'Surge', 'Loon'];
 const selectedFormat = ref('自适应');
-// 订阅组选择的状态
-const selectedId = ref('default');
+const selectedId = ref('default'); 
 
 const subLink = computed(() => {
   const token = props.config?.mytoken;
@@ -25,25 +23,26 @@ const subLink = computed(() => {
   const origin = window.location.origin;
   let baseUrl = '';
 
-  // 1. 构建基础路径 (e.g. /sub/your-token/profile-id)
   if (selectedId.value === 'default') {
-    baseUrl = `${origin}/sub/${token}`;
+    baseUrl = `${origin}/${token}`;
   } else {
-    baseUrl = `${origin}/sub/${token}/${selectedId.value}`;
+    baseUrl = `${origin}/${token}/${selectedId.value}`;
   }
 
-  // 2. 如果选择的不是“自适应”，则附加 target 参数
+  // 如果選擇「自適應」，則不添加任何參數
   if (selectedFormat.value === '自适应') {
     return baseUrl;
   }
 
+  // --- [核心修改] 採用新的精簡化 URL 格式 ---
   const targetMapping = {
     'Sing-Box': 'singbox',
     'QuanX': 'quanx',
   };
-  const target = targetMapping[selectedFormat.value] || selectedFormat.value.toLowerCase();
+  const formatKey = (targetMapping[selectedFormat.value] || selectedFormat.value.toLowerCase());
 
-  return `${baseUrl}?target=${target}`;
+  // 將格式直接作為參數鍵，例如：.../ss?clash
+  return `${baseUrl}?${formatKey}`;
 });
 
 const copyToClipboard = () => {
@@ -72,7 +71,7 @@ onUnmounted(() => {
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">1. 选择订阅内容</label>
         <select v-model="selectedId" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white">
             <option value="default">默认订阅 (全部启用节点)</option>
-            <option v-for="profile in profiles" :key="profile.id" :value="profile.id">
+            <option v-for="profile in profiles" :key="profile.id" :value="profile.customId || profile.id">
                 {{ profile.name }}
             </option>
         </select>

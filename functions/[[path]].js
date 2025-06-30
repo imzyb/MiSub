@@ -1,10 +1,8 @@
 import yaml from 'js-yaml';
 
 const OLD_KV_KEY = 'misub_data_v1';
-// --- 全局常量 ---
-// [修改] 将主数据键拆分，为订阅组（profiles）预留空间
 const KV_KEY_SUBS = 'misub_subscriptions_v1';
-const KV_KEY_PROFILES = 'misub_profiles_v1'; // 新增：用于存储订阅组
+const KV_KEY_PROFILES = 'misub_profiles_v1';
 const KV_KEY_SETTINGS = 'worker_settings_v1';
 const COOKIE_NAME = 'auth_session';
 const SESSION_DURATION = 8 * 60 * 60 * 1000;
@@ -12,7 +10,7 @@ const SESSION_DURATION = 8 * 60 * 60 * 1000;
 const defaultSettings = {
   FileName: 'MiSub',
   mytoken: 'auto',
-  subConverter: 'subapi.cmliussss.net',
+  subConverter: 'url.v1.mk',
   subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini',
   prependSubName: true
 };
@@ -178,7 +176,8 @@ async function handleApiRequest(request, env) {
                         } catch {
                             decoded = text;
                         }
-                        const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?):\/\//gm);
+                        // [更新] 支援 ssr, hy, hy2, tuic
+                        const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic):\/\//gm);
                         if (lineMatches) {
                             result.count = lineMatches.length;
                         }
@@ -247,10 +246,10 @@ function prependNodeName(link, prefix) {
   return appendToFragment(link, prefix);
 }
 
-// --- 节点列表生成函数 (无修改) ---
+// --- 节点列表生成函数 ---
 async function generateCombinedNodeList(context, config, userAgent, misubs) {
-    const enabledMisubs = misubs.filter(sub => sub.enabled);
-    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?):\/\//;
+    // [更新] 新增 anytls 支援
+    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls):\/\//;
     let manualNodesContent = '';
     const normalizeVmessLink = (link) => {
         if (!link.startsWith('vmess://')) {
@@ -272,7 +271,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs) {
             return link;
         }
     };
-    const httpSubs = enabledMisubs.filter(sub => {
+    const httpSubs = misubs.filter(sub => {
         if (sub.url.toLowerCase().startsWith('http')) return true;
         manualNodesContent += sub.url + '\n';
         return false;
@@ -336,7 +335,6 @@ async function handleMisubRequest(context) {
     const url = new URL(request.url);
     const userAgentHeader = request.headers.get('User-Agent') || "Unknown";
 
-    // 并行读取所有需要的数据
     const [settingsData, misubsData, profilesData] = await Promise.all([
         env.MISUB_KV.get(KV_KEY_SETTINGS, 'json'),
         env.MISUB_KV.get(KV_KEY_SUBS, 'json'),
@@ -345,43 +343,41 @@ async function handleMisubRequest(context) {
     const settings = settingsData || {};
     const allMisubs = misubsData || [];
     const allProfiles = profilesData || [];
-
     const config = { ...defaultSettings, ...settings };
 
-    // --- [核心修改] 订阅链接解析逻辑 ---
+    // --- [核心修改] 新的 URL 解析邏輯 ---
     let token = '';
-    let profileId = null;
-    const pathSegments = url.pathname.split('/').filter(Boolean); // e.g., ['sub', 'my_token', 'profile_123']
+    let profileIdentifier = null;
+    
+    const pathSegments = url.pathname.replace(/^\/sub\//, '/').split('/').filter(Boolean);
 
-    // 格式: /sub/{token} 或 /sub/{token}/{profileId}
-    if (pathSegments.length > 1 && pathSegments[0] === 'sub') {
-        token = pathSegments[1];
-        if (pathSegments.length > 2) {
-            profileId = pathSegments[2];
+    if (pathSegments.length > 0) {
+        token = pathSegments[0];
+        if (pathSegments.length > 1) {
+            profileIdentifier = pathSegments[1];
         }
     } else {
-         // 兼容旧格式 ?token=...
+        // 從查詢參數中取得 token 作為備用
         token = url.searchParams.get('token');
     }
 
-    // 验证 Token
     if (!token || token !== config.mytoken) {
-        // ... (省略了 callback_token 逻辑，因为它与新功能无关)
         return new Response('Invalid token', { status: 403 });
     }
-    // --- 链接解析结束 ---
+    // --- URL 解析結束 ---
 
     let targetMisubs;
-    let subName = config.FileName; // 默认文件名
+    let subName = config.FileName;
 
-    // 如果有 profileId，则根据 profile 筛选节点
-    if (profileId) {
-        const profile = allProfiles.find(p => p.id === profileId && p.enabled);
-        if (profile) {
-            subName = profile.name; // 使用订阅组的名称作为文件名
+    // 如果有 profileIdentifier，則根據 profile 篩選節點
+    if (profileIdentifier) {
+        // [核心修改] 優先使用 customId 尋找，其次用 id
+        const profile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
+        
+        if (profile && profile.enabled) {
+            subName = profile.name;
             const profileSubIds = new Set(profile.subscriptions);
             const profileNodeIds = new Set(profile.manualNodes);
-
             targetMisubs = allMisubs.filter(item => {
                 return (item.url.startsWith('http') ? profileSubIds.has(item.id) : profileNodeIds.has(item.id));
             });
@@ -389,25 +385,39 @@ async function handleMisubRequest(context) {
             return new Response('Profile not found or disabled', { status: 404 });
         }
     } else {
-        // 如果没有 profileId，则使用所有启用的节点
         targetMisubs = allMisubs.filter(s => s.enabled);
     }
 
+    let targetFormat = url.searchParams.get('target');
 
-    let targetFormat = url.searchParams.get('target') || 'base64';
-    if (!url.searchParams.has('target')) {
+    if (!targetFormat) {
+        // 如果沒有 ?target=... ，則檢查 ?clash, ?singbox 這類參數
+        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64'];
+        for (const format of supportedFormats) {
+            if (url.searchParams.has(format)) {
+                targetFormat = format;
+                break;
+            }
+        }
+    }
+
+    if (!targetFormat) {
+        // 如果還沒有，則透過 User-Agent 嗅探
         const ua = userAgentHeader.toLowerCase();
-        if (ua.includes('clash')) targetFormat = 'clash';
-        if (ua.includes('sing-box')) targetFormat = 'singbox';
+        if (ua.includes('sing-box')) {
+            targetFormat = 'singbox';
+        } else {
+            // 所有其他情況（包括 clash 和未知 UA）都預設為 clash
+            targetFormat = 'clash';
+        }
     }
 
     if (!url.searchParams.has('callback_token')) {
         const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
-        const message = `🚀 *MiSub 訂閱被存取* 🚀\n\n*客戶端 (User-Agent):*\n\`${userAgentHeader}\`\n\n*請求 IP:*\n\`${clientIp}\`\n*請求格式:*\n\`${targetFormat}\`${profileId ? `\n*訂閱組:*\n\`${subName}\`` : ''}`;
+        const message = `🚀 *MiSub 訂閱被存取* 🚀\n\n*客戶端 (User-Agent):*\n\`${userAgentHeader}\`\n\n*請求 IP:*\n\`${clientIp}\`\n*請求格式:*\n\`${targetFormat}\`${profileIdentifier ? `\n*訂閱組:*\n\`${subName}\`` : ''}`;
         context.waitUntil(sendTgNotification(config, message));
     }
 
-    // 将筛选后的列表传递给处理函数
     const combinedNodeList = await generateCombinedNodeList(context, config, userAgentHeader, targetMisubs);
     const base64Content = btoa(unescape(encodeURIComponent(combinedNodeList)));
 
@@ -417,11 +427,11 @@ async function handleMisubRequest(context) {
     }
 
     const callbackToken = await getCallbackToken(env);
-    // [重要修改] 回调 URL 现在也需要包含 profileId (如果存在)
-    const callbackPath = profileId ? `/sub/${token}/${profileId}` : `/sub/${token}`;
+    
+    // [核心修改] 回調 URL 現在使用新的短路徑
+    const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
     const callbackUrl = `${url.protocol}//${url.host}${callbackPath}?target=base64&callback_token=${callbackToken}`;
     
-    // 如果是 subconverter 的回调请求，直接返回 base64 内容
     if (url.searchParams.get('callback_token') === callbackToken) {
          const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
         return new Response(base64Content, { headers });
@@ -438,31 +448,67 @@ async function handleMisubRequest(context) {
             method: 'GET',
             headers: { 'User-Agent': 'Mozilla/5.0' },
         });
+
         if (!subconverterResponse.ok) {
             const errorBody = await subconverterResponse.text();
             throw new Error(`Subconverter service returned status: ${subconverterResponse.status}. Body: ${errorBody}`);
         }
-        let originalText = await subconverterResponse.text();
-        const correctedText = originalText
-            .replace(/^Proxy:/m, 'proxies:')
-            .replace(/^Proxy Group:/m, 'proxy-groups:')
-            .replace(/^Rule:/m, 'rules:');
+
+        const originalText = await subconverterResponse.text();
+        let correctedText;
+
+        // --- [核心修改] 使用 YAML 解析和序列化來淨化設定檔 ---
+        try {
+            // 1. 將從 subconverter 收到的文字載入為 JS 物件
+            const parsedYaml = yaml.load(originalText);
+
+            // 2. （可選）在這裡可以對物件進行更細微的修正，但通常 js-yaml 已處理好相容性
+            // 例如，手動修正關鍵字大小寫
+            const keyMappings = {
+                'Proxy': 'proxies',
+                'Proxy Group': 'proxy-groups',
+                'Rule': 'rules'
+            };
+            for (const oldKey in keyMappings) {
+                if (parsedYaml[oldKey]) {
+                    const newKey = keyMappings[oldKey];
+                    parsedYaml[newKey] = parsedYaml[oldKey];
+                    delete parsedYaml[oldKey];
+                }
+            }
+            
+            // 3. 將乾淨的 JS 物件重新序列化為標準格式的 YAML 字串
+            correctedText = yaml.dump(parsedYaml, {
+                indent: 2,          // 標準縮排
+                noArrayIndent: true // 陣列格式更美觀
+            });
+
+        } catch (e) {
+            console.error("YAML parsing/dumping failed, falling back to original text.", e);
+            // 如果解析失敗（極端情況），則退回使用原始的文字和替換邏輯，確保服務不中斷
+            correctedText = originalText
+                .replace(/^Proxy:/m, 'proxies:')
+                .replace(/^Proxy Group:/m, 'proxy-groups:')
+                .replace(/^Rule:/m, 'rules:');
+        }
+        // --- 修改結束 ---
+        
         const responseHeaders = new Headers(subconverterResponse.headers);
-        // [重要修改] 文件名现在是动态的 (订阅组名或默认名)
         responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
         responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
         responseHeaders.set('Cache-Control', 'no-store, no-cache');
+        
         return new Response(correctedText, {
             status: subconverterResponse.status,
             statusText: subconverterResponse.statusText,
             headers: responseHeaders
         });
+
     } catch (error) {
         console.error(`[MiSub Final Error] ${error.message}`);
         return new Response(`Error connecting to subconverter: ${error.message}`, { status: 502 });
     }
 }
-
 
 // --- 回调Token辅助函数 (无修改) ---
 async function getCallbackToken(env) {
@@ -479,23 +525,21 @@ async function getCallbackToken(env) {
 export async function onRequest(context) {
     const { request, env, next } = context;
     const url = new URL(request.url);
-    try {
-        if (url.pathname.startsWith('/api/')) {
-            return handleApiRequest(request, env);
-        }
-        if (url.pathname.startsWith('/sub/')) {
-            return handleMisubRequest(context);
-        }
-        if (url.pathname !== '/' && !url.pathname.includes('.') && !url.pathname.startsWith('/assets')) {
-            const newPath = `/sub${url.pathname}`;
-            const newUrl = new URL(newPath + url.search, url.origin);
-            const newRequest = new Request(newUrl, request);
-            const newContext = { ...context, request: newRequest };
-            return handleMisubRequest(newContext);
-        }
-        return next();
-    } catch (e) {
-        console.error("Critical error in onRequest:", e);
-        return new Response("Internal Server Error", { status: 500 });
+
+    // 1. 優先處理 API 請求
+    if (url.pathname.startsWith('/api/')) {
+        return handleApiRequest(request, env);
     }
+
+    // 2. 檢查是否為靜態資源請求 (vite 在開發模式下會用 /@vite/ 等路徑)
+    // 生产环境中，静态资源通常有 .js, .css, .ico 等扩展名
+    const isStaticAsset = /^\/(assets|@vite|src)\//.test(url.pathname) || /\.\w+$/.test(url.pathname);
+
+    // 3. 如果不是 API 也不是靜態資源，則視為訂閱請求
+    if (!isStaticAsset && url.pathname !== '/') {
+        return handleMisubRequest(context);
+    }
+    
+    // 4. 其他情況 (如首頁 /) 交由 Pages 預設處理
+    return next();
 }
