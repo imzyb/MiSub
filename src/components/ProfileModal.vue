@@ -118,7 +118,7 @@ const handleDeselectAll = (listName) => {
                     <button @click="handleDeselectAll('subscriptions')" class="text-xs text-indigo-600 hover:underline">全不选</button>
                 </div>
               </div>
-              <div class="max-h-32 overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700">
+              <div class="overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700">
                 <div v-for="sub in allSubscriptions" :key="sub.id">
                   <label class="flex items-center space-x-3 cursor-pointer">
                     <input
@@ -144,7 +144,7 @@ const handleDeselectAll = (listName) => {
                     <button @click="handleDeselectAll('manualNodes')" class="text-xs text-indigo-600 hover:underline">全不选</button>
                 </div>
               </div>
-               <div class="max-h-64 overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700">
+               <div class="overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700">
                 <div v-for="node in allManualNodes" :key="node.id">
                   <label class="flex items-center space-x-3 cursor-pointer">
                     <input

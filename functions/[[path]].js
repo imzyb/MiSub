@@ -508,10 +508,7 @@ async function handleMisubRequest(context) {
     let effectiveSubConfig;
 
     if (profileIdentifier) {
-        // [修正] 使用 config 變量
-        if (config.profileToken === 'profiles') {
-            return new Response('For security reasons, you must set a custom Profile Token in the settings before sharing profiles.', { status: 403 });
-        }
+
         // [修正] 使用 config 變量
         if (!token || token !== config.profileToken) {
             return new Response('Invalid Profile Token', { status: 403 });
@@ -521,9 +518,12 @@ async function handleMisubRequest(context) {
             subName = profile.name;
             const profileSubIds = new Set(profile.subscriptions);
             const profileNodeIds = new Set(profile.manualNodes);
-            targetMisubs = allMisubs.filter(item => (item.url.startsWith('http') ? profileSubIds.has(item.id) : profileNodeIds.has(item.id)));
-            
-            // [修正] 使用 config 變量作為回退
+            targetMisubs = allMisubs.filter(item => {
+                if (item.url.startsWith('http')) {
+                    return item.enabled && profileSubIds.has(item.id);
+                }
+                return item.enabled && profileNodeIds.has(item.id);    
+            });
             effectiveSubConverter = profile.subConverter && profile.subConverter.trim() !== '' ? profile.subConverter : config.subConverter;
             effectiveSubConfig = profile.subConfig && profile.subConfig.trim() !== '' ? profile.subConfig : config.subConfig;
         } else {
@@ -543,8 +543,6 @@ async function handleMisubRequest(context) {
     if (!effectiveSubConverter || effectiveSubConverter.trim() === '') {
         return new Response('Subconverter backend is not configured.', { status: 500 });
     }
-
-    // --- 後續所有邏輯保持不變 ---
     
     let targetFormat = url.searchParams.get('target');
     if (!targetFormat) {
@@ -612,7 +610,7 @@ async function handleMisubRequest(context) {
     const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
     subconverterUrl.searchParams.set('target', targetFormat);
     subconverterUrl.searchParams.set('url', callbackUrl);
-    if (effectiveSubConfig && effectiveSubConfig.trim() !== '') {
+    if (targetFormat === 'clash' && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
     }
     subconverterUrl.searchParams.set('new_name', 'true');
