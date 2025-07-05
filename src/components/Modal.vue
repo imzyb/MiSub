@@ -36,7 +36,6 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
     <div
       v-if="show"
       class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99] flex items-center justify-center p-4"
-      @click="emit('update:show', false)"
     >
       <Transition name="modal-inner">
         <div
