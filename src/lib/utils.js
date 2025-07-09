@@ -178,19 +178,28 @@ export function parseVlessLink(url) {
 
 /** 生成唯一key */
 export function getNodeUniqueKey(node) {
-  if (!node || !node.url) return '';
-  if (node.url.startsWith('vless://')) {
+  if (!node) return '';
+  let protocol = '', name = '', type = '', sni = '', security = '';
+
+  // 先从 node 属性取
+  protocol = node.protocol || '';
+  name = node.name || '';
+  type = node.type || '';
+  sni = node.sni || '';
+  security = node.security || '';
+
+  // 如果 url 存在且是 vless，补全字段
+  if (node.url && node.url.startsWith('vless://')) {
     const parsed = parseVlessLink(node.url);
-    if (!parsed) return node.url;
-    return [
-      parsed.protocol,
-      parsed.uuid,
-      parsed.type,
-      parsed.host,
-      parsed.security,
-      parsed.sni,
-    ].join('|');
+    if (parsed) {
+      protocol = protocol || parsed.protocol;
+      name = name || parsed.name;
+      type = type || parsed.type;
+      sni = sni || parsed.sni;
+      security = security || parsed.security;
+    }
   }
-  // 其他协议可补充
-  return node.url;
+
+  // 拼接唯一key
+  return [protocol, name, type, sni, security].join('|');
 }
