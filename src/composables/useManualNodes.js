@@ -1,5 +1,6 @@
 // FILE: src/composables/useManualNodes.js
 import { ref, computed, watch } from 'vue';
+import { getNodeUniqueKey } from '../lib/utils.js';
 
 export function useManualNodes(initialNodesRef, markDirty) {
   const manualNodes = ref([]);
@@ -119,7 +120,13 @@ export function useManualNodes(initialNodesRef, markDirty) {
   }  
 
   function addNode(node) {
-    manualNodes.value.unshift(node);
+    const key = getNodeUniqueKey(node);
+    const idx = manualNodes.value.findIndex(n => getNodeUniqueKey(n) === key);
+    if (idx !== -1) {
+      manualNodes.value[idx] = { ...node, id: manualNodes.value[idx].id }; // 保持原id
+    } else {
+      manualNodes.value.unshift(node);
+    }
     manualNodesCurrentPage.value = 1;
     markDirty();
   }
@@ -147,7 +154,16 @@ export function useManualNodes(initialNodesRef, markDirty) {
   }
 
   function addNodesFromBulk(nodes) {
-    manualNodes.value.unshift(...nodes);
+    const nodeMap = new Map();
+    // 先放入已有节点
+    for (const n of manualNodes.value) {
+      nodeMap.set(getNodeUniqueKey(n), n);
+    }
+    // 用新节点覆盖
+    for (const n of nodes) {
+      nodeMap.set(getNodeUniqueKey(n), n);
+    }
+    manualNodes.value = Array.from(nodeMap.values());
     markDirty();
   }
   

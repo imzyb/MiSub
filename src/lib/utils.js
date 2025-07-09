@@ -147,3 +147,50 @@ export function extractHostAndPort(url) {
         return { host: '', port: '' };
     }
 }
+
+/**
+ * 解析 VLESS 链接
+ * @param {string} url - VLESS 链接
+ * @returns {Object|null} - 解析结果，包含协议、UUID、主机、端口、查询参数和名称
+ */
+export function parseVlessLink(url) {
+  const regex = /^(\w+):\/\/([a-f0-9-]+)@([^:]+):(\d+)\?(.*?)#(.+)$/i;
+  const match = url.match(regex);
+  if (!match) return null;
+  const [, protocol, uuid, host, port, query, name] = match;
+  const params = Object.fromEntries(
+    query.split('&').map(kv => {
+      const [k, v] = kv.split('=');
+      return [k, decodeURIComponent(v)];
+    })
+  );
+  return {
+    protocol,
+    uuid,
+    host,
+    port,
+    type: params.type,
+    security: params.security,
+    sni: params.sni,
+    name,
+  };
+}
+
+/** 生成唯一key */
+export function getNodeUniqueKey(node) {
+  if (!node || !node.url) return '';
+  if (node.url.startsWith('vless://')) {
+    const parsed = parseVlessLink(node.url);
+    if (!parsed) return node.url;
+    return [
+      parsed.protocol,
+      parsed.uuid,
+      parsed.type,
+      parsed.host,
+      parsed.security,
+      parsed.sni,
+    ].join('|');
+  }
+  // 其他协议可补充
+  return node.url;
+}
