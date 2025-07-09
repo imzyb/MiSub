@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import draggable from 'vuedraggable';
 import { saveMisubs } from '../lib/api.js';
-import { extractNodeName } from '../lib/utils.js';
+import { extractNodeName, parseVlessLink } from '../lib/utils.js'; // 确保已导入
 import { useToastStore } from '../stores/toast.js';
 import { useUIStore } from '../stores/ui.js';
 import { useSubscriptions } from '../composables/useSubscriptions.js';
@@ -253,10 +253,21 @@ const handleNodeUrlInput = (event) => {
 };
 const handleSaveNode = () => {
     if (!editingNode.value || !editingNode.value.url) { showToast('节点链接不能为空', 'error'); return; }
+    // 自动补全字段
+    let node = { ...editingNode.value };
+    if (node.url.startsWith('vless://')) {
+        const parsed = parseVlessLink(node.url);
+        if (parsed) {
+            node.protocol = parsed.protocol;
+            node.type = parsed.type;
+            node.sni = parsed.sni;
+            node.security = parsed.security;
+        }
+    }
     if (isNewNode.value) {
-        addNode(editingNode.value);
+        addNode(node);
     } else {
-        updateNode(editingNode.value);
+        updateNode(node);
     }
     showNodeModal.value = false;
 };
