@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import draggable from 'vuedraggable';
 import { saveMisubs } from '../lib/api.js';
-import { extractNodeName, parseVlessLink } from '../lib/utils.js'; // 确保已导入
+import { extractNodeName, getNodeUniqueKey, parseVlessLink } from '../lib/utils.js'; // 确保已导入
 import { useToastStore } from '../stores/toast.js';
 import { useUIStore } from '../stores/ui.js';
 import { useSubscriptions } from '../composables/useSubscriptions.js';
@@ -252,24 +252,36 @@ const handleNodeUrlInput = (event) => {
   }
 };
 const handleSaveNode = () => {
-    if (!editingNode.value || !editingNode.value.url) { showToast('节点链接不能为空', 'error'); return; }
-    // 自动补全字段
-    let node = { ...editingNode.value };
-    if (node.url.startsWith('vless://')) {
-        const parsed = parseVlessLink(node.url);
-        if (parsed) {
-            node.protocol = parsed.protocol;
-            node.type = parsed.type;
-            node.sni = parsed.sni;
-            node.security = parsed.security;
-        }
+  if (!editingNode.value || !editingNode.value.url) {
+    showToast('节点链接不能为空', 'error');
+    return;
+  }
+  // 自动补全字段
+  let node = { ...editingNode.value };
+  if (node.url.startsWith('vless://')) {
+    const parsed = parseVlessLink(node.url);
+    if (parsed) {
+      node.protocol = parsed.protocol;
+      node.type = parsed.type;
+      node.sni = parsed.sni;
+      node.security = parsed.security;
     }
-    if (isNewNode.value) {
-        addNode(node);
-    } else {
-        updateNode(node);
-    }
-    showNodeModal.value = false;
+  }
+  // 查找是否有重复节点
+  const key = getNodeUniqueKey(node);
+  const existIdx = manualNodes.value.findIndex(n => getNodeUniqueKey(n) === key);
+
+  if (existIdx !== -1) {
+    // 替换（保留原 id）
+    node.id = manualNodes.value[existIdx].id;
+    updateNode(node);
+    showToast('已替换重复节点', 'success');
+  } else {
+    // 新增
+    addNode({ ...node, id: crypto.randomUUID() });
+    showToast('已添加新节点', 'success');
+  }
+  showNodeModal.value = false;
 };
 const handleProfileToggle = (updatedProfile) => {
     const index = profiles.value.findIndex(p => p.id === updatedProfile.id);
@@ -573,42 +585,37 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
           <div v-else class="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
             <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">没有订阅组</h3>
-            <p class="mt-1 text-sm text-gray-500">创建一个订阅组来组合你的节点吧！</p>
+            <p class="mt-1 text-sm text-gray-500">创建一个新的订阅组来管理你的订阅和节点。</p>
           </div>
         </div>
-
       </div>
+      
+      <!-- 模态框和设置 -->
+      <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile" :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="2xl" />
+  
+      <Modal v-if="editingNode" v-model:show="showNodeModal" @confirm="handleSaveNode">
+        <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewNode ? '新增手动节点' : '编辑手动节点' }}</h3></template>
+        <template #body>
+          <div class="space-y-4">
+            <div><label for="node-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点名称</label><input type="text" id="node-name" v-model="editingNode.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
+            <div><label for="node-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点链接</label><textarea id="node-url" v-model="editingNode.url" @input="handleNodeUrlInput" rows="4" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></textarea></div>
+          </div>
+        </template>
+      </Modal>
+
+      <Modal v-if="editingSubscription" v-model:show="showSubModal" @confirm="handleSaveSubscription">
+        <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewSubscription ? '新增订阅' : '编辑订阅' }}</h3></template>
+        <template #body>
+          <div class="space-y-4">
+            <div><label for="sub-edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅名称</label><input type="text" id="sub-edit-name" v-model="editingSubscription.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
+            <div><label for="sub-edit-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅链接</label><input type="text" id="sub-edit-url" v-model="editingSubscription.url" placeholder="https://..." class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></div>
+          </div>
+        </template>
+      </Modal>
+  
+      <SettingsModal v-model:show="uiStore.isSettingsModalVisible" />
     </div>
   </div>
-
-  <BulkImportModal v-model:show="showBulkImportModal" @import="handleBulkImport" />
-  <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup"><template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅**吗？此操作将标记为待保存，不会影响手动节点。</p></template></Modal>
-  <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup"><template #title><h3 class="text-lg font-bold text-red-500">确认清空节点</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**手动节点**吗？此操作将标记为待保存，不会影响订阅。</p></template></Modal>
-  <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles"><template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅组**吗？此操作不可逆。</p></template></Modal>
-  
-  <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile" :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="2xl" />
-  
-  <Modal v-if="editingNode" v-model:show="showNodeModal" @confirm="handleSaveNode">
-    <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewNode ? '新增手动节点' : '编辑手动节点' }}</h3></template>
-    <template #body>
-      <div class="space-y-4">
-        <div><label for="node-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点名称</label><input type="text" id="node-name" v-model="editingNode.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
-        <div><label for="node-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点链接</label><textarea id="node-url" v-model="editingNode.url" @input="handleNodeUrlInput" rows="4" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></textarea></div>
-      </div>
-    </template>
-  </Modal>
-
-  <Modal v-if="editingSubscription" v-model:show="showSubModal" @confirm="handleSaveSubscription">
-    <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewSubscription ? '新增订阅' : '编辑订阅' }}</h3></template>
-    <template #body>
-      <div class="space-y-4">
-        <div><label for="sub-edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅名称</label><input type="text" id="sub-edit-name" v-model="editingSubscription.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
-        <div><label for="sub-edit-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅链接</label><input type="text" id="sub-edit-url" v-model="editingSubscription.url" placeholder="https://..." class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></div>
-      </div>
-    </template>
-  </Modal>
-  
-  <SettingsModal v-model:show="uiStore.isSettingsModalVisible" />
 </template>
 
 <style scoped>

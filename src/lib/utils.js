@@ -176,30 +176,90 @@ export function parseVlessLink(url) {
   };
 }
 
-/** 生成唯一key */
-export function getNodeUniqueKey(node) {
-  if (!node) return '';
-  let protocol = '', name = '', type = '', sni = '', security = '';
+// 解析 vmess 链接
+export function parseVmessLink(url) {
+  try {
+    if (!url.startsWith('vmess://')) return null;
+    const jsonStr = atob(url.slice(8));
+    const obj = JSON.parse(jsonStr);
+    return {
+      protocol: 'vmess',
+      id: obj.id,
+      host: obj.add,
+      port: obj.port,
+      tls: obj.tls,
+      sni: obj.sni,
+    };
+  } catch {
+    return null;
+  }
+}
 
-  // 先从 node 属性取
-  protocol = node.protocol || '';
-  name = node.name || '';
-  type = node.type || '';
-  sni = node.sni || '';
-  security = node.security || '';
+// 解析 trojan 链接
+export function parseTrojanLink(url) {
+  const regex = /^trojan:\/\/([^@]+)@([^:]+):(\d+)\?(.*?)#?/i;
+  const match = url.match(regex);
+  if (!match) return null;
+  const [, password, host, port, query] = match;
+  const params = Object.fromEntries(query.split('&').map(kv => kv.split('=')));
+  return {
+    protocol: 'trojan',
+    password,
+    host,
+    port,
+    security: params.security,
+    sni: params.sni,
+  };
+}
 
-  // 如果 url 存在且是 vless，补全字段
-  if (node.url && node.url.startsWith('vless://')) {
-    const parsed = parseVlessLink(node.url);
-    if (parsed) {
-      protocol = protocol || parsed.protocol;
-      name = name || parsed.name;
-      type = type || parsed.type;
-      sni = sni || parsed.sni;
-      security = security || parsed.security;
+// 解析 ss 链接（简化版）
+export function parseSSLink(url) {
+  // 只处理 ss://base64 或 ss://method:password@host:port
+  let main = url.replace(/^ss:\/\//, '');
+  if (main.includes('@')) {
+    // method:password@host:port
+    const [userinfo, hostport] = main.split('@');
+    const [method, password] = userinfo.split(':');
+    const [host, port] = hostport.split(':');
+    return { protocol: 'ss', method, password, host, port };
+  } else {
+    // base64
+    try {
+      const decoded = atob(main.split('#')[0]);
+      const [userinfo, hostport] = decoded.split('@');
+      const [method, password] = userinfo.split(':');
+      const [host, port] = hostport.split(':');
+      return { protocol: 'ss', method, password, host, port };
+    } catch {
+      return null;
     }
   }
+}
 
-  // 拼接唯一key
-  return [protocol, name, type, sni, security].join('|');
+// 解析 hysteria2、tuic 可仿照上面写
+
+// 通用唯一key生成
+export function getNodeUniqueKey(node) {
+  let parsed = null;
+  if (node.url) {
+    if (node.url.startsWith('vless://')) {
+      parsed = parseVlessLink(node.url);
+      if (parsed) return ['vless', parsed.uuid, parsed.type, parsed.host, parsed.security, parsed.sni].join('|');
+    }
+    if (node.url.startsWith('vmess://')) {
+      parsed = parseVmessLink(node.url);
+      if (parsed) return ['vmess', parsed.id, parsed.host, parsed.port, parsed.tls, parsed.sni].join('|');
+    }
+    if (node.url.startsWith('trojan://')) {
+      parsed = parseTrojanLink(node.url);
+      if (parsed) return ['trojan', parsed.password, parsed.host, parsed.port, parsed.security, parsed.sni].join('|');
+    }
+    if (node.url.startsWith('ss://')) {
+      parsed = parseSSLink(node.url);
+      if (parsed) return ['ss', parsed.method, parsed.password, parsed.host, parsed.port].join('|');
+    }
+    // hysteria2、tuic等协议可继续补充
+  }
+  // fallback: 用协议+host+port
+  return [node.protocol, node.host, node.port].join('|');
 }
