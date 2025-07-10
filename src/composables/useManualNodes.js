@@ -159,8 +159,9 @@ export function useManualNodes(initialNodesRef, markDirty) {
     const uniqueNodes = [];
 
     for (const node of manualNodes.value) {
-      if (!seenUrls.has(node.url)) {
-        seenUrls.add(node.url);
+      const normalizedUrl = node.url ? node.url.split('#')[0] : '';
+      if (normalizedUrl && !seenUrls.has(normalizedUrl)) {
+        seenUrls.add(normalizedUrl);
         uniqueNodes.push(node);
       }
     }
