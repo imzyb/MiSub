@@ -47,9 +47,17 @@ export function extractNodeName(url) {
             case 'ss':
                 const atIndexSS = mainPart.indexOf('@');
                 if (atIndexSS !== -1) return mainPart.substring(atIndexSS + 1).split(':')[0] || '';
-                const decodedSS = atob(mainPart);
-                const ssDecodedAtIndex = decodedSS.indexOf('@');
-                if (ssDecodedAtIndex !== -1) return decodedSS.substring(ssDecodedAtIndex + 1).split(':')[0] || '';
+                // If no @, try to decode as Base64, but only if it looks like Base64
+                const isBase64SS = /^[A-Za-z0-9+/=]+$/.test(mainPart);
+                if (isBase64SS) {
+                    try {
+                        const decodedSS = atob(mainPart);
+                        const ssDecodedAtIndex = decodedSS.indexOf('@');
+                        if (ssDecodedAtIndex !== -1) return decodedSS.substring(ssDecodedAtIndex + 1).split(':')[0] || '';
+                    } catch (e) {
+                        console.error("Failed to decode SS link (atob error):", e);
+                    }
+                }
                 return '';
             default:
                 if(url.startsWith('http')) return new URL(url).hostname;
@@ -109,31 +117,49 @@ export function extractHostAndPort(url) {
         // --- VMESS 专用处理逻辑 ---
         if (protocol === 'vmess') {
             try {
-                // 移除可能存在的查询参数
                 const queryIndexVmess = mainPart.indexOf('?');
                 const base64Part = queryIndexVmess !== -1 ? mainPart.substring(0, queryIndexVmess) : mainPart;
 
-                // 解码并解析 JSON
+                // Add a check if base64Part looks like Base64
+                const isBase64 = /^[A-Za-z0-9+/=]+$/.test(base64Part);
+                if (!isBase64) {
+                    // If not Base64, it's a malformed vmess link.
+                    // Try to extract host/port directly if it's in host:port format.
+                    const parts = base64Part.split(':');
+                    if (parts.length === 2) {
+                        return { host: parts[0], port: parts[1] };
+                    }
+                    return { host: '', port: '' }; // Cannot parse
+                }
+
                 const decodedString = atob(base64Part);
                 const nodeConfig = JSON.parse(decodedString);
 
                 const host = nodeConfig.add || '';
-                // 确保端口是字符串格式
                 const port = nodeConfig.port ? String(nodeConfig.port) : '';
                 return { host, port };
             } catch (e) {
-                console.error("Failed to decode VMess URL:", url, e);
-                // 解码失败时的回退显示（与截图中看到的一致）
-                return { host: mainPart.substring(0, 30) + '...', port: 'N/A' }; 
+                console.error("Failed to decode VMess URL (atob or JSON parse error):", url, e);
+                // Fallback for malformed vmess links that are not Base64 JSON
+                const parts = mainPart.split(':');
+                if (parts.length === 2) {
+                    return { host: parts[0], port: parts[1] };
+                }
+                return { host: '', port: '' };
             }
         }
 
         // --- SS/SSR Base64 处理 ---
         if (protocol === 'ss' || protocol === 'ssr') {
-             if (mainPart.indexOf('@') === -1) {
+             // Only attempt atob if it looks like a Base64 string
+             const isBase64SS = /^[A-Za-z0-9+/=]+$/.test(mainPart);
+             if (mainPart.indexOf('@') === -1 && isBase64SS) {
                 try {
                     mainPart = atob(mainPart);
-                } catch(e) { /* 不是有效的 Base64，按原样处理 */ }
+                } catch(e) { 
+                    console.error("Failed to decode SS/SSR link (atob error):", e);
+                    /* 不是有效的 Base64，按原样处理 */ 
+                }
              }
         }
         
