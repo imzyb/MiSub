@@ -355,6 +355,7 @@ async function handleApiRequest(request, env) {
                     const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
                     const nodeCountRequest = fetch(new Request(subUrl, fetchOptions));
 
+                    // --- [核心修正] 使用 Promise.allSettled 替换 Promise.all ---
                     const responses = await Promise.allSettled([trafficRequest, nodeCountRequest]);
 
                     // 1. 处理流量请求的结果
@@ -376,61 +377,18 @@ async function handleApiRequest(request, env) {
                     // 2. 处理节点数请求的结果
                     if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
                         const nodeCountResponse = responses[1].value;
-                        const contentType = nodeCountResponse.headers.get('Content-Type') || '';
                         const text = await nodeCountResponse.text();
-
-                        let nodes = [];
-                        const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm;
-
-                        // Try YAML parsing first if content type suggests it or if it looks like YAML
-                        if (contentType.includes('yaml') || contentType.includes('json') || text.includes('proxies:') || text.includes('proxy-providers:')) {
-                            try {
-                                const parsedYaml = yaml.load(text);
-                                if (parsedYaml && typeof parsedYaml === 'object') {
-                                    let potentialProxies = [];
-
-                                    if (parsedYaml.proxies && Array.isArray(parsedYaml.proxies)) {
-                                        potentialProxies = parsedYaml.proxies;
-                                    } else if (parsedYaml['proxy-providers'] && typeof parsedYaml['proxy-providers'] === 'object') {
-                                        for (const providerName in parsedYaml['proxy-providers']) {
-                                            const provider = parsedYaml['proxy-providers'][providerName];
-                                            if (provider.proxies && Array.isArray(provider.proxies)) {
-                                                potentialProxies.push(...provider.proxies);
-                                            }
-                                        }
-                                    } else if (Array.isArray(parsedYaml)) {
-                                        potentialProxies = parsedYaml;
-                                    }
-
-                                    nodes = potentialProxies.filter(proxy => typeof proxy === 'object' && proxy.name && proxy.type);
-                                }
-                            } catch (e) {
-                                console.warn(`Failed to parse YAML/JSON for ${subUrl}:`, e);
-                                // Fallback to other parsing methods if YAML/JSON parsing fails
-                            }
+                        let decoded = '';
+                        try { decoded = atob(text.replace(/\s/g, '')); } catch { decoded = text; }
+                        const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls):\/\//gm);
+                        if (lineMatches) {
+                            result.count = lineMatches.length;
                         }
-
-                        // If no nodes found from YAML/JSON, try Base64 and plain text
-                        if (nodes.length === 0) {
-                            let decoded = '';
-                            try {
-                                decoded = atob(text.replace(/\s/g, ''));
-                            } catch {
-                                decoded = text;
-                            }
-                            const matches = decoded.match(nodeRegex);
-                            if (matches) {
-                                nodes = matches; // Use the matched links as nodes
-                            }
-                        }
-
-                        result.count = nodes.length;
-
                     } else if (responses[1].status === 'rejected') {
                         console.error(`Node count request for ${subUrl} rejected:`, responses[1].reason);
                     }
-
-                    // Only update KV if at least one valid info is obtained
+                    
+                    // 只有在至少获取到一个有效信息时，才更新数据库
                     if (result.userInfo || result.count > 0) {
                         const allSubs = await env.MISUB_KV.get(KV_KEY_SUBS, 'json') || [];
                         const subToUpdate = allSubs.find(s => s.url === subUrl);
@@ -441,11 +399,11 @@ async function handleApiRequest(request, env) {
                             await env.MISUB_KV.put(KV_KEY_SUBS, JSON.stringify(allSubs));
                         }
                     }
-
+                    
                 } catch (e) {
                     console.error(`[API Error /node_count] Unhandled exception for URL: ${subUrl}`, e);
                 }
-
+                
                 return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
             }
 
