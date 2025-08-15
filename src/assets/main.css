@@ -1,19 +1,44 @@
-/* 确保根元素充满整个视口高度 */
-html, body, #app {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: #F9FAFB; /* 浅色模式下的默认背景色 */
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-/* 暗黑模式下的背景色 */
-html.dark, html.dark body, html.dark #app {
+@layer base {
+  /* 确保根元素充满整个视口高度 */
+  html,
+  body,
+  #app {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #f9fafb; /* 浅色模式下的默认背景色 */
+  }
+
+  /* 暗黑模式下的背景色 */
+  html.dark,
+  html.dark body,
+  html.dark #app {
     background-color: #030712; /* 深灰色 */
+  }
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 /* 全局字体渲染优化 */
 body {

@@ -37,7 +37,7 @@ onMounted(() => {
     <Header :is-logged-in="sessionState === 'loggedIn'" @logout="logout" />
 
     <main 
-      class="flex-grow"
+      class="grow"
       :class="{
         'flex items-center justify-center': sessionState !== 'loggedIn' && sessionState !== 'loading',
         'overflow-y-auto': sessionState === 'loggedIn' || sessionState === 'loading'
