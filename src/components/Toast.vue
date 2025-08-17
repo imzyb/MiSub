@@ -19,7 +19,7 @@ watch(() => toast.id, () => {
   <Transition name="toast">
     <div
       v-if="isVisible"
-      class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-lg shadow-lg text-white font-semibold text-sm"
+      class="fixed top-5 left-1/2 -translate-x-1/2 z-100 px-5 py-3 rounded-lg shadow-lg text-white font-semibold text-sm"
       :class="{
         'bg-green-500': toast.type === 'success',
         'bg-red-500': toast.type === 'error',

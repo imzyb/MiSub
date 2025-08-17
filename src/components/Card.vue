@@ -78,13 +78,13 @@ const expiryInfo = computed(() => {
 
 <template>
   <div 
-    class="group bg-white dark:bg-gray-900/60 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-2xl ring-1 ring-black/5 p-4 transition-all duration-300 hover:-translate-y-0.5 flex flex-col h-full min-h-[175px]"
+    class="group bg-white dark:bg-gray-900/60 backdrop-blur-xs rounded-2xl shadow-lg dark:shadow-2xl ring-1 ring-black/5 p-4 transition-all duration-300 hover:-translate-y-0.5 flex flex-col h-full min-h-[175px]"
     :class="{ 'opacity-50': !misub.enabled, 'ring-indigo-500/50': misub.isNew }"
   >
     <div class="flex items-start justify-between gap-3">
       <div class="w-full truncate">
         <div class="flex items-center gap-2 mb-1">
-          <div class="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0" :class="protocolStyle.style">
+          <div class="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" :class="protocolStyle.style">
             {{ protocolStyle.text }}
           </div>
         </div>
@@ -93,17 +93,17 @@ const expiryInfo = computed(() => {
         </p>
       </div>
       
-      <div class="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      <div class="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button @click="emit('edit')" class="p-1.5 rounded-full hover:bg-gray-500/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="编辑"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg></button>
           <button @click="emit('delete')" class="p-1.5 rounded-full hover:bg-red-500/10 text-gray-400 hover:text-red-500" title="删除"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
       </div>
     </div>
     
-    <div class="mt-2 flex-grow flex flex-col justify-center space-y-2">
-      <input type="text" :value="misub.url" readonly class="w-full text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 rounded-lg px-3 py-2 focus:outline-none font-mono" />
+    <div class="mt-2 grow flex flex-col justify-center space-y-2">
+      <input type="text" :value="misub.url" readonly class="w-full text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 rounded-lg px-3 py-2 focus:outline-hidden font-mono" />
       <div v-if="trafficInfo" class="space-y-1 pt-1">
         <div class="flex justify-between text-xs font-mono"><span class="text-gray-600 dark:text-gray-400">{{ trafficInfo.used }}</span><span class="text-gray-600 dark:text-gray-400">{{ trafficInfo.total }}</span></div>
-        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5"><div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-1.5 rounded-full" :style="{ width: trafficInfo.percentage + '%' }"></div></div>
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5"><div class="bg-linear-to-r from-blue-500 to-indigo-600 h-1.5 rounded-full" :style="{ width: trafficInfo.percentage + '%' }"></div></div>
       </div>
     </div>
 
@@ -111,7 +111,7 @@ const expiryInfo = computed(() => {
         <div class="flex items-center gap-2">
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" v-model="misub.enabled" @change="emit('change')" class="sr-only peer">
-            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
           </label>
           <span v-if="expiryInfo" class="text-xs font-medium" :class="expiryInfo.style">{{ expiryInfo.daysRemaining }}</span>
         </div>

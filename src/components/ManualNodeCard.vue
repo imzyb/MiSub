@@ -68,12 +68,12 @@ const protocolStyle = computed(() => {
 
 <template>
   <div 
-    class="group bg-white/50 dark:bg-gray-900/60 backdrop-blur-sm rounded-xl shadow-lg dark:shadow-2xl ring-1 ring-black/5 p-3 transition-all duration-300 hover:-translate-y-0.5 relative flex items-center justify-between gap-3"
+    class="group bg-white/50 dark:bg-gray-900/60 backdrop-blur-xs rounded-xl shadow-lg dark:shadow-2xl ring-1 ring-black/5 p-3 transition-all duration-300 hover:-translate-y-0.5 relative flex items-center justify-between gap-3"
     :class="{ 'opacity-50': !node.enabled }"
   >
     <div class="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
       <div 
-        class="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+        class="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
         :class="protocolStyle.style"
       >
         {{ protocolStyle.text }}
@@ -83,7 +83,7 @@ const protocolStyle = computed(() => {
       </p>
     </div>
 
-    <div class="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <div class="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <button @click.stop="emit('edit')" class="p-1.5 rounded-full hover:bg-gray-500/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="编辑节点">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
         </button>

@@ -67,12 +67,12 @@ onUnmounted(() => {
 
 <template>
   <div class="sticky top-24">
-    <div class="bg-white/50 dark:bg-gray-900/60 backdrop-blur-sm p-5 rounded-2xl shadow-lg dark:shadow-2xl ring-1 ring-black/5">
+    <div class="bg-white/50 dark:bg-gray-900/60 backdrop-blur-xs p-5 rounded-2xl shadow-lg dark:shadow-2xl ring-1 ring-black/5">
       <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">生成订阅链接</h3>
 
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">1. 选择订阅内容</label>
-        <select v-model="selectedId" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white">
+        <select v-model="selectedId" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white">
             <option value="default">默认订阅 (全部启用节点)</option>
             <option v-for="profile in profiles" :key="profile.id" :value="profile.customId || profile.id">
                 {{ profile.name }}
@@ -105,7 +105,7 @@ onUnmounted(() => {
           :value="subLink"
           readonly
           :disabled="!isLinkValid"
-          class="w-full text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 rounded-lg pl-3 pr-10 py-2.5 focus:outline-none focus:ring-2 font-mono"
+          class="w-full text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 rounded-lg pl-3 pr-10 py-2.5 focus:outline-hidden focus:ring-2 font-mono"
           :class="{
             'focus:ring-indigo-500': isLinkValid,
             'focus:ring-red-500 cursor-not-allowed': !isLinkValid,

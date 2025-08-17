@@ -25,7 +25,7 @@ const handleConfirm = () => {
       <textarea 
         v-model="importText"
         rows="8"
-        class="w-full text-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono dark:text-white"
+        class="w-full text-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-mono dark:text-white"
         placeholder="http://...&#10;https://...&#10;vmess://...&#10;vless://...&#10;trojan://..."
       ></textarea>
     </template>

@@ -197,7 +197,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                 id="profile-name"
                 v-model="localProfile.name"
                 placeholder="例如：家庭共享"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
               >
             </div>
             <div>
@@ -209,7 +209,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                 id="profile-custom-id"
                 v-model="localProfile.customId"
                 placeholder="如: home, game (限字母、数字、-、_)"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
               >
                <p class="text-xs text-gray-400 mt-1">设置后，订阅链接会更短，如 /token/home</p>
             </div>
@@ -222,7 +222,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                 id="profile-subconverter"
                 v-model="localProfile.subConverter"
                 placeholder="留空则使用全局设置"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
               >
               <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 SubConverter 后端地址。</p>
             </div>
@@ -235,7 +235,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                 id="profile-subconfig"
                 v-model="localProfile.subConfig"
                 placeholder="留空则使用全局设置"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
               >
               <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 Subconverter 配置文件。</p>
             </div>
@@ -247,7 +247,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                 type="date"
                 id="profile-expires-at"
                 v-model="localProfile.expiresAt"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
               >
               <p class="text-xs text-gray-400 mt-1">设置此订阅组的到期时间，到期后将返回默认节点。</p>
             </div>
@@ -268,7 +268,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                   type="text"
                   v-model="subscriptionSearchTerm"
                   placeholder="搜索订阅..."
-                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
@@ -279,7 +279,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                       type="checkbox"
                       :checked="localProfile.subscriptions?.includes(sub.id)"
                       @change="toggleSelection('subscriptions', sub.id)"
-                      class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="sub.name">{{ sub.name || '未命名订阅' }}</span>
                   </label>
@@ -306,7 +306,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                   type="text"
                   v-model="nodeSearchTerm"
                   placeholder="搜索节点..."
-                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
@@ -317,7 +317,7 @@ const handleDeselectAll = (listName, sourceArray) => {
                       type="checkbox"
                       :checked="localProfile.manualNodes?.includes(node.id)"
                       @change="toggleSelection('manualNodes', node.id)"
-                      class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || '未命名节点' }}</span>
                   </label>

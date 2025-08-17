@@ -15,7 +15,7 @@ const emit = defineEmits(['logout']);
 </script>
 
 <template>
-  <header class="bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm sticky top-0 z-40 border-b border-gray-200 dark:border-white/10">
+  <header class="bg-white/80 dark:bg-gray-950/80 backdrop-blur-xs sticky top-0 z-40 border-b border-gray-200 dark:border-white/10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-20">
         <div class="flex items-center">

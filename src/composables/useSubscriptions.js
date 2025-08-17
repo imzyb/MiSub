@@ -1,6 +1,6 @@
 // FILE: src/composables/useSubscriptions.js
-import { ref, computed, watch } from 'vue';
-import { fetchNodeCount, batchUpdateNodes } from '../lib/api.js';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { fetchNodeCount, batchUpdateNodes, fetchSettings } from '../lib/api.js';
 import { useToastStore } from '../stores/toast.js';
 
 export function useSubscriptions(initialSubsRef, markDirty) {
@@ -8,6 +8,62 @@ export function useSubscriptions(initialSubsRef, markDirty) {
   const subscriptions = ref([]);
   const subsCurrentPage = ref(1);
   const subsItemsPerPage = 6;
+  const updateInterval = ref(0); // 默认不自动更新
+  let updateTimer = null;
+
+  // 获取设置并初始化更新间隔
+  async function initializeUpdateInterval() {
+    try {
+      const settings = await fetchSettings();
+      updateInterval.value = settings.updateInterval || 0;
+      setupAutoUpdate();
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    }
+  }
+
+  // 设置自动更新
+  function setupAutoUpdate() {
+    // 清除现有定时器
+    if (updateTimer) {
+      clearInterval(updateTimer);
+      updateTimer = null;
+    }
+
+    // 如果设置了更新间隔且大于0，则启动定时器
+    if (updateInterval.value > 0) {
+      updateTimer = setInterval(async () => {
+        // 只更新启用的订阅
+        const enabledSubs = subscriptions.value.filter(s => s.enabled && s.url.startsWith('http'));
+        if (enabledSubs.length > 0) {
+          try {
+            const result = await batchUpdateNodes(enabledSubs.map(sub => sub.id));
+            
+            if (result.success) {
+              // 更新本地数据
+              result.results.forEach(updateResult => {
+                if (updateResult.success) {
+                  const sub = subscriptions.value.find(s => s.id === updateResult.id);
+                  if (sub) {
+                    sub.nodeCount = updateResult.nodeCount;
+                    // userInfo会在下次数据同步时更新
+                  }
+                }
+              });
+              
+              const successCount = result.results.filter(r => r.success).length;
+              showToast(`自动更新完成！成功更新 ${successCount}/${enabledSubs.length} 个订阅`, 'success');
+              markDirty();
+            } else {
+              console.error('Auto update failed:', result.message);
+            }
+          } catch (error) {
+            console.error('Auto update error:', error);
+          }
+        }
+      }, updateInterval.value * 60 * 1000); // 将分钟转换为毫秒
+    }
+  }
 
   function initializeSubscriptions(subsData) {
     subscriptions.value = (subsData || []).map(sub => ({
@@ -157,6 +213,25 @@ export function useSubscriptions(initialSubsRef, markDirty) {
     }
   }
 
+  // 更新间隔设置变更处理
+  async function handleUpdateIntervalChange(newInterval) {
+    updateInterval.value = newInterval;
+    setupAutoUpdate();
+  }
+
+  // 组件挂载时初始化
+  onMounted(() => {
+    initializeUpdateInterval();
+  });
+
+  // 组件卸载时清理定时器
+  onUnmounted(() => {
+    if (updateTimer) {
+      clearInterval(updateTimer);
+      updateTimer = null;
+    }
+  });
+
   watch(initialSubsRef, (newInitialSubs) => {
     initializeSubscriptions(newInitialSubs);
   }, { immediate: true, deep: true });
@@ -175,5 +250,7 @@ export function useSubscriptions(initialSubsRef, markDirty) {
     deleteAllSubscriptions,
     addSubscriptionsFromBulk,
     handleUpdateNodeCount,
+    updateInterval,
+    handleUpdateIntervalChange,
   };
 }

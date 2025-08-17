@@ -43,7 +43,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
   <Transition name="modal-fade">
     <div
       v-if="show"
-      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99] flex items-center justify-center p-4"
+      class="fixed inset-0 bg-black/60 backdrop-blur-xs z-99 flex items-center justify-center p-4"
       @click="emit('update:show', false)"
     >
       <Transition name="modal-inner">
@@ -56,19 +56,19 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
           }"
           @click.stop
         >
-          <div class="p-6 pb-4 flex-shrink-0">
+          <div class="p-6 pb-4 shrink-0">
             <slot name="title">
               <h3 class="text-lg font-bold text-gray-900 dark:text-white">确认操作</h3>
             </slot>
           </div>
           
-          <div class="px-6 pb-6 flex-grow overflow-y-auto">
+          <div class="px-6 pb-6 grow overflow-y-auto">
              <slot name="body">
                 <p class="text-sm text-gray-500 dark:text-gray-400">你确定要继续吗？</p>
             </slot>
           </div>
 
-          <div class="p-6 pt-4 flex justify-end space-x-3 flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+          <div class="p-6 pt-4 flex justify-end space-x-3 shrink-0 border-t border-gray-200 dark:border-gray-700">
             <button @click="emit('update:show', false)" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold text-sm rounded-lg transition-colors">取消</button>
             <button 
                 @click="handleConfirm" 
