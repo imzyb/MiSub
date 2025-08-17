@@ -75,8 +75,8 @@ const initializeState = () => {
   isLoading.value = true;
   if (props.data) {
     const subsData = props.data.misubs || [];
-    initialSubs.value = subsData.filter(item => item.url && /^https?:\\/\\//.test(item.url));
-    initialNodes.value = subsData.filter(item => !item.url || !/^https?:\\/\\//.test(item.url));
+    initialSubs.value = subsData.filter(item => item.url && /^https?:\/\/.*/.test(item.url));
+    initialNodes.value = subsData.filter(item => !item.url || !/^https?:\/\/.*/.test(item.url));
     initialProfiles.value = props.data.profiles || [];
     config.value = props.data.config || {};
     initializeProfiles();
@@ -200,14 +200,13 @@ const handleDeduplicateNodes = () => {
 };
 const handleBulkImport = (importText) => {
   if (!importText) return;
-  const lines = importText.split('\
-').map(line => line.trim()).filter(Boolean);
+  const lines = importText.split('\n').map(line => line.trim()).filter(Boolean);
   const newSubs = [], newNodes = [];
   for (const line of lines) {
       const newItem = { id: crypto.randomUUID(), name: extractNodeName(line) || '未命名', url: line, enabled: true, status: 'unchecked' };
-      if (/^https?:\\/\\//.test(line)) {
+      if (/^https?:\/\/.*/.test(line)) {
           newSubs.push(newItem);
-      } else if (/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\\/\\//.test(line)) {
+      } else if (/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\/.*/.test(line)) {
           newNodes.push(newItem);
       }
   }
@@ -230,7 +229,7 @@ const handleEditSubscription = (subId) => {
 };
 const handleSaveSubscription = () => {
   if (!editingSubscription.value || !editingSubscription.value.url) { showToast('订阅链接不能为空', 'error'); return; }
-  if (!/^https?:\\/\\//.test(editingSubscription.value.url)) { showToast('请输入有效的 http:// 或 https:// 订阅链接', 'error'); return; }
+  if (!/^https?:\/\/.*/.test(editingSubscription.value.url)) { showToast('请输入有效的 http:// 或 https:// 订阅链接', 'error'); return; }
   
   if (isNewSubscription.value) {
     addSubscription({ ...editingSubscription.value, id: crypto.randomUUID() });
@@ -308,9 +307,9 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
         <p class="text-sm font-medium text-indigo-800 dark:text-indigo-200">您有未保存的更改</p>
         <div class="flex items-center gap-3">
           <button @click="handleDiscard" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">放弃更改</button>
-          <button @click="handleSave" :disabled="saveState !== 'idle'" class="px-5 py-2 text-sm text-white font-semibold rounded-lg shadow-xs flex items-center justify-center transition-all duration-300 w-28" :class="{'bg-green-600 hover:bg-green-700': saveState === 'idle', 'bg-gray-500 cursor-not-allowed': saveState === 'saving', 'bg-teal-500 cursor-not-allowed': saveState === 'success' }">
-            <div v-if="saveState === 'saving'" class="flex items-center"><svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>保存中...</span></div>
-            <div v-else-if="saveState === 'success'" class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg><span>已保存</span></div>
+          <button @click="handleSave" :disabled="saveState !== 'idle'" class="px-5 py-2 text-sm text-white font-semibold rounded-lg shadow-xs flex items-center justify-center transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+            <div v-if="saveState === 'saving'" class="flex items-center"><svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>保存中...</div>
+            <div v-else-if="saveState === 'success'" class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>已保存</div>
             <span v-else>保存更改</span>
           </button>
         </div>
@@ -378,18 +377,27 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
   </div>
 
   <BulkImportModal v-model:show="showBulkImportModal" @import="handleBulkImport" />
-  <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup"><template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅**吗？此操作将标记为待保存，不会影响手动节点。</p></template></Modal>
-  <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup"><template #title><h3 class="text-lg font-bold text-red-500">确认清空节点</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**手动节点**吗？此操作将标记为待保存，不会影响订阅。</p></template></Modal>
-  <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles"><template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3></template><template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅组**吗？此操作不可逆。</p></template></Modal>
+  <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup">
+    <template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅</h3></template>
+    <template #body><p class="text-sm text-gray-700 dark:text-gray-300">此操作将清空所有订阅，是否继续？</p></template>
+  </Modal>
+  <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
+    <template #title><h3 class="text-lg font-bold text-red-500">确认清空节点</h3></template>
+    <template #body><p class="text-sm text-gray-700 dark:text-gray-300">此操作将清空所有手动节点，是否继续？</p></template>
+  </Modal>
+  <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles">
+    <template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3></template>
+    <template #body><p class="text-sm text-gray-700 dark:text-gray-300">此操作将清空所有订阅组，是否继续？</p></template>
+  </Modal>
   
-  <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile" :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="2xl" />
+  <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile" :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" />
   
   <Modal v-if="editingNode" v-model:show="showNodeModal" @confirm="handleSaveNode">
     <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewNode ? '新增手动节点' : '编辑手动节点' }}</h3></template>
     <template #body>
       <div class="space-y-4">
-        <div><label for="node-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点名称</label><input type="text" id="node-name" v-model="editingNode.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
-        <div><label for="node-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点链接</label><textarea id="node-url" v-model="editingNode.url" @input="handleNodeUrlInput" rows="4" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></textarea></div>
+        <div><label for="node-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点名称</label><input type="text" id="node-name" v-model="editingNode.name" placeholder="（自动识别或自定义）" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div>
+        <div><label for="node-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">节点链接</label><textarea id="node-url" v-model="editingNode.url" @input="handleNodeUrlInput" rows="3" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea></div>
       </div>
     </template>
   </Modal>
@@ -398,8 +406,8 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
     <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">{{ isNewSubscription ? '新增订阅' : '编辑订阅' }}</h3></template>
     <template #body>
       <div class="space-y-4">
-        <div><label for="sub-edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅名称</label><input type="text" id="sub-edit-name" v-model="editingSubscription.name" placeholder="（可选）不填将自动获取" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"></div>
-        <div><label for="sub-edit-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅链接</label><input type="text" id="sub-edit-url" v-model="editingSubscription.url" placeholder="https://..." class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white"></div>
+        <div><label for="sub-edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅名称</label><input type="text" id="sub-edit-name" v-model="editingSubscription.name" placeholder="（自动识别或自定义）" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div>
+        <div><label for="sub-edit-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">订阅链接</label><input type="text" id="sub-edit-url" v-model="editingSubscription.url" placeholder="http(s)://..." class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div>
         <div>
           <label for="sub-edit-exclude" class="block text-sm font-medium text-gray-700 dark:text-gray-300">包含/排除节点</label>
           <textarea 
@@ -407,9 +415,9 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
             v-model="editingSubscription.exclude"
             placeholder="[排除模式 (默认)]&#10;proto:vless,trojan&#10;(过期|官网)&#10;---&#10;[包含模式 (只保留匹配项)]&#10;keep:(香港|HK)&#10;keep:proto:ss"
             rows="5" 
-            class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white">
-          </textarea>
-          <p class="text-xs text-gray-400 mt-1">每行一条规则。使用 `keep:` 切换为白名单模式。</p>
+            class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          ></textarea>
+          <p class="text-xs text-gray-400 mt-1">每行一条规则。使用 <code>keep:</code> 切换为白名单模式。</p>
         </div>
       </div>
     </template>
