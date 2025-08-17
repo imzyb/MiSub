@@ -204,7 +204,7 @@ watch(() => props.show, (newValue) => {
           >
           <p class="text-xs text-gray-400 mt-1">设置订阅自动更新的时间间隔，范围为5-1440分钟（24小时）。设置为0则禁用自动更新。</p>
         </div>
->>>>>>> REPLACE
+
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">数据存储类型</label>
           <div class="space-y-3">
