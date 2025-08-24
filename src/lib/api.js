@@ -67,12 +67,12 @@ export async function saveMisubs(misubs, profiles) {
     }
 }
 
-export async function fetchNodeCount(subUrl) {
+export async function fetchNodeCount(subUrl, id) {
     try {
         const res = await fetch('/api/node_count', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: subUrl })
+            body: JSON.stringify({ url: subUrl, id })
         });
         const data = await res.json();
         return data; // [修正] 直接返回整个对象 { count, userInfo }

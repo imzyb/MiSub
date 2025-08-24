@@ -132,9 +132,12 @@ watch(() => props.profile, (newProfile) => {
         profileCopy.expiresAt = '';
       }
     }
+    if (typeof profileCopy.showTrafficRemainingNode === 'undefined') {
+      profileCopy.showTrafficRemainingNode = true; // 默认显示，可在编辑中关闭
+    }
     localProfile.value = profileCopy;
   } else {
-    localProfile.value = { name: '', enabled: true, subscriptions: [], manualNodes: [], customId: '', expiresAt: '' };
+    localProfile.value = { name: '', enabled: true, subscriptions: [], manualNodes: [], customId: '', expiresAt: '', showTrafficRemainingNode: true };
   }
 }, { deep: true, immediate: true });
 
@@ -251,6 +254,18 @@ const handleDeselectAll = (listName, sourceArray) => {
               >
               <p class="text-xs text-gray-400 mt-1">设置此订阅组的到期时间，到期后将返回默认节点。</p>
             </div>
+        </div>
+
+        <!-- 订阅组作用域的“流量剩余”开关：放在列表上方，避免挤占两列布局 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">显示“流量剩余”虚拟节点</label>
+          <div class="mt-2 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <p class="text-sm text-gray-600 dark:text-gray-300">仅对该订阅组生效，覆盖全局设置</p>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="localProfile.showTrafficRemainingNode" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

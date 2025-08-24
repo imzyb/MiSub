@@ -25,3 +25,5 @@ dist-ssr
 .vscode
 # Misc
 .DS_Store
+.specstory/
+.cursorindexingignore

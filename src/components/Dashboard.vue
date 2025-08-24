@@ -14,6 +14,7 @@ import ProfilePanel from './ProfilePanel.vue';
 import SubscriptionPanel from './SubscriptionPanel.vue';
 import ManualNodePanel from './ManualNodePanel.vue';
 import Modal from './Modal.vue';
+import UnifiedSortModal from './UnifiedSortModal.vue';
 
 const SettingsModal = defineAsyncComponent(() => import('./SettingsModal.vue'));
 const BulkImportModal = defineAsyncComponent(() => import('./BulkImportModal.vue'));
@@ -69,11 +70,14 @@ const showBulkImportModal = ref(false);
 const showDeleteSubsModal = ref(false);
 const showDeleteNodesModal = ref(false);
 const showSubscriptionImportModal = ref(false);
+const showUnifiedSortModal = ref(false);
+const unifiedOrderIds = ref(null);
 // --- 初始化與生命週期 ---
 const initializeState = () => {
   isLoading.value = true;
   if (props.data) {
     const subsData = props.data.misubs || [];
+    unifiedOrderIds.value = subsData.map(item => item.id).filter(Boolean);
     initialSubs.value = subsData.filter(item => item.url && /^https?:\/\//.test(item.url));
     initialNodes.value = subsData.filter(item => !item.url || !/^https?:\/\//.test(item.url));
     initialProfiles.value = props.data.profiles || [];
@@ -116,10 +120,25 @@ const handleDiscard = () => {
 };
 const handleSave = async () => {
   saveState.value = 'saving';
-  const combinedMisubs = [
-      ...subscriptions.value.map(sub => ({ ...sub, isUpdating: undefined })),
-      ...manualNodes.value.map(node => ({ ...node, isUpdating: undefined }))
-  ];
+  // 组合保存顺序：优先使用统一排序的顺序，其次使用全局默认（手动在前/后）
+  const subMap = new Map(subscriptions.value.map(s => [s.id, { ...s, isUpdating: undefined }]));
+  const nodeMap = new Map(manualNodes.value.map(n => [n.id, { ...n, isUpdating: undefined }]));
+  let combinedMisubs = [];
+  if (unifiedOrderIds.value && unifiedOrderIds.value.length) {
+    unifiedOrderIds.value.forEach(id => {
+      if (subMap.has(id)) combinedMisubs.push(subMap.get(id));
+      else if (nodeMap.has(id)) combinedMisubs.push(nodeMap.get(id));
+    });
+    // 追加遗漏项（新建等）
+    subMap.forEach((v, id) => { if (!unifiedOrderIds.value.includes(id)) combinedMisubs.push(v); });
+    nodeMap.forEach((v, id) => { if (!unifiedOrderIds.value.includes(id)) combinedMisubs.push(v); });
+  } else {
+    const subsArr = Array.from(subMap.values());
+    const nodesArr = Array.from(nodeMap.values());
+    combinedMisubs = (config.value.manualNodesPosition === 'after')
+      ? [...subsArr, ...nodesArr]
+      : [...nodesArr, ...subsArr];
+  }
 
   try {
     // 数据验证
@@ -347,6 +366,7 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
         </span>
       </div>
       <div class="flex items-center gap-2">
+        <button @click="showUnifiedSortModal = true" class="text-sm font-semibold px-4 py-2 rounded-lg text-teal-600 dark:text-teal-300 border-2 border-teal-500/50 hover:bg-teal-500/10 transition-colors">统一排序</button>
         <button @click="showBulkImportModal = true" class="text-sm font-semibold px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 border-2 border-indigo-500/50 hover:bg-indigo-500/10 transition-colors">批量导入</button>
       </div>
     </div>
@@ -470,6 +490,42 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
     :import-backup="importBackup"
   />
   <SubscriptionImportModal :show="showSubscriptionImportModal" @update:show="showSubscriptionImportModal = $event" :add-nodes-from-bulk="addNodesFromBulk" />
+  <UnifiedSortModal :show="showUnifiedSortModal" @update:show="showUnifiedSortModal = $event" :items="(() => {
+      // 初始順序：若存在統一順序(後端保存的 combinedMisubs.id 順序)則按其順序；
+      // 否則按全局設置 manualNodesPosition 組合
+      const mapAll = new Map([
+        ...subscriptions.map(s => [s.id, { id: s.id, name: s.name, type: 'sub' }]),
+        ...manualNodes.map(n => [n.id, { id: n.id, name: n.name, type: 'node' }])
+      ]);
+      const items = [];
+      if (unifiedOrderIds && unifiedOrderIds.length) {
+        unifiedOrderIds.forEach(id => { if (mapAll.has(id)) items.push(mapAll.get(id)); });
+        // append missing
+        mapAll.forEach((v, id) => { if (!unifiedOrderIds.includes(id)) items.push(v); });
+        return items;
+      }
+      const subItems = subscriptions.map(s => ({ id: s.id, name: s.name, type: 'sub' }));
+      const nodeItems = manualNodes.map(n => ({ id: n.id, name: n.name, type: 'node' }));
+      return (config.manualNodesPosition === 'after') ? [...subItems, ...nodeItems] : [...nodeItems, ...subItems];
+    })()" :default-items="(() => {
+      const subItems = subscriptions.map(s => ({ id: s.id, name: s.name, type: 'sub' }));
+      const nodeItems = manualNodes.map(n => ({ id: n.id, name: n.name, type: 'node' }));
+      return [...nodeItems, ...subItems];
+    })()" @confirm="(orderedIds) => {
+      const subMap = new Map(subscriptions.map(s => [s.id, s]));
+      const nodeMap = new Map(manualNodes.map(n => [n.id, n]));
+      const newSubs = []; const newNodes = [];
+      for (const id of orderedIds) {
+        if (subMap.has(id)) newSubs.push(subMap.get(id));
+        else if (nodeMap.has(id)) newNodes.push(nodeMap.get(id));
+      }
+      for (const s of subscriptions) if (!newSubs.includes(s)) newSubs.push(s);
+      for (const n of manualNodes) if (!newNodes.includes(n)) newNodes.push(n);
+      subscriptions.splice(0, subscriptions.length, ...newSubs);
+      manualNodes.splice(0, manualNodes.length, ...newNodes);
+      unifiedOrderIds = orderedIds;
+      markDirty();
+    }" />
 </template>
 
 <style scoped>
