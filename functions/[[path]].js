@@ -1335,6 +1335,25 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                                     }
                                 } catch (e) { /* 忽略解碼錯誤 */ }
                             }
+                            // 修复：对于vmess协议，需要特殊处理节点名称
+                            else if (protocol === 'vmess') {
+                                try {
+                                    // 提取vmess链接中的Base64部分
+                                    const base64Part = nodeLink.substring('vmess://'.length);
+                                    // 解码Base64
+                                    const binaryString = atob(base64Part);
+                                    const bytes = new Uint8Array(binaryString.length);
+                                    for (let i = 0; i < binaryString.length; i++) {
+                                        bytes[i] = binaryString.charCodeAt(i);
+                                    }
+                                    const jsonString = new TextDecoder('utf-8').decode(bytes);
+                                    const nodeConfig = JSON.parse(jsonString);
+                                    const nodeName = nodeConfig.ps || '';
+                                    if (nameRegex.test(nodeName)) {
+                                        return false;
+                                    }
+                                } catch (e) { /* 忽略解码错误 */ }
+                            }
                         }
                         return true;
                     });
