@@ -1230,7 +1230,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                 .filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line))
                 .map(line => {
                     // 修复SS节点中的URL编码问题
-                    if (line.startsWith('ss://')) {
+                    if (line.startsWith('ss://') || line.startsWith('vless://') || line.startsWith('trojan://')) {
                         try {
                             const hashIndex = line.indexOf('#');
                             let baseLink = hashIndex !== -1 ? line.substring(0, hashIndex) : line;
@@ -1244,7 +1244,8 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                                 if (base64Part.includes('%')) {
                                     // 解码URL编码的base64部分
                                     const decodedBase64 = decodeURIComponent(base64Part);
-                                    baseLink = 'ss://' + decodedBase64 + baseLink.substring(atIndex);
+                                    const protocol = baseLink.substring(0, protocolEnd);
+                                    baseLink = protocol + '://' + decodedBase64 + baseLink.substring(atIndex);
                                 }
                             }
                             return baseLink + fragment;
