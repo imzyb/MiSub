@@ -1,0 +1,19 @@
+# 自动标准化换行符
+* text=auto
+
+# 确保这些文件始终使用LF换行符
+*.js text eol=lf
+*.vue text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# 确保这些文件保持原样
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary

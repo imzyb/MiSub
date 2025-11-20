@@ -1,0 +1,29 @@
+name = "misub"
+main = "functions/[[path]].js"
+compatibility_date = "2024-06-13"
+
+# KV 命名空间绑定
+# 这是 wrangler.toml 在Pages项目中最重要的作用
+[[kv_namespaces]]
+binding = "MISUB_KV"
+id = "9796c49ed5a3405aabbbc066d4686ce3" # 请确保这里是你正确的 KV ID
+preview_id = "db1e91b764d14234b38c0a233878b040" # 请确保这里是你正确的预览 KV ID
+
+# D1 数据库绑定
+# 用于替代 KV 存储，解决写入限制问题
+[[d1_databases]]
+binding = "MISUB_DB"
+database_name = "misub"
+database_id = "5aecdda9-2803-4d9e-a2f6-ccf436ca34e6" # 请替换为您的 D1 数据库 ID
+preview_database_id = "5aecdda9-2803-4d9e-a2f6-ccf436ca34e6" # 请替换为您的预览 D1 数据库 ID
+
+# 你也可以在这里定义环境变量，但更推荐在Cloudflare控制面板设置
+[vars]
+ADMIN_PASSWORD = "admin"
+COOKIE_SECRET = "a_very_long_random_secret_string"
+
+[triggers]
+# "*/30" 表示每30分鐘
+# "0 */6 * * *" 表示每6小時
+# 根據您的需要調整 cron 表達式
+crons = ["0 */6 * * *"] 
