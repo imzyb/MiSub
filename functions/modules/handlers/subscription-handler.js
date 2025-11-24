@@ -72,7 +72,7 @@ async function handleProfileMode(request, env, profileId, userAgent) {
 
     // 并行获取HTTP订阅节点
     const subscriptionResults = await Promise.all(
-        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent))
+        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, env))
     );
 
     // 合并所有结果
@@ -150,7 +150,7 @@ async function handleSingleSubscriptionMode(request, env, subscriptionId, userAg
     }
 
     // HTTP订阅：获取节点
-    const result = await fetchSubscriptionNodes(subscription.url, subscription.name, userAgent);
+    const result = await fetchSubscriptionNodes(subscription.url, subscription.name, userAgent, env);
 
     return {
         success: true,
@@ -166,13 +166,13 @@ async function handleSingleSubscriptionMode(request, env, subscriptionId, userAg
 
 /**
  * 处理直接URL模式的节点获取
- * @param {Object} request - HTTP请求对象
  * @param {string} subscriptionUrl - 订阅URL
  * @param {string} userAgent - 用户代理
+ * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Object>} 处理结果
  */
-async function handleDirectUrlMode(subscriptionUrl, userAgent) {
-    const result = await fetchSubscriptionNodes(subscriptionUrl, '预览订阅', userAgent);
+async function handleDirectUrlMode(subscriptionUrl, userAgent, env) {
+    const result = await fetchSubscriptionNodes(subscriptionUrl, '预览订阅', userAgent, env);
 
     return {
         success: true,
@@ -193,10 +193,10 @@ async function handleDirectUrlMode(subscriptionUrl, userAgent) {
  * @param {string} userAgent - 用户代理
  * @returns {Promise<Object>} 节点获取结果
  */
-async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
+async function fetchSubscriptionNodes(url, subscriptionName, userAgent, env) {
     try {
         // 使用智能回退机制获取订阅内容
-        const fetchResult = await fetchSubscriptionWithFallback(url, userAgent);
+        const fetchResult = await fetchSubscriptionWithFallback(url, userAgent, env);
 
         if (!fetchResult.success) {
             return {
@@ -209,7 +209,7 @@ async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
         }
 
         let text = fetchResult.content;
-        console.log(`[Preview] 成功获取订阅: ${url}, User-Agent: ${fetchResult.userAgent}, 长度: ${text.length}`);
+        console.log(`[Preview] 成功获取订阅: ${url}, 方法: ${fetchResult.method}, UA: ${fetchResult.userAgent}, 长度: ${text.length}`);
 
         console.log(`[DEBUG] Preview API: Raw text length: ${text.length}`);
         console.log(`[DEBUG] Preview API: Raw text preview:`, text.substring(0, 200) + '...');
@@ -329,7 +329,7 @@ export async function handleSubscriptionNodesRequest(request, env) {
                 result = await handleSingleSubscriptionMode(request, env, subscriptionId, userAgent);
                 break;
             case 'direct':
-                result = await handleDirectUrlMode(subscriptionUrl, userAgent);
+                result = await handleDirectUrlMode(subscriptionUrl, userAgent, env);
                 break;
             default:
                 return createJsonResponse({

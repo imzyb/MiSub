@@ -31,7 +31,7 @@ export async function handleNodeCountRequest(request, env) {
 
         try {
             // 使用智能回退机制获取订阅内容
-            const nodeFetchResult = await fetchSubscriptionWithFallback(subUrl, 'v2rayN/7.23');
+            const nodeFetchResult = await fetchSubscriptionWithFallback(subUrl, 'v2rayN/7.23', env);
 
             if (!nodeFetchResult.success) {
                 console.warn(`[Node Count] 订阅请求失败: ${subUrl}, 错误: ${nodeFetchResult.error}`);
@@ -39,7 +39,7 @@ export async function handleNodeCountRequest(request, env) {
             }
 
             let text = nodeFetchResult.content;
-            console.log(`[Node Count] 成功获取订阅: ${subUrl}, User-Agent: ${nodeFetchResult.userAgent}, 长度: ${text.length}`);
+            console.log(`[Node Count] 成功获取订阅: ${subUrl}, 方法: ${nodeFetchResult.method}, UA: ${nodeFetchResult.userAgent}, 长度: ${text.length}`);
 
             // 使用与预览功能相同的节点解析逻辑
             try {

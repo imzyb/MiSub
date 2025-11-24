@@ -85,7 +85,7 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
         try {
             // 使用智能回退机制获取订阅
             const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
-            const fetchResult = await fetchSubscriptionWithFallback(sub.url, processedUserAgent);
+            const fetchResult = await fetchSubscriptionWithFallback(sub.url, processedUserAgent, context.env);
 
             if (!fetchResult.success) {
                 console.warn(`订阅请求失败: ${sub.url}, 错误: ${fetchResult.error}`);
@@ -93,7 +93,7 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
             }
 
             let text = fetchResult.content;
-            console.log(`[Subscription] 成功获取订阅: ${sub.url}, User-Agent: ${fetchResult.userAgent}, 长度: ${text.length}`);
+            console.log(`[Subscription] 成功获取订阅: ${sub.url}, 方法: ${fetchResult.method}, UA: ${fetchResult.userAgent}, 长度: ${text.length}`);
 
             // 智能内容类型检测 - 更精确的判断条件
             if (text.includes('proxies:') && text.includes('rules:')) {
