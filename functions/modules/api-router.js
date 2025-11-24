@@ -13,6 +13,7 @@ import {
 } from './handlers/subscription-handler.js';
 import {
     handleDebugSubscriptionRequest,
+    handleNetworkTestRequest,
     handleSystemInfoRequest,
     handleStorageTestRequest,
     handleExportDataRequest,
@@ -144,6 +145,9 @@ export async function handleApiRequest(request, env) {
 
         case '/debug_subscription':
             return await handleDebugSubscriptionRequest(request, env);
+
+        case '/debug/fetch':
+            return await handleNetworkTestRequest(request, env);
 
         case '/system/info':
             return await handleSystemInfoRequest(request, env);

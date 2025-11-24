@@ -390,3 +390,117 @@ export async function handlePreviewContentRequest(request, env) {
         }, 500);
     }
 }
+
+/**
+ * 测试网络请求
+ * @param {Object} request - HTTP请求对象
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handleNetworkTestRequest(request, env) {
+    if (request.method !== 'POST') {
+        return createJsonResponse('Method Not Allowed', 405);
+    }
+
+    try {
+        const requestData = await request.json();
+        const { url, userAgent = 'v2rayN/7.23' } = requestData;
+
+        if (!url) {
+            return createJsonResponse({
+                error: '请提供要测试的URL'
+            }, 400);
+        }
+
+        console.log(`[Network Test] Testing URL: ${url}`);
+        console.log(`[Network Test] User-Agent: ${userAgent}`);
+
+        const startTime = Date.now();
+
+        // 记录完整的请求信息
+        const testResult = {
+            url,
+            userAgent,
+            startTime: new Date().toISOString(),
+            requestHeaders: {
+                'User-Agent': userAgent,
+                'Accept': '*/*',
+                'Cache-Control': 'no-cache'
+            },
+            cfConfig: {
+                insecureSkipVerify: true,
+                allowUntrusted: true,
+                validateCertificate: false
+            }
+        };
+
+        try {
+            // 执行网络请求
+            const response = await fetch(new Request(url, {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Accept': '*/*',
+                    'Cache-Control': 'no-cache'
+                },
+                redirect: "follow",
+                cf: {
+                    insecureSkipVerify: true,
+                    allowUntrusted: true,
+                    validateCertificate: false
+                }
+            }));
+
+            const endTime = Date.now();
+            const responseTime = endTime - startTime;
+
+            // 获取响应头
+            const responseHeaders = {};
+            response.headers.forEach((value, key) => {
+                responseHeaders[key] = value;
+            });
+
+            testResult.success = true;
+            testResult.status = response.status;
+            testResult.statusText = response.statusText;
+            testResult.responseTime = responseTime;
+            testResult.responseHeaders = responseHeaders;
+            testResult.contentLength = response.headers.get('content-length') || 'unknown';
+
+            // 读取部分内容用于分析
+            const text = await response.text();
+            testResult.contentLength = text.length;
+            testResult.contentType = response.headers.get('content-type') || 'unknown';
+
+            // 分析内容
+            const trimmedText = text.substring(0, 1000);
+            testResult.contentPreview = trimmedText;
+            testResult.isBase64 = /^[A-Za-z0-9+\/=]+$/s.test(trimmedText.replace(/\s/g, ''));
+
+            // 检测是否包含节点
+            const nodeMatches = trimmedText.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
+            testResult.detectedNodes = nodeMatches ? nodeMatches.length : 0;
+
+            console.log(`[Network Test] Success: ${response.status}, ${responseTime}ms, ${text.length} bytes`);
+
+            return createJsonResponse(testResult);
+
+        } catch (fetchError) {
+            const endTime = Date.now();
+            const responseTime = endTime - startTime;
+
+            testResult.success = false;
+            testResult.responseTime = responseTime;
+            testResult.error = fetchError.message;
+            testResult.errorType = fetchError.constructor.name;
+
+            console.log(`[Network Test] Failed: ${fetchError.message}`);
+
+            return createJsonResponse(testResult);
+        }
+
+    } catch (e) {
+        return createJsonResponse({
+            error: `网络测试失败: ${e.message}`
+        }, 500);
+    }
+}
