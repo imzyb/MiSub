@@ -3,7 +3,7 @@
  * 处理订阅获取、节点解析和格式转换
  */
 
-import { isValidBase64, formatBytes, prependNodeName, getProcessedUserAgent } from './utils.js';
+import { isValidBase64, formatBytes, prependNodeName, getProcessedUserAgent, fetchSubscriptionWithFallback } from './utils.js';
 import { sendEnhancedTgNotification } from './notifications.js';
 
 // --- [新] 默认设置中增加通知阈值和存储类型 ---
@@ -83,26 +83,17 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
     const httpSubs = misubs.filter(sub => sub.url.toLowerCase().startsWith('http'));
     const subPromises = httpSubs.map(async (sub) => {
         try {
-            // 使用处理后的用户代理
+            // 使用智能回退机制获取订阅
             const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
-            const requestHeaders = { 'User-Agent': processedUserAgent };
-            const response = await Promise.race([
-                fetch(new Request(sub.url, {
-                    headers: requestHeaders,
-                    redirect: "follow",
-                    cf: {
-                        insecureSkipVerify: true,
-                        allowUntrusted: true,
-                        validateCertificate: false
-                    }
-                })),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 8000))
-            ]);
-            if (!response.ok) {
-                console.warn(`订阅请求失败: ${sub.url}, 状态: ${response.status}`);
+            const fetchResult = await fetchSubscriptionWithFallback(sub.url, processedUserAgent);
+
+            if (!fetchResult.success) {
+                console.warn(`订阅请求失败: ${sub.url}, 错误: ${fetchResult.error}`);
                 return '';
             }
-            let text = await response.text();
+
+            let text = fetchResult.content;
+            console.log(`[Subscription] 成功获取订阅: ${sub.url}, User-Agent: ${fetchResult.userAgent}, 长度: ${text.length}`);
 
             // 智能内容类型检测 - 更精确的判断条件
             if (text.includes('proxies:') && text.includes('rules:')) {

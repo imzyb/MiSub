@@ -117,6 +117,112 @@ export function clashFix(content) {
 }
 
 /**
+ * 智能获取订阅内容 - 支持User-Agent回退机制
+ * @param {string} url - 订阅URL
+ * @param {string} preferredUserAgent - 首选用户代理
+ * @returns {Promise<{success: boolean, content: string, userAgent: string, error?: string}>}
+ */
+export async function fetchSubscriptionWithFallback(url, preferredUserAgent = 'v2rayN/7.23') {
+    const userAgents = [
+        // 首选：v2rayN/7.23
+        preferredUserAgent,
+        // 备选：复杂浏览器请求头
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        // 更多备选
+        'ClashforWindows/0.20.39',
+        'Qv2ray/2.7.8',
+        'SagerNet/0.7.9'
+    ];
+
+    const fallbackHeaders = [
+        // v2rayN 使用的简单请求头
+        { 'User-Agent': preferredUserAgent },
+        // 浏览器使用的复杂请求头
+        {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
+        }
+    ];
+
+    // Cloudflare SSL 配置
+    const cfOptions = {
+        insecureSkipVerify: true,
+        allowUntrusted: true,
+        validateCertificate: false
+    };
+
+    for (let i = 0; i < fallbackHeaders.length; i++) {
+        const headers = fallbackHeaders[i];
+        const currentUA = headers['User-Agent'];
+
+        try {
+            console.log(`[Subscription Fetch] 尝试 User-Agent: ${currentUA} (${i + 1}/${fallbackHeaders.length})`);
+
+            const response = await Promise.race([
+                fetch(new Request(url, {
+                    headers,
+                    redirect: "follow",
+                    cf: cfOptions
+                })),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 10000))
+            ]);
+
+            // 检查是否成功
+            if (response.ok) {
+                const text = await response.text();
+
+                // 检查是否是验证页面
+                if (text.includes('Just a moment...') || text.includes('cf-browser-verification')) {
+                    console.warn(`[Subscription Fetch] User-Agent ${currentUA} 被Cloudflare验证拦截，尝试下一个`);
+                    continue;
+                }
+
+                // 检查是否有有效内容
+                const trimmedText = text.trim();
+                if (trimmedText.length > 0) {
+                    console.log(`[Subscription Fetch] 成功使用 User-Agent: ${currentUA}, 内容长度: ${text.length}`);
+                    return {
+                        success: true,
+                        content: text,
+                        userAgent: currentUA
+                    };
+                } else {
+                    console.warn(`[Subscription Fetch] User-Agent ${currentUA} 返回空内容`);
+                }
+            } else if (response.status === 403 || response.status === 401) {
+                console.warn(`[Subscription Fetch] User-Agent ${currentUA} 被拒绝 (${response.status}), 尝试下一个`);
+                continue;
+            } else {
+                console.warn(`[Subscription Fetch] User-Agent ${currentUA} 返回错误: ${response.status} ${response.statusText}`);
+                continue;
+            }
+        } catch (error) {
+            console.warn(`[Subscription Fetch] User-Agent ${currentUA} 请求失败: ${error.message}`);
+            continue;
+        }
+    }
+
+    return {
+        success: false,
+        content: '',
+        userAgent: 'none',
+        error: '所有 User-Agent 都尝试失败'
+    };
+}
+
+/**
  * 根据客户端类型确定合适的用户代理
  * @param {string} originalUserAgent - 原始用户代理字符串
  * @returns {string} - 处理后的用户代理字符串

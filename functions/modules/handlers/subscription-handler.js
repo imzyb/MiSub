@@ -4,7 +4,7 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse } from '../utils.js';
+import { createJsonResponse, fetchSubscriptionWithFallback } from '../utils.js';
 import { extractNodeRegion, parseNodeInfo } from '../utils/geo-utils.js';
 import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
 
@@ -195,27 +195,21 @@ async function handleDirectUrlMode(subscriptionUrl, userAgent) {
  */
 async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
     try {
-        const response = await fetch(new Request(url, {
-            headers: { 'User-Agent': userAgent },
-            redirect: "follow",
-            cf: {
-                insecureSkipVerify: true,
-                allowUntrusted: true,
-                validateCertificate: false
-            }
-        }));
+        // 使用智能回退机制获取订阅内容
+        const fetchResult = await fetchSubscriptionWithFallback(url, userAgent);
 
-        if (!response.ok) {
+        if (!fetchResult.success) {
             return {
                 subscriptionName,
                 url,
                 success: false,
                 nodes: [],
-                error: `HTTP ${response.status}: ${response.statusText}`
+                error: `订阅请求失败: ${fetchResult.error}`
             };
         }
 
-        let text = await response.text();
+        let text = fetchResult.content;
+        console.log(`[Preview] 成功获取订阅: ${url}, User-Agent: ${fetchResult.userAgent}, 长度: ${text.length}`);
 
         console.log(`[DEBUG] Preview API: Raw text length: ${text.length}`);
         console.log(`[DEBUG] Preview API: Raw text preview:`, text.substring(0, 200) + '...');

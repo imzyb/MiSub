@@ -4,7 +4,7 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse } from '../utils.js';
+import { createJsonResponse, fetchSubscriptionWithFallback } from '../utils.js';
 import { parseNodeList } from '../utils/node-parser.js';
 
 // 创建用于全局匹配的协议正则表达式
@@ -30,97 +30,59 @@ export async function handleNodeCountRequest(request, env) {
         const result = { count: 0, userInfo: null };
 
         try {
-            // 使用统一的User-Agent策略
-            const fetchOptions = {
-                headers: { 'User-Agent': 'v2rayN/7.23' },
-                redirect: "follow",
-                cf: {
-                    insecureSkipVerify: true,
-                    allowUntrusted: true,
-                    validateCertificate: false
-                }
-            };
-            const trafficFetchOptions = {
-                headers: { 'User-Agent': 'clash-verge/v2.4.3' },
-                redirect: "follow",
-                cf: {
-                    insecureSkipVerify: true,
-                    allowUntrusted: true,
-                    validateCertificate: false
-                }
-            };
+            // 使用智能回退机制获取订阅内容
+            const nodeFetchResult = await fetchSubscriptionWithFallback(subUrl, 'v2rayN/7.23');
 
-            const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
-            const nodeCountRequest = fetch(new Request(subUrl, fetchOptions));
-
-            // 使用 Promise.allSettled 替换 Promise.all
-            const responses = await Promise.allSettled([trafficRequest, nodeCountRequest]);
-
-            // 1. 处理流量请求的结果
-            if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
-                const trafficResponse = responses[0].value;
-                const userInfoHeader = trafficResponse.headers.get('subscription-userinfo');
-                if (userInfoHeader) {
-                    const info = {};
-                    userInfoHeader.split(';').forEach(part => {
-                        const [key, value] = part.trim().split('=');
-                        if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
-                    });
-                    result.userInfo = info;
-                }
+            if (!nodeFetchResult.success) {
+                console.warn(`[Node Count] 订阅请求失败: ${subUrl}, 错误: ${nodeFetchResult.error}`);
+                return createJsonResponse(result);
             }
 
-            // 2. 处理节点数请求的结果
-            if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
-                const nodeCountResponse = responses[1].value;
-                const text = await nodeCountResponse.text();
+            let text = nodeFetchResult.content;
+            console.log(`[Node Count] 成功获取订阅: ${subUrl}, User-Agent: ${nodeFetchResult.userAgent}, 长度: ${text.length}`);
 
-                console.log(`[DEBUG] Node count API: Raw text length: ${text.length}`);
-                console.log(`[DEBUG] Node count API: Raw text preview:`, text.substring(0, 200) + '...');
-
-                // 使用与预览功能相同的节点解析逻辑
+            // 使用与预览功能相同的节点解析逻辑
+            try {
+                // 使用 parseNodeList 函数，与预览功能完全一致
+                const parsedNodes = parseNodeList(text);
+                console.log(`[DEBUG] Node count API: Parsed ${parsedNodes.length} nodes using parseNodeList`);
+                result.count = parsedNodes.length;
+            } catch (e) {
+                // 解析失败，尝试简单统计
+                console.error('Node count parse error:', e);
+                console.log(`[DEBUG] Node count API: Falling back to regex count`);
                 try {
-                    // 使用 parseNodeList 函数，与预览功能完全一致
-                    const parsedNodes = parseNodeList(text);
-                    console.log(`[DEBUG] Node count API: Parsed ${parsedNodes.length} nodes using parseNodeList`);
-                    result.count = parsedNodes.length;
-                } catch (e) {
-                    // 解析失败，尝试简单统计
-                    console.error('Node count parse error:', e);
-                    console.log(`[DEBUG] Node count API: Falling back to regex count`);
-                    try {
-                        const cleanedText = text.replace(/\s/g, '');
-                        const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-                        if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
-                            console.log(`[DEBUG] Node count API: Base64 content detected, decoding...`);
-                            const binaryString = atob(cleanedText);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
-                            const processedText = new TextDecoder('utf-8').decode(bytes);
-                            console.log(`[DEBUG] Node count API: Decoded text length: ${processedText.length}`);
-                            const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                            console.log(`[DEBUG] Node count API: Regex matches in decoded text: ${lineMatches ? lineMatches.length : 0}`);
-                            if (lineMatches) {
-                                result.count = lineMatches.length;
-                            }
-                        } else {
-                            console.log(`[DEBUG] Node count API: Using raw text regex match`);
-                            const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                            console.log(`[DEBUG] Node count API: Regex matches in raw text: ${lineMatches ? lineMatches.length : 0}`);
-                            if (lineMatches) {
-                                result.count = lineMatches.length;
-                            }
+                    const cleanedText = text.replace(/\s/g, '');
+                    const base64Regex = /^[A-Za-z0-9+\/=]+$/;
+                    if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
+                        console.log(`[DEBUG] Node count API: Base64 content detected, decoding...`);
+                        const binaryString = atob(cleanedText);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
                         }
-                    } catch {
-                        // 最后降级到原始文本统计
-                        console.log(`[DEBUG] Node count API: Final fallback to raw text regex`);
-                        const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                        console.log(`[DEBUG] Node count API: Final regex matches: ${lineMatches ? lineMatches.length : 0}`);
+                        const processedText = new TextDecoder('utf-8').decode(bytes);
+                        console.log(`[DEBUG] Node count API: Decoded text length: ${processedText.length}`);
+                        const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                        console.log(`[DEBUG] Node count API: Regex matches in decoded text: ${lineMatches ? lineMatches.length : 0}`);
                         if (lineMatches) {
                             result.count = lineMatches.length;
                         }
+                    } else {
+                        console.log(`[DEBUG] Node count API: Using raw text regex match`);
+                        const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                        console.log(`[DEBUG] Node count API: Regex matches in raw text: ${lineMatches ? lineMatches.length : 0}`);
+                        if (lineMatches) {
+                            result.count = lineMatches.length;
+                        }
+                    }
+                } catch {
+                    // 最后降级到原始文本统计
+                    console.log(`[DEBUG] Node count API: Final fallback to raw text regex`);
+                    const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                    console.log(`[DEBUG] Node count API: Final regex matches: ${lineMatches ? lineMatches.length : 0}`);
+                    if (lineMatches) {
+                        result.count = lineMatches.length;
                     }
                 }
             }
