@@ -198,7 +198,11 @@ async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
         const response = await fetch(new Request(url, {
             headers: { 'User-Agent': userAgent },
             redirect: "follow",
-            cf: { insecureSkipVerify: true }
+            cf: {
+                insecureSkipVerify: true,
+                allowUntrusted: true,
+                validateCertificate: false
+            }
         }));
 
         if (!response.ok) {

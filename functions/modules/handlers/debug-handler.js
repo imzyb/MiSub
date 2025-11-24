@@ -322,7 +322,11 @@ export async function handlePreviewContentRequest(request, env) {
         const response = await fetch(new Request(url, {
             headers: { 'User-Agent': userAgent },
             redirect: "follow",
-            cf: { insecureSkipVerify: true }
+            cf: {
+                insecureSkipVerify: true,
+                allowUntrusted: true,
+                validateCertificate: false
+            }
         }));
 
         if (!response.ok) {

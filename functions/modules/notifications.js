@@ -202,12 +202,20 @@ export async function handleCronTrigger(env) {
                 const trafficRequest = fetch(new Request(sub.url, {
                     headers: { 'User-Agent': 'clash-verge/v2.4.3' },
                     redirect: "follow",
-                    cf: { insecureSkipVerify: true }
+                    cf: {
+                        insecureSkipVerify: true,
+                        allowUntrusted: true,
+                        validateCertificate: false
+                    }
                 }));
                 const nodeCountRequest = fetch(new Request(sub.url, {
                     headers: { 'User-Agent': 'v2rayN/7.23' },
                     redirect: "follow",
-                    cf: { insecureSkipVerify: true }
+                    cf: {
+                        insecureSkipVerify: true,
+                        allowUntrusted: true,
+                        validateCertificate: false
+                    }
                 }));
                 const [trafficResult, nodeCountResult] = await Promise.allSettled([
                     Promise.race([trafficRequest, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))]),

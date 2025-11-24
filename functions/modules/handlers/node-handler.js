@@ -34,12 +34,20 @@ export async function handleNodeCountRequest(request, env) {
             const fetchOptions = {
                 headers: { 'User-Agent': 'v2rayN/7.23' },
                 redirect: "follow",
-                cf: { insecureSkipVerify: true }
+                cf: {
+                    insecureSkipVerify: true,
+                    allowUntrusted: true,
+                    validateCertificate: false
+                }
             };
             const trafficFetchOptions = {
                 headers: { 'User-Agent': 'clash-verge/v2.4.3' },
                 redirect: "follow",
-                cf: { insecureSkipVerify: true }
+                cf: {
+                    insecureSkipVerify: true,
+                    allowUntrusted: true,
+                    validateCertificate: false
+                }
             };
 
             const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
@@ -187,7 +195,11 @@ export async function handleBatchUpdateNodesRequest(request, env) {
                 const response = await fetch(new Request(subscription.url, {
                     headers: { 'User-Agent': userAgent },
                     redirect: "follow",
-                    cf: { insecureSkipVerify: true }
+                    cf: {
+                        insecureSkipVerify: true,
+                        allowUntrusted: true,
+                        validateCertificate: false
+                    }
                 }));
 
                 if (!response.ok) {
