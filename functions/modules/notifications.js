@@ -189,6 +189,11 @@ export async function handleCronTrigger(env) {
 
     const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm;
     let changesMade = false;
+    let updatedCount = 0;
+    let failedCount = 0;
+    const failedSubscriptions = [];
+
+    console.log(`[Cron] Starting update for ${allSubs.length} subscriptions`);
 
     for (const sub of allSubs) {
         if (sub.url.startsWith('http') && sub.enabled) {
@@ -209,6 +214,9 @@ export async function handleCronTrigger(env) {
                     Promise.race([nodeCountRequest, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))])
                 ]);
 
+                let hasTrafficUpdate = false;
+                let hasNodeCountUpdate = false;
+
                 if (trafficResult.status === 'fulfilled' && trafficResult.value.ok) {
                     const userInfoHeader = trafficResult.value.headers.get('subscription-userinfo');
                     if (userInfoHeader) {
@@ -219,8 +227,10 @@ export async function handleCronTrigger(env) {
                         });
                         sub.userInfo = info; // 更新流量資訊
                         await checkAndNotify(sub, settings, env); // 檢查並發送通知
-                        changesMade = true;
+                        hasTrafficUpdate = true;
                     }
+                } else if (trafficResult.status === 'rejected') {
+                    console.error(`[Cron] Traffic request failed for ${sub.name}:`, trafficResult.reason.message);
                 }
 
                 if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
@@ -234,18 +244,71 @@ export async function handleCronTrigger(env) {
                     const matches = decoded.match(nodeRegex);
                     if (matches) {
                         sub.nodeCount = matches.length; // 更新節點數量
-                        changesMade = true;
+                        hasNodeCountUpdate = true;
                     }
+                } else if (nodeCountResult.status === 'rejected') {
+                    console.error(`[Cron] Node count request failed for ${sub.name}:`, nodeCountResult.reason.message);
+                }
+
+                if (hasTrafficUpdate || hasNodeCountUpdate) {
+                    updatedCount++;
+                    changesMade = true;
+                    console.log(`[Cron] Updated ${sub.name}: traffic=${hasTrafficUpdate}, nodes=${hasNodeCountUpdate}`);
                 }
 
             } catch (e) {
-                // 请求处理出错
+                failedCount++;
+                const errorInfo = {
+                    name: sub.name || '未命名',
+                    url: sub.url,
+                    error: e.message,
+                    timestamp: new Date().toISOString()
+                };
+
+                console.error(`[Cron] Failed to update subscription:`, errorInfo);
+                failedSubscriptions.push(errorInfo);
             }
         }
     }
 
     if (changesMade) {
-        await storageAdapter.put('misub_subscriptions_v1', allSubs);
+        try {
+            await storageAdapter.put('misub_subscriptions_v1', allSubs);
+            console.log(`[Cron] Successfully saved updated subscriptions`);
+        } catch (saveError) {
+            console.error(`[Cron] Failed to save subscriptions:`, saveError);
+            return new Response(JSON.stringify({
+                success: false,
+                error: "Failed to save subscriptions",
+                details: saveError.message,
+                summary: {
+                    total: allSubs.length,
+                    updated: updatedCount,
+                    failed: failedCount,
+                    saveError: true
+                }
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
     }
-    return new Response("Cron job completed successfully.", { status: 200 });
+
+    const summary = {
+        success: true,
+        summary: {
+            total: allSubs.length,
+            updated: updatedCount,
+            failed: failedCount,
+            changes: changesMade,
+            failed_subscriptions: failedSubscriptions
+        }
+    };
+
+    console.log(`[Cron] Completed:`, summary.summary);
+
+    return new Response(JSON.stringify(summary), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+    });
 }

@@ -179,8 +179,27 @@ const loadNodes = async () => {
     regionStats.value = data.stats?.regions || {};
 
     // 更新可用筛选选项
-    availableProtocols.value = Object.keys(protocolStats.value).sort();
-    availableRegions.value = Object.keys(regionStats.value).sort();
+    // 协议类型按常见程度排序
+    const protocolOrder = ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria2', 'tuic', 'socks5', 'anytls', 'unknown'];
+    availableProtocols.value = Object.keys(protocolStats.value).sort((a, b) => {
+      const aIndex = protocolOrder.indexOf(a.toLowerCase());
+      const bIndex = protocolOrder.indexOf(b.toLowerCase());
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+
+    // 地区按常见地区优先排序
+    const regionOrder = ['香港', '台湾', '新加坡', '日本', '美国', '韩国', '英国', '德国', '法国', '加拿大', '澳大利亚', '其他'];
+    availableRegions.value = Object.keys(regionStats.value).sort((a, b) => {
+      const aIndex = regionOrder.indexOf(a);
+      const bIndex = regionOrder.indexOf(b);
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
 
     // 重置页码
     currentPage.value = 1;
@@ -404,9 +423,9 @@ onMounted(() => {
               v-model="protocolFilter"
               class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">全部协议</option>
+              <option value="all">全部协议 ({{ allNodes.length }})</option>
               <option v-for="protocol in availableProtocols" :key="protocol" :value="protocol">
-                {{ protocol.toUpperCase() }} ({{ protocolStats[protocol] }})
+                {{ protocol.toUpperCase() }} ({{ protocolStats[protocol]?.count || 0 }}) - {{ protocolStats[protocol]?.percentage || 0 }}%
               </option>
             </select>
           </div>
@@ -420,9 +439,9 @@ onMounted(() => {
               v-model="regionFilter"
               class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">全部地区</option>
+              <option value="all">全部地区 ({{ allNodes.length }})</option>
               <option v-for="region in availableRegions" :key="region" :value="region">
-                {{ region }} ({{ regionStats[region] }})
+                {{ region }} ({{ regionStats[region]?.count || 0 }}) - {{ regionStats[region]?.percentage || 0 }}%
               </option>
             </select>
           </div>

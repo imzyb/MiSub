@@ -5,6 +5,10 @@
 
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
+import { parseNodeList } from '../utils/node-parser.js';
+
+// 创建用于全局匹配的协议正则表达式
+const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp('^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\\/\\/', 'gm');
 
 /**
  * 获取订阅节点数量和用户信息
@@ -62,15 +66,54 @@ export async function handleNodeCountRequest(request, env) {
             if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
                 const nodeCountResponse = responses[1].value;
                 const text = await nodeCountResponse.text();
-                let decoded = '';
+
+                console.log(`[DEBUG] Node count API: Raw text length: ${text.length}`);
+                console.log(`[DEBUG] Node count API: Raw text preview:`, text.substring(0, 200) + '...');
+
+                // 使用与预览功能相同的节点解析逻辑
                 try {
-                    decoded = atob(text.replace(/\s/g, ''));
-                } catch {
-                    decoded = text;
-                }
-                const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
-                if (lineMatches) {
-                    result.count = lineMatches.length;
+                    // 使用 parseNodeList 函数，与预览功能完全一致
+                    const parsedNodes = parseNodeList(text);
+                    console.log(`[DEBUG] Node count API: Parsed ${parsedNodes.length} nodes using parseNodeList`);
+                    result.count = parsedNodes.length;
+                } catch (e) {
+                    // 解析失败，尝试简单统计
+                    console.error('Node count parse error:', e);
+                    console.log(`[DEBUG] Node count API: Falling back to regex count`);
+                    try {
+                        const cleanedText = text.replace(/\s/g, '');
+                        const base64Regex = /^[A-Za-z0-9+\/=]+$/;
+                        if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
+                            console.log(`[DEBUG] Node count API: Base64 content detected, decoding...`);
+                            const binaryString = atob(cleanedText);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const processedText = new TextDecoder('utf-8').decode(bytes);
+                            console.log(`[DEBUG] Node count API: Decoded text length: ${processedText.length}`);
+                            const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                            console.log(`[DEBUG] Node count API: Regex matches in decoded text: ${lineMatches ? lineMatches.length : 0}`);
+                            if (lineMatches) {
+                                result.count = lineMatches.length;
+                            }
+                        } else {
+                            console.log(`[DEBUG] Node count API: Using raw text regex match`);
+                            const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                            console.log(`[DEBUG] Node count API: Regex matches in raw text: ${lineMatches ? lineMatches.length : 0}`);
+                            if (lineMatches) {
+                                result.count = lineMatches.length;
+                            }
+                        }
+                    } catch {
+                        // 最后降级到原始文本统计
+                        console.log(`[DEBUG] Node count API: Final fallback to raw text regex`);
+                        const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                        console.log(`[DEBUG] Node count API: Final regex matches: ${lineMatches ? lineMatches.length : 0}`);
+                        if (lineMatches) {
+                            result.count = lineMatches.length;
+                        }
+                    }
                 }
             }
 
@@ -153,25 +196,34 @@ export async function handleBatchUpdateNodesRequest(request, env) {
 
                 const text = await response.text();
 
-                // 智能内容类型检测和Base64解码
-                let processedText = text;
+                // 使用与预览功能相同的解码和节点统计逻辑
+                let nodeCount = 0;
                 try {
-                    const cleanedText = text.replace(/\s/g, '');
-                    const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-                    if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
-                        const binaryString = atob(cleanedText);
-                        const bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        processedText = new TextDecoder('utf-8').decode(bytes);
-                    }
+                    // 使用 parseNodeList 函数，与预览功能完全一致
+                    const parsedNodes = parseNodeList(text);
+                    nodeCount = parsedNodes.length;
                 } catch (e) {
-                    // 解码失败，使用原始内容
+                    // 解码失败，尝试简单统计
+                    console.error('Batch update decode error:', e);
+                    try {
+                        const cleanedText = text.replace(/\s/g, '');
+                        const base64Regex = /^[A-Za-z0-9+\/=]+$/;
+                        if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
+                            const binaryString = atob(cleanedText);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const processedText = new TextDecoder('utf-8').decode(bytes);
+                            nodeCount = (processedText.match(NODE_PROTOCOL_GLOBAL_REGEX) || []).length;
+                        } else {
+                            nodeCount = (text.match(NODE_PROTOCOL_GLOBAL_REGEX) || []).length;
+                        }
+                    } catch {
+                        // 如果都失败，使用原始文本进行统计
+                        nodeCount = (text.match(NODE_PROTOCOL_GLOBAL_REGEX) || []).length;
+                    }
                 }
-
-                // 简单的节点数量统计（不需要完整解析）
-                const nodeCount = (processedText.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm) || []).length;
 
                 return {
                     subscriptionId: subscription.id,

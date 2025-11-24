@@ -144,9 +144,14 @@ export async function handleMisubsSave(request, env) {
             }, 500);
         }
 
+        // 步骤7: 返回保存后的数据，确保前端能更新状态
         return createJsonResponse({
             success: true,
-            message: '订阅源及订阅组已保存'
+            message: '订阅源及订阅组已保存',
+            data: {
+                misubs,
+                profiles
+            }
         });
 
     } catch (e) {

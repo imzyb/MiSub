@@ -1620,6 +1620,20 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                             return line;
                         }
                     }
+                    // 处理 Hysteria2 节点的 URL 编码
+                    else if (line.startsWith('hysteria2://') || line.startsWith('hy2://')) {
+                        try {
+                            const url = new URL(line);
+                            // 解码所有查询参数
+                            url.searchParams.forEach((value, key) => {
+                                url.searchParams.set(key, decodeURIComponent(value));
+                            });
+                            return url.toString();
+                        } catch (e) {
+                            // 如果处理失败，返回原始链接
+                            return line;
+                        }
+                    }
                     return line;
                 });
 

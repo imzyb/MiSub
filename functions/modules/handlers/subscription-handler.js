@@ -213,11 +213,19 @@ async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
 
         let text = await response.text();
 
+        console.log(`[DEBUG] Preview API: Raw text length: ${text.length}`);
+        console.log(`[DEBUG] Preview API: Raw text preview:`, text.substring(0, 200) + '...');
+
         // 智能内容类型检测和Base64解码
         const processedText = decodeAndProcessContent(text);
 
+        console.log(`[DEBUG] Preview API: Processed text length: ${processedText.length}`);
+        console.log(`[DEBUG] Preview API: Content changed after processing: ${processedText !== text}`);
+
         // 解析节点列表
         const parsedNodes = parseNodeList(processedText);
+
+        console.log(`[DEBUG] Preview API: Final node count: ${parsedNodes.length}`);
 
         return {
             subscriptionName,

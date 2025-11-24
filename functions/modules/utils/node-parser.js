@@ -8,7 +8,7 @@ import { parseNodeInfo, extractNodeRegion } from './geo-utils.js';
 /**
  * 支持的节点协议正则表达式
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g;
+export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//i;
 
 /**
  * 修复SS节点中的URL编码问题
@@ -91,7 +91,10 @@ export function fixNodeEncoding(nodeUrl) {
  * @returns {string[]} 有效的节点URL数组
  */
 export function extractValidNodes(text) {
+    console.log(`[DEBUG] extractValidNodes: Input text length: ${text ? text.length : 0}`);
+
     if (!text || typeof text !== 'string') {
+        console.log(`[DEBUG] extractValidNodes: Invalid input`);
         return [];
     }
 
@@ -100,10 +103,27 @@ export function extractValidNodes(text) {
         .replace(/\r\n/g, '\n')
         .split('\n')
         .map(line => line.trim())
-        .filter(line => NODE_PROTOCOL_REGEX.test(line));
+        .filter(line => {
+            // 使用test方法而不是全局regex，因为我们移除了全局标志
+            const matches = NODE_PROTOCOL_REGEX.test(line);
+            return matches;
+        });
+
+    console.log(`[DEBUG] extractValidNodes: Filtered to ${lines.length} lines matching protocol regex`);
+
+    // 调试：输出匹配的行
+    if (lines.length > 0 && lines.length <= 10) {
+        console.log(`[DEBUG] extractValidNodes: Matching lines:`, lines.map(line => line.substring(0, 50) + '...'));
+    } else if (lines.length > 10) {
+        console.log(`[DEBUG] extractValidNodes: First 10 matching lines:`, lines.slice(0, 10).map(line => line.substring(0, 50) + '...'));
+        console.log(`[DEBUG] extractValidNodes: ... and ${lines.length - 10} more lines`);
+    }
 
     // 修复每个节点的编码问题
-    return lines.map(nodeUrl => fixNodeEncoding(nodeUrl));
+    const result = lines.map(nodeUrl => fixNodeEncoding(nodeUrl));
+    console.log(`[DEBUG] extractValidNodes: Final result: ${result.length} nodes`);
+
+    return result;
 }
 
 /**
@@ -157,7 +177,7 @@ export function detectContentType(text) {
     }
 
     // 检查是否包含节点URL
-    const nodeCount = (text.match(NODE_PROTOCOL_REGEX) || []).length;
+    const nodeCount = (text.match(new RegExp(NODE_PROTOCOL_REGEX.source, 'gi')) || []).length;
     if (nodeCount > 0) {
         return 'node-list';
     }
@@ -171,37 +191,52 @@ export function detectContentType(text) {
  * @returns {Array} 解析后的节点对象数组
  */
 export function parseNodeList(content) {
+    console.log(`[DEBUG] parseNodeList: Input content length: ${content ? content.length : 0}`);
+
     if (!content) {
+        console.log(`[DEBUG] parseNodeList: No content provided`);
         return [];
     }
 
     // 检测内容类型
     const contentType = detectContentType(content);
+    console.log(`[DEBUG] parseNodeList: Detected content type: ${contentType}`);
 
-    // 如果是完整的配置文件，不处理节点
-    if (contentType === 'clash-config' || contentType === 'singbox-config') {
-        return [];
-    }
+    // 即使是配置文件，也尝试提取节点URL
+    // 不再跳过，因为很多订阅混合了配置和节点列表
 
     // 尝试Base64解码
     let processedContent = content;
+    let decoded = false;
     try {
         processedContent = decodeBase64Text(content);
+        decoded = processedContent !== content;
+        console.log(`[DEBUG] parseNodeList: Base64 decoded: ${decoded}, processed content length: ${processedContent.length}`);
     } catch (e) {
+        console.log(`[DEBUG] parseNodeList: Base64 decode failed: ${e.message}`);
         // 解码失败，使用原始内容
     }
 
     // 提取有效节点
     const validNodes = extractValidNodes(processedContent);
+    console.log(`[DEBUG] parseNodeList: Extracted ${validNodes.length} valid nodes`);
+
+    // 调试：输出前5个节点
+    if (validNodes.length > 0) {
+        console.log(`[DEBUG] parseNodeList: First 5 nodes:`, validNodes.slice(0, 5).map(n => n.substring(0, 50) + '...'));
+    }
 
     // 解析每个节点的详细信息
-    return validNodes.map(nodeUrl => {
+    const result = validNodes.map(nodeUrl => {
         const nodeInfo = parseNodeInfo(nodeUrl);
         return {
             url: nodeUrl,
             ...nodeInfo
         };
     });
+
+    console.log(`[DEBUG] parseNodeList: Final result: ${result.length} nodes`);
+    return result;
 }
 
 /**

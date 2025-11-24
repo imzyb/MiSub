@@ -173,6 +173,137 @@ export function prependNodeName(link, prefix) {
 }
 
 /**
+ * 创建带超时的请求
+ * @param {RequestInfo} input - 请求输入
+ * @param {RequestInit} init - 请求初始化选项
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<Response>} 响应
+ */
+export function createTimeoutFetch(input, init = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const fetchPromise = fetch(new Request(input, {
+        ...init,
+        signal: controller.signal
+    }));
+
+    return fetchPromise.finally(() => {
+        clearTimeout(timeoutId);
+    });
+}
+
+/**
+ * 带重试机制的请求函数
+ * @param {RequestInfo} input - 请求输入
+ * @param {RequestInit} init - 请求初始化选项
+ * @param {Object} options - 选项
+ * @param {number} options.maxRetries - 最大重试次数
+ * @param {number} options.timeout - 每次请求超时时间
+ * @param {number} options.baseDelay - 基础延迟时间
+ * @returns {Promise<Response>} 响应
+ */
+export async function retryFetch(input, init = {}, options = {}) {
+    const {
+        maxRetries = 3,
+        timeout = 10000,
+        baseDelay = 1000
+    } = options;
+
+    let lastError;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await createTimeoutFetch(input, init, timeout);
+        } catch (error) {
+            lastError = error;
+
+            // 如果是最后一次尝试，直接抛出错误
+            if (attempt === maxRetries) {
+                throw error;
+            }
+
+            // 计算延迟时间（指数退避）
+            const delay = baseDelay * Math.pow(2, attempt);
+            console.warn(`[Retry] Request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms:`, error.message);
+
+            // 等待延迟
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    throw lastError;
+}
+
+/**
+ * 创建统一错误响应
+ * @param {string} error - 错误信息
+ * @param {string} context - 错误上下文
+ * @param {number} status - HTTP状态码
+ * @returns {Response} HTTP响应
+ */
+export function createErrorResponse(error, context = '', status = 500) {
+    const errorInfo = {
+        success: false,
+        error: error.message || error,
+        context,
+        timestamp: new Date().toISOString()
+    };
+
+    console.error(`[${context || 'Error'}] ${errorInfo.error}`, error);
+
+    return createJsonResponse(errorInfo, status);
+}
+
+/**
+ * 安全的存储操作包装器
+ * @param {Function} operation - 存储操作函数
+ * @param {any} fallback - 操作失败时的默认返回值
+ * @param {string} context - 操作上下文
+ * @returns {Promise<any>} 操作结果
+ */
+export async function safeStorageOperation(operation, fallback = null, context = '') {
+    try {
+        return await operation();
+    } catch (error) {
+        console.error(`[Storage] ${context} failed:`, error);
+        return fallback;
+    }
+}
+
+/**
+ * 通用日志函数
+ * @param {string} level - 日志级别 (info, warn, error)
+ * @param {string} message - 日志消息
+ * @param {any} data - 附加数据
+ */
+export function log(level, message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+        timestamp,
+        level,
+        message,
+        data
+    };
+
+    switch (level) {
+        case 'info':
+            console.info(`[${timestamp}] ${message}`, data);
+            break;
+        case 'warn':
+            console.warn(`[${timestamp}] ${message}`, data);
+            break;
+        case 'error':
+            console.error(`[${timestamp}] ${message}`, data);
+            break;
+        default:
+            console.log(`[${timestamp}] ${message}`, data);
+    }
+
+    return logEntry;
+}
+
+/**
  * 获取回调令牌
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<string>} 回调令牌

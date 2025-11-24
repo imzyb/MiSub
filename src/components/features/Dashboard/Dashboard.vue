@@ -143,6 +143,23 @@ const handleSave = async () => {
     if (result.success) {
         saveState.value = 'success';
         showToast('保存成功！', 'success');
+
+        // 如果服务器返回了更新后的数据，使用这些数据更新本地状态
+        if (result.data) {
+          const subsData = result.data.misubs || [];
+          initialSubs.value = subsData.filter(item => item.url && /^https?:\/\//.test(item.url));
+          initialNodes.value = subsData.filter(item => !item.url || !/^https?:\/\//.test(item.url));
+          initialProfiles.value = result.data.profiles || [];
+
+          // 重置分页到第一页
+          manualNodesCurrentPage.value = 1;
+        }
+
+        // 如果当前处于排序模式，自动退出排序模式
+        if (isSortingNodes.value) {
+          isSortingNodes.value = false;
+        }
+
         setTimeout(() => { dirty.value = false; saveState.value = 'idle'; }, 1500);
     } else {
         // 显示服务器返回的具体错误信息

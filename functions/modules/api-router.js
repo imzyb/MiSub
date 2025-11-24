@@ -174,32 +174,133 @@ export async function handleApiRequest(request, env) {
 /**
  * 处理外部URL获取请求
  * @param {Object} request - HTTP请求对象
+ * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-async function handleExternalFetchRequest(request) {
+async function handleExternalFetchRequest(request, env) {
     if (request.method !== 'POST') {
-        return createJsonResponse('Method Not Allowed', 405);
+        return createJsonResponse({ error: 'Method Not Allowed' }, 405);
     }
-    const { url: externalUrl } = await request.json();
-    if (!externalUrl || typeof externalUrl !== 'string' || !/^https?:\/\//.test(externalUrl)) {
-        return createJsonResponse({ error: 'Invalid or missing url' }, 400);
+
+    let requestData;
+    try {
+        requestData = await request.json();
+    } catch (e) {
+        return createJsonResponse({ error: 'Invalid JSON format' }, 400);
     }
+
+    const { url: externalUrl, timeout = 15000 } = requestData;
+
+    if (!externalUrl || typeof externalUrl !== 'string' || !/^https?:\/\/.+/.test(externalUrl)) {
+        return createJsonResponse({
+            error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.'
+        }, 400);
+    }
+
+    // 检查URL长度限制
+    if (externalUrl.length > 2048) {
+        return createJsonResponse({ error: 'URL too long (max 2048 characters)' }, 400);
+    }
+
+    console.log(`[External Fetch] Processing URL: ${externalUrl}`);
 
     try {
+        // 创建带超时的请求
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
         const response = await fetch(new Request(externalUrl, {
-            headers: { 'User-Agent': 'v2rayN/7.23' }, // 统一User-Agent
+            method: 'GET',
+            headers: {
+                'User-Agent': 'v2rayN/7.23',
+                'Accept': '*/*',
+                'Cache-Control': 'no-cache'
+            },
             redirect: "follow",
-            cf: { insecureSkipVerify: true } // Allow insecure SSL for flexibility
+            cf: {
+                insecureSkipVerify: true,
+                timeout: timeout / 1000 // Cloudflare timeout in seconds
+            },
+            signal: controller.signal
         }));
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-            return createJsonResponse({ error: `Failed to fetch external URL: ${response.status} ${response.statusText}` }, response.status);
+            const errorText = await response.text();
+            console.error(`[External Fetch] HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+
+            return createJsonResponse({
+                error: `Failed to fetch external URL: HTTP ${response.status} ${response.statusText}`,
+                status: response.status,
+                statusText: response.statusText
+            }, response.status);
         }
 
-        const content = await response.text();
-        return new Response(content, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+        // 检查内容类型和大小
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) { // 10MB limit
+            return createJsonResponse({
+                error: 'Content too large (max 10MB limit)'
+            }, 413);
+        }
 
-    } catch (e) {
-        return createJsonResponse({ error: `Failed to fetch external URL: ${e.message}` }, 500);
+        const contentType = response.headers.get('content-type') || '';
+
+        // 读取内容
+        const content = await response.text();
+
+        // 检查内容大小限制
+        if (content.length > 10 * 1024 * 1024) { // 10MB limit
+            return createJsonResponse({
+                error: 'Response content too large (max 10MB limit)'
+            }, 413);
+        }
+
+        console.log(`[External Fetch] Success: ${content.length} bytes, type: ${contentType}`);
+
+        // 返回带有元数据的响应
+        return new Response(JSON.stringify({
+            content: content,
+            contentType: contentType,
+            size: content.length,
+            url: externalUrl,
+            success: true
+        }), {
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
+        });
+
+    } catch (error) {
+        let errorMessage = 'Unknown error occurred';
+        let errorDetails = {};
+
+        if (error.name === 'AbortError') {
+            errorMessage = `Request timeout after ${timeout}ms`;
+            errorDetails = { type: 'timeout', timeout };
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+            errorMessage = 'Network error - unable to reach the server';
+            errorDetails = { type: 'network', originalError: error.message };
+        } else if (error.message.includes('DNS')) {
+            errorMessage = 'DNS resolution failed';
+            errorDetails = { type: 'dns', originalError: error.message };
+        } else {
+            errorMessage = `Request failed: ${error.message}`;
+            errorDetails = { type: 'unknown', originalError: error.message };
+        }
+
+        console.error(`[External Fetch] Error:`, {
+            url: externalUrl,
+            error: error.message,
+            errorType: errorDetails.type
+        });
+
+        return createJsonResponse({
+            error: errorMessage,
+            details: errorDetails,
+            url: externalUrl
+        }, 500);
     }
 }

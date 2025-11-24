@@ -212,6 +212,9 @@ export function useManualNodes(initialNodesRef, markDirty) {
     manualNodes.value = uniqueNodes;
     const removedCount = originalCount - uniqueNodes.length;
 
+    // 重置分页到第一页，确保去重后能正确显示
+    manualNodesCurrentPage.value = 1;
+
     if (removedCount > 0) {
       showToast(`成功移除 ${removedCount} 个重复节点，请记得保存。`, 'success');
       markDirty();
@@ -235,6 +238,10 @@ export function useManualNodes(initialNodesRef, markDirty) {
         if (effectiveIndexA !== effectiveIndexB) return effectiveIndexA - effectiveIndexB;
         return a.name.localeCompare(b.name, 'zh-CN');
     });
+
+    // 重置分页到第一页，确保排序后能正确显示
+    manualNodesCurrentPage.value = 1;
+
     // [修正] 只標記為 dirty，不呼叫 handleSave
     markDirty();
   }

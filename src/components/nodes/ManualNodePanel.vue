@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import draggable from 'vuedraggable';
 import ManualNodeCard from './ManualNodeCard.vue';
 import ManualNodeList from './ManualNodeList.vue';
@@ -157,8 +157,22 @@ const handleSetViewMode = (mode) => emit('update:viewMode', mode);
 const handleToggleSort = () => {
   emit('toggleSort');
   showNodesMoreMenu.value = false;
+
+  // 使用 nextTick 等待状态更新完成后重置分页
+  nextTick(() => {
+    // 如果已经退出排序模式且没有搜索，重置到第一页
+    if (!props.isSorting && !props.searchTerm) {
+      emit('changePage', 1);
+    }
+  });
 };
-const handleSortEnd = () => emit('markDirty');
+const handleSortEnd = () => {
+  emit('markDirty');
+  // 手动排序完成后重置到第一页
+  if (!props.searchTerm) {
+    emit('changePage', 1);
+  }
+};
 const handleAutoSort = () => {
   emit('autoSort');
   showNodesMoreMenu.value = false;
