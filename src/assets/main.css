@@ -1,279 +1,61 @@
-@import 'tailwindcss';
-
-@custom-variant dark (&:is(.dark *));
-
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: transparent;
-  }
-}
-
-@layer base {
-  /* 确保根元素充满整个视口高度 */
-  html,
-  body,
-  #app {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    /* 升级：现代渐变背景 */
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
-    /* 添加细微噪点纹理 */
-    background-image: 
-      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.4) 1px, transparent 0);
-    background-size: 20px 20px;
-  }
-
-  /* 暗黑模式下的高级背景 */
-  html.dark,
-  html.dark body,
-  html.dark #app {
-    /* 升级：深色模式渐变背景 */
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-    /* 暗色模式噪点纹理 */
-    background-image: 
-      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0);
-    background-size: 20px 20px;
-  }
-}
-
-
-/* 全局字体渲染优化 */
-body {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.list-item-animation {
-  /* 初始状态：向上移动一点点并且透明 */
-  transform: translateY(20px);
-  opacity: 0;
-  /* 动画定义：使用 calc() 和 CSS 变量来创建交错延迟 */
-  animation: slide-up 0.4s ease-out forwards;
-  animation-delay: calc(var(--delay-index) * 50ms); /* 核心：每个卡片的延迟时间 = 索引 * 50毫秒 */
-}
-
-@keyframes slide-up {
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* 自定义滚动条样式，使其与主题匹配 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background-color: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background-color: #4f46e5; /* 靛蓝色 */
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: #4338ca; /* 深一点的靛蓝色 */
-}
-
-/* 为所有按钮增加一个更柔和的点击动效 */
-button {
-    /* 确保所有变换都有平滑过渡 */
-    transition: all 0.2s ease-in-out;
-}
-button:active {
-    /* 点击时轻微缩放，提供物理反馈 */
-    transform: scale(0.95);
-    /* 新增：点击时稍微变暗，增强物理反馈感 */
-    filter: brightness(0.95);
-}
-
-/* 🆕 升级：现代卡片阴影系统 */
-.card-shadow {
-  box-shadow: 
-    0 1px 3px 0 rgba(0, 0, 0, 0.1),
-    0 1px 2px 0 rgba(0, 0, 0, 0.06);
-}
-
-.card-shadow-hover {
-  box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
-    0 0 20px rgba(79, 70, 229, 0.1); /* 微妙的品牌色光晕 */
-}
-
-.dark .card-shadow {
-  box-shadow: 
-    0 1px 3px 0 rgba(0, 0, 0, 0.3),
-    0 1px 2px 0 rgba(0, 0, 0, 0.2);
-}
-
-.dark .card-shadow-hover {
-  box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.3),
-    0 2px 4px -1px rgba(0, 0, 0, 0.2),
-    0 0 20px rgba(99, 102, 241, 0.2); /* 暗色模式下的光晕 */
-}
-
-/* 🆕 流体动画系统 */
-.smooth-transform {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.smooth-all {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* shimmer效果已移除 */
-
-/* 移动端优化 */
-@media (max-width: 768px) {
-  /* 确保移动端的按钮有足够的点击区域 */
-  button {
-    min-height: 44px;
-    min-width: 44px;
+/* 优化：使用 @apply 提取公共样式，减少重复代码 */
+@layer utilities {
+  .content-auto {
+    content-visibility: auto;
   }
   
-  /* 🆕 移动端视图切换按钮优化 - 确保图标居中 */
-  .view-mode-toggle {
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 0.5rem !important;
+  .interactive-effect {
+    @apply transition-all duration-300 ease-in-out;
   }
   
-  .view-mode-toggle svg {
-    width: 1.25rem !important;
-    height: 1.25rem !important;
-    flex-shrink: 0;
+  .card-hover {
+    @apply hover:shadow-lg interactive-effect;
   }
   
-  /* 移动端的卡片按钮组更容易操作 */
-  .shrink-0.flex.items-center.gap-1 {
-    gap: 0.5rem;
-  }
-  
-  /* 移动端的按钮图标稍微大一点 */
-  .shrink-0.flex.items-center.gap-1 svg {
-    width: 1.25rem;
-    height: 1.25rem;
-  }
-  
-  /* 移动端下拉菜单优化 */
-  .absolute.mt-2 {
-    z-index: 50;
-    min-width: 120px;
-  }
-  
-  /* 修复：提高下拉菜单的z-index以防止被覆盖 */
-  .absolute.right-0.mt-2 {
-    z-index: 10000;
-  }
-  
-  
-  /* 移动端搜索框优化 */
-  input[type="text"] {
-    font-size: 16px; /* 防止iOS缩放 */
+  .focus-visible-style {
+    @apply focus-visible:outline-2 focus-visible:outline-indigo-500 
+           focus-visible:outline-offset-2 focus-visible:ring-2 
+           focus-visible:ring-indigo-100;
   }
 }
 
-/* 🆕 增强的微交互效果 */
-
-/* 流体按钮微交互 */
+/* 流体按钮微交互（优化：简化选择器） */
 .fluid-button {
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  @apply relative overflow-hidden interactive-effect;
 }
 
 .fluid-button::before {
   content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  transition: left 0.5s;
+  @apply absolute top-0 left-[-100%] w-full h-full 
+         bg-gradient-to-r from-transparent via-white/20 to-transparent
+         transition-all duration-500;
 }
 
 .fluid-button:hover::before {
-  left: 100%;
+  @apply left-[100%];
 }
 
-/* 焦点可见性增强 */
-.focus-enhanced:focus-visible {
-  outline: 2px solid #6366f1;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+/* 输入框增强效果（优化：合并重复逻辑） */
+.input-enhanced {
+  @apply interactive-effect focus:scale-[1.01] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1),0_4px_6px_-1px_rgba(0,0,0,0.1)];
 }
 
-/* 平滑滚动 */
+/* 磁吸效果（优化：增加按压反馈） */
+.magnetic-effect {
+  @apply interactive-effect hover:-translate-y-1 active:translate-y-0;
+}
+
+/* 平滑滚动（优化：增加触摸设备支持） */
 html {
-  scroll-behavior: smooth;
+  @apply scroll-smooth;
+  -webkit-overflow-scrolling: touch; /* 增强移动设备滚动体验 */
 }
 
-/* 优化选择文本的体验 */
+/* 优化选择文本的体验（保持不变） */
 ::selection {
-  background-color: rgba(99, 102, 241, 0.2);
-  color: inherit;
+  @apply bg-indigo-200/50 text-inherit;
 }
 
 .dark ::selection {
-  background-color: rgba(129, 140, 248, 0.3);
-}
-
-/* 输入框增强效果 */
-.input-enhanced {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.input-enhanced:focus {
-  transform: scale(1.01);
-  box-shadow: 
-    0 0 0 3px rgba(99, 102, 241, 0.1),
-    0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-/* 磁吸效果 - 鼠标接近时的微妙响应 */
-.magnetic-effect {
-  transition: transform 0.2s ease;
-}
-
-.magnetic-effect:hover {
-  transform: translateY(-2px);
-}
-
-/* 渐变文字效果 */
-.gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.dark .gradient-text {
-  background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  @apply bg-indigo-400/30;
 }
