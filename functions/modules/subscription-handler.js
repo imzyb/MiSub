@@ -99,6 +99,38 @@ function getSubconverterCandidates(primary) {
 }
 
 /**
+ * 构建 SubConverter 请求的基础 URL，兼容带/不带协议的配置
+ * @param {string} backend - 用户配置的 SubConverter 地址
+ * @returns {URL} - 规范化后的 URL 对象，指向 /sub 路径
+ */
+function buildSubconverterUrl(backend) {
+    if (!backend || backend.trim() === '') {
+        throw new Error('Subconverter backend is not configured.');
+    }
+
+    const trimmed = backend.trim();
+    const hasProtocol = /^https?:\/\//i.test(trimmed);
+
+    let baseUrl;
+    try {
+        baseUrl = new URL(hasProtocol ? trimmed : `https://${trimmed}`);
+    } catch (err) {
+        throw new Error(`Invalid Subconverter backend: ${trimmed}`);
+    }
+
+    const normalizedPath = baseUrl.pathname.replace(/\/+$/, '');
+    if (!normalizedPath || normalizedPath === '') {
+        baseUrl.pathname = '/sub';
+    } else if (!/\/sub$/i.test(normalizedPath)) {
+        baseUrl.pathname = `${normalizedPath}/sub`;
+    } else {
+        baseUrl.pathname = normalizedPath;
+    }
+
+    return baseUrl;
+}
+
+/**
  * 处理MiSub订阅请求
  * @param {Object} context - Cloudflare上下文
  * @returns {Promise<Response>} HTTP响应
@@ -575,6 +607,7 @@ export async function handleMisubRequest(context) {
                     subconverterUrl.searchParams.set('config', effectiveSubConfig);
                 }
                 subconverterUrl.searchParams.set('new_name', 'true');
+
 
                 const subconverterResponse = await fetch(subconverterUrl.toString(), {
                     method: 'GET',
