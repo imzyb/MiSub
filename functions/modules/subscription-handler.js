@@ -18,6 +18,86 @@ import {
     createCacheHeaders
 } from '../services/node-cache-service.js';
 
+const DEFAULT_SUBCONVERTER_FALLBACKS = [
+    'subapi.cmliussss.net',
+    'sub.d1.mk',
+    'sub.xeton.dev'
+];
+
+/**
+ * 构建 SubConverter 请求的基础 URL，兼容带/不带协议的配置
+ * @param {string} backend - 用户配置的 SubConverter 地址
+ * @returns {URL} - 规范化后的 URL 对象，指向 /sub 路径
+ */
+function buildSubconverterUrl(backend) {
+    if (!backend || backend.trim() === '') {
+        throw new Error('Subconverter backend is not configured.');
+    }
+
+    const trimmed = backend.trim();
+    const hasProtocol = /^https?:\/\//i.test(trimmed);
+
+    let baseUrl;
+    try {
+        baseUrl = new URL(hasProtocol ? trimmed : `https://${trimmed}`);
+    } catch (err) {
+        throw new Error(`Invalid Subconverter backend: ${trimmed}`);
+    }
+
+    const normalizedPath = baseUrl.pathname.replace(/\/+$/, '');
+    if (!normalizedPath || normalizedPath === '') {
+        baseUrl.pathname = '/sub';
+    } else if (!/\/sub$/i.test(normalizedPath)) {
+        baseUrl.pathname = `${normalizedPath}/sub`;
+    } else {
+        baseUrl.pathname = normalizedPath;
+    }
+
+    return baseUrl;
+}
+
+/**
+ * 针对无协议的后端生成 https/http 两种候选，确保最大兼容性
+ * @param {string} backend - 用户输入的后端
+ * @returns {URL[]} - 去重后的 URL 列表
+ */
+function buildSubconverterUrlVariants(backend) {
+    const variants = [];
+    const hasProtocol = /^https?:\/\//i.test(backend.trim());
+
+    const rawCandidates = hasProtocol
+        ? [backend.trim()]
+        : [`https://${backend.trim()}`, `http://${backend.trim()}`];
+
+    for (const candidate of rawCandidates) {
+        try {
+            const urlObj = buildSubconverterUrl(candidate);
+            // 去重：比较 href
+            if (!variants.some(v => v.href === urlObj.href)) {
+                variants.push(urlObj);
+            }
+        } catch (err) {
+            // 如果某个变体非法，忽略并继续下一个
+            continue;
+        }
+    }
+
+    return variants;
+}
+
+/**
+ * 获取 SubConverter 备选列表（去重）
+ * @param {string} primary - 首选后端
+ * @returns {string[]} - 去重后的候选列表
+ */
+function getSubconverterCandidates(primary) {
+    const all = [primary, ...DEFAULT_SUBCONVERTER_FALLBACKS];
+    return all
+        .filter(Boolean)
+        .map(item => item.trim())
+        .filter((item, index, arr) => item !== '' && arr.indexOf(item) === index);
+}
+
 /**
  * 处理MiSub订阅请求
  * @param {Object} context - Cloudflare上下文
@@ -478,98 +558,113 @@ export async function handleMisubRequest(context) {
         return new Response(base64Content, { headers });
     }
 
-    const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
-    subconverterUrl.searchParams.set('target', targetFormat);
-    subconverterUrl.searchParams.set('url', callbackUrl);
-    subconverterUrl.searchParams.set('scv', 'true');
-    subconverterUrl.searchParams.set('udp', 'true');
-    if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
-        subconverterUrl.searchParams.set('config', effectiveSubConfig);
+    const candidates = getSubconverterCandidates(effectiveSubConverter);
+    let lastError = null;
+    const triedEndpoints = [];
+
+    for (const backend of candidates) {
+        const variants = buildSubconverterUrlVariants(backend);
+        for (const subconverterUrl of variants) {
+            triedEndpoints.push(subconverterUrl.origin + subconverterUrl.pathname);
+            try {
+                subconverterUrl.searchParams.set('target', targetFormat);
+                subconverterUrl.searchParams.set('url', callbackUrl);
+                subconverterUrl.searchParams.set('scv', 'true');
+                subconverterUrl.searchParams.set('udp', 'true');
+                if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
+                    subconverterUrl.searchParams.set('config', effectiveSubConfig);
+                }
+                subconverterUrl.searchParams.set('new_name', 'true');
+
+                const subconverterResponse = await fetch(subconverterUrl.toString(), {
+                    method: 'GET',
+                    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MiSub-Backend)' },
+                });
+                if (!subconverterResponse.ok) {
+                    const errorBody = await subconverterResponse.text();
+                    lastError = new Error(`Subconverter(${subconverterUrl.origin}) returned status ${subconverterResponse.status}. Body: ${errorBody}`);
+                    console.warn('[SubConverter] Non-OK response, trying next backend if available:', lastError.message);
+                    continue;
+                }
+                const responseText = await subconverterResponse.text();
+
+                const responseHeaders = new Headers(subconverterResponse.headers);
+                responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
+                responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
+                responseHeaders.set('Cache-Control', 'no-store, no-cache');
+
+                // 添加缓存状态头
+                Object.entries(cacheHeaders).forEach(([key, value]) => {
+                    responseHeaders.set(key, value);
+                });
+
+                // [Deferred Logging] Log Success for Subconverter
+                if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
+                    const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
+                    const country = request.headers.get('CF-IPCountry') || 'N/A';
+                    const domain = url.hostname;
+                    const stats = context.generationStats || {};
+
+                    context.waitUntil(LogService.addLog(env, {
+                        profileName: subName || 'Unknown Profile',
+                        clientIp,
+                        geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
+                        userAgent: userAgentHeader || 'Unknown',
+                        status: 'success',
+                        format: targetFormat,
+                        token: profileIdentifier ? (profileIdentifier) : token,
+                        type: profileIdentifier ? 'profile' : 'token',
+                        domain,
+                        details: {
+                            totalNodes: stats.totalNodes || 0,
+                            sourceCount: stats.sourceCount || 0,
+                            successCount: stats.successCount || 0,
+                            failCount: stats.failCount || 0,
+                            duration: stats.duration || 0
+                        },
+                        summary: `生成 ${stats.totalNodes || 0} 个节点 (成功: ${stats.successCount || 0}, 失败: ${stats.failCount || 0})`
+                    }));
+                }
+
+                return new Response(responseText, { status: subconverterResponse.status, statusText: subconverterResponse.statusText, headers: responseHeaders });
+            } catch (error) {
+                lastError = error;
+                console.warn(`[SubConverter] Error with backend ${subconverterUrl.origin}: ${error.message}. Trying next fallback if available.`);
+            }
+        }
     }
-    subconverterUrl.searchParams.set('new_name', 'true');
 
-    try {
-        const subconverterResponse = await fetch(subconverterUrl.toString(), {
-            method: 'GET',
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MiSub-Backend)' },
-        });
-        if (!subconverterResponse.ok) {
-            const errorBody = await subconverterResponse.text();
-            throw new Error(`Subconverter service returned status: ${subconverterResponse.status}. Body: ${errorBody}`);
-        }
-        const responseText = await subconverterResponse.text();
+    const errorMessage = lastError ? `${lastError.message}. Tried: ${triedEndpoints.join(', ')}` : 'Unknown subconverter error';
+    console.error(`[MiSub Final Error] ${errorMessage}`);
 
-        const responseHeaders = new Headers(subconverterResponse.headers);
-        responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
-        responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
-        responseHeaders.set('Cache-Control', 'no-store, no-cache');
+    // [Deferred Logging] Log Error for Subconverter Failures (Timeout/Error)
+    if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
+        const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
+        const country = request.headers.get('CF-IPCountry') || 'N/A';
+        const domain = url.hostname;
+        const stats = context.generationStats || {}; // We might have stats even if conversion failed
 
-        // 添加缓存状态头
-        Object.entries(cacheHeaders).forEach(([key, value]) => {
-            responseHeaders.set(key, value);
-        });
-
-        // [Deferred Logging] Log Success for Subconverter
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
-            const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
-            const country = request.headers.get('CF-IPCountry') || 'N/A';
-            const domain = url.hostname;
-            const stats = context.generationStats || {};
-
-            context.waitUntil(LogService.addLog(env, {
-                profileName: subName || 'Unknown Profile',
-                clientIp,
-                geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
-                userAgent: userAgentHeader || 'Unknown',
-                status: 'success',
-                format: targetFormat,
-                token: profileIdentifier ? (profileIdentifier) : token,
-                type: profileIdentifier ? 'profile' : 'token',
-                domain,
-                details: {
-                    totalNodes: stats.totalNodes || 0,
-                    sourceCount: stats.sourceCount || 0,
-                    successCount: stats.successCount || 0,
-                    failCount: stats.failCount || 0,
-                    duration: stats.duration || 0
-                },
-                summary: `生成 ${stats.totalNodes || 0} 个节点 (成功: ${stats.successCount || 0}, 失败: ${stats.failCount || 0})`
-            }));
-        }
-
-        return new Response(responseText, { status: subconverterResponse.status, statusText: subconverterResponse.statusText, headers: responseHeaders });
-    } catch (error) {
-        console.error(`[MiSub Final Error] ${error.message}`);
-
-        // [Deferred Logging] Log Error for Subconverter Failures (Timeout/Error)
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
-            const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
-            const country = request.headers.get('CF-IPCountry') || 'N/A';
-            const domain = url.hostname;
-            const stats = context.generationStats || {}; // We might have stats even if conversion failed
-
-            context.waitUntil(LogService.addLog(env, {
-                profileName: subName || 'Unknown Profile',
-                clientIp,
-                geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
-                userAgent: userAgentHeader || 'Unknown',
-                status: 'error',
-                format: targetFormat,
-                token: profileIdentifier ? (profileIdentifier) : token,
-                type: profileIdentifier ? 'profile' : 'token',
-                domain,
-                details: {
-                    totalNodes: stats.totalNodes || 0,
-                    sourceCount: stats.sourceCount || 0,
-                    successCount: stats.successCount || 0,
-                    failCount: stats.failCount || 0,
-                    duration: stats.duration || 0,
-                    error: error.message
-                },
-                summary: `转换失败: ${error.message}`
-            }));
-        }
-
-        return new Response(`Error connecting to subconverter: ${error.message}`, { status: 502 });
+        context.waitUntil(LogService.addLog(env, {
+            profileName: subName || 'Unknown Profile',
+            clientIp,
+            geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
+            userAgent: userAgentHeader || 'Unknown',
+            status: 'error',
+            format: targetFormat,
+            token: profileIdentifier ? (profileIdentifier) : token,
+            type: profileIdentifier ? 'profile' : 'token',
+            domain,
+            details: {
+                totalNodes: stats.totalNodes || 0,
+                sourceCount: stats.sourceCount || 0,
+                successCount: stats.successCount || 0,
+                failCount: stats.failCount || 0,
+                duration: stats.duration || 0,
+                error: errorMessage
+            },
+            summary: `转换失败: ${errorMessage}`
+        }));
     }
+
+    return new Response(`Error connecting to subconverter: ${errorMessage}`, { status: 502 });
 }
