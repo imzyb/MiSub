@@ -49,71 +49,12 @@ if (typeof window !== 'undefined') {
     });
   });
 
-  // 处理资源加载错误（忽略第三方资源）
-  const assetReloadKey = 'misub:asset-reload';
-  const hasAssetReloaded = () => {
-    try {
-      return sessionStorage.getItem(assetReloadKey) === '1';
-    } catch (error) {
-      console.warn('[Resource Load] Failed to read sessionStorage:', error);
-      return false;
-    }
-  };
-  const markAssetReloaded = () => {
-    try {
-      sessionStorage.setItem(assetReloadKey, '1');
-    } catch (error) {
-      console.warn('[Resource Load] Failed to write sessionStorage:', error);
-    }
-  };
-
-  const tryRecoverAssetLoad = async (resourceUrl) => {
-    if (!resourceUrl || !resourceUrl.startsWith(window.location.origin)) return false;
-    const resourcePath = resourceUrl.split('?')[0];
-    if (!/\/assets\/.+\.(js|css)$/i.test(resourcePath)) return false;
-    if (hasAssetReloaded()) return false;
-
-    markAssetReloaded();
-    try {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((reg) => reg.unregister()));
-      }
-      if ('caches' in window) {
-        const cacheKeys = await caches.keys();
-        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
-      }
-    } catch (error) {
-      console.warn('[Resource Load] Failed to clear cache:', error);
-    }
-
-    const reloadUrl = new URL(window.location.href);
-    reloadUrl.searchParams.set('__misub_reload', Date.now().toString());
-    window.location.replace(reloadUrl.toString());
-    return true;
-  };
-
+  // 处理资源加载错误
   window.addEventListener('error', (event) => {
     if (event.target !== window) {
-      const resourceUrl = event.target.src || event.target.href || '';
-
-      // 忽略第三方资源加载错误（如 Cloudflare Analytics、广告等）
-      const isThirdParty = resourceUrl && !resourceUrl.startsWith(window.location.origin);
-      if (isThirdParty) {
-        console.debug('[Resource Load] Ignoring third-party resource error:', resourceUrl);
-        return;
-      }
-
-      tryRecoverAssetLoad(resourceUrl).then((recovered) => {
-        if (recovered) return;
-        if (isLocalHost && /\/assets\/.+\.(js|css)$/i.test(resourceUrl)) {
-          console.debug('[Resource Load] Local asset error suppressed:', resourceUrl);
-          return;
-        }
-        handleError(new Error(`Resource load failed: ${resourceUrl}`), 'Resource Load Error', {
-          tagName: event.target.tagName,
-          src: resourceUrl
-        });
+      handleError(new Error(`Resource load failed: ${event.target.src || event.target.href}`), 'Resource Load Error', {
+        tagName: event.target.tagName,
+        src: event.target.src || event.target.href
       });
     }
   }, true);

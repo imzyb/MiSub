@@ -91,4 +91,3 @@ test-chrome-mcp.js
 test-new-protocols.js
 test-screenshots/
 .wrangler/
-.ace-tool/

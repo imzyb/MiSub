@@ -243,13 +243,6 @@ export async function handleMisubRequest(context) {
                 name: subName
             };
 
-        // 拉取策略：
-        // - 同步拉取（客户端等待）：较短超时，尽量在 15s 内完成
-        // - 后台刷新：更长超时，确保完整拉取所有订阅源
-        const fetchPolicy = isBackground
-            ? { timeoutMs: 30000, maxRetries: 2, concurrency: 4, overallTimeoutMs: null }  // 后台：30s 超时，确保完整
-            : { timeoutMs: 10000, maxRetries: 1, concurrency: 8, overallTimeoutMs: null }; // 同步：10s 超时，快速响应
-
         const freshNodes = await generateCombinedNodeList(
             context, // 传入完整 context
             { ...config, enableAccessLog: false }, // [Deferred Logging] Disable service-side logging, we will log manually in handler
@@ -257,21 +250,15 @@ export async function handleMisubRequest(context) {
             targetMisubs,
             prependedContentForSubconverter,
             generationSettings,
-            isDebugToken,
-            fetchPolicy
+            isDebugToken
         );
-
         // 写入缓存（无论是同步还是后台刷新都写入）
         const sourceNames = targetMisubs
             .filter(s => s.url.startsWith('http'))
             .map(s => s.name || s.url);
         await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
-
         return freshNodes;
     };
-
-    // 缓存 miss 时不使用占位节点，而是返回提示信息
-    const missFallbackNodeList = '';
 
     const { combinedNodeList, cacheHeaders } = await resolveNodeListWithCache({
         storageAdapter,
@@ -279,43 +266,8 @@ export async function handleMisubRequest(context) {
         forceRefresh,
         refreshNodes,
         context,
-        targetMisubsCount: targetMisubs.length,
-        // 同步刷新超时：12s，确保在客户端 15s 超时前返回
-        // 如果超时，后台会继续完成完整拉取
-        syncRefreshTimeoutMs: 12000,
-        missFallbackNodeList
+        targetMisubsCount: targetMisubs.length
     });
-
-    // 如果缓存 miss 且超时（没有拉取到节点），返回友好提示
-    if (cacheHeaders['X-Cache-Status'] === 'MISS_TIMEOUT' || (!combinedNodeList && !forceRefresh)) {
-        const retryMessage = '订阅正在后台生成中，请等待 5-10 秒后重试。';
-        const retryMessageEn = 'Subscription is being generated in background, please retry in 5-10 seconds.';
-        let responseBody = `${retryMessage}\n${retryMessageEn}`;
-        let contentType = 'text/plain; charset=utf-8';
-
-        if (targetFormat === 'clash') {
-            responseBody = [
-                `# ${retryMessage}`,
-                `# ${retryMessageEn}`,
-                'proxies: []',
-                'proxy-groups: []',
-                'rules: []',
-                ''
-            ].join('\n');
-            contentType = 'text/yaml; charset=utf-8';
-        }
-
-        const retryHeaders = new Headers({
-            'Content-Type': contentType,
-            'Cache-Control': 'no-store, no-cache',
-            'Retry-After': '5'
-        });
-        Object.entries(cacheHeaders).forEach(([key, value]) => {
-            retryHeaders.set(key, value);
-        });
-        return new Response(responseBody, { status: 202, headers: retryHeaders });
-    }
-
     const domain = url.hostname;
     const isNekoBoxClient = /nekobox/i.test(userAgentHeader);
     const hasRealityNode = /security=reality/i.test(combinedNodeList || '');
