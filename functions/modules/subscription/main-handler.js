@@ -145,27 +145,6 @@ export async function handleMisubRequest(context) {
 
     let targetFormat = determineTargetFormat(userAgentHeader, url.searchParams);
 
-    // [Telegram Notification] Send notification if Bot credentials are configured (independent of access log setting)
-    if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-        const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
-        const country = request.headers.get('CF-IPCountry') || 'N/A';
-        const domain = url.hostname;
-
-        let additionalData = `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\``;
-
-        if (profileIdentifier) {
-            additionalData += `\n*订阅组:* \`${subName}\``;
-            const profile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
-            if (profile && profile.expiresAt) {
-                const expiryDateStr = new Date(profile.expiresAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-                additionalData += `\n*到期时间:* \`${expiryDateStr}\``;
-            }
-        }
-
-        // 使用增强版TG通知,包含IP地理位置信息
-        context.waitUntil(sendEnhancedTgNotification(config, '🛰️ *订阅被访问*', clientIp, additionalData));
-    }
-
     // [Access Log] Record access log and stats if enabled
     if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
         // [Log Deduplication]
