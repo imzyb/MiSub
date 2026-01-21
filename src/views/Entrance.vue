@@ -7,7 +7,7 @@
 
 <script setup>
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useSessionStore } from '../stores/session';
 import LoadingSpinner from '../components/ui/LoadingSpinner.vue';
@@ -17,6 +17,7 @@ const Login = defineAsyncComponent(() => import('../components/modals/Login.vue'
 const NotFound = defineAsyncComponent(() => import('./NotFound.vue'));
 
 const route = useRoute();
+const router = useRouter();
 const sessionStore = useSessionStore();
 const { publicConfig, isConfigReady, sessionState } = storeToRefs(sessionStore);
 
@@ -30,7 +31,16 @@ watch([() => route.path, publicConfig, isConfigReady], () => {
     }
 }, { immediate: true });
 
+watch(sessionState, (state) => {
+    if (state === 'loggedIn' && route.path !== '/') {
+        router.replace('/');
+    }
+}, { immediate: true });
+
 async function checkPath() {
+    if (sessionState.value === 'loggedIn') {
+        return;
+    }
     // 1. Get Configured Path
     // Settings might be in initialData (if logged in) or publicConfig (if not)
     // Actually, 'customLoginPath' might be considered a 'secret' setting? 
