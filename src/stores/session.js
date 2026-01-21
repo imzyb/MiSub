@@ -11,6 +11,15 @@ export const useSessionStore = defineStore('session', () => {
   const initialData = ref(null);
   const publicConfig = ref({ enablePublicPage: true }); // Default true until fetched
   const isConfigReady = ref(false);
+  const loginReloadKey = 'misub:post-login-reload';
+
+  const canUseSessionStorage = () => {
+    try {
+      return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+    } catch (error) {
+      return false;
+    }
+  };
 
   async function checkSession() {
     try {
@@ -62,6 +71,15 @@ export const useSessionStore = defineStore('session', () => {
       const success = await handleLoginSuccess();
       if (success) {
         // 登录成功后跳转到首页 (HomeView will show Dashboard)
+        // 避免首次登录时路由切换导致的渲染异常，执行一次强制刷新
+        if (canUseSessionStorage()) {
+          const hasReloaded = window.sessionStorage.getItem(loginReloadKey) === '1';
+          if (!hasReloaded) {
+            window.sessionStorage.setItem(loginReloadKey, '1');
+            window.location.replace('/');
+            return;
+          }
+        }
         await router.push({ path: '/' });
       } else {
         throw new Error('登录后校验失败，请稍后重试');
@@ -88,6 +106,9 @@ export const useSessionStore = defineStore('session', () => {
     // 清除缓存数据
     const dataStore = useDataStore();
     dataStore.clearCachedData();
+    if (canUseSessionStorage()) {
+      window.sessionStorage.removeItem(loginReloadKey);
+    }
 
     // 跳转到首页（由于状态已变更为loggedOut，HomeView会自动渲染PublicProfilesView）
     router.push({ path: '/' });
