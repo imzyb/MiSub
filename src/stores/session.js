@@ -11,16 +11,6 @@ export const useSessionStore = defineStore('session', () => {
   const initialData = ref(null);
   const publicConfig = ref({ enablePublicPage: true }); // Default true until fetched
   const isConfigReady = ref(false);
-  const loginReloadKey = 'misub:post-login-reload';
-
-  const canUseSessionStorage = () => {
-    try {
-      return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
-    } catch (error) {
-      return false;
-    }
-  };
-
   async function checkSession() {
     try {
       // Parallel fetch of initial data (auth check) and public config
