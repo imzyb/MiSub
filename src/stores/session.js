@@ -6,6 +6,22 @@ import { api } from '../lib/http.js';
 import { useDataStore } from './useDataStore';
 import router from '../router';
 
+const loginReloadKey = 'misub_login_reloaded';
+
+function canUseSessionStorage() {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) {
+      return false;
+    }
+    const testKey = '__misub_session_test__';
+    window.sessionStorage.setItem(testKey, '1');
+    window.sessionStorage.removeItem(testKey);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export const useSessionStore = defineStore('session', () => {
   const sessionState = ref('loading'); // loading, loggedIn, loggedOut
   const initialData = ref(null);
