@@ -153,9 +153,9 @@ const handleDiscard = async () => {
 
           <Suspense v-if="layoutMode === 'modern'">
             <template #default>
-              <router-view v-slot="{ Component }">
+              <router-view v-slot="{ Component, route: viewRoute }">
                 <transition name="fade" mode="out-in">
-                  <component :is="Component" />
+                  <component v-if="Component" :is="Component" :key="viewRoute.fullPath" />
                 </transition>
               </router-view>
             </template>
@@ -173,9 +173,9 @@ const handleDiscard = async () => {
        <template v-else-if="isPublicRoute">
          <Suspense>
            <template #default>
-             <router-view v-slot="{ Component }">
+             <router-view v-slot="{ Component, route: viewRoute }">
                <transition name="fade" mode="out-in">
-                 <component :is="Component" />
+                 <component v-if="Component" :is="Component" :key="viewRoute.fullPath" />
                </transition>
              </router-view>
            </template>

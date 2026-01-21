@@ -11,7 +11,6 @@ export const useSessionStore = defineStore('session', () => {
   const initialData = ref(null);
   const publicConfig = ref({ enablePublicPage: true }); // Default true until fetched
   const isConfigReady = ref(false);
-
   async function checkSession() {
     try {
       // Parallel fetch of initial data (auth check) and public config
