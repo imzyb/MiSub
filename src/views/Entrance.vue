@@ -1,6 +1,7 @@
 <template>
   <div class="entrance-container">
      <LoadingSpinner v-if="isLoading" type="spinner" size="md" color="indigo" message="正在加载..." />
+     <LoadingSpinner v-else-if="!activeComponent" type="spinner" size="md" color="indigo" message="正在准备页面..." />
      <component v-else :is="activeComponent" v-bind="componentProps" />
   </div>
 </template>
@@ -23,7 +24,7 @@ const { publicConfig, isConfigReady, sessionState } = storeToRefs(sessionStore);
 
 const activeComponent = ref(null);
 const componentProps = ref({});
-const isLoading = computed(() => !isConfigReady.value || sessionState.value === 'loading');
+const isLoading = computed(() => !isConfigReady.value || sessionState.value === 'loading' || sessionState.value === 'loggedIn');
 
 watch([() => route.path, publicConfig, isConfigReady], () => {
     if (isConfigReady.value) {
@@ -39,6 +40,8 @@ watch(sessionState, (state) => {
 
 async function checkPath() {
     if (sessionState.value === 'loggedIn') {
+        activeComponent.value = null;
+        componentProps.value = {};
         return;
     }
     // 1. Get Configured Path
@@ -89,6 +92,7 @@ async function checkPath() {
     } else {
         // Not a login path, and fell through to catch-all
         activeComponent.value = NotFound;
+        componentProps.value = {};
     }
 }
 
