@@ -86,7 +86,7 @@ export async function securityHeadersMiddleware(request, next) {
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     response.headers.set(
         'Content-Security-Policy',
-        "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http:; worker-src 'self' blob:;"
+        "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https: http:; worker-src 'self' blob:;"
     );
 
     return response;
