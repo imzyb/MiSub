@@ -5,7 +5,7 @@ permissions:
 
 on:
     schedule:
-        - cron: "0 0 * * *"  # 每天午夜执行
+        - cron: "0 3 * * *"  # 凌晨3点执行，避开高峰
     workflow_dispatch:  # 允许手动触发
 
 jobs:
@@ -19,26 +19,46 @@ jobs:
               uses: actions/checkout@v4
               with:
                 token: ${{ secrets.GITHUB_TOKEN }}
+                fetch-depth: 0  # 获取完整历史
 
-            - name: Sync Upstream
-              uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
-              with:
-                  target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-                  upstream_sync_repo: imzyb/MiSub
-                  upstream_sync_branch: main
-                  target_sync_branch: main
-                  test_mode: false
-
-            - name: Check for new commits
-              if: success()
-              run: echo "Sync completed successfully"
-
-            - name: Check for Failure
-              if: failure()
+            - name: Configure Git
               run: |
-                  echo "[Error] Sync failed. This might be due to:"
-                  echo "1. Changes in the upstream workflow file"
-                  echo "2. Merge conflicts that need manual resolution"
-                  echo "3. Network issues"
-                  echo "Please check the logs and consider manual sync if needed."
-                  exit 1
+                  git config user.name "GitHub Actions Bot"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git remote add upstream https://github.com/imzyb/MiSub.git
+                  git fetch upstream
+                  git fetch origin
+
+            - name: Try Auto-merge
+              id: merge_attempt
+              run: |
+                  # 尝试自动合并
+                  git merge upstream/main --no-ff --no-edit || true
+                  
+                  # 检查是否有冲突
+                  if git diff --name-only --diff-filter=U | grep -q .; then
+                      echo "conflict=true" >> $GITHUB_OUTPUT
+                      echo "合并冲突，将使用上游版本"
+                      
+                      # 使用上游版本覆盖所有冲突
+                      CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+                      for file in $CONFLICT_FILES; do
+                          echo "使用上游版本: $file"
+                          git checkout --theirs "$file"
+                          git add "$file"
+                      done
+                  else
+                      echo "conflict=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Commit and Push
+              if: steps.merge_attempt.outputs.conflict == 'false'
+              run: |
+                  git commit -m "Auto-sync with upstream $(date +'%Y-%m-%d %H:%M:%S')"
+                  git push origin main
+
+            - name: Commit Conflict Resolution
+              if: steps.merge_attempt.outputs.conflict == 'true'
+              run: |
+                  git commit -m "Auto-sync with upstream $(date +'%Y-%m-%d %H:%M:%S') - 使用上游版本解决冲突"
+                  git push origin main
