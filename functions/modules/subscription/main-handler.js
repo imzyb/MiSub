@@ -11,6 +11,7 @@ import { resolveNodeListWithCache } from './cache-manager.js';
 import { logAccessError, logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
 import { isBrowserAgent } from './user-agent-utils.js'; // [Added] Import centralized util
 import { authMiddleware } from '../auth-middleware.js';
+import { generateBuiltinClashConfig } from './builtin-clash-generator.js'; // [Added] 内置 Clash 生成器
 
 /**
  * 处理MiSub订阅请求
@@ -399,6 +400,66 @@ export async function handleMisubRequest(context) {
         const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
         return new Response(base64Content, { headers });
     }
+
+    // [新增] 内置 Clash 生成器 - 当 builtin=1 或 builtin=clash 时使用
+    // 优势：完整保留 dialer-proxy、reality-opts 等特殊参数
+    const useBuiltinClash = url.searchParams.get('builtin') === '1' ||
+        url.searchParams.get('builtin') === 'clash' ||
+        url.searchParams.get('native') === '1';
+
+    if (useBuiltinClash && targetFormat === 'clash') {
+        try {
+            const clashConfig = generateBuiltinClashConfig(combinedNodeList, {
+                fileName: subName,
+                enableUdp: Boolean(config.subConverterUdp)
+            });
+
+            const responseHeaders = new Headers({
+                "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
+                'Content-Type': 'text/yaml; charset=utf-8',
+                'Cache-Control': 'no-store, no-cache',
+                'X-MiSub-Mode': 'builtin-clash'
+            });
+
+            // 添加缓存状态头
+            Object.entries(cacheHeaders).forEach(([key, value]) => {
+                responseHeaders.set(key, value);
+            });
+
+            // 发送通知和日志
+            if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
+                const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
+                context.waitUntil(
+                    sendEnhancedTgNotification(
+                        config,
+                        '🛰️ *订阅被访问* (内置转换)',
+                        clientIp,
+                        `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                    )
+                );
+
+                if (config.enableAccessLog) {
+                    logAccessSuccess({
+                        context,
+                        env,
+                        request,
+                        userAgentHeader,
+                        targetFormat: 'clash (builtin)',
+                        token,
+                        profileIdentifier,
+                        subName,
+                        domain
+                    });
+                }
+            }
+
+            return new Response(clashConfig, { headers: responseHeaders });
+        } catch (e) {
+            console.error('[BuiltinClash] Generation failed:', e);
+            // 回退到 subconverter
+        }
+    }
+
 
     const candidates = getSubconverterCandidates(effectiveSubConverter);
     let lastError = null;

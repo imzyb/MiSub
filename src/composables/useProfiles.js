@@ -95,7 +95,7 @@ export function useProfiles(markDirty) {
   const copyProfileLink = (profileId) => {
     const token = settings.value?.profileToken;
     if (!token || token === 'auto' || !token.trim()) {
-      showToast('请在设置中配置一个固定的“订阅组分享Token”', 'error');
+      showToast('请在设置中配置一个固定的"订阅组分享Token"', 'error');
       return;
     }
     const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
@@ -126,6 +126,52 @@ export function useProfiles(markDirty) {
         const successful = document.execCommand('copy');
         if (successful) {
           showToast('订阅组分享链接已复制！', 'success');
+        } else {
+          showToast('复制失败，请手动复制', 'error');
+        }
+      } catch (err) {
+        showToast('复制失败，请手动复制', 'error');
+      }
+
+      document.body.removeChild(textArea);
+    }
+  };
+
+  // Clash 专用链接复制（带 builtin 转换器参数）
+  const copyClashLink = (profileId) => {
+    const token = settings.value?.profileToken;
+    if (!token || token === 'auto' || !token.trim()) {
+      showToast('请在设置中配置一个固定的"订阅组分享Token"', 'error');
+      return;
+    }
+    const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
+    if (!profile) return;
+    const identifier = profile.customId || profile.id;
+    // 添加 Clash 专用参数
+    const link = `${window.location.origin}/${token}/${identifier}?target=clash&builtin=1`;
+
+    // Clipboard API Fallback for non-secure contexts (http)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => showToast('Clash 专用链接已复制！', 'success'))
+        .catch(() => showToast('复制失败，请手动复制', 'error'));
+    } else {
+      // Fallback method
+      const textArea = document.createElement("textarea");
+      textArea.value = link;
+
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "0";
+      document.body.appendChild(textArea);
+
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showToast('Clash 专用链接已复制！', 'success');
         } else {
           showToast('复制失败，请手动复制', 'error');
         }
@@ -175,6 +221,7 @@ export function useProfiles(markDirty) {
     handleDeleteProfile,
     handleDeleteAllProfiles,
     copyProfileLink,
+    copyClashLink,
     cleanupSubscriptions,
     cleanupNodes,
     cleanupAllSubscriptions,

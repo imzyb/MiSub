@@ -6,7 +6,9 @@ import { base64Encode } from '../common/base64.js';
  */
 export function convertVmessToUrl(proxy) {
     try {
-        if (!proxy.server || !proxy.port || !proxy.uuid) {
+        // 兼容 uuid 和 UUID 两种写法
+        const uuid = proxy.uuid || proxy.UUID;
+        if (!proxy.server || !proxy.port || !uuid) {
             return null;
         }
 
@@ -15,7 +17,7 @@ export function convertVmessToUrl(proxy) {
             ps: proxy.name || proxy['server-name'] || 'VMess',
             add: proxy.server,
             port: String(proxy.port),
-            id: proxy.uuid || proxy['client-id'] || '',
+            id: uuid || proxy['client-id'] || '',
             aid: String(proxy.alterId || proxy['alter-id'] || 0),
             scy: proxy.cipher || 'auto',  // 加密方式
             net: proxy.network || 'tcp',

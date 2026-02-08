@@ -13,7 +13,7 @@ const { markDirty } = dataStore;
 const {
   profiles, editingProfile, isNewProfile, showProfileModal, showDeleteProfilesModal,
   handleProfileToggle, handleAddProfile, handleEditProfile,
-  handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles, copyProfileLink,
+  handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles, copyProfileLink, copyClashLink,
   profilesCurrentPage, profilesTotalPages, paginatedProfiles, changeProfilesPage
 } = useProfiles(markDirty);
 
@@ -95,6 +95,7 @@ const handleQRCode = (profileId) => {
       @deleteAll="showDeleteProfilesModal = true"
       @toggle="handleProfileToggle"
       @copyLink="copyProfileLink"
+      @copy-clash-link="copyClashLink"
       @preview="handlePreviewProfile"
       @reorder="handleProfileReorder"
       @change-page="changeProfilesPage"

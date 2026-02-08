@@ -4,7 +4,9 @@
  */
 export function convertVlessToUrl(proxy) {
     try {
-        if (!proxy.server || !proxy.port || !proxy.uuid) {
+        // 兼容 uuid 和 UUID 两种写法
+        const uuid = proxy.uuid || proxy.UUID;
+        if (!proxy.server || !proxy.port || !uuid) {
             return null;
         }
 
@@ -109,7 +111,8 @@ export function convertVlessToUrl(proxy) {
         }
 
         // TLS/Reality 安全配置
-        if (proxy.reality) {
+        // 修复: Clash 配置使用 reality-opts 字段，不是 reality 布尔值
+        if (proxy['reality-opts'] || proxy.reality) {
             params.set('security', 'reality');
             if (proxy['reality-opts']) {
                 if (proxy['reality-opts']['public-key']) {
@@ -157,8 +160,13 @@ export function convertVlessToUrl(proxy) {
             params.set('security', 'none');
         }
 
+        // dialer-proxy 链式代理支持 (使用自定义参数 dp)
+        if (proxy['dialer-proxy']) {
+            params.set('dp', proxy['dialer-proxy']);
+        }
+
         // 构建 URL
-        const url = `vless://${proxy.uuid}@${proxy.server}:${proxy.port}?${params.toString()}`;
+        const url = `vless://${uuid}@${proxy.server}:${proxy.port}?${params.toString()}`;
 
         // Fragment (节点名称)
         if (proxy.name) {
