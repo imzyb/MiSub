@@ -5,6 +5,9 @@ import { createAssetFetcher } from './assets.js';
 import { createSqliteStore } from './storage/sqlite.js';
 import { onRequest } from '../functions/[[path]].js';
 
+// [Critical Debug]: Force stdout output immediately
+process.stdout.write('[MiSub Debug] Server script loaded.\n');
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = process.env.MISUB_DIST_DIR || path.join(rootDir, 'dist');

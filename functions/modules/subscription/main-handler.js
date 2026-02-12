@@ -113,7 +113,7 @@ export async function handleMisubRequest(context) {
                 if (Array.isArray(profileSubIds)) {
                     profileSubIds.forEach(id => {
                         const sub = misubMap.get(id);
-                        if (sub && sub.enabled && sub.url.startsWith('http')) {
+                        if (sub && sub.enabled && typeof sub.url === 'string' && sub.url.startsWith('http')) {
                             targetMisubs.push(sub);
                         }
                     });
@@ -124,7 +124,7 @@ export async function handleMisubRequest(context) {
                 if (Array.isArray(profileNodeIds)) {
                     profileNodeIds.forEach(id => {
                         const node = misubMap.get(id);
-                        if (node && node.enabled && !node.url.startsWith('http')) {
+                        if (node && node.enabled && typeof node.url === 'string' && !node.url.startsWith('http')) {
                             targetMisubs.push(node);
                         }
                     });
@@ -355,7 +355,7 @@ export async function handleMisubRequest(context) {
             isDebugToken
         );
         const sourceNames = targetMisubs
-            .filter(s => s.url.startsWith('http'))
+            .filter(s => typeof s?.url === 'string' && s.url.startsWith('http'))
             .map(s => s.name || s.url);
         await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
         return freshNodes;
@@ -649,5 +649,5 @@ rules:
         return new Response(fallbackContent, { headers: fallbackHeaders, status: 200 });
     }
 
-    return new Response(`Error connecting to subconverter: ${errorMessage}`, { status: 502 });
+    return new Response(`Error connecting to subconverter: ${safeErrorMessage}`, { status: 502 });
 }

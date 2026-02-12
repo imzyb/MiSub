@@ -4,6 +4,55 @@ const DEFAULT_SUBCONVERTER_FALLBACKS = [
     'sub.xeton.dev'
 ];
 
+const YAML_UNSAFE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+
+/**
+ * 清理会破坏 YAML/配置解析的控制字符。
+ * 保留 Unicode 字符（含中文/emoji），避免误伤节点名称。
+ * @param {string} content - 原始配置内容
+ * @returns {{content: string, replacedCount: number}}
+ */
+export function sanitizeConvertedSubscriptionContent(content) {
+    if (typeof content !== 'string' || content.length === 0) {
+        return { content: content || '', replacedCount: 0 };
+    }
+
+    let replacedCount = 0;
+    const sanitized = content.replace(YAML_UNSAFE_CONTROL_CHARS, () => {
+        replacedCount += 1;
+        return '';
+    });
+
+    return { content: sanitized, replacedCount };
+}
+
+/**
+ * 构建返回给客户端的响应头，避免透传与实际响应体不一致的压缩/长度头。
+ * @param {Headers} backendHeaders
+ * @param {string} subName
+ * @param {Object} cacheHeaders
+ * @returns {Headers}
+ */
+export function buildClientResponseHeaders(backendHeaders, subName, cacheHeaders = {}) {
+    const responseHeaders = new Headers(backendHeaders);
+
+    // Node.js fetch 可能已自动解压，但仍保留 content-encoding，
+    // 会导致客户端二次解压报错（如 Clash 的 Filter error, bad data）。
+    responseHeaders.delete('content-encoding');
+    responseHeaders.delete('content-length');
+    responseHeaders.delete('transfer-encoding');
+
+    responseHeaders.set('Content-Disposition', `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
+    responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
+    responseHeaders.set('Cache-Control', 'no-store, no-cache');
+
+    Object.entries(cacheHeaders).forEach(([key, value]) => {
+        responseHeaders.set(key, value);
+    });
+
+    return responseHeaders;
+}
+
 /**
  * 构建 SubConverter 请求的基础 URL，兼容带/不带协议的配置
  * @param {string} backend - 用户配置的 SubConverter 地址
@@ -176,33 +225,14 @@ export async function fetchFromSubconverter(candidates, options) {
                     }
                 }
 
-                const namePattern = /(name:\s*)([^])/g;
-                if (decodedText) {
-                    let logCount = 0;
-                    decodedText = decodedText.replace(namePattern, (match, prefix, char) => {
-                        // Strict Whitelist logic
-                        const isSafe = /[a-zA-Z0-9_\u4e00-\u9fa5\s\(\)'"\.\-]/.test(char);
-
-                        if (!isSafe) {
-                            logCount++;
-                            if (logCount <= 5) {
-                                const code = char.codePointAt(0);
-                                const hex = code ? code.toString(16).toUpperCase() : 'NULL';
-                                console.log(`[MiSub Sanitize V9] Replaced suspicious char '${char}' (Hex: 0x${hex}) at "${match.slice(0, 20)}..."`);
-                            }
-                            return prefix + '★';
-                        }
-                        return match;
-                    });
-
-                    if (logCount > 0) {
-                        console.log(`[MiSub Sanitize V9] Total replaced: ${logCount} in ${isBase64 ? 'Base64' : 'Plain'} content.`);
-                        if (isBase64) {
-                            responseText = btoa(decodedText);
-                        } else {
-                            responseText = decodedText;
-                        }
-                    }
+                const { content: sanitizedText, replacedCount } = sanitizeConvertedSubscriptionContent(decodedText);
+                if (replacedCount > 0) {
+                    console.log(`[MiSub Sanitize] Removed ${replacedCount} unsafe control chars in ${isBase64 ? 'Base64' : 'Plain'} content.`);
+                }
+                if (isBase64) {
+                    responseText = btoa(sanitizedText);
+                } else {
+                    responseText = sanitizedText;
                 }
 
                 // [Debug Logging Response]
@@ -214,17 +244,7 @@ export async function fetchFromSubconverter(candidates, options) {
                     throw new Error(`Backend returned HTML instead of subscription content: ${responseText.slice(0, 100)}...`);
                 }
 
-                const responseHeaders = new Headers(response.headers);
-
-                // Set Filename
-                responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
-                responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
-                responseHeaders.set('Cache-Control', 'no-store, no-cache');
-
-                // Pass-through Cache Headers
-                Object.entries(cacheHeaders).forEach(([key, value]) => {
-                    responseHeaders.set(key, value);
-                });
+                const responseHeaders = buildClientResponseHeaders(response.headers, subName, cacheHeaders);
 
                 return {
                     response: new Response(responseText, {
