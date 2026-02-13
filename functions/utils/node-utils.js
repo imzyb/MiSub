@@ -19,7 +19,16 @@ export function prependNodeName(link, prefix) {
 
     const appendToFragment = (baseLink, namePrefix) => {
         const hashIndex = baseLink.lastIndexOf('#');
-        const originalName = hashIndex !== -1 ? decodeURIComponent(baseLink.substring(hashIndex + 1)) : '';
+        let originalName = '';
+        if (hashIndex !== -1) {
+            const rawName = baseLink.substring(hashIndex + 1);
+            try {
+                originalName = decodeURIComponent(rawName);
+            } catch (e) {
+                // 避免非法百分号编码导致 Worker 1101，回退使用原始片段
+                originalName = rawName;
+            }
+        }
         const base = hashIndex !== -1 ? baseLink.substring(0, hashIndex) : baseLink;
         if (originalName.startsWith(namePrefix)) {
             return baseLink;
@@ -177,6 +186,10 @@ export function removeFlagEmoji(link) {
  * [核心修复] 修复节点URL中的编码问题（包含 Hysteria2 密码解码）
  */
 export function fixNodeUrlEncoding(nodeUrl) {
+    if (typeof nodeUrl !== 'string' || nodeUrl.length === 0) {
+        return nodeUrl;
+    }
+
     // 1. 针对 Hysteria2/Hy2 的用户名与参数进行解码
     if (nodeUrl.startsWith('hysteria2://') || nodeUrl.startsWith('hy2://')) {
         const safeDecode = (value) => {
@@ -226,6 +239,8 @@ export function fixNodeUrlEncoding(nodeUrl) {
                 baseLink = protocol + '://' + decodedBase64 + baseLink.substring(atIndex);
             }
         }
+
+        return baseLink + fragment;
     } catch (e) {
         return nodeUrl;
     }
