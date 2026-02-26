@@ -17,7 +17,10 @@ import { useToastStore } from '../../../stores/toast';
 
 const { showToast } = useToastStore();
 
-// 监听自定义登录路径，禁止特殊字符和空格
+// 系统保留路径列表，这些路径会与前端路由或后端 API 冲突
+const RESERVED_PATHS = ['settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard', 'api', 'explore'];
+
+// 监听自定义登录路径，禁止特殊字符、空格和保留路径
 watch(() => props.settings.customLoginPath, (val) => {
   if (!val) return;
   
@@ -27,6 +30,14 @@ watch(() => props.settings.customLoginPath, (val) => {
   if (sanitized !== val) {
     props.settings.customLoginPath = sanitized;
     showToast('路径仅允许字母、数字、下划线、中划线', 'warning');
+    return;
+  }
+
+  // 检查是否为保留路径（去除前后斜杠后比较首段）
+  const pathSegment = sanitized.replace(/^\/+/, '').split('/')[0].toLowerCase();
+  if (RESERVED_PATHS.includes(pathSegment)) {
+    props.settings.customLoginPath = '';
+    showToast(`"/${pathSegment}" 是系统保留路径，不可用作自定义登录路径`, 'error');
   }
 });
 
@@ -200,17 +211,24 @@ watch(() => props.settings.customLoginPath, (val) => {
           <!-- 自定义登录路径设置 -->
           <div class="pt-4 border-t border-gray-200/70 dark:border-white/10">
              <div class="max-w-md">
+                <!-- 隐藏的诱饵输入框，吸收浏览器自动填充 -->
+                <input type="text" name="fake_user_for_autofill" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" />
+                <input type="password" name="fake_pass_for_autofill" autocomplete="current-password" style="display:none" tabindex="-1" aria-hidden="true" />
                 <Input 
                   label="自定义管理后台路径"
                   v-model="settings.customLoginPath"
                   placeholder="默认: login"
                   prefix="/"
-                  autocomplete="new-password"
+                  autocomplete="off"
                   name="custom_admin_path_setting_no_autofill"
+                  type="search"
                 />
              </div>
              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                设置后，只有访问此路径才能进入登录页面。默认路径 <code>/login</code> 将失效（除非未设置）。
+             </p>
+             <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+               ⚠️ 不可使用系统保留路径：/settings, /login, /groups, /nodes, /subscriptions, /dashboard
              </p>
           </div>
 

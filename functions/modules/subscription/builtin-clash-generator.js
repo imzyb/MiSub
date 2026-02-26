@@ -71,6 +71,20 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     // 清理控制字符
     proxies = deepCleanControlChars(proxies);
 
+    // 处理重名节点
+    const usedNames = new Set();
+    proxies.forEach(proxy => {
+        let name = proxy.name;
+        if (usedNames.has(name)) {
+            let i = 1;
+            while (usedNames.has(`${name}_${i}`)) {
+                i++;
+            }
+            proxy.name = `${name}_${i}`;
+        }
+        usedNames.add(proxy.name);
+    });
+
     if (proxies.length === 0) {
         return '# No valid proxies found\nproxies: []\n';
     }

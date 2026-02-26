@@ -19,11 +19,13 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT != '' && secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           ref: main
 
       - name: Configure Git & remotes
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
           set -e
           git config user.name "GitHub Actions Bot"
@@ -39,39 +41,69 @@ jobs:
             git remote add upstream https://github.com/imzyb/MiSub.git
           fi
 
+          # 若配置了带 workflows 权限的 PAT，则强制 origin 使用该令牌推送
+          if [ -n "${SYNC_PAT:-}" ]; then
+            git remote set-url origin "https://x-access-token:${SYNC_PAT}@github.com/${{ github.repository }}.git"
+            echo "检测到 SYNC_PAT，将使用 PAT 推送（可同步 workflow 变更）"
+          else
+            echo "未配置 SYNC_PAT，将使用 GITHUB_TOKEN 推送"
+          fi
+
           git fetch --prune upstream
           git fetch --prune origin
 
       - name: Merge from upstream and resolve conflicts (prefer upstream)
         id: merge_attempt
         run: |
-          set -e
+          # 记录合并前基线，后续用于必要时回滚 workflow 文件
+          BASE_REF=$(git rev-parse HEAD)
+          echo "BASE_REF=$BASE_REF" >> "$GITHUB_ENV"
 
-          # 尝试合并（不吞错误；我们自己接管冲突逻辑）
-          if ! git merge upstream/main --no-ff --no-edit; then
-            echo "merge_failed=true" >> "$GITHUB_OUTPUT"
+          # 不使用 set -e，因为 git merge 冲突时返回非零退出码是正常行为
+          MERGE_FAILED=false
+
+          # 尝试合并
+          if git merge upstream/main --no-ff --no-edit; then
+            echo "合并成功，无冲突"
           else
-            echo "merge_failed=false" >> "$GITHUB_OUTPUT"
+            MERGE_FAILED=true
+            echo "合并返回非零退出码，检查是否有冲突文件..."
           fi
 
           # 如果存在冲突文件，统一用上游版本（theirs=upstream）
-          if git diff --name-only --diff-filter=U | grep -q .; then
+          CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+          if [ -n "$CONFLICT_FILES" ]; then
             echo "conflict=true" >> "$GITHUB_OUTPUT"
-            echo "合并冲突：将使用上游版本覆盖冲突文件"
+            echo "合并冲突：将使用上游版本覆盖以下文件"
 
-            CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
             for file in $CONFLICT_FILES; do
-              echo "使用上游版本: $file"
+              echo "  使用上游版本: $file"
               git checkout --theirs "$file"
               git add "$file"
             done
           else
             echo "conflict=false" >> "$GITHUB_OUTPUT"
+            # 如果 merge 失败但没有冲突文件，说明是其他错误，尝试中止合并
+            if [ "$MERGE_FAILED" = "true" ]; then
+              echo "::warning::合并失败且无冲突文件，尝试中止合并"
+              git merge --abort 2>/dev/null || true
+              exit 1
+            fi
           fi
 
       - name: Commit and Push (if changed)
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
           set -e
+
+          # 未配置 PAT 时，GITHUB_TOKEN 默认无法更新 workflow 文件，推送前回滚该目录
+          if [ -z "${SYNC_PAT:-}" ]; then
+            if [ -n "${BASE_REF:-}" ] && git ls-tree -d --name-only "$BASE_REF" .github/workflows >/dev/null 2>&1; then
+              git restore --source "$BASE_REF" --staged --worktree .github/workflows || true
+              echo "未配置 SYNC_PAT：已回滚 .github/workflows 变更，避免权限拒绝"
+            fi
+          fi
 
           # 检查是否有正在进行的合并（冲突解决后需提交）
           if [ -f .git/MERGE_HEAD ]; then
@@ -80,8 +112,10 @@ jobs:
           fi
 
           # 检查本地是否领先于远程（即是否有新提交需要推送）
-          # 注意：git merge upstream/main 成功后，本地 HEAD 会超前 origin/main
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+          LOCAL_HEAD=$(git rev-parse HEAD)
+          REMOTE_HEAD=$(git rev-parse origin/main 2>/dev/null || echo "none")
+
+          if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
              echo "Pushing changes..."
              git push origin main
           else

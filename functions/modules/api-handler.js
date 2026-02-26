@@ -243,6 +243,19 @@ export async function handleSettingsGet(env) {
 export async function handleSettingsSave(request, env) {
     try {
         const newSettings = await request.json();
+
+        // 校验 customLoginPath 是否为系统保留路径
+        if (newSettings.customLoginPath) {
+            const reservedPaths = ['settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard', 'api', 'explore'];
+            const pathSegment = newSettings.customLoginPath.replace(/^\/+/, '').split('/')[0].toLowerCase();
+            if (reservedPaths.includes(pathSegment)) {
+                return createJsonResponse({
+                    success: false,
+                    message: `"/${pathSegment}" 是系统保留路径，不可用作自定义登录路径`
+                }, 400);
+            }
+        }
+
         const storageAdapter = await getStorageAdapter(env);
         const oldSettings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
         const finalSettings = { ...oldSettings, ...newSettings };

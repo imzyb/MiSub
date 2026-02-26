@@ -23,6 +23,14 @@ function base64Encode(str) {
 }
 
 /**
+ * URL-safe Base64 编码（SSR 标准格式）
+ * 将 + 替换为 -，/ 替换为 _，去除尾部 = padding
+ */
+function base64UrlSafeEncode(str) {
+    return base64Encode(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+/**
  * 将 Clash 代理对象转换为标准 URL
  */
 function convertClashProxyToUrl(proxy) {
@@ -61,10 +69,10 @@ function convertClashProxyToUrl(proxy) {
         }
 
         if (type === 'ssr' || type === 'shadowsocksr') {
-            const password = base64Encode(proxy.password);
-            const params = `obfs=${proxy.obfs || 'plain'}&obfsparam=${base64Encode(proxy['obfs-param'] || '')}&protocol=${proxy.protocol || 'origin'}&protoparam=${base64Encode(proxy['protocol-param'] || '')}&remarks=${base64Encode(name)}`;
+            const password = base64UrlSafeEncode(proxy.password);
+            const params = `obfs=${proxy.obfs || 'plain'}&obfsparam=${base64UrlSafeEncode(proxy['obfs-param'] || '')}&protocol=${proxy.protocol || 'origin'}&protoparam=${base64UrlSafeEncode(proxy['protocol-param'] || '')}&remarks=${base64UrlSafeEncode(name)}`;
             const ssrBody = `${server}:${port}:${proxy.protocol || 'origin'}:${proxy.cipher || 'none'}:${proxy.obfs || 'plain'}:${password}/?${params}`;
-            return `ssr://${base64Encode(ssrBody)}`;
+            return `ssr://${base64UrlSafeEncode(ssrBody)}`;
         }
 
         if (type === 'vmess') {
