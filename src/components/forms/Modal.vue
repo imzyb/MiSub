@@ -48,12 +48,14 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
 </script>
 
 <template>
-  <Transition name="modal-fade">
-    <div
-      v-if="show"
-      class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-      @click="emit('update:show', false)"
-    >
+<Transition name="modal-fade">
+<div
+v-if="show"
+class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+@click="emit('update:show', false)"
+role="dialog"
+aria-modal="true"
+>
       <Transition name="modal-inner">
         <div
           v-if="show"

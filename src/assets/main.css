@@ -156,21 +156,85 @@
 /* 🌊 Fluid Animations */
 
 .animate-float {
-  animation: float 6s ease-in-out infinite;
+animation: float 6s ease-in-out infinite;
 }
 
 @keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
+0% {
+transform: translateY(0px);
+}
 
-  50% {
-    transform: translateY(-10px);
-  }
+50% {
+transform: translateY(-10px);
+}
 
-  100% {
-    transform: translateY(0px);
-  }
+100% {
+transform: translateY(0px);
+}
+}
+
+/* Shimmer effect for buttons */
+@keyframes shimmer {
+0% { transform: translateY(-100%) translateX(0%); }
+100% { transform: translateY(100%) translateX(0%); }
+}
+
+.animate-shimmer {
+animation: shimmer 2s infinite ease-in-out;
+}
+
+/* Spring-in animation for nav items */
+@keyframes spring-in {
+0% { transform: scale(0.9); opacity: 0; }
+60% { transform: scale(1.05); opacity: 1; }
+100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-spring-in {
+animation: spring-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Gradient animation */
+@keyframes gradient {
+0% { background-position: 0% 50%; }
+50% { background-position: 100% 50%; }
+100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+animation: gradient 3s ease infinite;
+background-size: 200% auto;
+}
+
+/* Fade in up animation */
+@keyframes fadeInUp {
+from {
+opacity: 0;
+transform: translateY(20px);
+}
+to {
+opacity: 1;
+transform: translateY(0);
+}
+}
+
+.animate-fade-in-up {
+animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+opacity: 0;
+}
+
+/* Wave animation for loading spinner */
+@keyframes wave {
+0%, 40%, 100% {
+transform: scaleY(0.4);
+}
+20% {
+transform: scaleY(1);
+}
+}
+
+.animate-wave {
+animation: wave 1.2s ease-in-out infinite;
 }
 
 /* 🔮 Text Gradients */
@@ -232,4 +296,35 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 1rem;
+}
+
+/* ♿ Accessibility: Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+*,
+::before,
+::after,
+::backdrop {
+animation-duration: 0.01ms !important;
+animation-iteration-count: 1 !important;
+transition-duration: 0.01ms !important;
+scroll-behavior: auto !important;
+}
+
+.animate-float,
+.animate-pulse,
+.animate-spin,
+.animate-shimmer,
+.animate-spring-in,
+.animate-gradient,
+.animate-fade-in-up,
+.card-hover {
+animation: none !important;
+transition: none !important;
+transform: none !important;
+}
+
+.card-hover:hover {
+transform: none !important;
+box-shadow: none !important;
+}
 }

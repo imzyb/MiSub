@@ -53,6 +53,9 @@ const emit = defineEmits(['update:modelValue']);
 const updateValue = (event) => {
   emit('update:modelValue', event.target.value);
 };
+
+const hasIcon = computed(() => props.icon !== null);
+const hasPrefix = computed(() => props.prefix !== '');
 </script>
 
 <template>

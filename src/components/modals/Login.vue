@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import FluidButton from '../ui/FluidButton.vue';
+import Button from '../ui/Button.vue';
 
 const emit = defineEmits(['success']);
 const password = ref('');
@@ -89,16 +89,16 @@ const submitLogin = async () => {
           </transition>
         </div>
         
-        <FluidButton 
-          type="submit"
-          class="w-full !rounded-xl !py-3.5 !text-base font-bold shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300"
-          :loading="isLoading"
-          variant="primary"
-          size="lg"
-        >
-          <span v-if="!isLoading">授权登录</span>
-          <span v-else>验证中...</span>
-        </FluidButton>
+<Button
+type="submit"
+class="w-full"
+:loading="isLoading"
+variant="primary"
+size="lg"
+>
+<span v-if="!isLoading">授权登录</span>
+<span v-else>验证中...</span>
+</Button>
 
       </form>
     </div>

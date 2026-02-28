@@ -246,45 +246,50 @@ const toggleCollapse = () => {
         </div>
 
         <div class="flex items-center space-x-2">
-          <!-- 折叠按钮 -->
-          <button
-            v-if="collapsible"
-            type="button"
-            class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            @click="toggleCollapse"
-          >
-            <svg
-              class="w-4 h-4 transition-transform"
-              :class="{ 'rotate-180': !isCollapsed }"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+<!-- 折叠按钮 -->
+<button
+v-if="collapsible"
+type="button"
+class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+@click="toggleCollapse"
+:aria-expanded="!isCollapsed"
+aria-label="展开或收起过滤器"
+>
+<svg
+class="w-4 h-4 transition-transform"
+:class="{ 'rotate-180': !isCollapsed }"
+fill="none"
+stroke="currentColor"
+viewBox="0 0 24 24"
+aria-hidden="true"
+>
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+</svg>
+</button>
 
-          <!-- 重置按钮 -->
-          <button
-            v-if="showReset"
-            type="button"
-            :disabled="loading"
-            class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-            @click="resetFilters"
-          >
-            重置
-          </button>
+<!-- 重置按钮 -->
+<button
+v-if="showReset"
+type="button"
+:disabled="loading"
+class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+@click="resetFilters"
+aria-label="重置所有过滤条件"
+>
+重置
+</button>
 
-          <!-- 应用按钮 -->
-          <button
-            v-if="showApply"
-            type="button"
-            :disabled="loading"
-            class="px-3 py-1.5 text-sm border border-transparent rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-            @click="applyFilters"
-          >
-            应用
-          </button>
+<!-- 应用按钮 -->
+<button
+v-if="showApply"
+type="button"
+:disabled="loading"
+class="px-3 py-1.5 text-sm border border-transparent rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+@click="applyFilters"
+aria-label="应用过滤条件"
+>
+应用
+</button>
         </div>
       </div>
 

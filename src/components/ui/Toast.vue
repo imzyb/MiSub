@@ -59,15 +59,16 @@ watch(() => toast.id, () => {
     >
       <!-- Toast 内容 -->
       <div class="relative p-4">
-        <!-- 关闭按钮 -->
-        <button
-          @click="isVisible = false"
-          class="toast-close-btn absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-        >
-          <svg class="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+<!-- 关闭按钮 -->
+<button
+@click="isVisible = false"
+class="toast-close-btn absolute top-2 right-2 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+aria-label="关闭提示"
+>
+<svg class="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+</svg>
+</button>
 
         <!-- 图标和消息 -->
         <div class="flex items-center gap-3 pr-6">
@@ -160,20 +161,17 @@ watch(() => toast.id, () => {
 
 /* 移动端优化 */
 @media (max-width: 640px) {
-  .toast-container {
-    /* 确保在移动端Toast不会太宽 */
-    left: 1rem;
-    right: 1rem;
-    top: 1rem;
-  }
-  
-  /* 移动端关闭按钮优化 */
-  .toast-close-btn {
-    width: 36px;
-    height: 36px;
-    /* 确保足够的触击区域 */
-    min-width: 44px;
-    min-height: 44px;
-  }
+.toast-container {
+/* 确保在移动端Toast不会太宽 */
+left: 1rem;
+right: 1rem;
+top: 1rem;
+}
+
+/* 移动端关闭按钮优化 - 确保触击区域至少44px */
+.toast-close-btn {
+min-width: 44px;
+min-height: 44px;
+}
 }
 </style>
