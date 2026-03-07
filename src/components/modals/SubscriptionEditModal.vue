@@ -48,6 +48,9 @@ const presetKeywords = [
   { label: '倍率', pattern: '倍率' },
   { label: '测试', pattern: '测试' },
   { label: '维护', pattern: '维护' },
+  { label: 'GB', pattern: 'GB' },
+  { label: '2026', pattern: '2026' },
+
 ];
 
 // 已选择的规则（内置+自定义）
@@ -328,4 +331,4 @@ const switchToVisual = () => {
   </Modal>
 </template>
 
- 
+
