@@ -28,5 +28,6 @@ defineEmits(['openLog', 'openBulkImport']);
         批量导入
       </button>
     </div>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 md:mt-0 md:ml-auto">提示：常用操作在此，更多管理请前往对应模块。</p>
   </div>
 </template>

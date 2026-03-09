@@ -97,14 +97,14 @@ watch(() => props.settings.customLoginPath, (val) => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- 订阅自动更新间隔 -->
         <div
-          class="flex flex-col p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg">
-          <div class="flex items-center justify-between mb-3">
+          class="p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg">
+          <div class="flex items-center justify-between">
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-gray-200">订阅自动更新间隔</p>
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">页面打开时自动刷新订阅节点数和流量</p>
             </div>
           </div>
-          <div class="flex flex-wrap gap-3">
+          <div class="mt-3 flex flex-wrap gap-3">
             <div class="flex items-center gap-2">
               <input
                 type="number"
@@ -121,8 +121,7 @@ watch(() => props.settings.customLoginPath, (val) => {
               v-for="option in [
                 { value: 0, label: '禁用' },
                 { value: 30, label: '30分钟' },
-                { value: 60, label: '1小时' },
-                { value: 120, label: '2小时' }
+                { value: 60, label: '1小时' }
               ]"
               :key="option.value"
               @click="settings.autoUpdateInterval = option.value"
@@ -270,7 +269,6 @@ watch(() => props.settings.customLoginPath, (val) => {
                   v-model="disguiseConfig.redirectUrl"
                   placeholder="www.example.com"
                   type="url"
-                  prefix="https://"
                 />
               </div>
             </div>

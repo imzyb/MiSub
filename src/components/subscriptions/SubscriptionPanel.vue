@@ -55,7 +55,7 @@ const handleImport = () => emit('import');
               {{ isSorting ? '完成排序' : '手动排序' }}
             </button>
             <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-            <button @click="handleDeleteAll(); close()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10">清空所有</button>
+            <button @click="handleDeleteAll(); close()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-500/10">清空所有</button>
           </template>
         </MoreActionsMenu>
       </template>

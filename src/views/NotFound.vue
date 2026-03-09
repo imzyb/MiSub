@@ -16,7 +16,7 @@
       <h1 class="text-3xl font-bold mb-4 tracking-tight">页面迷失在星际中</h1>
       <p class="text-lg text-gray-400 mb-10 leading-relaxed">
         抱歉，您访问的页面似乎已漂流至已知宇宙之外。<br>
-        请尝试返回导航。
+        如需登录，请访问 <span class="text-primary-400 font-semibold">/login</span> 或已配置的自定义登录路径。
       </p>
       
       <router-link to="/" class="inline-flex items-center justify-center px-8 py-3 text-base font-semibold text-white bg-primary-600 hover:bg-primary-500 rounded-full transition-all duration-300 shadow-lg shadow-primary-500/30 hover:-translate-y-1 hover:shadow-primary-500/50">

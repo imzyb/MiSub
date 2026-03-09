@@ -64,7 +64,7 @@ const copyLink = async (profile) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
             await navigator.clipboard.writeText(link);
-            showToast('订阅链接已复制d', 'success');
+            showToast('订阅链接已复制', 'success');
         } catch (e) {
             showToast('复制失败，请手动复制', 'error');
         }
@@ -250,7 +250,7 @@ onMounted(async () => {
         </div>
 
             <!-- Guestbook Trigger (Fixed) -->
-            <div class="fixed bottom-6 right-6 z-50">
+            <div class="fixed bottom-24 md:bottom-6 right-6 z-50">
                 <button @click="handleGuestbookTrigger"
                     class="group flex items-center gap-2 px-5 py-3 bg-white dark:bg-gray-800 hover:bg-primary-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full shadow-lg hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:-translate-y-1">
                     <BaseIcon :path="ICONS.feedback" className="w-5 h-5 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />

@@ -4,6 +4,7 @@ import { useDataStore } from '../stores/useDataStore.js';
 import { useBulkImportLogic } from '../composables/useBulkImportLogic.js'; // Added
 import { storeToRefs } from 'pinia';
 import SkeletonLoader from '../components/ui/SkeletonLoader.vue';
+import MoreActionsMenu from '../components/shared/MoreActionsMenu.vue';
 import RightPanel from '../components/profiles/RightPanel.vue';
 import { useSubscriptions } from '../composables/useSubscriptions.js';
 import { useRouter } from 'vue-router';
@@ -122,7 +123,7 @@ const handleQRCode = (url, title) => {
           </p>
         </div>
         
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <button @click="showLogModal = true" class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white/80 text-gray-700 hover:bg-white dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900 misub-radius-lg transition-colors border border-gray-200/80 dark:border-white/10 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 订阅日志
@@ -148,7 +149,7 @@ const handleQRCode = (url, title) => {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-6">
-             <div class="bg-white/90 dark:bg-gray-900/80 p-6 misub-radius-lg shadow-sm border border-gray-100/80 dark:border-white/10">
+             <div class="bg-white/90 dark:bg-gray-900/80 p-6 misub-radius-lg shadow-sm border border-gray-100/80 dark:border-white/10 min-h-[340px]">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     使用指南
