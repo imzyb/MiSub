@@ -116,6 +116,8 @@ export function useSubscriptions(markDirty) {
         if (!isInitialLoad) {
           showToast(`${subToUpdate.name || '订阅'} 更新成功！`, 'success');
           markDirty();
+          // 自动保存手动更新的结果
+          void dataStore.saveData();
         }
       }
     } catch (error) {
