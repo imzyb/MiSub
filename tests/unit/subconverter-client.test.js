@@ -31,12 +31,12 @@ describe('subconverter-client response headers', () => {
             'x-backend': 'subconverter'
         });
 
-        const headers = buildClientResponseHeaders(backendHeaders, 'MiSub', { 'X-Cache-Status': 'HIT' });
+        const headers = buildClientResponseHeaders(backendHeaders, 'MiSub', 'base64', { 'X-Cache-Status': 'HIT' });
 
         expect(headers.get('content-encoding')).toBeNull();
         expect(headers.get('content-length')).toBeNull();
         expect(headers.get('transfer-encoding')).toBeNull();
-        expect(headers.get('x-backend')).toBe('subconverter');
+        expect(headers.get('x-backend')).toBeNull(); // MiSub 现在不复制这些头了，而是重新组装
         expect(headers.get('content-type')).toBe('text/plain; charset=utf-8');
         expect(headers.get('x-cache-status')).toBe('HIT');
     });

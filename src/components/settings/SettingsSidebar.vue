@@ -21,7 +21,7 @@ const tabs = [
 <template>
   <nav class="grid grid-cols-2 gap-2 p-1 md:flex md:flex-col md:space-y-1 md:gap-0 md:p-0">
     <button v-for="tab in tabs" :key="tab.id" @click="emit('update:activeTab', tab.id)"
-      class="relative flex items-center justify-center md:justify-start px-4 py-3 text-sm font-medium rounded-2xl transition-all duration-200"
+      class="relative flex items-center justify-center md:justify-start px-4 py-3 text-sm font-medium misub-radius-lg transition-all duration-200"
       :class="activeTab === tab.id
         ? 'bg-primary-600 text-white shadow-sm shadow-primary-500/25 border border-white/10'
         : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-gray-200'">

@@ -4,6 +4,7 @@ import { useDataStore } from '../stores/useDataStore.js';
 import { useBulkImportLogic } from '../composables/useBulkImportLogic.js'; // Added
 import { storeToRefs } from 'pinia';
 import SkeletonLoader from '../components/ui/SkeletonLoader.vue';
+import MoreActionsMenu from '../components/shared/MoreActionsMenu.vue';
 import RightPanel from '../components/profiles/RightPanel.vue';
 import { useSubscriptions } from '../composables/useSubscriptions.js';
 import { useRouter } from 'vue-router';
@@ -122,16 +123,16 @@ const handleQRCode = (url, title) => {
           </p>
         </div>
         
-        <div class="flex flex-wrap gap-2">
-            <button @click="showLogModal = true" class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white/80 text-gray-700 hover:bg-white dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900 rounded-xl transition-colors border border-gray-200/80 dark:border-white/10 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2">
+            <button @click="showLogModal = true" class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white/80 text-gray-700 hover:bg-white dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900 misub-radius-lg transition-colors border border-gray-200/80 dark:border-white/10 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 订阅日志
             </button>
 
-            <button @click="showBulkImportModal = true" class="px-4 py-2 text-sm font-medium bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:bg-gray-800/60 dark:text-gray-200 dark:hover:bg-gray-700/70 rounded-xl transition-colors">
+            <button @click="showBulkImportModal = true" class="px-4 py-2 text-sm font-medium bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:bg-gray-800/60 dark:text-gray-200 dark:hover:bg-gray-700/70 misub-radius-lg transition-colors">
                 批量导入
             </button>
-            <button @click="handleAddProfile" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-colors shadow-sm shadow-primary-500/20">
+            <button @click="handleAddProfile" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg transition-colors shadow-sm shadow-primary-500/20">
                 新增我的订阅
             </button>
         </div>
@@ -148,25 +149,25 @@ const handleQRCode = (url, title) => {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-6">
-             <div class="bg-white/90 dark:bg-gray-900/80 p-6 rounded-3xl shadow-sm border border-gray-100/80 dark:border-white/10">
+             <div class="bg-white/90 dark:bg-gray-900/80 p-6 misub-radius-lg shadow-sm border border-gray-100/80 dark:border-white/10 min-h-[340px]">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     使用指南
                 </h3>
                 <div class="grid md:grid-cols-2 gap-4">
-                    <div class="p-4 bg-white/80 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-white/10">
+                    <div class="p-4 bg-white/80 dark:bg-gray-900/70 misub-radius-lg border border-gray-200/60 dark:border-white/10">
                          <h4 class="font-medium text-gray-900 dark:text-gray-200 mb-2">1. 添加机场订阅</h4>
                          <p class="text-sm text-gray-500 dark:text-gray-400">前往 <b>机场订阅</b> 页面，点击"新增订阅"或"批量导入"，填入您的机场订阅链接。</p>
                     </div>
-                    <div class="p-4 bg-white/80 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-white/10">
+                    <div class="p-4 bg-white/80 dark:bg-gray-900/70 misub-radius-lg border border-gray-200/60 dark:border-white/10">
                          <h4 class="font-medium text-gray-900 dark:text-gray-200 mb-2">2. 创建组合订阅</h4>
                          <p class="text-sm text-gray-500 dark:text-gray-400">在 <b>我的订阅</b> 页面创建新的组合（Profile），选择刚才添加的机场订阅或节点作为来源。</p>
                     </div>
-                    <div class="p-4 bg-white/80 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-white/10">
+                    <div class="p-4 bg-white/80 dark:bg-gray-900/70 misub-radius-lg border border-gray-200/60 dark:border-white/10">
                          <h4 class="font-medium text-gray-900 dark:text-gray-200 mb-2">3. 获取订阅链接</h4>
                          <p class="text-sm text-gray-500 dark:text-gray-400">在右侧面板的 "生成的订阅" 中，复制对应的 Clash 或其他客户端链接。</p>
                     </div>
-                    <div class="p-4 bg-white/80 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-white/10">
+                    <div class="p-4 bg-white/80 dark:bg-gray-900/70 misub-radius-lg border border-gray-200/60 dark:border-white/10">
                          <h4 class="font-medium text-gray-900 dark:text-gray-200 mb-2">4. 导入客户端</h4>
                          <p class="text-sm text-gray-500 dark:text-gray-400">将生成的链接粘贴到您的 Clash, Shadowrocket 或 v2rayN 客户端中即可使用。</p>
                     </div>

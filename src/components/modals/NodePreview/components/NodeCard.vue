@@ -75,7 +75,7 @@ const emit = defineEmits(['copy']);
       <div
         v-for="(node, index) in nodes"
         :key="`${node.url}_${index}`"
-        class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4 hover:shadow-md transition-shadow"
+        class="bg-white dark:bg-gray-700 misub-radius-md border border-gray-200 dark:border-gray-600 p-4 hover:shadow-md transition-shadow"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="flex-1 min-w-0">
@@ -111,7 +111,7 @@ const emit = defineEmits(['copy']);
           <!-- 复制按钮 -->
           <button
             @click="emit('copy', node, node.url)"
-            class="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors group"
+            class="flex-shrink-0 p-2 misub-radius-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors group"
             :class="{ 'bg-green-100 dark:bg-green-900': copiedNodeId === node.url }"
           >
             <svg

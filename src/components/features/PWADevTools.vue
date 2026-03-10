@@ -62,7 +62,7 @@ onMounted(() => {
   <Transition name="dev-tools">
     <div
       v-if="showDevTools && isDev"
-      class="fixed bottom-4 left-4 z-50 bg-gray-900/95 backdrop-blur-lg text-white rounded-lg shadow-2xl border border-gray-700 p-4 max-w-sm"
+      class="fixed bottom-4 left-4 z-50 bg-gray-900/95 backdrop-blur-lg text-white misub-radius-md shadow-2xl border border-gray-700 p-4 max-w-sm"
     >
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-bold">PWA 开发工具</h3>
@@ -79,21 +79,21 @@ onMounted(() => {
       <div class="space-y-2">
         <button
           @click="triggerInstallPrompt"
-          class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-sm rounded-md transition-colors"
+          class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-sm misub-radius-md transition-colors"
         >
           触发安装提示
         </button>
         
         <button
           @click="checkPWAStatus"
-          class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-sm rounded-md transition-colors"
+          class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-sm misub-radius-md transition-colors"
         >
           检查PWA状态
         </button>
         
         <button
           @click="forceUpdate"
-          class="w-full px-3 py-2 bg-orange-600 hover:bg-orange-700 text-sm rounded-md transition-colors"
+          class="w-full px-3 py-2 bg-orange-600 hover:bg-orange-700 text-sm misub-radius-md transition-colors"
         >
           强制更新SW
         </button>

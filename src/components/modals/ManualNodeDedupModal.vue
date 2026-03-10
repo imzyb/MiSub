@@ -31,7 +31,7 @@ const previewList = computed(() => {
           将移除 <span class="font-semibold text-red-600 dark:text-red-400">{{ plan?.removeCount || 0 }}</span> 个重复节点，
           保留 <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ plan?.keepCount || 0 }}</span> 个节点。
         </div>
-        <div v-if="previewList.length > 0" class="border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div v-if="previewList.length > 0" class="border border-gray-200 dark:border-gray-700 misub-radius-md">
           <div class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
             预览将被移除的节点（最多显示 20 条）
           </div>

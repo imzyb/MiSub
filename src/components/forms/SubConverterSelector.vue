@@ -78,7 +78,7 @@ const switchToSelect = () => {
       <select 
         :value="selectedUrl" 
         @change="handleSelectChange"
-        class="block w-full px-3 py-2 pr-8 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white appearance-none"
+        class="block w-full px-3 py-2 pr-8 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-lg shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white appearance-none"
       >
         <option value="">{{ placeholder || (allowEmpty ? '默认 / 全局设置' : '请选择...') }}</option>
         
@@ -112,12 +112,12 @@ const switchToSelect = () => {
                      :value="modelValue"
                      @input="handleCustomInput"
                      :placeholder="type === 'backend' ? '输入 SubConverter 后端地址 (不带 https://)' : '输入远程配置 URL'"
-                     class="block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                     class="block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-lg shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
                  />
             </div>
             <button 
                 @click="switchToSelect"
-                class="flex-shrink-0 p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition-colors"
+                class="flex-shrink-0 p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 misub-radius-lg transition-colors"
                 title="返回列表选择"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>

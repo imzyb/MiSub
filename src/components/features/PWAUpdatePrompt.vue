@@ -1,10 +1,15 @@
 <script setup>
 import { useRegisterSW } from 'virtual:pwa-register/vue';
+import { ref } from 'vue';
 
-const {
-  needRefresh,
-  updateServiceWorker,
-} = useRegisterSW();
+const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+let needRefresh = ref(false);
+let updateServiceWorker = async () => {};
+
+if (!isLocalHost) {
+  ({ needRefresh, updateServiceWorker } = useRegisterSW());
+}
 
 const handleUpdate = async () => {
   await updateServiceWorker();
@@ -21,7 +26,7 @@ const dismissUpdate = () => {
       v-if="needRefresh"
       class="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md sm:left-auto sm:max-w-sm"
     >
-      <div class="bg-gradient-to-r from-indigo-500 to-purple-600 backdrop-blur-lg border border-white/20 rounded-xl shadow-2xl overflow-hidden">
+      <div class="bg-gradient-to-r from-indigo-500 to-purple-600 backdrop-blur-lg border border-white/20 misub-radius-lg shadow-2xl overflow-hidden">
         <div class="p-4">
           <div class="flex items-center gap-3">
             <!-- 更新图标 -->
@@ -45,13 +50,13 @@ const dismissUpdate = () => {
             <div class="flex gap-2">
               <button
                 @click="handleUpdate"
-                class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium misub-radius-md transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 更新
               </button>
               <button
                 @click="dismissUpdate"
-                class="p-1.5 hover:bg-white/20 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                class="p-1.5 hover:bg-white/20 text-white misub-radius-md transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

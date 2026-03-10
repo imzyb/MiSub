@@ -16,7 +16,7 @@ import {
  * @param {string} excludeRules - 过滤规则文本
  * @returns {Promise<Object>} 节点获取结果
  */
-export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '') {
+export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null) {
     // 自动检测调试 Token
     const shouldDebug = debug || (url && url.includes('b0b422857bb46aba65da8234c84f38c6'));
 
@@ -25,8 +25,14 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
             ? customUserAgent
             : userAgent;
 
+        // 当配置了 fetchProxy 时，使用代理拉取订阅
+        let requestUrl = url;
+        if (fetchProxy && typeof fetchProxy === 'string' && fetchProxy.trim()) {
+            requestUrl = fetchProxy.trim() + encodeURIComponent(url);
+        }
+
         // 使用统一的 Fetch 工具，复用重试逻辑
-        const response = await fetchWithRetry(url, {
+        const response = await fetchWithRetry(requestUrl, {
             headers: { 'User-Agent': effectiveUserAgent },
             redirect: "follow",
             cf: { insecureSkipVerify: true }

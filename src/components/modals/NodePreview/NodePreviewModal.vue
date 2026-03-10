@@ -386,7 +386,7 @@ const handleKeydown = (e) => {
     @click="$emit('update:show', false)"
   >
     <div
-      class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[95vh] max-w-none mx-4 sm:mx-auto sm:max-w-5xl"
+      class="bg-white dark:bg-gray-800 misub-radius-lg shadow-2xl w-full text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[95vh] max-w-none mx-4 sm:mx-auto sm:max-w-5xl"
       @click.stop
     >
       <!-- 标题栏 -->
@@ -489,7 +489,7 @@ const handleKeydown = (e) => {
               <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
               <button
                 @click="loadNodes"
-                class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm misub-radius-md transition-colors"
               >
                 重试
               </button>

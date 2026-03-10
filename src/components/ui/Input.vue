@@ -89,7 +89,7 @@ const hasPrefix = computed(() => props.prefix !== '');
         :type="type"
         :placeholder="placeholder"
         :disabled="disabled"
-        class="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl py-3 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:focus:border-primary-500 focus:outline-none transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 misub-radius-lg py-3 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:focus:border-primary-500 focus:outline-none transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
         :class="[
             hasIcon ? 'pl-10 pr-4' : (hasPrefix ? 'pl-10 pr-4' : 'px-4'),
             error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' : ''
@@ -97,7 +97,7 @@ const hasPrefix = computed(() => props.prefix !== '');
       />
       
       <!-- Focus Glow -->
-      <div class="absolute inset-0 rounded-xl pointer-events-none transition-opacity duration-300 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
+      <div class="absolute inset-0 misub-radius-lg pointer-events-none transition-opacity duration-300 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
     </div>
     
     <p v-if="error" class="mt-1 text-xs text-red-500 ml-1">

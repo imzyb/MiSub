@@ -31,7 +31,7 @@ function copyCronUrl() {
 <template>
     <!-- 自动任务配置 (Cron) 卡片 -->
     <div
-        class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
+        class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
         <div class="flex justify-between items-start">
             <div>
                 <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -56,7 +56,7 @@ function copyCronUrl() {
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cron Secret</label>
             <input type="text" v-model="settings.cronSecret" placeholder="自定义一个密钥，用于保护定时任务接口"
-                class="block w-full px-3 py-2.5 bg-white/70 dark:bg-gray-900/50 border border-gray-200/80 dark:border-white/10 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 sm:text-sm dark:text-white transition-colors">
+                class="block w-full px-3 py-2.5 bg-white/70 dark:bg-gray-900/50 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 sm:text-sm dark:text-white transition-colors">
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 设置一个随机字符串用于验证定时任务请求，保存后将自动生成访问链接
             </p>
@@ -67,7 +67,7 @@ function copyCronUrl() {
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Cron 访问链接（自动生成）
             </label>
-            <div class="flex rounded-xl shadow-xs">
+            <div class="flex misub-radius-lg shadow-xs">
                 <input type="text" :value="cronUrl" readonly
                     class="flex-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-xl sm:text-sm dark:text-white font-mono text-xs">
                 <button @click="copyCronUrl" type="button"
@@ -83,7 +83,7 @@ function copyCronUrl() {
             </p>
         </div>
         <div v-else
-            class="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/80 dark:border-yellow-800/70 rounded-lg p-3">
+            class="bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/80 dark:border-yellow-800/70 misub-radius-md p-3">
             <p class="text-xs text-yellow-700 dark:text-yellow-300">
                 💡 填写 Cron Secret 后，将自动生成访问链接
             </p>

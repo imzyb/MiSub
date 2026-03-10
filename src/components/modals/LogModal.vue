@@ -113,12 +113,12 @@ watch(() => props.show, (newVal) => {
                  <div class="flex gap-2">
                     <button 
                     @click="fetchLogs" 
-                    class="text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300">
+                    class="text-xs px-2 py-1 misub-radius-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300">
                         刷新
                     </button>
                     <button 
                     @click="clearLogs" 
-                    class="text-xs px-2 py-1 rounded-md bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors text-red-600 dark:text-red-400">
+                    class="text-xs px-2 py-1 misub-radius-md bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors text-red-600 dark:text-red-400">
                         清空
                     </button>
                 </div>
@@ -144,7 +144,7 @@ watch(() => props.show, (newVal) => {
                         </p>
                     </div>
                     <ul v-else class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <li v-for="log in paginatedLogs" :key="log.id || log.timestamp" class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-2.5 text-xs border border-gray-100 dark:border-gray-700 relative overflow-hidden group hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors cursor-pointer" @click="toggleExpand(log.id)">
+                        <li v-for="log in paginatedLogs" :key="log.id || log.timestamp" class="bg-gray-50 dark:bg-gray-700/30 misub-radius-md p-2.5 text-xs border border-gray-100 dark:border-gray-700 relative overflow-hidden group hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors cursor-pointer" @click="toggleExpand(log.id)">
                             <!-- Status Indicator Stripe -->
                             <div class="absolute left-0 top-0 bottom-0 w-1" :class="{
                                 'bg-green-500': log.status === 'success',

@@ -37,7 +37,7 @@ const handleConfirm = () => {
   >
     <template #title>
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-xl bg-indigo-500/10">
+        <div class="p-2 misub-radius-lg bg-indigo-500/10">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
@@ -55,14 +55,16 @@ const handleConfirm = () => {
         </p>
         
         <div class="relative">
-          <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1 block">
-            分组名称
-          </label>
-          <GroupSelector
-            v-model="groupName"
-            :groups="groups"
-            placeholder="选择或输入新分组..."
-          />
+          <div class="flex flex-col">
+            <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
+              分组名称
+            </label>
+            <GroupSelector
+              v-model="groupName"
+              :groups="groups"
+              placeholder="选择或输入新分组..."
+            />
+          </div>
         </div>
       </div>
     </template>

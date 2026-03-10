@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+  <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 misub-radius-md p-3">
     <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">支持的订阅格式：</h4>
     <ul class="text-xs text-blue-700 dark:text-blue-300 space-y-1">
       <li>• <strong>Base64编码</strong>：标准节点列表编码</li>

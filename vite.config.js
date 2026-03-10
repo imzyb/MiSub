@@ -121,11 +121,10 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        // 手动代码分割
+        // 手动代码分割（保守策略，避免循环依赖导致空白页）
         manualChunks: {
-          // Vue核心单独打包
           vue: ['vue'],
-          // Pinia单独打包
+          router: ['vue-router'],
           pinia: ['pinia']
         },
         // 优化文件名

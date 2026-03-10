@@ -1,12 +1,10 @@
 <script setup>
-import { ref, watch, computed } from 'vue';
 import { useToastStore } from '../../stores/toast.js';
 
-const { toast } = useToastStore();
-const isVisible = ref(false);
+const toastStore = useToastStore();
 
 // 🆕 增强的 Toast 配置
-const toastConfig = computed(() => {
+const getToastConfig = (type) => {
   const configs = {
     success: {
       bg: 'bg-gradient-to-r from-green-500 to-emerald-500',
@@ -29,112 +27,119 @@ const toastConfig = computed(() => {
       ring: 'ring-yellow-500/20'
     }
   };
-  return configs[toast.type] || configs.info;
-});
+  return configs[type] || configs.info;
+};
 
-watch(() => toast.id, () => {
-  if (toast.message) {
-    isVisible.value = true;
-    setTimeout(() => {
-      isVisible.value = false;
-    }, 4000); // 延长到4秒
-  }
-});
+const handleClose = (id) => {
+  toastStore.removeToast(id);
+};
 </script>
 
 <template>
-  <Transition name="toast">
-    <div
-      v-if="isVisible"
-      class="toast-container"
-      :class="[
-        'fixed top-4 right-4 z-50 min-w-80 max-w-md',
-        'sm:min-w-80 min-w-[calc(100vw-2rem)] sm:max-w-md max-w-[calc(100vw-2rem)]',
-        'backdrop-blur-lg border border-white/20',
-        'rounded-xl shadow-2xl overflow-hidden',
-        'ring-1 transition-all duration-300',
-        toastConfig.bg,
-        toastConfig.ring
-      ]"
-    >
-      <!-- Toast 内容 -->
-      <div class="relative p-4">
-<!-- 关闭按钮 -->
-<button
-@click="isVisible = false"
-class="toast-close-btn absolute top-2 right-2 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-aria-label="关闭提示"
->
-<svg class="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-</svg>
-</button>
-
-        <!-- 图标和消息 -->
-        <div class="flex items-center gap-3 pr-6">
-          <!-- 动态图标 -->
-          <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-            <svg class="w-full h-full text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="toastConfig.icon" />
+  <div class="fixed z-[100] flex flex-col items-end gap-3 pointer-events-none top-20 md:top-4 right-4 left-4 md:left-auto max-h-[calc(100vh-120px)] md:max-h-[100vh] overflow-hidden pr-1 pb-safe">
+    <TransitionGroup name="toast">
+      <div
+        v-for="toast in toastStore.toasts"
+        :key="toast.id"
+        class="toast-container pointer-events-auto w-full sm:w-auto sm:min-w-80 max-w-md backdrop-blur-lg border border-white/20 misub-radius-lg shadow-2xl overflow-hidden ring-1 transition-all duration-300 relative"
+        :class="[getToastConfig(toast.type).bg, getToastConfig(toast.type).ring]"
+      >
+        <!-- Toast 内容 -->
+        <div class="relative p-4 pl-5">
+          <!-- 关闭按钮 -->
+          <button
+            @click="handleClose(toast.id)"
+            class="toast-close-btn absolute top-2 right-2 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 w-7 h-7"
+            aria-label="关闭提示"
+          >
+            <svg class="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </div>
-          
-          <!-- 消息内容 -->
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-white leading-5">
-              {{ toast.message }}
-            </p>
-          </div>
-        </div>
+          </button>
 
-        <!-- 进度条 -->
-        <div class="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-          <div 
-            class="h-full bg-white/60 transition-all duration-75 ease-linear progress-bar"
-            :style="{ width: '100%' }"
-          ></div>
+          <!-- 图标和消息 -->
+          <div class="flex items-start gap-3 pr-8">
+            <!-- 动态图标 -->
+            <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center mt-0.5">
+              <svg class="w-full h-full text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getToastConfig(toast.type).icon" />
+              </svg>
+            </div>
+            
+            <!-- 消息内容 -->
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-white leading-relaxed break-words">
+                {{ toast.message }}
+              </p>
+            </div>
+          </div>
+
+          <!-- 进度条 -->
+          <div class="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+            <div 
+              class="h-full bg-white/60 ease-linear progress-bar"
+              :style="{ animationDuration: `${toast.duration}ms` }"
+            ></div>
+          </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </TransitionGroup>
+  </div>
 </template>
 
 <style scoped>
-/* Toast 动画 */
-.toast-enter-active {
+/* Toast 容器安全区域 */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 20px), 80px);
+}
+
+@media (min-width: 768px) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+}
+
+/* Toast 列表动画 */
+.toast-move,
+.toast-enter-active,
+.toast-leave-active {
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100%) scale(0.95);
 }
 
 .toast-leave-active {
-  transition: all 0.3s ease-in;
+  position: absolute;
+  /* 确保退出时也是绝对定位，以便腾出空间给后续元素上移 */
+  right: 0;
+  left: 0;
 }
 
-.toast-enter-from {
-  transform: translateX(100%) scale(0.95);
-  opacity: 0;
-}
-
-.toast-leave-to {
-  transform: translateX(100%) scale(0.95);
-  opacity: 0;
+@media (min-width: 640px) {
+  .toast-leave-active {
+    left: auto;
+  }
 }
 
 /* 进度条动画 */
 .progress-bar {
-  animation: shrink 4s linear forwards;
+  animation-name: shrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }
 
 @keyframes shrink {
-  from {
-    width: 100%;
-  }
-  to {
-    width: 0%;
-  }
+  from { width: 100%; }
+  to { width: 0%; }
 }
 
 /* 微光效果 */
-.toast-enter-active::before {
+.toast-container::before {
   content: '';
   position: absolute;
   top: 0;
@@ -148,30 +153,21 @@ aria-label="关闭提示"
     transparent
   );
   animation: shimmer 0.6s ease-out 0.2s;
+  pointer-events: none;
 }
 
 @keyframes shimmer {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 100%;
-  }
+  0% { left: -100%; }
+  100% { left: 100%; }
 }
 
 /* 移动端优化 */
 @media (max-width: 640px) {
-.toast-container {
-/* 确保在移动端Toast不会太宽 */
-left: 1rem;
-right: 1rem;
-top: 1rem;
-}
-
-/* 移动端关闭按钮优化 - 确保触击区域至少44px */
-.toast-close-btn {
-min-width: 44px;
-min-height: 44px;
-}
+  .toast-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+    top: 4px;
+    right: 4px;
+  }
 }
 </style>

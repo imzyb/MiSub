@@ -156,24 +156,42 @@ export async function collectWithinTimeout(promises, timeoutMs) {
 }
 
 /**
- * 改进版的 collectWithinTimeout
- * 真正的可中断收集：给每个 task 包装，如果超时了，已完成的就返回。
+ * 改进版的并发任务收集
+ * 真正的可中断收集：通过传递 AbortSignal 给各个任务。超时时不仅返回已完成的结果，还会中止未完成的底层 fetch。
+ * 
+ * @param {Function[]} taskFactories - 返回 Promise 的工厂函数数组: (signal) => Promise
+ * @param {number} timeoutMs - 整体超时时间(ms)
+ * @returns {Promise<any[]>} - 在超时前所有成功 resolve 的结果数组
  */
-export async function robustCollect(tasks, timeoutMs) {
+export async function robustCollect(taskFactories, timeoutMs) {
     const results = [];
+    const controller = new AbortController();
+    
+    // 超时中止
+    const timerId = setTimeout(() => {
+        controller.abort();
+    }, timeoutMs);
 
-    const promises = tasks.map(async (task) => {
+    const promises = taskFactories.map(async (taskFactory) => {
         try {
-            const res = await task;
-            results.push(res);
+            const res = await taskFactory(controller.signal);
+            if (res !== undefined && res !== null) {
+                results.push(res);
+            }
         } catch (e) {
-            // ignore error
+            // 被 controller.abort() 的 AbortError 和常规执行错误都会在这里被忽略
+            if (e.name !== 'AbortError') {
+                console.warn('[robustCollect] Task error:', e.message);
+            }
         }
     });
 
-    const allDone = Promise.all(promises);
-    const timeout = new Promise(resolve => setTimeout(resolve, timeoutMs));
+    // 无论全部成功还是因为 abort 报错，Promise.all 都会在全部 settled 后返回或抛出
+    // 我们在内层 catch 了错误，所以 Promise.all 会平稳结束
+    await Promise.all(promises);
+    
+    // 如果还没超时就收集完了，取消定时器
+    clearTimeout(timerId);
 
-    await Promise.race([allDone, timeout]);
     return results;
 }

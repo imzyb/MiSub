@@ -8,6 +8,7 @@ import { convertClashProxyToUrl, batchConvertClashProxies, validateGeneratedUrl,
 import { handleError } from '../../utils/errorHandler.js';
 import { generateNodeId } from '../../utils/id.js';
 import { api, APIError } from '../../lib/http.js';
+import { COMMON_NODE_PROTOCOLS } from '../../constants/nodeProtocols.js';
 import FormatDetector from './SubscriptionImport/FormatDetector.vue';
 import ImportForm from './SubscriptionImport/ImportForm.vue';
 import ParseResult from './SubscriptionImport/ParseResult.vue';
@@ -32,6 +33,9 @@ const errorMessage = ref('');
 const successMessage = ref('');
 const parseStatus = ref('');
 const groupName = ref(''); // Added
+const DIRECT_URL_PROTOCOLS = COMMON_NODE_PROTOCOLS.filter(protocol =>
+  ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria', 'hysteria2', 'tuic', 'socks5', 'http', 'wireguard'].includes(protocol)
+);
 
 const toastStore = useToastStore();
 
@@ -104,8 +108,6 @@ const smartBase64Decode = (text) => {
  * 解析单个节点URL
  */
 const parseSingleUrl = (url) => {
-  const supportedProtocols = ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria', 'hysteria2', 'tuic', 'socks5', 'http'];
-
   // 基础URL格式检查
   if (!url.includes('://')) {
     return null;
@@ -113,7 +115,7 @@ const parseSingleUrl = (url) => {
 
   const protocol = url.split('://')[0].toLowerCase();
 
-  if (!supportedProtocols.includes(protocol)) {
+  if (!DIRECT_URL_PROTOCOLS.includes(protocol)) {
     console.warn(`不支持的协议: ${protocol}`);
     return null;
   }

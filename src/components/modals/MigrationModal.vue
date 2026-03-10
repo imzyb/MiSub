@@ -158,7 +158,7 @@ const copySchema = async () => {
        <div class="h-[400px] flex flex-col">
            <!-- Step 1: Checklist -->
            <div v-if="step === 'check'" class="flex-1 space-y-4">
-               <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+               <div class="bg-blue-50 dark:bg-blue-900/20 p-4 misub-radius-md border border-blue-100 dark:border-blue-800">
                    <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">准备工作检查</h4>
                    <p class="text-sm text-blue-600 dark:text-blue-400 mb-4 leading-relaxed">
                        即将把所有 KV 存储的数据迁移到 D1 数据库。此操作不可逆，迁移成功后系统将自动切换到 D1 模式。<br/>
@@ -193,7 +193,7 @@ const copySchema = async () => {
 
            <!-- Step 2 & 3: Logs -->
            <div v-else class="flex-1 flex flex-col min-h-0">
-               <div class="bg-gray-900 rounded-lg p-4 font-mono text-xs overflow-y-auto flex-1 custom-scrollbar shadow-inner border border-gray-700">
+               <div class="bg-gray-900 misub-radius-md p-4 font-mono text-xs overflow-y-auto flex-1 custom-scrollbar shadow-inner border border-gray-700">
                    <div v-if="logs.length === 0" class="text-gray-500 text-center mt-10">等待开始...</div>
                    <div v-for="(log, idx) in logs" :key="idx" class="mb-1.5 break-all">
                        <span class="opacity-50 text-gray-500 mr-2">[{{ log.time }}]</span>

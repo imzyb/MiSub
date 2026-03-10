@@ -12,8 +12,8 @@ defineEmits(['save', 'discard']);
 <template>
   <Transition name="slide-fade">
     <div v-if="isDirty || saveState === 'success'"
-      class="fixed top-24 md:top-auto md:bottom-24 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-2xl px-4 py-3 rounded-full flex flex-row items-center justify-between transition-all duration-300 gap-4 shadow-2xl backdrop-blur-xl border border-white/20 dark:border-white/10"
-      :class="saveState === 'success' ? 'bg-teal-500/10 ring-1 ring-teal-500/20 shadow-teal-500/5' : 'bg-white/80 dark:bg-gray-900/80 ring-1 ring-gray-200/50 dark:ring-white/10 shadow-black/10'">
+      class="fixed top-24 md:top-auto md:bottom-24 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-2xl px-4 py-3 rounded-2xl flex flex-row items-center justify-between transition-all duration-300 gap-4 shadow-2xl backdrop-blur-xl border border-white/20 dark:border-white/10"
+      :class="saveState === 'success' ? 'bg-teal-50 dark:bg-teal-900/30 ring-1 ring-teal-500/20' : 'bg-white/80 dark:bg-gray-900/80 ring-1 ring-gray-200/50 dark:ring-white/10'">
       
       <div class="flex items-center gap-3">
         <span class="flex h-3 w-3 relative">
@@ -21,22 +21,22 @@ defineEmits(['save', 'discard']);
             <span class="relative inline-flex rounded-full h-3 w-3" :class="saveState === 'success' ? 'bg-teal-500' : 'bg-orange-500'"></span>
         </span>
         <p class="text-sm font-semibold transition-colors duration-300"
-            :class="saveState === 'success' ? 'text-teal-700 dark:text-teal-300' : 'text-primary-700 dark:text-primary-300'">
+            :class="saveState === 'success' ? 'text-teal-700 dark:text-teal-300' : 'text-gray-700 dark:text-gray-300'">
             {{ saveState === 'success' ? '所有更改已保存' : '检测到未保存的更改' }}
         </p>
       </div>
 
       <div class="flex items-center gap-3 w-full sm:w-auto">
         <button v-if="saveState !== 'success'" @click="$emit('discard')"
-          class="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hover:bg-black/5 dark:hover:bg-white/5 rounded-lg whitespace-nowrap">
+          class="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hover:bg-black/5 dark:hover:bg-white/5 misub-radius-md whitespace-nowrap">
           放弃
         </button>
         <button @click.prevent="$emit('save')" :disabled="saveState !== 'idle'"
-          class="flex-1 sm:flex-none px-6 py-2 text-sm text-white font-bold rounded-xl shadow-lg flex items-center justify-center transition-all duration-300 transform active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
+          class="flex-1 sm:flex-none px-6 py-2 text-sm text-white font-bold misub-radius-lg flex items-center justify-center transition-all duration-300 transform active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
           :class="{ 
-            'bg-primary-600 hover:bg-primary-500 shadow-primary-500/30 hover:shadow-primary-500/50 hover:-translate-y-0.5': saveState === 'idle', 
-            'bg-gray-500 shadow-gray-500/30': saveState === 'saving', 
-            'bg-teal-500 shadow-teal-500/30': saveState === 'success' 
+            'bg-primary-600 hover:bg-primary-500': saveState === 'idle', 
+            'bg-gray-500': saveState === 'saving', 
+            'bg-teal-500': saveState === 'success' 
           }">
           <div v-if="saveState === 'saving'" class="flex items-center">
             <StatusIndicator status="loading" size="sm" class="mr-2" />

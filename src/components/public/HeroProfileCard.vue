@@ -46,7 +46,7 @@ const ICONS = {
                     </div>
                     
                     <div class="flex items-center gap-4">
-                        <div class="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center shadow-lg shadow-primary-500/20 text-3xl">
+                        <div class="h-16 w-16 misub-radius-lg bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center shadow-lg shadow-primary-500/20 text-3xl">
                              🚀
                         </div>
                         <div>
@@ -76,19 +76,19 @@ const ICONS = {
                 <!-- 3. Action Column (Right) -->
                 <div class="flex-shrink-0 w-full lg:w-auto flex flex-col gap-3 min-w-[200px]">
                     <button @click="emit('quick-import', profile)"
-                        class="w-full flex items-center justify-center px-6 py-3.5 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 font-bold rounded-xl shadow-xl transition-transform active:scale-95 group">
+                        class="w-full flex items-center justify-center px-6 py-3.5 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 font-bold misub-radius-lg shadow-xl transition-transform active:scale-95 group">
                         <BaseIcon :path="ICONS.import" className="w-5 h-5 mr-2 group-hover:animate-bounce" />
                         一键导入
                     </button>
                     
                     <div class="grid grid-cols-2 gap-3">
                         <button @click="emit('preview', profile)"
-                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium rounded-xl transition-colors text-sm">
+                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium misub-radius-lg transition-colors text-sm">
                             <BaseIcon :path="ICONS.preview" className="w-4 h-4 mr-1" />
                             预览
                         </button>
                          <button @click="emit('copy-link', profile)"
-                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium rounded-xl transition-colors text-sm">
+                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium misub-radius-lg transition-colors text-sm">
                             <BaseIcon :path="ICONS.link" className="w-4 h-4 mr-1" />
                             复制
                         </button>

@@ -64,7 +64,7 @@ const copyLink = async (profile) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
             await navigator.clipboard.writeText(link);
-            showToast('订阅链接已复制d', 'success');
+            showToast('订阅链接已复制', 'success');
         } catch (e) {
             showToast('复制失败，请手动复制', 'error');
         }
@@ -250,7 +250,7 @@ onMounted(async () => {
         </div>
 
             <!-- Guestbook Trigger (Fixed) -->
-            <div class="fixed bottom-6 right-6 z-50">
+            <div class="fixed bottom-24 md:bottom-6 right-6 z-50">
                 <button @click="handleGuestbookTrigger"
                     class="group flex items-center gap-2 px-5 py-3 bg-white dark:bg-gray-800 hover:bg-primary-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full shadow-lg hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:-translate-y-1">
                     <BaseIcon :path="ICONS.feedback" className="w-5 h-5 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
@@ -269,33 +269,33 @@ onMounted(async () => {
                 <!-- Loading State -->
                 <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div v-for="i in 6" :key="i"
-                        class="h-[300px] bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 animate-pulse">
+                        class="h-[300px] bg-white dark:bg-gray-800 misub-radius-lg p-6 shadow-sm border border-gray-100 dark:border-gray-700 animate-pulse">
                         <div class="flex items-center gap-4 mb-6">
-                            <div class="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+                            <div class="h-12 w-12 bg-gray-200 dark:bg-gray-700 misub-radius-lg"></div>
                             <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
                         </div>
                         <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-3"></div>
                         <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-8"></div>
-                        <div class="mt-auto h-12 bg-gray-100 dark:bg-gray-700/50 rounded-xl"></div>
+                        <div class="mt-auto h-12 bg-gray-100 dark:bg-gray-700/50 misub-radius-lg"></div>
                     </div>
                 </div>
 
                 <!-- Error State -->
-                <div v-else-if="error" class="text-center py-20 bg-white/50 dark:bg-gray-800/50 rounded-3xl border border-red-100 dark:border-red-900/30 backdrop-blur-sm">
+                <div v-else-if="error" class="text-center py-20 bg-white/50 dark:bg-gray-800/50 misub-radius-lg border border-red-100 dark:border-red-900/30 backdrop-blur-sm">
                     <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 mb-6">
                         <BaseIcon :path="ICONS.error" className="w-10 h-10 text-red-500 dark:text-red-400" />
                     </div>
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">加载失败</h3>
                     <p class="text-gray-500 dark:text-gray-400 mb-6">{{ error }}</p>
                     <button @click="fetchPublicProfiles"
-                        class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl shadow-lg shadow-primary-600/20 transition-all active:scale-95">
+                        class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium misub-radius-lg shadow-lg shadow-primary-600/20 transition-all active:scale-95">
                         重试
                     </button>
                 </div>
 
                 <!-- Empty State -->
-                <div v-else-if="publicProfiles.length === 0" class="text-center py-32 bg-white/50 dark:bg-gray-800/50 rounded-3xl border border-gray-100 dark:border-gray-700/50 backdrop-blur-sm">
-                    <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gray-50 dark:bg-gray-700/50 mb-6 transform rotate-3">
+                <div v-else-if="publicProfiles.length === 0" class="text-center py-32 bg-white/50 dark:bg-gray-800/50 misub-radius-lg border border-gray-100 dark:border-gray-700/50 backdrop-blur-sm">
+                    <div class="inline-flex items-center justify-center w-24 h-24 misub-radius-lg bg-gray-50 dark:bg-gray-700/50 mb-6 transform rotate-3">
                         <BaseIcon :path="ICONS.empty" className="w-12 h-12 text-gray-400" />
                     </div>
                     <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">暂无公开订阅</h3>
@@ -333,7 +333,7 @@ onMounted(async () => {
                             class="group relative glass-panel dark:bg-white/5 backdrop-blur-2xl rounded-[2rem] p-6 shadow-xl border border-white/40 dark:border-white/5 hover:border-primary-500/30 transition-all duration-300 hover:shadow-primary-500/5">
                             
                             <div class="flex items-start gap-5">
-                                <div class="h-12 w-12 rounded-2xl flex items-center justify-center text-3xl shadow-sm bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden">
+                                <div class="h-12 w-12 misub-radius-lg flex items-center justify-center text-3xl shadow-sm bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden">
                                     <img v-if="client.icon && client.icon.includes('/')" :src="client.icon"
                                         :alt="client.name" class="w-full h-full object-contain" />
                                     <span v-else>{{ client.icon }}</span>
@@ -364,7 +364,7 @@ onMounted(async () => {
                             </div>
 
                             <div class="mt-6 flex items-center justify-between pt-4 border-t border-gray-50 dark:border-white/5">
-                                <span v-if="client.version" class="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 rounded-md">
+                                <span v-if="client.version" class="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 misub-radius-md">
                                     {{ client.version }}
                                 </span>
                                 <span v-else class="text-xs text-gray-400">稳定版</span>

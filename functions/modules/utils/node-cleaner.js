@@ -20,9 +20,15 @@ export function fixNodeUrlEncoding(nodeUrl) {
         }
     };
 
-    // 辅助函数：判断是否需要保持原样（即解码后出现乱码）
-    const shouldKeepRaw = (decoded) => {
-        return decoded.includes('');
+    // 辅助函数：最多解码两次，处理双重编码
+    const decodeRepeatedly = (value, maxRounds = 2) => {
+        let current = value;
+        for (let i = 0; i < maxRounds; i += 1) {
+            const next = safeDecode(current);
+            if (next === current) break;
+            current = next;
+        }
+        return current;
     };
 
     let fixedUrl = nodeUrl;
@@ -42,10 +48,8 @@ export function fixNodeUrlEncoding(nodeUrl) {
             // 修复 hash (节点名称)
             if (urlObj.hash) {
                 const rawHash = urlObj.hash.substring(1);
-                const decodedHash = safeDecode(rawHash);
-                if (!shouldKeepRaw(decodedHash)) {
-                    urlObj.hash = '#' + encodeURIComponent(decodedHash);
-                }
+                const decodedHash = decodeRepeatedly(rawHash);
+                urlObj.hash = '#' + encodeURIComponent(decodedHash);
             }
 
             // 修复 query params (参数)
@@ -67,26 +71,47 @@ export function fixNodeUrlEncoding(nodeUrl) {
 export function fixSSEncoding(nodeUrl) {
     if (!nodeUrl.startsWith('ss://')) return nodeUrl;
 
-    try {
-        const urlObj = new URL(nodeUrl);
-        if (urlObj.hash) {
-            try {
-                urlObj.hash = '#' + encodeURIComponent(decodeURIComponent(urlObj.hash.substring(1)));
-            } catch (e) { }
+    const safeDecode = (value) => {
+        try {
+            return decodeURIComponent(value);
+        } catch (e) {
+            return value;
         }
-        return urlObj.toString();
-    } catch (e) {
-        const parts = nodeUrl.split('#');
-        if (parts.length > 1) {
-            try {
-                const name = decodeURIComponent(parts[1]);
-                return parts[0] + '#' + encodeURIComponent(name);
-            } catch (e) {
-                return nodeUrl;
-            }
+    };
+
+    const decodeRepeatedly = (value, maxRounds = 2) => {
+        let current = value;
+        for (let i = 0; i < maxRounds; i += 1) {
+            const next = safeDecode(current);
+            if (next === current) break;
+            current = next;
         }
-        return nodeUrl;
+        return current;
+    };
+
+    const payload = nodeUrl.slice('ss://'.length);
+    const hashIndex = payload.indexOf('#');
+
+    const beforeHash = hashIndex === -1 ? payload : payload.slice(0, hashIndex);
+    const rawHash = hashIndex === -1 ? '' : payload.slice(hashIndex + 1);
+
+    const atIndex = beforeHash.indexOf('@');
+    let normalizedBeforeHash = beforeHash;
+
+    if (atIndex !== -1) {
+        const userInfo = beforeHash.slice(0, atIndex);
+        const hostPart = beforeHash.slice(atIndex);
+        normalizedBeforeHash = `${decodeRepeatedly(userInfo)}${hostPart}`;
+    } else {
+        normalizedBeforeHash = decodeRepeatedly(beforeHash);
     }
+
+    if (!rawHash) {
+        return `ss://${normalizedBeforeHash}`;
+    }
+
+    const normalizedHash = encodeURIComponent(decodeRepeatedly(rawHash));
+    return `ss://${normalizedBeforeHash}#${normalizedHash}`;
 }
 
 /**

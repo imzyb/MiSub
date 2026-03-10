@@ -150,7 +150,7 @@ onMounted(() => {
     <div class="space-y-6">
         <!-- 头部说明 -->
         <div
-            class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm overflow-hidden">
+            class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm overflow-hidden">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -162,7 +162,7 @@ onMounted(() => {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div
-                    class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded-xl">
+                    class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 misub-radius-lg">
                     <div>
                         <p class="text-sm font-medium text-gray-900 dark:text-gray-200">启用留言板</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">允许用户在公开页提交反馈和建议</p>
@@ -178,7 +178,7 @@ onMounted(() => {
 
         <!-- 留言管理区域 -->
         <div v-if="guestbookConfig.enabled"
-            class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            class="bg-white dark:bg-gray-800 misub-radius-lg border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
             <!-- Toolbar -->
             <div
                 class="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -191,7 +191,7 @@ onMounted(() => {
 
                 <div class="flex items-center gap-2">
                     <select v-model="filterStatus"
-                        class="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 dark:text-white">
+                        class="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm misub-radius-md bg-white dark:bg-gray-700 dark:text-white">
                         <option value="all">全部状态</option>
                         <option value="pending">待审核</option>
                         <option value="approved">已通过</option>
@@ -236,7 +236,7 @@ onMounted(() => {
 
                     <!-- Reply Display -->
                     <div v-if="msg.reply && replyingId !== msg.id"
-                        class="mb-4 ml-4 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border-l-4 border-indigo-500">
+                        class="mb-4 ml-4 bg-gray-50 dark:bg-gray-900/50 p-3 misub-radius-lg border-l-4 border-indigo-500">
                         <div class="text-xs text-indigo-600 dark:text-indigo-400 font-medium mb-1 flex justify-between">
                             <span>管理员回复</span>
                             <span class="text-gray-400 font-normal">{{ formatDate(msg.replyAt) }}</span>
@@ -247,11 +247,11 @@ onMounted(() => {
                     <!-- Reply Input -->
                     <div v-if="replyingId === msg.id" class="mb-4 ml-4">
                         <textarea v-model="replyContent" rows="3"
-                            class="block w-full rounded-xl border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white sm:text-sm"
+                            class="block w-full misub-radius-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white sm:text-sm"
                             placeholder="请输入回复内容..."></textarea>
                         <div class="mt-2 flex justify-end gap-2">
                             <button @click="cancelReply"
-                                class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg">取消</button>
+                                class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 misub-radius-md">取消</button>
                             <button @click="submitReply(msg.id)"
                                 class="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">发送回复</button>
                         </div>

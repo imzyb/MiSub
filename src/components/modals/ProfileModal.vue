@@ -35,9 +35,15 @@ const uiText = {
   nodeTransformTitle: '\u8282\u70b9\u51c0\u5316\u7ba1\u9053'
 };
 const prefixToggleOptions = [
-  { label: '\u9ed8\u8ba4(\u5168\u5c40)', value: null },
-  { label: '\u542f\u7528', value: true },
-  { label: '\u7981\u7528', value: false }
+{ label: '默认(全局)', value: null },
+{ label: '启用', value: true },
+{ label: '禁用', value: false }
+];
+
+const groupPrefixToggleOptions = [
+{ label: '默认(全局)', value: null },
+{ label: '启用', value: true },
+{ label: '禁用', value: false }
 ];
 
 const createDefaultNodeTransform = () => ({
@@ -64,7 +70,7 @@ const createDefaultNodeTransform = () => ({
     enabled: false,
     nameIgnoreEmoji: true,
     keys: [
-      { key: 'region', order: 'asc', customOrder: ['??', '??', '??', '???', '??', '??', '??', '??', '??', '???'] },
+      { key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] },
       { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr'] },
       { key: 'name', order: 'asc' }
     ]
@@ -132,7 +138,7 @@ const countryCodeMap = {
 
 const filteredSubscriptions = computed(() => {
   // Only consider items with valid http/https URLs as "Subscriptions"
-  const validSubs = props.allSubscriptions.filter(sub => 
+  const validSubs = props.allSubscriptions.filter(sub =>
     sub.url && /^https?:\/\//.test(sub.url)
   );
 
@@ -161,7 +167,7 @@ const filteredSubscriptions = computed(() => {
 const filteredManualNodes = computed(() => {
   let nodes = props.allManualNodes;
 
-      if (activeManualNodeGroupFilter.value) {
+  if (activeManualNodeGroupFilter.value) {
     if (activeManualNodeGroupFilter.value === '默认') {
       nodes = nodes.filter(n => !n.group);
     } else {
@@ -206,34 +212,37 @@ watch(() => props.profile, (newProfile) => {
     if (!profileCopy.prefixSettings || typeof profileCopy.prefixSettings !== 'object') {
       profileCopy.prefixSettings = {};
     }
-    profileCopy.prefixSettings.enableManualNodes =
-      profileCopy.prefixSettings.enableManualNodes ?? null;
-    profileCopy.prefixSettings.enableSubscriptions =
-      profileCopy.prefixSettings.enableSubscriptions ?? null;
-    profileCopy.prefixSettings.manualNodePrefix =
-      profileCopy.prefixSettings.manualNodePrefix ?? '';
+profileCopy.prefixSettings.enableManualNodes =
+profileCopy.prefixSettings.enableManualNodes ?? null;
+profileCopy.prefixSettings.enableSubscriptions =
+profileCopy.prefixSettings.enableSubscriptions ?? null;
+profileCopy.prefixSettings.manualNodePrefix =
+profileCopy.prefixSettings.manualNodePrefix ?? '';
+profileCopy.prefixSettings.prependGroupName =
+profileCopy.prefixSettings.prependGroupName ?? null;
     if (Object.prototype.hasOwnProperty.call(profileCopy.prefixSettings, 'enableNodeEmoji')) {
       delete profileCopy.prefixSettings.enableNodeEmoji;
     }
     profileCopy.nodeTransform = profileCopy.nodeTransform ?? null;
     localProfile.value = profileCopy;
   } else {
-    localProfile.value = { 
-      name: '', 
-      enabled: true, 
-      subscriptions: [], 
-      manualNodes: [], 
-      customId: '', 
-      expiresAt: '',
-      isPublic: true, // [新增] 默认为 true
-      description: '', // [新增]
-      prefixSettings: {
-        enableManualNodes: null,
-        enableSubscriptions: null,
-        manualNodePrefix: ''
-      },
-      nodeTransform: null
-    };
+localProfile.value = {
+name: '',
+enabled: true,
+subscriptions: [],
+manualNodes: [],
+customId: '',
+expiresAt: '',
+isPublic: true, // [新增] 默认为 true
+description: '', // [新增]
+prefixSettings: {
+enableManualNodes: null,
+enableSubscriptions: null,
+manualNodePrefix: '',
+prependGroupName: null
+},
+nodeTransform: null
+};
   }
 }, { deep: true, immediate: true });
 
@@ -248,7 +257,7 @@ const handleConfirm = () => {
     } catch (e) {
       console.error("Error processing expiresAt date:", e);
       // Decide how to handle error: save as is, or clear it
-      profileToSave.expiresAt = ''; 
+      profileToSave.expiresAt = '';
     }
   }
   // 顺序已由用户通过拖拽确定，无需额外排序
@@ -256,41 +265,43 @@ const handleConfirm = () => {
 };
 
 const toggleSelection = (listName, id) => {
-    const list = localProfile.value[listName];
-    const index = list.indexOf(id);
-    if (index > -1) {
-        list.splice(index, 1);
-    } else {
-        list.push(id);
-    }
+  const list = localProfile.value[listName];
+  const index = list.indexOf(id);
+  if (index > -1) {
+    list.splice(index, 1);
+  } else {
+    list.push(id);
+  }
 };
 
 const handleSelectAll = (listName, sourceArray) => {
-    const currentSelection = new Set(localProfile.value[listName]);
-    sourceArray.forEach(item => currentSelection.add(item.id));
-    localProfile.value[listName] = Array.from(currentSelection);
+  const currentSelection = new Set(localProfile.value[listName]);
+  sourceArray.forEach(item => currentSelection.add(item.id));
+  localProfile.value[listName] = Array.from(currentSelection);
 };
 
 const handleDeselectAll = (listName, sourceArray) => {
-    const sourceIds = sourceArray.map(item => item.id);
-    localProfile.value[listName] = localProfile.value[listName].filter(id => !sourceIds.includes(id));
+  const sourceIds = sourceArray.map(item => item.id);
+  localProfile.value[listName] = localProfile.value[listName].filter(id => !sourceIds.includes(id));
 };
 
 // 处理拖拽排序后的 ID 顺序更新
 const updateSelectedIds = (listName, newIds) => {
-    localProfile.value[listName] = newIds;
+  localProfile.value[listName] = newIds;
 };
 
 </script>
 
 <template>
-  <Modal :show="show" @update:show="emit('update:show', $event)" @confirm="handleConfirm" size="2xl">
+  <Modal :show="show" @update:show="emit('update:show', $event)" @confirm="handleConfirm" size="6xl">
     <template #title>
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-xl bg-indigo-500/10">
+        <div class="p-2 misub-radius-lg bg-indigo-500/10">
           <!-- Folder Icon for Profile -->
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
         </div>
         <h3 class="text-lg font-bold text-gray-800 dark:text-white">
@@ -300,43 +311,29 @@ const updateSelectedIds = (listName, newIds) => {
     </template>
     <template #body>
       <div v-if="localProfile" class="space-y-6">
-        <ProfileForm
-          :local-profile="localProfile"
-          :show-advanced="showAdvanced"
-          :ui-text="uiText"
-          :prefix-toggle-options="prefixToggleOptions"
-          :create-default-node-transform="createDefaultNodeTransform"
-          @toggle-advanced="showAdvanced = !showAdvanced"
-        />
+<ProfileForm :local-profile="localProfile" :show-advanced="showAdvanced" :ui-text="uiText"
+:prefix-toggle-options="prefixToggleOptions" :group-prefix-toggle-options="groupPrefixToggleOptions"
+:create-default-node-transform="createDefaultNodeTransform"
+@toggle-advanced="showAdvanced = !showAdvanced" />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          <SubscriptionSelector
-            :subscriptions="allSubscriptions"
-            :filtered-subscriptions="filteredSubscriptions"
-            :search-term="subscriptionSearchTerm"
-            :selected-ids="localProfile.subscriptions || []"
+          <SubscriptionSelector :subscriptions="allSubscriptions" :filtered-subscriptions="filteredSubscriptions"
+            :search-term="subscriptionSearchTerm" :selected-ids="localProfile.subscriptions || []"
             @update:search-term="subscriptionSearchTerm = $event"
             @update:selected-ids="updateSelectedIds('subscriptions', $event)"
             @toggle-selection="toggleSelection('subscriptions', $event)"
             @select-all="handleSelectAll('subscriptions', filteredSubscriptions)"
-            @deselect-all="handleDeselectAll('subscriptions', filteredSubscriptions)"
-          />
+            @deselect-all="handleDeselectAll('subscriptions', filteredSubscriptions)" />
 
-          <NodeSelector
-            :nodes="allManualNodes"
-            :filtered-nodes="filteredManualNodes"
-            :search-term="nodeSearchTerm"
-            :active-group-filter="activeManualNodeGroupFilter"
-            :groups="manualNodeGroups"
-            :selected-ids="localProfile.manualNodes || []"
-            @update:search-term="nodeSearchTerm = $event"
+          <NodeSelector :nodes="allManualNodes" :filtered-nodes="filteredManualNodes" :search-term="nodeSearchTerm"
+            :active-group-filter="activeManualNodeGroupFilter" :groups="manualNodeGroups"
+            :selected-ids="localProfile.manualNodes || []" @update:search-term="nodeSearchTerm = $event"
             @update:group-filter="activeManualNodeGroupFilter = $event"
             @update:selected-ids="updateSelectedIds('manualNodes', $event)"
             @toggle-selection="toggleSelection('manualNodes', $event)"
             @select-all="handleSelectAll('manualNodes', filteredManualNodes)"
-            @deselect-all="handleDeselectAll('manualNodes', filteredManualNodes)"
-          />
+            @deselect-all="handleDeselectAll('manualNodes', filteredManualNodes)" />
         </div>
 
       </div>

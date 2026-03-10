@@ -71,12 +71,12 @@ const protocolOrderModel = computed({
     </div>
 
     <div v-if="config.rename.regex.enabled"
-      class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+      class="bg-gray-50 dark:bg-gray-800/50 misub-radius-lg p-4 border border-gray-100 dark:border-gray-700">
       <!-- 规则添加器 -->
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <!-- 动作 -->
         <select v-model="ruleBuilder.action"
-          class="text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-lg focus:ring-indigo-500 px-2 py-1.5 focus:border-indigo-500 dark:text-white">
+          class="text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 misub-radius-md focus:ring-indigo-500 px-2 py-1.5 focus:border-indigo-500 dark:text-white">
           <option value="remove">🗑️ 删除/包含</option>
           <option value="replace">✏️ 替换为</option>
           <option value="prefix">⏮️ 添加前缀</option>
@@ -86,7 +86,7 @@ const protocolOrderModel = computed({
         <!-- 对象 -->
         <div class="flex-1 flex gap-2">
           <select v-if="['remove', 'replace'].includes(ruleBuilder.action)" v-model="ruleBuilder.targetType"
-            class="text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-lg w-20 px-2 py-1.5 dark:text-white">
+            class="text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 misub-radius-md w-20 px-2 py-1.5 dark:text-white">
             <option value="preset">⚡️ 预设</option>
             <option value="custom">✍️ 手填</option>
           </select>
@@ -96,14 +96,14 @@ const protocolOrderModel = computed({
             <template v-if="['remove', 'replace'].includes(ruleBuilder.action)">
               <!-- 预设选择 -->
               <select v-if="ruleBuilder.targetType === 'preset'" v-model="ruleBuilder.preset"
-                class="flex-1 text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:text-white">
+                class="flex-1 text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 misub-radius-md px-2 py-1.5 dark:text-white">
                 <option value="" disabled>请选择预设...</option>
                 <option v-for="(v, k) in presets" :key="k" :value="k">{{ v.label }}</option>
               </select>
               <!-- 自定义输入 -->
               <div v-else class="flex-1 relative group">
                 <input v-model="ruleBuilder.customInput" placeholder="输入关键字..."
-                  class="w-full text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:text-white">
+                  class="w-full text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 misub-radius-md px-2 py-1.5 dark:text-white">
                 <p
                   class="absolute -bottom-5 left-1 text-[10px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white dark:bg-gray-800 px-1 rounded shadow-sm border border-gray-100 dark:border-gray-700">
                   💡 提示: 支持用 <code class="bg-gray-100 dark:bg-gray-600 px-1 rounded">|</code> 分隔多个词 (例如: 倍率|VIP)</p>
@@ -113,13 +113,13 @@ const protocolOrderModel = computed({
             <!-- 替换内容输入 -->
             <input v-if="['replace', 'prefix', 'suffix'].includes(ruleBuilder.action)"
               v-model="ruleBuilder.replacement" placeholder="输入文字..."
-              class="flex-1 text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:text-white">
+              class="flex-1 text-sm bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 misub-radius-md px-2 py-1.5 dark:text-white">
           </div>
         </div>
 
         <div class="flex-shrink-0">
           <button @click="addVisualRule" type="button"
-            class="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">
+            class="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium misub-radius-md shadow-sm transition-colors">
             添加
           </button>
         </div>
@@ -128,7 +128,7 @@ const protocolOrderModel = computed({
       <!-- 规则列表 -->
       <div class="space-y-2 max-h-48 overflow-y-auto">
         <div v-for="(rule, idx) in config.rename.regex.rules" :key="rule.pattern + '_' + idx"
-          class="flex items-center gap-2 text-xs bg-white dark:bg-gray-700 p-2 rounded-lg border border-gray-200 dark:border-gray-600 group hover:shadow-sm transition-shadow">
+          class="flex items-center gap-2 text-xs bg-white dark:bg-gray-700 p-2 misub-radius-md border border-gray-200 dark:border-gray-600 group hover:shadow-sm transition-shadow">
 
           <!-- 排序按钮 -->
           <div class="flex flex-col gap-0.5 opacity-30 group-hover:opacity-100 transition-opacity">
@@ -170,7 +170,7 @@ const protocolOrderModel = computed({
           </button>
         </div>
         <div v-if="config.rename.regex.rules.length === 0"
-          class="text-center text-gray-400 text-xs py-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+          class="text-center text-gray-400 text-xs py-4 border-2 border-dashed border-gray-200 dark:border-gray-700 misub-radius-md">
           列表为空，请在上方添加规则
         </div>
       </div>
@@ -194,7 +194,7 @@ const protocolOrderModel = computed({
     </div>
 
     <div v-if="config.rename.template.enabled"
-      class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+      class="bg-gray-50 dark:bg-gray-800/50 misub-radius-lg p-4 border border-gray-100 dark:border-gray-700">
       <!-- 快捷模板 -->
       <div class="flex flex-wrap gap-2 mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
         <span class="text-xs text-gray-500 self-center mr-1">⚡️ 快捷模板:</span>
@@ -219,7 +219,7 @@ const protocolOrderModel = computed({
       </label>
     </div>
     <div v-if="config.dedup.enabled"
-      class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+      class="bg-gray-50 dark:bg-gray-800/50 misub-radius-lg p-4 border border-gray-100 dark:border-gray-700">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs text-gray-600 dark:text-gray-400">去重模式:</span>
         <select v-model="config.dedup.mode"

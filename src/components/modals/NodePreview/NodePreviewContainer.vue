@@ -81,7 +81,7 @@ onMounted(() => {
     @click.self="handleClose"
   >
     <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-      <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-6xl">
+      <div class="relative transform overflow-hidden misub-radius-md bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-6xl">
 
         <!-- 头部 -->
         <NodePreviewHeader
@@ -124,7 +124,7 @@ onMounted(() => {
               <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ error }}</p>
               <button
                 @click="loadNodes"
-                class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm misub-radius-md transition-colors"
               >
                 重试
               </button>

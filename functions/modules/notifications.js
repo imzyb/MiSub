@@ -250,24 +250,43 @@ export async function handleCronTrigger(env) {
                 }
             }
 
-            // 处理节点数量
-            if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
-                const text = await nodeCountResult.value.text();
-                let decoded = '';
-                try {
-                    decoded = atob(text.replace(/\s/g, ''));
-                } catch {
-                    decoded = text;
-                }
-                const matches = decoded.match(nodeRegex);
-                if (matches) {
-                    const originalSub = allSubs.find(s => s.id === sub.id);
-                    if (originalSub) {
-                        originalSub.nodeCount = matches.length;
-                    }
-                    hasNodeCountUpdate = true;
-                }
-            }
+// 处理节点数量
+if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
+const text = await nodeCountResult.value.text();
+let decoded = '';
+try {
+decoded = atob(text.replace(/\s/g, ''));
+} catch {
+decoded = text;
+}
+const matches = decoded.match(nodeRegex);
+if (matches) {
+const originalSub = allSubs.find(s => s.id === sub.id);
+if (originalSub) {
+// 记录节点数量变化
+const previousCount = originalSub.nodeCount;
+const newCount = matches.length;
+originalSub.nodeCount = newCount;
+
+// 检测节点数量显著变化（超过 10 个或变化比例超过 20%）
+if (previousCount && previousCount > 0) {
+const diff = newCount - previousCount;
+const changePercent = Math.abs(diff) / previousCount;
+const significantChange = Math.abs(diff) >= 10 || changePercent >= 0.2;
+
+if (significantChange) {
+originalSub.nodeCountChange = {
+previous: previousCount,
+current: newCount,
+diff: diff,
+timestamp: Date.now()
+};
+}
+}
+}
+hasNodeCountUpdate = true;
+}
+}
 
             return {
                 name: sub.name,
@@ -344,23 +363,108 @@ export async function handleCronTrigger(env) {
         }
     }
 
-    const duration = Date.now() - startTime;
-    const summary = {
-        success: true,
-        summary: {
-            total: httpSubscriptions.length,
-            updated: updatedCount,
-            failed: failedCount,
-            changes: changesMade,
-            duration: `${duration}ms`,
-            failed_subscriptions: failedSubscriptions
-        }
-    };
+const duration = Date.now() - startTime;
+const summary = {
+success: true,
+summary: {
+total: httpSubscriptions.length,
+updated: updatedCount,
+failed: failedCount,
+changes: changesMade,
+duration: `${duration}ms`,
+failed_subscriptions: failedSubscriptions
+}
+};
 
-    console.info(`[Cron] Completed in ${duration}ms:`, summary.summary);
+console.info(`[Cron] Completed in ${duration}ms:`, summary.summary);
 
-    return new Response(JSON.stringify(summary), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-    });
+// [新增] 检测并发送节点数量变化通知
+const nodeCountChanges = [];
+for (const sub of allSubs) {
+if (sub.nodeCountChange) {
+nodeCountChanges.push({
+name: sub.name,
+previous: sub.nodeCountChange.previous,
+current: sub.nodeCountChange.current,
+diff: sub.nodeCountChange.diff
+});
+// 清除变化标记，避免重复通知
+delete sub.nodeCountChange;
+}
+}
+
+// 如果有节点数量变化，发送单独通知
+if (nodeCountChanges.length > 0 && settings.BotToken && settings.ChatID) {
+let nodeChangeMessage = `📉 *节点数量变化提醒*\n\n`;
+nodeChangeMessage += `检测到 ${nodeCountChanges.length} 个订阅的节点数量发生显著变化：\n\n`;
+
+nodeCountChanges.slice(0, 10).forEach(change => {
+const changeType = change.diff > 0 ? '增加' : '减少';
+const emoji = change.diff > 0 ? '📈' : '📉';
+nodeChangeMessage += `${emoji} *${change.name}*\n`;
+nodeChangeMessage += `  ${changeType} ${Math.abs(change.diff)} 个 (${change.previous} → ${change.current})\n`;
+});
+
+if (nodeCountChanges.length > 10) {
+nodeChangeMessage += `\n... 还有 ${nodeCountChanges.length - 10} 个订阅有变化`;
+}
+
+try {
+await sendTgNotification(settings, nodeChangeMessage);
+console.info('[Cron] Node count change notification sent');
+} catch (notifyError) {
+console.error('[Cron] Failed to send node change notification:', notifyError);
+}
+
+// 更新存储（清除变化标记后）
+if (changesMade) {
+try {
+await storageAdapter.put(KV_KEY_SUBS, allSubs);
+} catch (saveError) {
+console.error('[Cron] Failed to update subs after clearing change flags:', saveError);
+}
+}
+}
+
+// [新增] 发送订阅更新摘要通知到 TG Bot
+if (settings.BotToken && settings.ChatID) {
+let updateMessage = `🔄 *订阅自动更新完成*\n\n`;
+updateMessage += `📊 *统计信息*\n`;
+updateMessage += `• 总订阅数: ${httpSubscriptions.length} 个\n`;
+updateMessage += `• 成功更新: ${updatedCount} 个\n`;
+
+if (failedCount > 0) {
+updateMessage += `• 更新失败: ${failedCount} 个\n`;
+}
+
+if (nodeCountChanges.length > 0) {
+updateMessage += `• 节点变化: ${nodeCountChanges.length} 个订阅\n`;
+}
+
+updateMessage += `\n⏱️ 耗时: ${duration}ms\n`;
+
+// 如果有失败的订阅，列出详情
+if (failedSubscriptions.length > 0) {
+updateMessage += `\n❌ *失败详情:*\n`;
+failedSubscriptions.slice(0, 5).forEach(f => {
+const errorShort = f.error.length > 30 ? f.error.substring(0, 30) + '...' : f.error;
+updateMessage += `• ${f.name}: \`${errorShort}\`\n`;
+});
+if (failedSubscriptions.length > 5) {
+updateMessage += `... 还有 ${failedSubscriptions.length - 5} 个失败`;
+}
+}
+
+try {
+await sendTgNotification(settings, updateMessage);
+console.info('[Cron] Update summary notification sent to TG Bot');
+} catch (notifyError) {
+console.error('[Cron] Failed to send TG notification:', notifyError);
+}
+}
+
+return new Response(JSON.stringify(summary), {
+status: 200,
+headers: { 'Content-Type': 'application/json' }
+});
 }

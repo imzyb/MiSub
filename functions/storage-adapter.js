@@ -223,6 +223,62 @@ class D1StorageAdapter {
     }
 }
 
+// 全局设置缓存 (Isolate 级别)
+let _globalSettingsCache = {
+    data: null,
+    timestamp: 0
+};
+const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60秒缓存过时
+
+export class SettingsCache {
+    /**
+     * 带内存缓存的设置读取
+     */
+    static async get(env) {
+        const now = Date.now();
+        if (_globalSettingsCache.data && (now - _globalSettingsCache.timestamp < SETTINGS_CACHE_TTL_MS)) {
+            return _globalSettingsCache.data;
+        }
+
+        try {
+            let settings = null;
+            if (env.MISUB_DB) {
+                try {
+                    const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
+                    settings = await d1Adapter.get(DATA_KEYS.SETTINGS);
+                } catch (d1Error) {
+                    console.warn('[Storage Cache] Failed to read from D1:', d1Error.message);
+                }
+            }
+
+            if (!settings && env.MISUB_KV) {
+                try {
+                    settings = await env.MISUB_KV.get(DATA_KEYS.SETTINGS, 'json');
+                } catch (kvError) {
+                    console.warn('[Storage Cache] Failed to read from KV:', kvError.message);
+                }
+            }
+
+            if (settings) {
+                _globalSettingsCache.data = settings;
+                _globalSettingsCache.timestamp = now;
+                return settings;
+            }
+        } catch (error) {
+            console.error('[Storage Cache] Failed to read settings:', error);
+        }
+
+        return null;
+    }
+
+    /**
+     * 在更新设置后主动清除缓存
+     */
+    static clear() {
+        _globalSettingsCache = { data: null, timestamp: 0 };
+    }
+}
+
 /**
  * 存储工厂类
  * 根据配置创建相应的存储适配器
@@ -249,6 +305,7 @@ export class StorageFactory {
         }
     }
 
+
     /**
      * 获取当前存储类型设置
      * @param {Object} env - Cloudflare 环境对象
@@ -256,31 +313,10 @@ export class StorageFactory {
      */
     static async getStorageType(env) {
         try {
-            // 优先从 D1 读取设置（若已切换到 D1，则后续请求不会触碰 KV）
-            if (env.MISUB_DB) {
-                try {
-                    const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
-                    const d1Settings = await d1Adapter.get(DATA_KEYS.SETTINGS);
-                    if (d1Settings?.storageType) {
-                        return d1Settings.storageType;
-                    }
-                } catch (d1Error) {
-                    console.warn('[Storage] Failed to read from D1:', d1Error.message);
-                }
-            }
-
-            // 回退：从 KV 读取设置（默认仍支持 KV）
-            let settings = null;
-            try {
-                settings = await env.MISUB_KV.get(DATA_KEYS.SETTINGS, 'json');
-            } catch (kvError) {
-                console.warn('[Storage] Failed to read from KV:', kvError.message);
-            }
+            const settings = await SettingsCache.get(env);
             if (settings?.storageType) {
                 return settings.storageType;
             }
-
-            // 默认使用 KV
             return STORAGE_TYPES.KV;
         } catch (error) {
             console.error('[Storage] Failed to get storage type:', error);

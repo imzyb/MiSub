@@ -59,6 +59,28 @@
   <!-- Manifest -->
   <link rel="manifest" href="/manifest.json" />
 
+  <script>
+    (function () {
+      var host = window.location.hostname;
+      if (host !== 'localhost' && host !== '127.0.0.1') return;
+      if (window.__misubSwCleanupRan) return;
+      window.__misubSwCleanupRan = true;
+
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+          }).catch(function () {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+          }).catch(function () {});
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <title>MISUB</title>
 </head>
 

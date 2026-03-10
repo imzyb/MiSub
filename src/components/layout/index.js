@@ -3,21 +3,38 @@
  * @author MiSub Team
  */
 
-// 导出所有布局组件
-export { default as Header } from './Header.vue';
-export { default as Footer } from './Footer.vue';
-export { default as AdaptiveGrid } from './AdaptiveGrid.vue';
-export { default as DashboardSkeleton } from './DashboardSkeleton.vue';
-export { default as MobileBottomNav } from './MobileBottomNav.vue';
+import Header from './Header.vue';
+import NavBar from './NavBar.vue';
+import Footer from './Footer.vue';
+import BrandLogo from './BrandLogo.vue';
+import NavActionGroup from './NavActionGroup.vue';
+import LoginEntryButton from './LoginEntryButton.vue';
+import ExternalRepoButton from './ExternalRepoButton.vue';
+import AdaptiveGrid from './AdaptiveGrid.vue';
+import DashboardSkeleton from './DashboardSkeleton.vue';
 
-// 组件列表
-export const LayoutComponents = {
+export {
   Header,
+  NavBar,
   Footer,
+  BrandLogo,
+  NavActionGroup,
+  LoginEntryButton,
+  ExternalRepoButton,
   AdaptiveGrid,
-  DashboardSkeleton,
-  MobileBottomNav
+  DashboardSkeleton
 };
 
-// 默认导出
+export const LayoutComponents = {
+  Header,
+  NavBar,
+  Footer,
+  BrandLogo,
+  NavActionGroup,
+  LoginEntryButton,
+  ExternalRepoButton,
+  AdaptiveGrid,
+  DashboardSkeleton
+};
+
 export default LayoutComponents;

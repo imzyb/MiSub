@@ -135,7 +135,7 @@ const cancelEdit = () => {
     </div>
 
     <div v-if="config.enabled"
-      class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 space-y-4">
+      class="bg-gray-50 dark:bg-gray-800/50 misub-radius-lg p-4 border border-gray-100 dark:border-gray-700 space-y-4">
       
       <!-- 排序规则列表 -->
       <div class="space-y-2">
@@ -152,7 +152,7 @@ const cancelEdit = () => {
         >
           <template #item="{ element, index }">
             <div
-              class="flex items-center gap-2 bg-white dark:bg-gray-700 p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 group hover:shadow-sm transition-shadow"
+              class="flex items-center gap-2 bg-white dark:bg-gray-700 p-2.5 misub-radius-md border border-gray-200 dark:border-gray-600 group hover:shadow-sm transition-shadow"
             >
               <!-- 拖拽手柄 -->
               <div class="drag-handle cursor-grab text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-1">
@@ -169,7 +169,7 @@ const cancelEdit = () => {
               <!-- 升序/降序切换 -->
               <button
                 @click="toggleOrder(index)"
-                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors"
+                class="flex items-center gap-1 px-2 py-1 text-xs misub-radius-md transition-colors"
                 :class="element.order === 'asc' 
                   ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' 
                   : 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'"
@@ -187,7 +187,7 @@ const cancelEdit = () => {
               <button
                 v-if="hasCustomOrder(element.key)"
                 @click="openCustomOrderEditor(index)"
-                class="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                class="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 misub-radius-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
               >
                 自定义顺序
               </button>
@@ -207,7 +207,7 @@ const cancelEdit = () => {
 
         <!-- 空状态 -->
         <div v-if="sortKeys.length === 0"
-          class="text-center text-gray-400 text-xs py-6 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+          class="text-center text-gray-400 text-xs py-6 border-2 border-dashed border-gray-200 dark:border-gray-700 misub-radius-md">
           暂无排序规则，请点击下方添加
         </div>
       </div>
@@ -245,7 +245,7 @@ const cancelEdit = () => {
       <div class="absolute inset-0 bg-black/50" @click="cancelEdit"></div>
       
       <!-- 弹窗内容 -->
-      <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 space-y-4">
+      <div class="relative w-full max-w-md bg-white dark:bg-gray-800 misub-radius-lg shadow-xl p-5 space-y-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
           自定义{{ getFieldLabel(editingField.key) }}顺序
         </h3>
@@ -257,20 +257,20 @@ const cancelEdit = () => {
         <textarea
           v-model="editingOrder"
           rows="10"
-          class="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+          class="w-full px-3 py-2 text-sm border misub-radius-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
           placeholder="每行输入一个值..."
         ></textarea>
         
         <div class="flex justify-end gap-2">
           <button
             @click="cancelEdit"
-            class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 misub-radius-md transition-colors"
           >
             取消
           </button>
           <button
             @click="saveCustomOrder"
-            class="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            class="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 misub-radius-md transition-colors"
           >
             保存
           </button>

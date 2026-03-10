@@ -211,7 +211,7 @@ const handlePageChange = (page) => {
   <div class="data-grid">
     <!-- 表格容器 -->
     <div
-      class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+      class="overflow-hidden misub-radius-md border border-gray-200 dark:border-gray-700"
       :style="{ height, maxHeight }"
     >
       <div class="overflow-x-auto overflow-y-auto">

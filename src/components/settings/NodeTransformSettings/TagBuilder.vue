@@ -24,7 +24,7 @@ const variableTags = ['{emoji}', '{region}', '{protocol}', '{index}', '{name}', 
       :key="tag"
       @click="insertTemplateTag(tag)"
       :title="tag === '{name}' ? '这是第1步清理后的剩余名称' : ''"
-      class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-md text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors !min-h-0 !min-w-0"
+      class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 misub-radius-md text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors !min-h-0 !min-w-0"
     >
       + {{ tag }}
     </button>
@@ -39,13 +39,13 @@ const variableTags = ['{emoji}', '{region}', '{protocol}', '{index}', '{name}', 
     <!-- 地区修饰 -->
     <div class="flex gap-1">
       <button @click="insertTemplateTag('{region:UPPER}')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
         title="大写地区 (US)">US</button>
       <button @click="insertTemplateTag('{region:lower}')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
         title="小写地区 (us)">us</button>
       <button @click="insertTemplateTag('{region:zh}')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 text-indigo-600 dark:text-indigo-400 font-medium !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 text-indigo-600 dark:text-indigo-400 font-medium !min-h-0 !min-w-0"
         title="中文地区 (美国)">中</button>
     </div>
 
@@ -54,10 +54,10 @@ const variableTags = ['{emoji}', '{region}', '{protocol}', '{index}', '{name}', 
     <!-- 协议修饰 -->
     <div class="flex gap-1">
       <button @click="insertTemplateTag('{protocol:UPPER}')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
         title="大写协议 (VMESS)">PRO</button>
       <button @click="insertTemplateTag('{protocol:Title}')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
         title="首字母大写 (Vmess)">Pro</button>
     </div>
 
@@ -66,11 +66,11 @@ const variableTags = ['{emoji}', '{region}', '{protocol}', '{index}', '{name}', 
     <!-- 分隔符 -->
     <div class="flex gap-1">
       <button @click="insertTemplateTag(' - ')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0">-</button>
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0">-</button>
       <button @click="insertTemplateTag(' | ')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0">|</button>
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0">|</button>
       <button @click="insertTemplateTag(' ')"
-        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
+        class="px-2 py-1 sm:px-2 sm:py-1 text-[12px] sm:text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 !min-h-0 !min-w-0"
         title="空格">␣</button>
     </div>
   </div>
@@ -78,7 +78,7 @@ const variableTags = ['{emoji}', '{region}', '{protocol}', '{index}', '{name}', 
   <div class="relative">
     <input
       v-model="templateConfig.template"
-      class="block w-full text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg py-2 pl-3 pr-10 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+      class="block w-full text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md py-2 pl-3 pr-10 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
       placeholder="点击上方标签构建模板..."
     >
   </div>

@@ -498,37 +498,215 @@ function parseHysteria2Url(url) {
             proxy['dialer-proxy'] = params.get('dp');
         }
 
+return proxy;
+} catch (e) {
+console.error('解析 Hysteria2 URL 失败:', e);
+return null;
+}
+}
+
+/**
+ * 将 TUIC URL 转换为 Clash 代理对象
+ * @param {string} url - TUIC URL
+ * @returns {Object|null} Clash 代理对象
+ */
+function parseTuicUrl(url) {
+    try {
+        // tuic://token@server:port?sni=xxx&alpn=xxx#name
+        const body = url.substring(7); // 去掉 tuic://
+
+        const atIndex = body.indexOf('@');
+        if (atIndex === -1) return null;
+
+        let token = body.substring(0, atIndex);
+        try {
+            token = decodeURIComponent(token);
+        } catch { }
+
+        let serverPart = body.substring(atIndex + 1);
+        const queryIndex = serverPart.indexOf('?');
+        const hashIndex = serverPart.indexOf('#');
+
+        if (queryIndex !== -1) {
+            serverPart = serverPart.substring(0, queryIndex);
+        } else if (hashIndex !== -1) {
+            serverPart = serverPart.substring(0, hashIndex);
+        }
+
+        const { server, port } = parseHostPort(serverPart);
+        const params = parseQueryParams(url);
+        const name = extractName(url);
+
+        const proxy = {
+            name: name || `TUIC-${server}`,
+            type: 'tuic',
+            server,
+            port,
+            token
+        };
+
+        // SNI
+        if (params.get('sni')) {
+            proxy.sni = params.get('sni');
+        }
+
+        // ALPN
+        if (params.get('alpn')) {
+            proxy.alpn = params.get('alpn').split(',');
+        }
+
+        // Skip cert verify
+        if (params.get('allowInsecure') === '1' || params.get('insecure') === '1') {
+            proxy['skip-cert-verify'] = true;
+        }
+        
+        // 拥塞控制
+        if (params.get('congestion_control')) {
+            proxy['congestion-controller'] = params.get('congestion_control');
+        }
+
+        // [重要] dialer-proxy 链式代理
+        if (params.get('dp')) {
+            proxy['dialer-proxy'] = params.get('dp');
+        }
+
+        proxy.udp = true;
+
         return proxy;
     } catch (e) {
-        console.error('解析 Hysteria2 URL 失败:', e);
+        console.error('解析 TUIC URL 失败:', e);
         return null;
     }
 }
 
 /**
- * 将节点 URL 转换为 Clash 代理对象
- * @param {string} url - 节点 URL
- * @returns {Object|null} Clash 代理对象
- */
+* 将 WireGuard URL 转换为 Clash 代理对象
+* @param {string} url - WireGuard URL
+* @returns {Object|null} Clash 代理对象
+*/
+function parseWireguardUrl(url) {
+try {
+// wireguard://privatekey@server:port?params#name
+const body = url.substring('wireguard://'.length);
+
+const atIndex = body.indexOf('@');
+if (atIndex === -1) return null;
+
+let privateKey = body.substring(0, atIndex);
+try {
+privateKey = decodeURIComponent(privateKey);
+} catch { }
+
+let serverPart = body.substring(atIndex + 1);
+const queryIndex = serverPart.indexOf('?');
+const hashIndex = serverPart.indexOf('#');
+
+if (queryIndex !== -1) {
+serverPart = serverPart.substring(0, queryIndex);
+} else if (hashIndex !== -1) {
+serverPart = serverPart.substring(0, hashIndex);
+}
+
+const { server, port } = parseHostPort(serverPart);
+const params = parseQueryParams(url);
+const name = extractName(url);
+
+const proxy = {
+name: name || `WireGuard-${server}`,
+type: 'wireguard',
+server,
+port,
+'private-key': privateKey,
+'remote-dns-resolve': true,
+udp: true
+};
+
+// 公钥
+const publicKey = params.get('publickey') || params.get('public-key');
+if (publicKey) {
+proxy['public-key'] = publicKey;
+}
+
+// 本地地址
+const address = params.get('address');
+if (address) {
+proxy.ip = address.split(',').map(a => a.trim());
+}
+
+// Allowed IPs
+const allowedIPs = params.get('allowedips') || params.get('allowed-ips');
+if (allowedIPs) {
+proxy['allowed-ips'] = allowedIPs.split(',').map(a => a.trim());
+}
+
+// Reserved (Cloudflare WARP)
+const reserved = params.get('reserved');
+if (reserved) {
+const reservedArr = reserved.split(',').map(n => parseInt(n.trim()));
+if (reservedArr.every(n => !isNaN(n))) {
+proxy.reserved = reservedArr;
+}
+}
+
+// MTU
+const mtu = params.get('mtu');
+if (mtu) {
+proxy.mtu = parseInt(mtu);
+}
+
+// DNS
+const dns = params.get('dns');
+if (dns) {
+proxy.dns = dns.split(',').map(d => d.trim());
+}
+
+// Keepalive
+const keepalive = params.get('keepalive');
+if (keepalive) {
+proxy['persistent-keepalive'] = parseInt(keepalive);
+}
+
+// Preshared Key
+const presharedKey = params.get('presharedkey') || params.get('preshared-key');
+if (presharedKey) {
+proxy['preshared-key'] = presharedKey;
+}
+
+return proxy;
+} catch (e) {
+console.error('解析 WireGuard URL 失败:', e);
+return null;
+}
+}
+
+/**
+* 将节点 URL 转换为 Clash 代理对象
+* @param {string} url - 节点 URL
+* @returns {Object|null} Clash 代理对象
+*/
 export function urlToClashProxy(url) {
-    if (!url || typeof url !== 'string') return null;
+if (!url || typeof url !== 'string') return null;
 
-    const lowerUrl = url.toLowerCase();
+const lowerUrl = url.toLowerCase();
 
-    if (lowerUrl.startsWith('vless://')) {
-        return parseVlessUrl(url);
-    } else if (lowerUrl.startsWith('trojan://')) {
-        return parseTrojanUrl(url);
-    } else if (lowerUrl.startsWith('vmess://')) {
-        return parseVmessUrl(url);
-    } else if (lowerUrl.startsWith('ss://')) {
-        return parseSsUrl(url);
-    } else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
-        return parseHysteria2Url(url);
-    }
+if (lowerUrl.startsWith('vless://')) {
+return parseVlessUrl(url);
+} else if (lowerUrl.startsWith('trojan://')) {
+return parseTrojanUrl(url);
+} else if (lowerUrl.startsWith('vmess://')) {
+return parseVmessUrl(url);
+} else if (lowerUrl.startsWith('ss://')) {
+return parseSsUrl(url);
+} else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
+return parseHysteria2Url(url);
+} else if (lowerUrl.startsWith('tuic://')) {
+return parseTuicUrl(url);
+} else if (lowerUrl.startsWith('wireguard://')) {
+return parseWireguardUrl(url);
+}
 
-    // 不支持的协议
-    return null;
+// 不支持的协议
+return null;
 }
 
 /**

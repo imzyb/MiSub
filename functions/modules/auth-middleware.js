@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 认证中间件模块
  * 处理用户认证和会话管理
  */
@@ -47,21 +47,42 @@ export async function verifySignedToken(key, token) {
     if (!key || !token) return null;
     const parts = token.split('.');
     if (parts.length !== 2) return null;
-    const [data] = parts;
-    const expectedToken = await createSignedToken(key, data);
-    return timingSafeEqual(token, expectedToken) ? data : null;
-}
-
-function timingSafeEqual(a, b) {
-    if (typeof a !== 'string' || typeof b !== 'string') return false;
-    const length = Math.max(a.length, b.length);
-    let result = a.length === b.length ? 0 : 1;
-    for (let i = 0; i < length; i += 1) {
-        const charA = a.charCodeAt(i) || 0;
-        const charB = b.charCodeAt(i) || 0;
-        result |= charA ^ charB;
+    
+    const [data, signatureHex] = parts;
+    
+    try {
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(key);
+        const dataToVerify = encoder.encode(data);
+        
+        // Convert hex to Uint8Array
+        const sigBytes = new Uint8Array(signatureHex.length / 2);
+        for (let i = 0; i < signatureHex.length; i += 2) {
+            sigBytes[i / 2] = parseInt(signatureHex.substring(i, i + 2), 16);
+        }
+        
+        // Import key for verification
+        const cryptoKey = await crypto.subtle.importKey(
+            'raw', 
+            keyData, 
+            { name: 'HMAC', hash: 'SHA-256' }, 
+            false, 
+            ['verify']
+        );
+        
+        // Use native timing-safe verification
+        const isValid = await crypto.subtle.verify(
+            'HMAC',
+            cryptoKey,
+            sigBytes,
+            dataToVerify
+        );
+        
+        return isValid ? data : null;
+    } catch (e) {
+        console.error('[Auth] Token verify error:', e);
+        return null;
     }
-    return result === 0;
 }
 
 /**

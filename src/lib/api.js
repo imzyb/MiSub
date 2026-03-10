@@ -98,12 +98,17 @@ export async function saveMisubs(misubs, profiles) {
     }
 }
 
-export async function fetchNodeCount(subUrl) {
+export async function fetchNodeCount(subUrl, fetchProxy = '') {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
 
-        const data = await api.post('/api/node_count', { url: subUrl }, { signal: controller.signal });
+        const payload = { url: subUrl };
+        if (fetchProxy) {
+            payload.fetchProxy = fetchProxy;
+        }
+
+        const data = await api.post('/api/node_count', payload, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         return { success: true, data }; // data 包含 { count, userInfo }

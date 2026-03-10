@@ -52,7 +52,7 @@ async function testSubconverter() {
 </script>
 
 <template>
-  <div class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
+  <div class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
     <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24"
         stroke="currentColor">
@@ -74,7 +74,7 @@ async function testSubconverter() {
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div
-        class="flex items-center justify-between p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 rounded-2xl">
+        class="flex items-center justify-between p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-gray-200">禁用证书校验（scv）</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">仅在订阅源证书异常时启用，开启后存在安全风险</p>
@@ -82,7 +82,7 @@ async function testSubconverter() {
         <Switch v-model="settings.subConverterScv" />
       </div>
       <div
-        class="flex items-center justify-between p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 rounded-2xl">
+        class="flex items-center justify-between p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-gray-200">启用 UDP</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">默认关闭，按需开启以避免兼容性问题</p>
@@ -95,7 +95,7 @@ async function testSubconverter() {
     <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
       <div class="flex items-center gap-4 flex-wrap">
         <button @click="testSubconverter" :disabled="isTesting || !settings.subConverter"
-          class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+          class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium misub-radius-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
           <svg v-if="isTesting" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
             viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

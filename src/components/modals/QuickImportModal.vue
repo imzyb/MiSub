@@ -123,7 +123,7 @@ onMounted(() => {
             @click="emit('close')">
             <Transition name="modal-inner">
                 <div v-if="show"
-                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[85vh]"
+                    class="bg-white dark:bg-gray-800 misub-radius-lg shadow-2xl w-full max-w-3xl text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[85vh]"
                     @click.stop>
 
                     <!-- Header -->
@@ -138,7 +138,7 @@ onMounted(() => {
                                 </p>
                             </div>
                             <button @click="emit('close')"
-                                class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                                class="w-10 h-10 flex items-center justify-center misub-radius-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M6 18L18 6M6 6l12 12" />
@@ -148,7 +148,7 @@ onMounted(() => {
 
                         <!-- 检测到的平台提示 -->
                         <div v-if="detectedPlatform"
-                            class="mt-4 flex items-center gap-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg">
+                            class="mt-4 flex items-center gap-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 misub-radius-md">
                             <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24"
                                 stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -169,7 +169,7 @@ onMounted(() => {
 
                         <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                             <button v-for="client in groupedClients" :key="client.id" @click="handleClientClick(client)"
-                                class="group relative flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                                class="group relative flex flex-col items-center gap-3 p-4 misub-radius-lg border-2 transition-all duration-200 hover:scale-105 hover:shadow-lg"
                                 :class="isRecommended(client)
                                     ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-600 ring-2 ring-indigo-500/20'
                                     : 'bg-white dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:border-indigo-200 dark:hover:border-indigo-700'">
@@ -181,7 +181,7 @@ onMounted(() => {
                                 </div>
 
                                 <!-- 图标 -->
-                                <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl bg-gray-50 dark:bg-gray-800 overflow-hidden"
+                                <div class="w-14 h-14 misub-radius-lg flex items-center justify-center text-3xl bg-gray-50 dark:bg-gray-800 overflow-hidden"
                                     :class="isRecommended(client) ? 'ring-2 ring-indigo-400' : ''">
                                     <img v-if="client.icon && client.icon.includes('/')" :src="client.icon"
                                         :alt="client.name" class="w-full h-full object-contain p-2" />

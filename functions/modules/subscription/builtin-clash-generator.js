@@ -4,7 +4,8 @@
  * 支持 dialer-proxy、reality-opts 等特殊参数
  */
 
-import { urlToClashProxy, urlsToClashProxies } from '../../utils/url-to-clash.js';
+import { urlsToClashProxies } from '../../utils/url-to-clash.js';
+import { clashFix } from '../../utils/format-utils.js';
 import yaml from 'js-yaml';
 
 /**
@@ -47,6 +48,25 @@ function deepCleanControlChars(obj) {
 }
 
 /**
+ * 处理重名节点，确保每个节点名称唯一
+ * @param {Object[]} proxies - 代理对象数组
+ */
+function deduplicateNames(proxies) {
+    const usedNames = new Set();
+    proxies.forEach(proxy => {
+        let name = proxy.name;
+        if (usedNames.has(name)) {
+            let i = 1;
+            while (usedNames.has(`${name}_${i}`)) {
+                i++;
+            }
+            proxy.name = `${name}_${i}`;
+        }
+        usedNames.add(proxy.name);
+    });
+}
+
+/**
  * 生成内置 Clash 配置
  * @param {string} nodeList - 节点列表（换行分隔的 URL）
  * @param {Object} options - 配置选项
@@ -56,7 +76,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     const {
         fileName = 'MiSub',
         enableUdp = true,
-        externalConfig = null
+        skipCertVerify = false
     } = options;
 
     // 解析节点 URL 列表
@@ -71,19 +91,22 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     // 清理控制字符
     proxies = deepCleanControlChars(proxies);
 
+    // 应用 UDP 开关：强制设置所有节点的 UDP 参数
+    if (enableUdp) {
+        proxies.forEach(proxy => {
+            proxy.udp = true;
+        });
+    }
+
+    // 强制跳过证书验证
+    if (skipCertVerify) {
+        proxies.forEach(proxy => {
+            proxy['skip-cert-verify'] = true;
+        });
+    }
+
     // 处理重名节点
-    const usedNames = new Set();
-    proxies.forEach(proxy => {
-        let name = proxy.name;
-        if (usedNames.has(name)) {
-            let i = 1;
-            while (usedNames.has(`${name}_${i}`)) {
-                i++;
-            }
-            proxy.name = `${name}_${i}`;
-        }
-        usedNames.add(proxy.name);
-    });
+    deduplicateNames(proxies);
 
     if (proxies.length === 0) {
         return '# No valid proxies found\nproxies: []\n';
@@ -91,10 +114,6 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
 
     // 获取所有代理名称
     const proxyNames = proxies.map(p => p.name);
-
-    // 分离出带有 dialer-proxy 的节点（链式代理）
-    const chainedProxies = proxies.filter(p => p['dialer-proxy']);
-    const directProxies = proxies.filter(p => !p['dialer-proxy']);
 
     // 基础配置
     const config = {
@@ -123,7 +142,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             {
                 'name': '🚀 节点选择',
                 'type': 'select',
-                'proxies': [...proxyNames, '♻️ 自动选择', '🔯 故障转移',]
+                'proxies': [...proxyNames, '♻️ 自动选择', '🔯 故障转移']
             },
             {
                 'name': '♻️ 自动选择',
@@ -148,20 +167,19 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         ]
     };
 
-    // 如果有链式代理节点，添加说明注释
-    if (chainedProxies.length > 0) {
-        console.log(`[BuiltinClash] ${chainedProxies.length} proxies with dialer-proxy`);
-    }
-
     // 生成 YAML
     try {
-        const yamlStr = yaml.dump(config, {
+        let yamlStr = yaml.dump(config, {
             indent: 2,
             lineWidth: -1,
             noRefs: true,
             quotingType: '"',
             forceQuotes: false
         });
+
+        // 应用 WireGuard 修复
+        yamlStr = clashFix(yamlStr);
+
         // 最终清理，确保输出没有控制字符
         return cleanControlChars(yamlStr);
     } catch (e) {
@@ -187,12 +205,19 @@ export function generateProxiesOnly(nodeList) {
     // 清理控制字符
     proxies = deepCleanControlChars(proxies);
 
+    // 处理重名节点
+    deduplicateNames(proxies);
+
     try {
-        const yamlStr = yaml.dump({ proxies }, {
+        let yamlStr = yaml.dump({ proxies }, {
             indent: 2,
             lineWidth: -1,
             noRefs: true
         });
+
+        // 应用 WireGuard 修复
+        yamlStr = clashFix(yamlStr);
+
         return cleanControlChars(yamlStr);
     } catch (e) {
         return `proxies:\n${proxies.map(p => `  - ${JSON.stringify(p)}`).join('\n')}\n`;

@@ -435,7 +435,7 @@ import SavePrompt from '../../ui/SavePrompt.vue';
     </template></Modal>
 
   <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile" :is-new="isNewProfile"
-    :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="2xl" />
+    :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="6xl" />
 
   <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
     @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />

@@ -94,7 +94,7 @@ const emit = defineEmits(['migrate']);
     <div class="space-y-8">
         <!-- 数据存储类型卡片 -->
         <div
-            class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
+            class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -117,7 +117,7 @@ const emit = defineEmits(['migrate']);
 
                 <!-- D1 Migration Section -->
                 <div v-if="settings.storageType === 'kv'"
-                    class="mt-4 p-4 bg-blue-50/80 dark:bg-blue-900/20 rounded-xl border border-blue-100/80 dark:border-blue-800/60">
+                    class="mt-4 p-4 bg-blue-50/80 dark:bg-blue-900/20 misub-radius-lg border border-blue-100/80 dark:border-blue-800/60">
                     <h4 class="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">迁移到 D1 数据库</h4>
                     <p class="text-xs text-blue-600 dark:text-blue-400 mb-3">
                         D1 数据库提供更好的性能和无限的写入能力。迁移前请确保已完成以下步骤:
@@ -129,11 +129,11 @@ const emit = defineEmits(['migrate']);
                     </ol>
                     <div class="flex flex-col sm:flex-row gap-3">
                         <button @click="emit('migrate')"
-                            class="px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors duration-200 bg-blue-600 hover:bg-blue-700 flex items-center justify-center min-w-[120px] shadow-sm">
+                            class="px-4 py-2 text-sm font-medium text-white misub-radius-lg transition-colors duration-200 bg-blue-600 hover:bg-blue-700 flex items-center justify-center min-w-[120px] shadow-sm">
                             开始迁移...
                         </button>
                         <button @click="copySchema"
-                            class="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-white/80 dark:bg-gray-900/60 border border-blue-200 dark:border-blue-700/70 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                            class="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-white/80 dark:bg-gray-900/60 border border-blue-200 dark:border-blue-700/70 misub-radius-lg hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2 shadow-sm">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -147,7 +147,7 @@ const emit = defineEmits(['migrate']);
 
         <!-- 备份与恢复卡片 -->
         <div
-            class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
+            class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -158,15 +158,15 @@ const emit = defineEmits(['migrate']);
             </h3>
             <div class="flex gap-4">
                 <button @click="exportBackup"
-                    class="px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">导出备份</button>
+                    class="px-4 py-2 text-sm font-medium text-white misub-radius-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">导出备份</button>
                 <button @click="importBackup"
-                    class="px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-600">导入备份</button>
+                    class="px-4 py-2 text-sm font-medium text-white misub-radius-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-600">导入备份</button>
             </div>
         </div>
 
         <!-- 管理员安全设置 -->
         <div
-            class="bg-white/90 dark:bg-gray-900/70 rounded-3xl p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
+            class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -176,7 +176,7 @@ const emit = defineEmits(['migrate']);
                 管理员安全设置
             </h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/70 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200/70 dark:border-white/10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/70 dark:bg-gray-900/50 p-6 misub-radius-lg border border-gray-200/70 dark:border-white/10">
                 <div class="space-y-4">
                 <div>
                     <Input 
@@ -184,7 +184,7 @@ const emit = defineEmits(['migrate']);
                     v-model="passwordForm.newPassword"
                     type="password"
                     placeholder="请输入新密码"
-                    class="rounded-xl"
+                    class="misub-radius-lg"
                     />
                 </div>
                 <div>
@@ -193,7 +193,7 @@ const emit = defineEmits(['migrate']);
                     v-model="passwordForm.confirmPassword"
                     type="password"
                     placeholder="请再次输入新密码"
-                    class="rounded-xl"
+                    class="misub-radius-lg"
                     />
                 </div>
                 </div>
@@ -201,7 +201,7 @@ const emit = defineEmits(['migrate']);
                 <button 
                     @click="handleUpdatePassword"
                     :disabled="isUpdatingPassword || !passwordForm.newPassword"
-                    class="px-6 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm transition-all flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-6 py-2.5 misub-radius-lg text-white text-sm font-medium shadow-sm transition-all flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <svg v-if="isUpdatingPassword" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

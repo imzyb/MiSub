@@ -90,11 +90,11 @@ watch(isOpen, (val) => {
 });
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
+  document.addEventListener('click', handleClickOutside, true);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('click', handleClickOutside, true);
   window.removeEventListener('scroll', handleScroll, true);
   window.removeEventListener('resize', updatePosition);
 });
@@ -108,7 +108,7 @@ onUnmounted(() => {
         :value="modelValue"
         type="text"
         :placeholder="placeholder"
-        class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all h-[42px] dark:text-white placeholder-gray-400"
+        class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 misub-radius-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all h-[42px] dark:text-white placeholder-gray-400"
         @input="handleInput"
         @focus="handleFocus"
         @keydown.enter="isOpen = false"
@@ -145,14 +145,14 @@ onUnmounted(() => {
         leave-to-class="transform scale-95 opacity-0"
       >
         <div
-          v-if="isOpen && groups.length > 0"
+          v-if="isOpen && (groups.length > 0 || modelValue)"
           id="group-selector-dropdown"
-          class="absolute z-[9999] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 max-h-60 overflow-auto py-1 custom-scrollbar"
+          class="absolute z-[9999] bg-white dark:bg-gray-800 misub-radius-lg shadow-lg border border-gray-100 dark:border-gray-700 max-h-60 overflow-auto py-1 custom-scrollbar"
           :style="dropdownStyle"
         >
           <button
-            v-if="filteredGroups.length === 0" 
-            class="w-full text-left px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
+            v-if="modelValue && !groups.some(g => g.toLowerCase() === modelValue.toLowerCase())" 
+            class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
             @click="selectGroup(modelValue)"
           >
             创建新分组 "{{ modelValue }}"
@@ -160,7 +160,7 @@ onUnmounted(() => {
           <button
             v-for="group in filteredGroups"
             :key="group"
-            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-between group-item"
+            class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-between group-item"
             :class="{ 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400': modelValue === group }"
             @click="selectGroup(group)"
           >

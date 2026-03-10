@@ -1,3 +1,5 @@
+import { COMMON_NODE_PROTOCOLS } from '../../constants/nodeProtocols.js';
+
 /**
  * 验证生成的URL是否有效
  */
@@ -7,7 +9,7 @@ export function validateGeneratedUrl(url) {
     }
 
     try {
-        const supportedProtocols = ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria', 'hysteria2', 'hy2', 'tuic', 'snell', 'socks5', 'socks', 'http', 'https'];
+        const supportedProtocols = COMMON_NODE_PROTOCOLS;
 
         // 检查是否包含协议分隔符
         if (!url.includes('://')) {

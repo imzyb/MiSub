@@ -3,7 +3,7 @@
  * 处理各种API请求
  */
 
-import { StorageFactory } from '../storage-adapter.js';
+import { StorageFactory, SettingsCache } from '../storage-adapter.js';
 import { getCookieSecret, getAdminPassword, setAdminPassword, isUsingDefaultPassword, createJsonResponse, createErrorResponse, migrateProfileIds } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, createUnauthorizedResponse } from './auth-middleware.js';
 import { sendTgNotification, checkAndNotify } from './notifications.js';
@@ -262,6 +262,7 @@ export async function handleSettingsSave(request, env) {
 
         // 使用存储适配器保存设置
         await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
+        SettingsCache.clear();
 
         // 清除节点缓存（设置变更可能影响节点处理逻辑）
         try {

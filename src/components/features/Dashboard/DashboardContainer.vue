@@ -246,7 +246,7 @@ onUnmounted(() => {
 
     <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile"
       :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes"
-      @save="handleSaveProfile" size="2xl" />
+      @save="handleSaveProfile" size="6xl" />
 
     <SubscriptionImportModal v-if="showSubscriptionImportModal" v-model:show="showSubscriptionImportModal"
       @import="addNodesFromBulk" />

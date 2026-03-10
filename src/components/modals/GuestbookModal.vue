@@ -114,7 +114,7 @@ const submitMessage = async () => {
 
         <!-- Modal Panel -->
         <div
-            class="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[90vh] transition-all p-6">
+            class="relative w-full max-w-lg bg-white dark:bg-gray-800 misub-radius-lg shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[90vh] transition-all p-6">
 
             <!-- Close Button (Absolute) -->
             <button @click="emit('close')"
@@ -138,7 +138,7 @@ const submitMessage = async () => {
                     感谢您的反馈！管理员已收到您的留言。
                 </p>
                 <button @click="emit('close')"
-                    class="mt-8 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
+                    class="mt-8 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white misub-radius-md font-medium transition-colors">
                     关闭
                 </button>
             </div>
@@ -160,7 +160,7 @@ const submitMessage = async () => {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">反馈类型</label>
                         <select v-model="form.type"
-                            class="block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
+                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
                             <option value="general">💬 普通留言</option>
                             <option value="feature">✨ 功能建议</option>
                             <option value="bug">🐛 问题反馈</option>
@@ -170,13 +170,13 @@ const submitMessage = async () => {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">昵称 (可选)</label>
                         <input type="text" v-model="form.nickname" placeholder="您怎么称呼？"
-                            class="block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
+                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">内容</label>
                         <textarea v-model="form.content" rows="4" placeholder="请详细描述您的建议或遇到的问题..."
-                            class="block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm resize-none"></textarea>
+                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm resize-none"></textarea>
                     </div>
 
                     <!-- Captcha -->
@@ -184,11 +184,11 @@ const submitMessage = async () => {
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">人机验证</label>
                         <div class="flex items-center gap-3">
                             <div
-                                class="bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 font-mono font-bold select-none border border-gray-200 dark:border-gray-600 min-w-[80px] text-center">
+                                class="bg-gray-100 dark:bg-gray-700 px-3 py-2 misub-radius-md text-gray-700 dark:text-gray-300 font-mono font-bold select-none border border-gray-200 dark:border-gray-600 min-w-[80px] text-center">
                                 {{ captcha.num1 }} {{ captcha.operator }} {{ captcha.num2 }} = ?
                             </div>
                             <input type="number" v-model="form.captcha" placeholder="答案"
-                                class="block w-24 rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm"
+                                class="block w-24 misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm"
                                 @keydown.enter="submitMessage">
                             <button type="button" @click="generateCaptcha"
                                 class="text-gray-400 hover:text-indigo-500 transition-colors p-1" title="刷新验证码">
@@ -213,11 +213,11 @@ const submitMessage = async () => {
                 <!-- Footer -->
                 <div class="mt-6 flex justify-end gap-3 pt-2">
                     <button @click="emit('close')"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors">
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 misub-radius-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors">
                         取消
                     </button>
                     <button @click="submitMessage" :disabled="submitting || !form.content"
-                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95">
+                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent misub-radius-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95">
                         {{ submitting ? '提交中...' : '提交反馈' }}
                     </button>
                 </div>

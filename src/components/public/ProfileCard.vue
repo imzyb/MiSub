@@ -33,13 +33,13 @@ const ICONS = {
 
 <template>
   <div
-    class="group relative h-full flex flex-col bg-white dark:bg-[#1a1d29] border border-gray-100 dark:border-white/5 rounded-3xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/5 hover:border-primary-500/30 hover:-translate-y-1"
+    class="group relative h-full flex flex-col bg-white dark:bg-[#1a1d29] border border-gray-100 dark:border-white/5 misub-radius-lg p-6 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/5 hover:border-primary-500/30 hover:-translate-y-1"
   >
     <!-- Header: Icon & Title -->
     <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-4">
         <div
-          class="h-12 w-12 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300"
+          class="h-12 w-12 misub-radius-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300"
         >
           <span class="text-2xl drop-shadow-sm">🚀</span>
         </div>
@@ -54,7 +54,7 @@ const ICONS = {
 <!-- QR Toggle (Small Top Right) -->
 <button
 @click.stop="emit('toggle-qr', profile)"
-class="p-2 rounded-xl text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
+class="p-2 misub-radius-lg text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
 title="显示二维码"
 :class="{ 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400': isQrExpanded }"
 aria-label="显示二维码"
@@ -75,7 +75,7 @@ aria-label="显示二维码"
 <!-- Primary Action: Import -->
 <button
 @click="emit('quick-import', profile)"
-class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-600/20 transition-all active:scale-95"
+class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold misub-radius-lg shadow-lg shadow-primary-600/20 transition-all active:scale-95"
 aria-label="一键导入订阅"
 >
 <BaseIcon :path="ICONS.import" className="w-4 h-4" />
@@ -85,7 +85,7 @@ aria-label="一键导入订阅"
 <!-- Secondary Actions -->
 <button
 @click="emit('preview', profile)"
-class="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+class="p-2.5 misub-radius-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
 title="预览节点"
 aria-label="预览节点"
 >
@@ -94,7 +94,7 @@ aria-label="预览节点"
 
 <button
 @click="emit('copy-link', profile)"
-class="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+class="p-2.5 misub-radius-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
 title="复制链接"
 aria-label="复制订阅链接"
 >

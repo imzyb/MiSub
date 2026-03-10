@@ -9,27 +9,37 @@
  * @returns {string} - 修复后的配置内容
  */
 export function clashFix(content) {
-    if (content.includes('wireguard') && !content.includes('remote-dns-resolve')) {
-        let lines;
-        if (content.includes('\r\n')) {
-            lines = content.split('\r\n');
-        } else {
-            lines = content.split('\n');
-        }
+    if (!content || !content.includes('wireguard')) return content;
 
-        let result = "";
-        for (let line of lines) {
-            if (line.includes('type: wireguard')) {
-                const 备改内容 = `, mtu: 1280, udp: true`;
-                const 正确内容 = `, mtu: 1280, remote-dns-resolve: true, udp: true`;
-                result += line.replace(new RegExp(备改内容, 'g'), 正确内容) + '\n';
-            } else {
-                result += line + '\n';
+    let lines = content.split(/\r?\n/);
+    let result = '';
+
+    for (let line of lines) {
+        // 如果该行包含 wireguard 配置，且缺少 remote-dns-resolve，则补充
+        if (line.includes('type: wireguard') || line.includes('"type": "wireguard"') || line.includes("'type': 'wireguard'")) {
+            if (!line.includes('remote-dns-resolve')) {
+                // 如果是 JSON 对象格式 (用于 fallback)
+                if (line.trim().startsWith('{') || line.includes('{')) {
+                    line = line.replace(/}\s*$/, ', "remote-dns-resolve": true }');
+                } else {
+                    // 如果是 YAML 格式 (逗号分隔参数在同一行或是标准多行)
+                    // 由于 JS-YAML dump 出的行通常是单行带有多个属性 {"type":"wireguard",...}，
+                    // 本系统之前是以单行 YAML/JSON 呈现 proxies 项
+                    // 在有问题的 js-yaml 输出中，属性会在同一行。
+                    // 补充: 我们也可以直接粗暴地在末尾或括号前追加
+                    if (line.endsWith('}')) {
+                        line = line.replace(/}\s*$/, ', remote-dns-resolve: true}');
+                    } else if (!line.includes('\n')) {
+                        line += ', remote-dns-resolve: true';
+                    }
+                }
             }
         }
-        return result;
+        result += line + '\n';
     }
-    return content;
+
+    // 移除末尾多余的换行符
+    return result.replace(/\n$/, '');
 }
 
 /**

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { extractHostAndPort } from '../../lib/utils.js';
+import { useToastStore } from '../../stores/toast.js';
 
 const props = defineProps({
   node: {
@@ -16,6 +17,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['delete', 'edit', 'toggle-select', 'filter-group']);
+const { showToast } = useToastStore();
 
 const getProtocol = (url) => {
   try {
@@ -61,15 +63,24 @@ const protocolStyle = computed(() => {
     naive: { text: 'NAIVE', style: 'bg-pink-500/20 text-pink-500 dark:text-pink-400' },
     unknown: { text: 'LINK', style: 'bg-gray-500/20 text-gray-500 dark:text-gray-400' }
   };
-  return styles[p] || styles['unknown'];
+	return styles[p] || styles['unknown'];
 });
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('已复制到剪贴板', 'success');
+  } catch {
+    showToast('复制失败', 'error');
+  }
+};
 
 
 </script>
 
 <template>
   <div
-    class="group w-full bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-lg elevation-2 hover:elevation-4 p-3 spring-hover flex items-center gap-4"
+    class="group w-full bg-white/90 dark:bg-gray-900/70 backdrop-blur-md misub-radius-lg elevation-2 hover:elevation-4 p-3 spring-hover flex items-center gap-4"
     :class="{ 
         'opacity-50': !node.enabled && !isSelectionMode,
         'ring-2 ring-indigo-500': isSelectionMode && isSelected,
@@ -94,7 +105,7 @@ const protocolStyle = computed(() => {
     <!-- Group Badge -->
     <div v-if="node.group" class="shrink-0 w-auto min-w-[60px] max-w-[120px] px-1">
       <div 
-        class="text-[10px] text-center font-medium px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 truncate cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" 
+        class="text-[10px] text-center font-medium px-1.5 py-0.5 misub-radius-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 truncate cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" 
         :title="node.group"
         @click.stop="$emit('filter-group', node.group)"
       >
@@ -129,13 +140,22 @@ const protocolStyle = computed(() => {
       </p>
     </div>
 
-    <div v-if="!isSelectionMode" class="shrink-0 flex items-center gap-1 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-      <button @click.stop="emit('edit')" class="p-1.5 rounded-full hover:bg-gray-500/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="编辑节点">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
-      </button>
-      <button @click.stop="emit('delete')" class="p-1.5 rounded-full hover:bg-red-500/10 text-gray-400 hover:text-red-500" title="删除节点">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-      </button>
-    </div>
+	<div v-if="!isSelectionMode" class="shrink-0 flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+		<button 
+			@click.stop="copyToClipboard(node.url)" 
+			class="p-2 misub-radius-md hover:bg-primary-500/10 text-gray-400 hover:text-primary-500 min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center transition-colors" 
+			title="复制链接"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+			</svg>
+		</button>
+		<button @click.stop="emit('edit')" class="p-2 misub-radius-md hover:bg-gray-500/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center transition-colors" title="编辑节点">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
+		</button>
+		<button @click.stop="emit('delete')" class="p-2 misub-radius-md hover:bg-red-500/10 text-gray-400 hover:text-red-500 min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center transition-colors" title="删除节点">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+		</button>
+	</div>
   </div>
 </template>

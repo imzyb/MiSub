@@ -2,6 +2,10 @@ import { ref } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import { extractNodeName } from '../lib/utils.js';
 import { generateNodeId, generateSubscriptionId } from '../utils/id.js';
+import { COMMON_NODE_PROTOCOLS, createProtocolRegex } from '@/constants/nodeProtocols.js';
+
+const BULK_IMPORT_NODE_PROTOCOLS = COMMON_NODE_PROTOCOLS.filter(protocol => protocol !== 'http' && protocol !== 'https');
+const BULK_IMPORT_NODE_REGEX = createProtocolRegex(BULK_IMPORT_NODE_PROTOCOLS, false);
 
 export function useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk }) {
     const { showToast } = useToastStore();
@@ -30,7 +34,7 @@ export function useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk 
 
             if (/^https?:\/\//.test(line)) {
                 validSubs.push({ ...baseItem, id: generateSubscriptionId() });
-            } else if (/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//.test(line)) {
+            } else if (BULK_IMPORT_NODE_REGEX.test(line)) {
                 validNodes.push({ ...baseItem, id: generateNodeId() });
             }
         });

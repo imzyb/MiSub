@@ -55,7 +55,7 @@ onMounted(() => {
     <Transition name="fade">
         <div v-if="isVisible" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
             <div @click="toggleExpand"
-                class="relative rounded-2xl p-4 shadow-sm border transition-all duration-300 cursor-pointer hover:shadow-md group"
+                class="relative misub-radius-lg p-4 shadow-sm border transition-all duration-300 cursor-pointer hover:shadow-md group"
                 :class="{
                     'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800': announcement.type === 'info',
                     'bg-green-50 border-green-100 dark:bg-green-900/20 dark:border-green-800': announcement.type === 'success',
@@ -66,7 +66,7 @@ onMounted(() => {
                 <div class="flex items-center gap-4">
                     <!-- Icon -->
                     <div class="flex-shrink-0">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg shadow-sm" :class="{
+                        <div class="w-8 h-8 misub-radius-md flex items-center justify-center text-lg shadow-sm" :class="{
                             'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300': announcement.type === 'info',
                             'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300': announcement.type === 'success',
                             'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/40 dark:text-yellow-300': announcement.type === 'warning',
@@ -103,7 +103,7 @@ onMounted(() => {
 
                     <!-- Close Button (Always visible if dismissible) -->
                     <button v-if="announcement.dismissible" @click="dismiss"
-                        class="flex-shrink-0 p-1.5 -mr-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-10"
+                        class="flex-shrink-0 p-1.5 -mr-1 misub-radius-md text-gray-400 hover:text-gray-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-10"
                         title="关闭公告">
                         <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor">

@@ -21,7 +21,7 @@ const emit = defineEmits(['close', 'download', 'register-canvas']);
         @click.self="emit('close')"
         class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]"
       >
-        <div class="relative bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl max-w-sm w-full mx-4 transform transition-all border border-gray-100 dark:border-gray-700"
+        <div class="relative bg-white dark:bg-gray-800 misub-radius-lg p-8 shadow-2xl max-w-sm w-full mx-4 transform transition-all border border-gray-100 dark:border-gray-700"
           @click.stop>
           <!-- Close Button -->
           <button
@@ -38,16 +38,16 @@ const emit = defineEmits(['close', 'download', 'register-canvas']);
             <h4 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{{ profile.name }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">扫描二维码导入订阅</p>
 
-            <div class="bg-white p-3 rounded-2xl shadow-inner border border-gray-100 w-64 h-64 flex items-center justify-center">
+            <div class="bg-white p-3 misub-radius-lg shadow-inner border border-gray-100 w-64 h-64 flex items-center justify-center">
               <canvas
                 :ref="el => { if (el) emit('register-canvas', profile.id, el); }"
-                class="max-w-full h-auto rounded-lg"
+                class="max-w-full h-auto misub-radius-md"
               ></canvas>
             </div>
 
             <button
               @click="emit('download')"
-              class="mt-8 w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-all shadow-lg shadow-primary-600/20 active:scale-95"
+              class="mt-8 w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg transition-all shadow-lg shadow-primary-600/20 active:scale-95"
             >
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

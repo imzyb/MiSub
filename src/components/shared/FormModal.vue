@@ -89,7 +89,7 @@ const sizeClasses = {
 
 // 计算样式
 const modalClasses = computed(() => [
-  'relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all',
+  'relative transform overflow-hidden misub-radius-md bg-white dark:bg-gray-800 text-left shadow-xl transition-all',
   sizeClasses[props.size] || sizeClasses.medium,
   props.maxWidth ? `max-w-[${props.maxWidth}]` : ''
 ]);
@@ -214,7 +214,7 @@ defineExpose({
                 v-if="closable"
                 type="button"
                 :disabled="disabled || loading"
-                class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed p-2"
+                class="misub-radius-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed p-2"
                 @click="handleClose"
               >
                 <span class="sr-only">关闭</span>
@@ -248,7 +248,7 @@ defineExpose({
                   type="button"
                   :disabled="disabled || loading"
                   :class="cancelButtonClass"
-                  class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium misub-radius-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   @click="handleCancel"
                 >
                   {{ cancelText }}
@@ -258,7 +258,7 @@ defineExpose({
                   type="button"
                   :disabled="disabled || loading || confirmDisabled"
                   :class="[confirmButtonClass, { 'opacity-50 cursor-not-allowed': confirmDisabled }]"
-                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium misub-radius-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   @click="handleConfirm"
                 >
                   <!-- 加载图标 -->

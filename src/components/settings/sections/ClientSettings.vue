@@ -138,9 +138,9 @@ onMounted(fetchClients);
             <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">客户端管理</h3>
             <div class="flex gap-2 w-full md:w-auto">
                 <button @click="handleInit"
-                    class="flex-1 md:flex-none px-3 py-1.5 text-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600">重置默认</button>
+                    class="flex-1 md:flex-none px-3 py-1.5 text-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 misub-radius-lg border border-gray-300 dark:border-gray-600">重置默认</button>
                 <button @click="handleAdd"
-                    class="flex-1 md:flex-none px-4 py-2 text-center text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl shadow-sm shadow-primary-500/20">新增客户端</button>
+                    class="flex-1 md:flex-none px-4 py-2 text-center text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg shadow-sm shadow-primary-500/20">新增客户端</button>
             </div>
         </div>
 
@@ -148,11 +148,11 @@ onMounted(fetchClients);
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-for="client in clients" :key="client.id"
-                class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-3xl p-4 pb-10 md:pb-4 hover:shadow-md transition-shadow group">
+                class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 misub-radius-lg p-4 pb-10 md:pb-4 hover:shadow-md transition-shadow group">
 
                 <div class="flex items-start gap-3 min-w-0">
                     <div
-                        class="h-12 w-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 bg-gray-50 dark:bg-gray-700/50 text-gray-600 overflow-hidden ring-1 ring-gray-200/60 dark:ring-white/10">
+                        class="h-12 w-12 misub-radius-lg flex items-center justify-center text-2xl shrink-0 bg-gray-50 dark:bg-gray-700/50 text-gray-600 overflow-hidden ring-1 ring-gray-200/60 dark:ring-white/10">
                         <img v-if="client.icon && client.icon.includes('/')" :src="client.icon" :alt="client.name"
                             class="w-full h-full object-contain" />
                         <span v-else>{{ client.icon }}</span>
@@ -198,12 +198,12 @@ onMounted(fetchClients);
                         <!-- Left Column: Visual Identity (30-40%) -->
                         <div class="md:col-span-5 lg:col-span-4">
                             <div
-                                class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-6 flex flex-col items-center gap-6 h-full border border-gray-100 dark:border-gray-700/50">
+                                class="bg-gray-50 dark:bg-gray-700/30 misub-radius-lg p-6 flex flex-col items-center gap-6 h-full border border-gray-100 dark:border-gray-700/50">
                                 <div class="text-center space-y-2 w-full">
                                     <label
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300">图标预览</label>
                                     <div
-                                        class="aspect-square w-full max-w-[180px] mx-auto rounded-3xl flex items-center justify-center text-6xl bg-white dark:bg-gray-800 text-gray-600 border-2 border-dashed border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm">
+                                        class="aspect-square w-full max-w-[180px] mx-auto misub-radius-lg flex items-center justify-center text-6xl bg-white dark:bg-gray-800 text-gray-600 border-2 border-dashed border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm">
                                         <img v-if="editingClient.icon && editingClient.icon.includes('/')"
                                             :src="editingClient.icon" :alt="editingClient.name"
                                             class="w-full h-full object-contain p-4" />
@@ -214,13 +214,13 @@ onMounted(fetchClients);
                                 <div class="w-full space-y-2">
                                     <label
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300">图标设置</label>
-                                    <div class="relative rounded-lg shadow-sm">
+                                    <div class="relative misub-radius-md shadow-sm">
                                         <div
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span class="text-gray-500 sm:text-sm">🖼️</span>
                                         </div>
                                         <input v-model="editingClient.icon" type="text" placeholder="输入图片 URL 或 Emoji"
-                                            class="block w-full pl-10 rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2.5">
+                                            class="block w-full pl-10 misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2.5">
                                     </div>
                                     <p class="text-xs text-center text-gray-400 dark:text-gray-500">支持 SVG, PNG 或 Emoji
                                     </p>
@@ -236,7 +236,7 @@ onMounted(fetchClients);
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">客户端名称
                                         <span class="text-red-500">*</span></label>
                                     <input v-model="editingClient.name" type="text"
-                                        class="mt-1 block w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-2.5 text-lg font-medium"
+                                        class="mt-1 block w-full misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-2.5 text-lg font-medium"
                                         placeholder="例如: Clash Verge">
                                 </div>
 
@@ -244,7 +244,7 @@ onMounted(fetchClients);
                                     <label
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300">简介描述</label>
                                     <textarea v-model="editingClient.description" rows="3"
-                                        class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-3 resize-none"
+                                        class="mt-1 block w-full misub-radius-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-3 resize-none"
                                         placeholder="简短描述该客户端的特点..."></textarea>
                                 </div>
                             </div>
@@ -255,7 +255,7 @@ onMounted(fetchClients);
                                     class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">支持平台</label>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                     <label v-for="opt in platformOptions" :key="opt.value"
-                                        class="cursor-pointer group relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 select-none text-center"
+                                        class="cursor-pointer group relative flex flex-col items-center justify-center p-3 misub-radius-lg border transition-all duration-200 select-none text-center"
                                         :class="editingClient.platforms.includes(opt.value)
                                             ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300 shadow-sm ring-1 ring-indigo-500/20'
                                             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'">
@@ -273,7 +273,7 @@ onMounted(fetchClients);
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">下载链接 /
                                         官网</label>
-                                    <div class="mt-1 flex rounded-lg shadow-sm">
+                                    <div class="mt-1 flex misub-radius-md shadow-sm">
                                         <span
                                             class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 sm:text-sm">🔗</span>
                                         <input v-model="editingClient.url" type="text"
@@ -284,7 +284,7 @@ onMounted(fetchClients);
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">GitHub
                                         Repo</label>
-                                    <div class="mt-1 flex rounded-lg shadow-sm">
+                                    <div class="mt-1 flex misub-radius-md shadow-sm">
                                         <span
                                             class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 sm:text-sm">
                                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -307,9 +307,9 @@ onMounted(fetchClients);
             <template #footer>
                 <div class="flex justify-end gap-3">
                     <button @click="showEditModal = false"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">取消</button>
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-700">取消</button>
                     <button @click="handleSave" :disabled="saving"
-                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent misub-radius-md hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
                         {{ saving ? '保存中...' : '保存' }}
                     </button>
                 </div>
@@ -322,7 +322,7 @@ onMounted(fetchClients);
             <template #body>
                 <div class="space-y-3">
                     <div
-                        class="flex items-center gap-3 text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                        class="flex items-center gap-3 text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 misub-radius-md border border-amber-100 dark:border-amber-900/30">
                         <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -344,7 +344,7 @@ onMounted(fetchClients);
             <template #body>
                 <div class="space-y-3">
                     <div
-                        class="flex items-center gap-3 text-red-600 dark:text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-900/30">
+                        class="flex items-center gap-3 text-red-600 dark:text-red-500 bg-red-50 dark:bg-red-900/20 p-3 misub-radius-md border border-red-100 dark:border-red-900/30">
                         <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

@@ -32,7 +32,7 @@ const handleInput = () => emit('add-custom-node');
 
 <template>
   <div
-    class="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-xl overflow-hidden"
+    class="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 misub-radius-lg overflow-hidden"
   >
     <div class="px-4 py-2 bg-indigo-100/50 dark:bg-indigo-900/30 flex justify-between items-center">
       <span class="text-xs font-bold text-indigo-800 dark:text-indigo-300 tracking-wider uppercase">
@@ -45,7 +45,7 @@ const handleInput = () => emit('add-custom-node');
           v-model="customNodeInputModel"
           @input="handleInput"
           placeholder="👉 粘贴一个你的节点名称在这里进行测试..."
-          class="flex-1 text-xs border-0 bg-white dark:bg-gray-800/50 rounded-md ring-1 ring-indigo-200 dark:ring-indigo-800 focus:ring-indigo-500 px-2 py-1.5 dark:text-white"
+          class="flex-1 text-xs border-0 bg-white dark:bg-gray-800/50 misub-radius-md ring-1 ring-indigo-200 dark:ring-indigo-800 focus:ring-indigo-500 px-2 py-1.5 dark:text-white"
         >
       </div>
     </div>

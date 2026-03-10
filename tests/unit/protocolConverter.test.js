@@ -24,29 +24,29 @@ import {
 describe('protocolConverter', () => {
     describe('convertClashProxyToUrl', () => {
         describe('VMess', () => {
-            it('应正确转换基础VMess配置', () => {
-                const proxy = {
-                    name: 'Test VMess',
-                    type: 'vmess',
-                    server: '1.2.3.4',
-                    port: 443,
-                    uuid: 'uuid-1234-5678',
-                    alterId: 0,
-                    cipher: 'auto',
-                    network: 'tcp'
-                }
+it('应正确转换基础VMess配置', () => {
+const proxy = {
+name: 'Test VMess',
+type: 'vmess',
+server: '1.2.3.4',
+port: 443,
+uuid: 'uuid-1234-5678',
+alterId: 0,
+cipher: 'auto',
+network: 'tcp'
+}
 
-                const result = convertClashProxyToUrl(proxy)
-                expect(result).toBeTruthy()
-                expect(result).toMatch(/^vmess:\/\//)
+const result = convertClashProxyToUrl(proxy)
+expect(result).toBeTruthy()
+expect(result).toMatch(/^vmess:\/\//)
 
-                // 解码验证
-                const base64Data = result.replace('vmess://', '')
-                const decoded = JSON.parse(atob(base64Data))
-                expect(decoded.add).toBe('1.2.3.4')
-                expect(decoded.port).toBe(443)
-                expect(decoded.id).toBe('uuid-1234-5678')
-            })
+// 解码验证
+const base64Data = result.replace('vmess://', '')
+const decoded = JSON.parse(atob(base64Data))
+expect(decoded.add).toBe('1.2.3.4')
+expect(decoded.port).toBe('443') // port 在 URL 编码中为字符串
+expect(decoded.id).toBe('uuid-1234-5678')
+})
 
             it('应正确处理WebSocket传输', () => {
                 const proxy = {
@@ -139,26 +139,27 @@ describe('protocolConverter', () => {
                 expect(result).toContain('vless-uuid-1234@vless.example.com:443')
             })
 
-            it('应正确处理Reality配置', () => {
-                const proxy = {
-                    name: 'VLESS Reality',
-                    type: 'vless',
-                    server: 'reality.example.com',
-                    port: 443,
-                    uuid: 'reality-uuid',
-                    network: 'tcp',
-                    reality: true,
-                    'reality-opts': {
-                        'public-key': 'test-public-key',
-                        'short-id': 'abc123'
-                    }
-                }
+it('应正确处理Reality配置', () => {
+const proxy = {
+name: 'VLESS Reality',
+type: 'vless',
+server: 'reality.example.com',
+port: 443,
+uuid: 'reality-uuid',
+network: 'tcp',
+reality: true,
+'reality-opts': {
+'public-key': 'test-public-key',
+'short-id': 'abc123'
+}
+}
 
-                const result = convertClashProxyToUrl(proxy)
-                expect(result).toBeTruthy()
-                expect(result).toContain('security=reality')
-                expect(result).toContain('publicKey=test-public-key')
-            })
+const result = convertClashProxyToUrl(proxy)
+expect(result).toBeTruthy()
+expect(result).toContain('security=reality')
+expect(result).toContain('pbk=test-public-key') // 标准参数名为 pbk
+expect(result).toContain('sid=abc123')
+})
         })
 
         describe('Hysteria2', () => {

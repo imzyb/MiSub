@@ -5,26 +5,30 @@ import NodeTransformSettings from '../../settings/NodeTransformSettings.vue';
 import Input from '../../ui/Input.vue';
 
 const props = defineProps({
-  localProfile: {
-    type: Object,
-    required: true
-  },
-  showAdvanced: {
-    type: Boolean,
-    default: false
-  },
-  uiText: {
-    type: Object,
-    required: true
-  },
-  prefixToggleOptions: {
-    type: Array,
-    default: () => []
-  },
-  createDefaultNodeTransform: {
-    type: Function,
-    required: true
-  }
+localProfile: {
+type: Object,
+required: true
+},
+showAdvanced: {
+type: Boolean,
+default: false
+},
+uiText: {
+type: Object,
+required: true
+},
+prefixToggleOptions: {
+type: Array,
+default: () => []
+},
+groupPrefixToggleOptions: {
+type: Array,
+default: () => []
+},
+createDefaultNodeTransform: {
+type: Function,
+required: true
+}
 });
 
 const emit = defineEmits(['toggle-advanced']);
@@ -65,7 +69,7 @@ const nodeTransformMode = computed({
   </div>
 
   <!-- Public Display & Description -->
-  <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
+  <div class="bg-gray-50 dark:bg-gray-800/50 misub-radius-md p-4 border border-gray-100 dark:border-gray-700">
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center">
         <input
@@ -92,7 +96,7 @@ const nodeTransformMode = computed({
         v-model="localProfile.description"
         rows="2"
         placeholder="简要介绍此订阅组的内容，将在公开页面展示。"
-        class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+        class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
       ></textarea>
     </div>
     <div v-else class="text-xs text-gray-400">
@@ -149,14 +153,14 @@ const nodeTransformMode = computed({
             type="date"
             id="profile-expires-at"
             v-model="localProfile.expiresAt"
-            class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+            class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
           >
           <p class="text-xs text-gray-400 mt-1">设置此订阅组的到期时间，到期后将返回默认节点。</p>
         </div>
       </div>
 
       <!-- Prefix Settings -->
-      <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
+      <div class="bg-gray-50 dark:bg-gray-800/50 misub-radius-md p-3 border border-gray-100 dark:border-gray-700">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ uiText.prefixTitle }}</label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="sm:col-span-2">
@@ -165,43 +169,55 @@ const nodeTransformMode = computed({
               type="text"
               v-model="localProfile.prefixSettings.manualNodePrefix"
               placeholder="留空则使用全局前缀"
-              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
             />
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ uiText.manualPrefixToggle }}</label>
             <select
               v-model="localProfile.prefixSettings.enableManualNodes"
-              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
             >
               <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">
                 {{ option.label }}
               </option>
             </select>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ uiText.subscriptionPrefixToggle }}</label>
-            <select
-              v-model="localProfile.prefixSettings.enableSubscriptions"
-              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-            >
-              <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
-        </div>
+<div>
+<label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ uiText.subscriptionPrefixToggle }}</label>
+<select
+v-model="localProfile.prefixSettings.enableSubscriptions"
+class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+>
+<option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">
+{{ option.label }}
+</option>
+</select>
+</div>
+<div class="sm:col-span-2">
+<label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">分组名称前缀</label>
+<select
+v-model="localProfile.prefixSettings.prependGroupName"
+class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+>
+<option v-for="option in groupPrefixToggleOptions" :key="String(option.value)" :value="option.value">
+{{ option.label }}
+</option>
+</select>
+<p class="text-xs text-gray-400 mt-1">启用后，手动节点输出时会在名称前添加分组名称（如"香港 - 节点名"）</p>
+</div>
+</div>
       </div>
 
       <!-- Node Transform Settings -->
-      <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
+      <div class="bg-gray-50 dark:bg-gray-800/50 misub-radius-md p-3 border border-gray-100 dark:border-gray-700">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ uiText.nodeTransformTitle }}</label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">净化配置来源</label>
             <select
               v-model="nodeTransformMode"
-              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
             >
               <option value="global">使用全局设置</option>
               <option value="custom">自定义</option>

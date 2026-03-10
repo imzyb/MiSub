@@ -13,7 +13,7 @@ const { markDirty } = dataStore;
 const {
   profiles, editingProfile, isNewProfile, showProfileModal, showDeleteProfilesModal,
   handleProfileToggle, handleAddProfile, handleEditProfile,
-  handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles, copyProfileLink, copyClashLink,
+  handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles,
   profilesCurrentPage, profilesTotalPages, paginatedProfiles, changeProfilesPage
 } = useProfiles(markDirty);
 
@@ -43,16 +43,28 @@ const handlePreviewProfile = (profileId) => {
 
 const ProfileModal = defineAsyncComponent(() => import('../components/modals/ProfileModal.vue'));
 const LogModal = defineAsyncComponent(() => import('../components/modals/LogModal.vue'));
+const CopyLinkModal = defineAsyncComponent(() => import('../components/modals/CopyLinkModal.vue'));
 
 const showLogModal = ref(false);
 const logProfileName = ref('');
 
+const showCopyModal = ref(false);
+const showCopyModalProfile = ref(null);
+
+const handleOpenCopy = (profileId) => {
+  const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
+  if (profile) {
+    showCopyModalProfile.value = profile;
+    showCopyModal.value = true;
+  }
+};
+
 const handleViewLogs = (profileId) => {
-    const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
-    if (profile) {
-        logProfileName.value = profile.name;
-        showLogModal.value = true;
-    }
+  const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
+  if (profile) {
+    logProfileName.value = profile.name;
+    showLogModal.value = true;
+  }
 };
 
 // QRCode
@@ -63,20 +75,20 @@ const qrCodeTitle = ref('');
 const { settings } = storeToRefs(dataStore); // Check if settings is already imported or available from dataStore
 
 const handleQRCode = (profileId) => {
-    const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
-    if (profile) {
-      if (!settings.value.profileToken) {
-          showToast("未配置订阅组 Token，无法生成链接", "error");
-          return;
-      }
-      const token = settings.value.profileToken;
-      const baseUrl = window.location.origin;
-      // Use customId if available, otherwise use id
-      const idToUse = profile.customId || profile.id;
-      qrCodeUrl.value = `${baseUrl}/sub/${token}/${idToUse}`; 
-      qrCodeTitle.value = profile.name || '订阅组二维码';
-      showQRCodeModal.value = true;
+  const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
+  if (profile) {
+    if (!settings.value.profileToken) {
+      showToast("未配置订阅组 Token，无法生成链接", "error");
+      return;
     }
+    const token = settings.value.profileToken;
+    const baseUrl = window.location.origin;
+    // Use customId if available, otherwise use id
+    const idToUse = profile.customId || profile.id;
+    qrCodeUrl.value = `${baseUrl}/sub/${token}/${idToUse}`;
+    qrCodeTitle.value = profile.name || '订阅组二维码';
+    showQRCodeModal.value = true;
+  }
 };
 </script>
 
@@ -84,61 +96,33 @@ const handleQRCode = (profileId) => {
   <div class="max-w-(--breakpoint-xl) mx-auto">
 
 
-    <ProfilePanel 
-      :profiles="profiles"
-      :paginated-profiles="paginatedProfiles"
-      :current-page="profilesCurrentPage"
-      :total-pages="profilesTotalPages"
-      @add="handleAddProfile"
-      @edit="handleEditProfile"
-      @delete="handleDeleteProfile"
-      @deleteAll="showDeleteProfilesModal = true"
-      @toggle="handleProfileToggle"
-      @copyLink="copyProfileLink"
-      @copy-clash-link="copyClashLink"
-      @preview="handlePreviewProfile"
-      @reorder="handleProfileReorder"
-      @change-page="changeProfilesPage"
-      @viewLogs="handleViewLogs"
-      @qrcode="handleQRCode"
-    />
+    <ProfilePanel :profiles="profiles" :paginated-profiles="paginatedProfiles" :current-page="profilesCurrentPage"
+      :total-pages="profilesTotalPages" @add="handleAddProfile" @edit="handleEditProfile" @delete="handleDeleteProfile"
+      @deleteAll="showDeleteProfilesModal = true" @toggle="handleProfileToggle" @openCopy="handleOpenCopy"
+      @preview="handlePreviewProfile" @reorder="handleProfileReorder"
+      @change-page="changeProfilesPage" @viewLogs="handleViewLogs" @qrcode="handleQRCode" />
 
-    <LogModal
-        :show="showLogModal"
-        @update:show="showLogModal = $event"
-        :filter-profile-name="logProfileName"
-    />
+    <LogModal :show="showLogModal" @update:show="showLogModal = $event" :filter-profile-name="logProfileName" />
 
-    <ProfileModal 
-        v-if="showProfileModal" 
-        v-model:show="showProfileModal" 
-        :profile="editingProfile" 
-        :is-new="isNewProfile" 
-        :all-subscriptions="subscriptions" 
-        :all-manual-nodes="manualNodes" 
-        @save="handleSaveProfile" 
-        size="2xl" 
-    />
+    <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile"
+      :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes"
+      @save="handleSaveProfile" size="6xl" />
 
     <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles">
-        <template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3></template>
-        <template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅组**吗？此操作不可逆。</p></template>
+      <template #title>
+        <h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3>
+      </template>
+      <template #body>
+        <p class="text-sm text-gray-400">您确定要删除所有**订阅组**吗？此操作不可逆。</p>
+      </template>
     </Modal>
 
-    <NodePreviewModal
-        :show="showNodePreviewModal"
-        :subscription-id="null"
-        :subscription-name="''"
-        :subscription-url="''"
-        :profile-id="previewProfileId"
-        :profile-name="previewProfileName"
-        @update:show="showNodePreviewModal = $event"
-    />
+    <NodePreviewModal :show="showNodePreviewModal" :subscription-id="null" :subscription-name="''"
+      :subscription-url="''" :profile-id="previewProfileId" :profile-name="previewProfileName"
+      @update:show="showNodePreviewModal = $event" />
 
-    <QRCodeModal 
-        v-model:show="showQRCodeModal" 
-        :url="qrCodeUrl" 
-        :title="qrCodeTitle" 
-    />
+    <QRCodeModal v-model:show="showQRCodeModal" :url="qrCodeUrl" :title="qrCodeTitle" />
+    
+    <CopyLinkModal v-if="showCopyModal && showCopyModalProfile" v-model:show="showCopyModal" :profile="showCopyModalProfile" :token="settings?.profileToken" />
   </div>
 </template>

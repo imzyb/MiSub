@@ -1,3 +1,5 @@
+import { NODE_PROTOCOL_REGEX } from '@/constants/nodeProtocols.js';
+
 export const countryCodeMap = {
   'hk': ['🇭🇰', '香港', 'HK'],
   'tw': ['🇨🇳', '台湾', '臺灣'],
@@ -64,8 +66,7 @@ export function isManualNodeEntry(item) {
 
   if (/^https?:\/\//i.test(trimmedUrl)) return false;
 
-  const validProtocols = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy2|tuic|snell|naive|socks5|socks|http|anytls):\/\//i;
-  return validProtocols.test(trimmedUrl);
+  return NODE_PROTOCOL_REGEX.test(trimmedUrl);
 }
 
 export function filterManualNodes(nodes, searchTerm, activeColorFilter) {

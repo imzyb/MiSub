@@ -9,9 +9,10 @@ import { resolveRequestContext } from './request-context.js';
 import { buildSubconverterUrlVariants, getSubconverterCandidates, fetchFromSubconverter } from './subconverter-client.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { logAccessError, logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
-import { isBrowserAgent } from './user-agent-utils.js'; // [Added] Import centralized util
+import { isBrowserAgent, determineTargetFormat } from './user-agent-utils.js'; // [Added] Import centralized util
 import { authMiddleware } from '../auth-middleware.js';
 import { generateBuiltinClashConfig } from './builtin-clash-generator.js'; // [Added] 内置 Clash 生成器
+import { generateBuiltinSurgeConfig } from './builtin-surge-generator.js'; // [Added] 内置 Surge 生成器
 
 /**
  * 处理MiSub订阅请求
@@ -200,51 +201,8 @@ export async function handleMisubRequest(context) {
     const shouldSkipCertificateVerify = Boolean(config.subConverterScv);
     const shouldEnableUdp = Boolean(config.subConverterUdp);
 
-    let targetFormat = url.searchParams.get('target');
-    if (!targetFormat) {
-        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan'];
-        for (const format of supportedFormats) {
-            if (url.searchParams.has(format)) {
-                if (format === 'v2ray' || format === 'trojan') { targetFormat = 'base64'; } else { targetFormat = format; }
-                break;
-            }
-        }
-    }
-    if (!targetFormat) {
-        const ua = userAgentHeader.toLowerCase();
-        // 使用陣列來保證比對的優先順序
-        const uaMapping = [
-            // Mihomo/Meta 核心的客戶端 - 需要clash格式
-            ['flyclash', 'clash'],
-            ['mihomo', 'clash'],
-            ['clash.meta', 'clash'],
-            ['clash-verge', 'clash'],
-            ['meta', 'clash'],
-
-            // 其他客戶端
-            ['stash', 'clash'],
-            ['nekoray', 'clash'],
-            ['sing-box', 'singbox'],
-            ['shadowrocket', 'base64'],
-            ['v2rayn', 'base64'],
-            ['v2rayng', 'base64'],
-            ['surge', 'surge'],
-            ['loon', 'loon'],
-            ['quantumult%20x', 'quanx'],
-            ['quantumult', 'quanx'],
-
-            // 最後才匹配通用的 clash，作為向下相容
-            ['clash', 'clash']
-        ];
-
-        for (const [keyword, format] of uaMapping) {
-            if (ua.includes(keyword)) {
-                targetFormat = format;
-                break; // 找到第一個符合的就停止
-            }
-        }
-    }
-    if (!targetFormat) { targetFormat = 'base64'; }
+    // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
+    let targetFormat = determineTargetFormat(userAgentHeader, url.searchParams);
 
     // [Access Log] Record access log and stats if enabled
     if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
@@ -450,7 +408,8 @@ export async function handleMisubRequest(context) {
         try {
             const clashConfig = generateBuiltinClashConfig(combinedNodeList, {
                 fileName: subName,
-                enableUdp: Boolean(config.subConverterUdp)
+                enableUdp: shouldEnableUdp,
+                skipCertVerify: shouldSkipCertificateVerify
             });
 
             const responseHeaders = new Headers({
@@ -502,6 +461,67 @@ export async function handleMisubRequest(context) {
         }
     }
 
+    // [新增] 内置 Surge 生成器 - Surge 格式默认使用内置生成器
+    // 原因：SubConverter 后端不支持 hysteria2 等新协议转 Surge 格式，导致节点丢失
+    if (targetFormat.startsWith('surge')) {
+        try {
+            const publicBaseUrl = getPublicBaseUrl(env, url);
+            const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
+            const managedUrl = `${publicBaseUrl.origin}${callbackPath}?surge`;
+
+            const surgeConfig = generateBuiltinSurgeConfig(combinedNodeList, {
+                fileName: subName,
+                managedConfigUrl: managedUrl,
+                skipCertVerify: shouldSkipCertificateVerify,
+                enableUdp: shouldEnableUdp
+            });
+
+            const responseHeaders = new Headers({
+                "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-store, no-cache',
+                'X-MiSub-Mode': 'builtin-surge'
+            });
+
+            Object.entries(cacheHeaders).forEach(([key, value]) => {
+                responseHeaders.set(key, value);
+            });
+
+            if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
+                const clientIp = request.headers.get('CF-Connecting-IP')
+                    || request.headers.get('X-Real-IP')
+                    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+                    || 'N/A';
+                context.waitUntil(
+                    sendEnhancedTgNotification(
+                        config,
+                        '🛰️ *订阅被访问* (内置Surge转换)',
+                        clientIp,
+                        `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                    )
+                );
+
+                if (config.enableAccessLog) {
+                    logAccessSuccess({
+                        context,
+                        env,
+                        request,
+                        userAgentHeader,
+                        targetFormat: 'surge (builtin)',
+                        token,
+                        profileIdentifier,
+                        subName,
+                        domain
+                    });
+                }
+            }
+
+            return new Response(surgeConfig, { headers: responseHeaders });
+        } catch (e) {
+            console.error('[BuiltinSurge] Generation failed, falling back to subconverter:', e);
+            // 回退到 subconverter
+        }
+    }
 
     const candidates = getSubconverterCandidates(effectiveSubConverter);
     let lastError = null;
@@ -613,7 +633,8 @@ export async function handleMisubRequest(context) {
         }
 
         // [Improved Fallback] 为不同客户端提供更友好的错误展示
-        if (targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') {
+        // [Improved Fallback] 为不同客户端提供更友好的错误展示
+        if (targetFormat === 'clash') {
             const fallbackYaml = `
 proxies:
   - name: "❌ 生成失败: ${safeErrorMessage.slice(0, 50).replace(/:/g, ' ')}"
@@ -639,6 +660,28 @@ rules:
                     "Content-Type": "text/yaml; charset=utf-8",
                     'Cache-Control': 'no-store, no-cache',
                     'X-MiSub-Fallback': 'yaml',
+                    'X-MiSub-Error': safeErrorMessage.slice(0, 200)
+                },
+                status: 200
+            });
+        }
+
+        if (targetFormat.startsWith('surge') || targetFormat === 'loon') {
+            const fallbackIni = `
+[Proxy]
+❌ 生成失败 = trojan, 127.0.0.1, 443, password=error, skip-cert-verify=true
+
+[Proxy Group]
+⚠️ 错误节点 = select, ❌ 生成失败
+
+[Rule]
+MATCH,DIRECT
+`;
+            return new Response(fallbackIni.trim() + '\n', {
+                headers: {
+                    "Content-Type": "text/plain; charset=utf-8",
+                    'Cache-Control': 'no-store, no-cache',
+                    'X-MiSub-Fallback': 'ini',
                     'X-MiSub-Error': safeErrorMessage.slice(0, 200)
                 },
                 status: 200
