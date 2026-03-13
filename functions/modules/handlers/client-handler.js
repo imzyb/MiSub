@@ -4,6 +4,7 @@
 import { createJsonResponse, createErrorResponse } from '../utils.js';
 
 const KV_KEY_CLIENTS = 'misub_clients_v1';
+const MAX_ICON_DATA_URL_BYTES = 200 * 1024;
 
 const LEGACY_CLIENT_ICONS = {
     'clash-verge-rev': '⚡️',
@@ -301,6 +302,13 @@ export async function handleClientRequest(request, env) {
                 // Single add/update
                 if (!body.name) {
                     return createErrorResponse('Client name is required', 400);
+                }
+
+                // Basic icon size guard for data URLs
+                if (typeof body.icon === 'string' && body.icon.startsWith('data:')) {
+                    if (body.icon.length > MAX_ICON_DATA_URL_BYTES) {
+                        return createErrorResponse('Icon data URL is too large (max 200KB)', 400);
+                    }
                 }
 
                 const index = clients.findIndex(c => c.id === body.id);

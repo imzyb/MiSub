@@ -146,10 +146,12 @@ function parseVlessUrl(url) {
             proxy.tls = true;
         }
 
-        // SNI
-        if (params.get('sni')) {
-            proxy.servername = params.get('sni');
-        }
+// SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
+      if (params.get('sni')) {
+        proxy.sni = params.get('sni');
+      } else if (params.get('peer')) {
+        proxy.sni = params.get('peer');
+      }
 
         // Fingerprint
         if (params.get('fp')) {
@@ -238,9 +240,11 @@ function parseTrojanUrl(url) {
             }
         }
 
-        // SNI
+        // SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
         if (params.get('sni')) {
             proxy.sni = params.get('sni');
+        } else if (params.get('peer')) {
+            proxy.sni = params.get('peer');
         }
 
         // Fingerprint

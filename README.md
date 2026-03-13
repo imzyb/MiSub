@@ -350,6 +350,11 @@ http://<vps-ip>:8080
 3. 点击 `迁移数据到 D1 数据库`
 4. 确认迁移,等待完成
 
+### 🛰️ 代理抓取 (Vercel)
+
+如果您的服务器 IP 不太纯净，或者由于网络限制导致抓取订阅内容失败，可以使用高效的 Edge Functions 代理：
+- [Vercel Fetch Proxy 部署指南](docs/fetch-proxy-tutorial.md)
+
 ---
 
 ## 📊 存储类型对比

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useToastStore } from '../../../stores/toast';
 import Modal from '../../forms/Modal.vue';
 import { api } from '../../../lib/http.js';
@@ -12,6 +12,25 @@ const showEditModal = ref(false);
 const editingClient = ref({});
 const isNew = ref(false);
 const saving = ref(false);
+const iconFileInput = ref(null);
+const uploadingIcon = ref(false);
+const isDataIcon = computed(() => {
+    const icon = editingClient.value?.icon;
+    return typeof icon === 'string' && icon.startsWith('data:');
+});
+const iconInputValue = computed({
+    get() {
+        const icon = editingClient.value?.icon;
+        if (!icon || (typeof icon === 'string' && icon.startsWith('data:'))) return '';
+        return icon;
+    },
+    set(value) {
+        editingClient.value = {
+            ...editingClient.value,
+            icon: value
+        };
+    }
+});
 
 const platformOptions = [
     { value: 'windows', label: 'Windows', class: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' },
@@ -21,6 +40,54 @@ const platformOptions = [
     { value: 'ios', label: 'iOS', class: 'bg-gray-800 text-white dark:bg-white dark:text-gray-900' },
     { value: 'HarmonyOS', label: 'HarmonyOS', class: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' }
 ];
+
+const handleIconFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        showToast('请选择 SVG、PNG、JPG、GIF 或 WebP 格式的图片', 'error');
+        return;
+    }
+
+    const maxSize = 200 * 1024;
+    if (file.size > maxSize) {
+        showToast('图片大小不能超过 200KB', 'error');
+        return;
+    }
+
+    uploadingIcon.value = true;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const result = e.target?.result;
+        if (result) {
+            editingClient.value = {
+                ...editingClient.value,
+                icon: result
+            };
+        }
+        uploadingIcon.value = false;
+    };
+    reader.onerror = () => {
+        showToast('读取图片失败', 'error');
+        uploadingIcon.value = false;
+    };
+    reader.readAsDataURL(file);
+
+    event.target.value = '';
+};
+
+const triggerIconFileSelect = () => {
+    iconFileInput.value?.click();
+};
+
+const clearIcon = () => {
+    editingClient.value = {
+        ...editingClient.value,
+        icon: ''
+    };
+};
 
 const fetchClients = async () => {
     loading.value = true;
@@ -153,8 +220,8 @@ onMounted(fetchClients);
                 <div class="flex items-start gap-3 min-w-0">
                     <div
                         class="h-12 w-12 misub-radius-lg flex items-center justify-center text-2xl shrink-0 bg-gray-50 dark:bg-gray-700/50 text-gray-600 overflow-hidden ring-1 ring-gray-200/60 dark:ring-white/10">
-                        <img v-if="client.icon && client.icon.includes('/')" :src="client.icon" :alt="client.name"
-                            class="w-full h-full object-contain" />
+                        <img v-if="client.icon && (client.icon.includes('/') || client.icon.startsWith('data:'))" :src="client.icon" :alt="client.name"
+                            class="w-full h-full object-cover rounded-lg p-1" />
                         <span v-else>{{ client.icon }}</span>
                     </div>
                     <div class="min-w-0 flex-1">
@@ -198,32 +265,64 @@ onMounted(fetchClients);
                         <!-- Left Column: Visual Identity (30-40%) -->
                         <div class="md:col-span-5 lg:col-span-4">
                             <div
-                                class="bg-gray-50 dark:bg-gray-700/30 misub-radius-lg p-6 flex flex-col items-center gap-6 h-full border border-gray-100 dark:border-gray-700/50">
-                                <div class="text-center space-y-2 w-full">
+                                class="bg-gray-50 dark:bg-gray-700/30 misub-radius-lg p-6 flex flex-col items-center gap-8 h-full border border-gray-100 dark:border-gray-700/50">
+                                <div class="text-center space-y-3 w-full">
                                     <label
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300">图标预览</label>
                                     <div
                                         class="aspect-square w-full max-w-[180px] mx-auto misub-radius-lg flex items-center justify-center text-6xl bg-white dark:bg-gray-800 text-gray-600 border-2 border-dashed border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm">
-                                        <img v-if="editingClient.icon && editingClient.icon.includes('/')"
+                                        <img v-if="editingClient.icon && (editingClient.icon.includes('/') || editingClient.icon.startsWith('data:'))"
                                             :src="editingClient.icon" :alt="editingClient.name"
-                                            class="w-full h-full object-contain p-4" />
+                                            class="w-full h-full object-cover rounded-lg p-1" />
                                         <span v-else>{{ editingClient.icon || '?' }}</span>
                                     </div>
                                 </div>
 
-                                <div class="w-full space-y-2">
-                                    <label
-                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">图标设置</label>
-                                    <div class="relative misub-radius-md shadow-sm">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span class="text-gray-500 sm:text-sm">🖼️</span>
+                                <div class="w-full space-y-4 mt-2">
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">本地图标</label>
+                                        <input
+                                            ref="iconFileInput"
+                                            type="file"
+                                            accept="image/svg+xml,image/png,image/jpeg,image/gif,image/webp"
+                                            class="hidden"
+                                            @change="handleIconFileSelect"
+                                        >
+                                        <div class="flex gap-2 justify-center">
+                                            <button @click="triggerIconFileSelect" type="button"
+                                                class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                                :disabled="uploadingIcon">
+                                                <svg v-if="!uploadingIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                </svg>
+                                                <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                <span>{{ uploadingIcon ? '上传中...' : '上传图片' }}</span>
+                                            </button>
+                                            <button v-if="editingClient.icon" @click="clearIcon" type="button"
+                                                class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                <span>清除</span>
+                                            </button>
                                         </div>
-                                        <input v-model="editingClient.icon" type="text" placeholder="输入图片 URL 或 Emoji"
-                                            class="block w-full pl-10 misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2.5">
+                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">支持 SVG/PNG/JPG/GIF/WebP，最大 200KB</p>
+                                        <p v-if="isDataIcon" class="text-xs text-center text-gray-500 dark:text-gray-400">当前使用本地图标</p>
                                     </div>
-                                    <p class="text-xs text-center text-gray-400 dark:text-gray-500">支持 SVG, PNG 或 Emoji
-                                    </p>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">URL / Emoji</label>
+                                        <div class="relative misub-radius-md shadow-sm">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <span class="text-gray-500 sm:text-sm">🔗</span>
+                                            </div>
+                                            <input v-model="iconInputValue" type="text" placeholder="输入图片 URL 或 Emoji"
+                                                class="block w-full pl-10 pr-3 misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5">
+                                        </div>
+                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">输入会替换当前图标来源</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

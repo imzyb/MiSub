@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, defineAsyncComponent, nextTick, computed } from 'vue';
+import { ref, onMounted, onUnmounted, defineAsyncComponent, nextTick, computed } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import QRCode from 'qrcode';
 import { api } from '../lib/http.js';
@@ -36,6 +36,10 @@ const handleGuestbookTrigger = () => {
         return;
     }
     showGuestbookModal.value = true;
+};
+
+const handleGuestbookEvent = () => {
+    handleGuestbookTrigger();
 };
 
 const fetchPublicProfiles = async () => {
@@ -209,6 +213,15 @@ onMounted(async () => {
     fetchPublicProfiles();
     await fetchClients();
     fetchClientVersions();
+    if (typeof window !== 'undefined') {
+        window.addEventListener('open-guestbook', handleGuestbookEvent);
+    }
+});
+
+onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('open-guestbook', handleGuestbookEvent);
+    }
 });
 </script>
 
@@ -249,14 +262,6 @@ onMounted(async () => {
             </div>
         </div>
 
-            <!-- Guestbook Trigger (Fixed) -->
-            <div class="fixed bottom-24 md:bottom-6 right-6 z-50">
-                <button @click="handleGuestbookTrigger"
-                    class="group flex items-center gap-2 px-5 py-3 bg-white dark:bg-gray-800 hover:bg-primary-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full shadow-lg hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:-translate-y-1">
-                    <BaseIcon :path="ICONS.feedback" className="w-5 h-5 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-                    <span class="font-medium">反馈建议</span>
-                </button>
-            </div>
 
         <!-- Content Section -->
         <div class="relative z-20 pb-24">
@@ -293,19 +298,8 @@ onMounted(async () => {
                     </button>
                 </div>
 
-                <!-- Empty State -->
-                <div v-else-if="publicProfiles.length === 0" class="text-center py-32 bg-white/50 dark:bg-gray-800/50 misub-radius-lg border border-gray-100 dark:border-gray-700/50 backdrop-blur-sm">
-                    <div class="inline-flex items-center justify-center w-24 h-24 misub-radius-lg bg-gray-50 dark:bg-gray-700/50 mb-6 transform rotate-3">
-                        <BaseIcon :path="ICONS.empty" className="w-12 h-12 text-gray-400" />
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">暂无公开订阅</h3>
-                    <p class="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                        管理员暂时没有分享任何公开订阅组，请稍后再来看看。
-                    </p>
-                </div>
-
                 <!-- Profile Grid -->
-                <div v-else class="animate-fade-in-up delay-300">
+                <div v-else-if="publicProfiles.length > 0" class="animate-fade-in-up delay-300">
                     <ProfileGrid :profiles="publicProfiles" :is-qr-expanded="isQRExpanded"
                         :profile-token="config.profileToken || 'profiles'" @quick-import="handleQuickImport"
                         @toggle-qr="toggleQRCode" @preview="handlePreview" @copy-link="copyLink" @download-qr="downloadQRCode"
@@ -334,9 +328,9 @@ onMounted(async () => {
                             
                             <div class="flex items-start gap-5">
                                 <div class="h-12 w-12 misub-radius-lg flex items-center justify-center text-3xl shadow-sm bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden">
-                                    <img v-if="client.icon && client.icon.includes('/')" :src="client.icon"
-                                        :alt="client.name" class="w-full h-full object-contain" />
-                                    <span v-else>{{ client.icon }}</span>
+<img v-if="client.icon && (client.icon.includes('/') || client.icon.startsWith('data:'))" :src="client.icon"
+                        :alt="client.name" class="w-full h-full object-cover rounded-lg p-1" />
+                    <span v-else>{{ client.icon }}</span>
                                 </div>
                                 
                                 <div class="flex-1 min-w-0 pt-1">
