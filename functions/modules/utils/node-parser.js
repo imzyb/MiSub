@@ -105,8 +105,8 @@ function convertClashProxyToUrl(proxy) {
                 if (wsOpts.headers?.Host) params.push(`host=${encodeURIComponent(wsOpts.headers.Host)}`);
             }
 
-            if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
-            if (proxy.skipCertVerify) params.push('allowInsecure=1');
+if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
+      if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('allowInsecure=1');
 
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `trojan://${encodeURIComponent(proxy.password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;

@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import BaseIcon from '../ui/BaseIcon.vue';
 import ThemeToggle from '../features/ThemeToggle.vue';
 import LoginEntryButton from './LoginEntryButton.vue';
@@ -33,6 +35,14 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['openSettings', 'toggleLayout', 'logout']);
+const route = useRoute();
+const showPublicFeedback = computed(() => !props.isLoggedIn && route.name === 'Home');
+
+function handlePublicFeedback() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('open-guestbook'));
+  }
+}
 
 function buildBtnClass(type) {
   const base = ['nav-action-btn', props.roundedClass];
@@ -51,6 +61,16 @@ function buildBtnClass(type) {
 
 <template>
   <div class="flex items-center gap-2">
+    <button
+      v-if="showPublicFeedback"
+      @click="handlePublicFeedback"
+      :class="buildBtnClass('neutral')"
+      title="反馈建议"
+      aria-label="反馈建议"
+    >
+      <BaseIcon :path="NAV_ICONS.feedback" className="h-5 w-5" />
+    </button>
+
     <ThemeToggle />
 
     <div v-if="showDivider" class="h-4 w-px bg-gray-200 dark:bg-white/10 mx-1"></div>
