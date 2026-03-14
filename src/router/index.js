@@ -14,8 +14,13 @@ const routes = [
         path: '/',  // Root path is HomeView (Smart Wrapper)
         name: 'Home',
         component: HomeView,
-        alias: '/explore',
         meta: { title: '首页', isPublic: true } // Publicly accessible, view handles content
+    },
+    {
+        path: '/explore',
+        name: 'Explore',
+        component: HomeView,
+        meta: { title: '公开页', isPublic: true }
     },
     {
         path: '/dashboard', // Explicit dashboard route redirects to home or is alias

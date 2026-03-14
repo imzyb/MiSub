@@ -12,6 +12,7 @@ const showEditModal = ref(false);
 const editingClient = ref({});
 const isNew = ref(false);
 const saving = ref(false);
+const ordering = ref(false);
 const iconFileInput = ref(null);
 const uploadingIcon = ref(false);
 const isDataIcon = computed(() => {
@@ -147,6 +148,34 @@ const handleEdit = (client) => {
     showEditModal.value = true;
 };
 
+const saveClientOrder = async () => {
+    ordering.value = true;
+    try {
+        const data = await api.post('/api/clients', clients.value);
+        if (data.success) {
+            clients.value = data.data;
+            showToast('排序已保存', 'success');
+        } else {
+            showToast(data.message || '保存排序失败', 'error');
+        }
+    } catch (e) {
+        showToast('保存排序失败: ' + e.message, 'error');
+    } finally {
+        ordering.value = false;
+    }
+};
+
+const moveClient = async (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= clients.value.length) return;
+    const next = [...clients.value];
+    const temp = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = temp;
+    clients.value = next;
+    await saveClientOrder();
+};
+
 const handleSave = async () => {
     if (!editingClient.value.name) return showToast('请输入名称', 'error');
 
@@ -214,7 +243,7 @@ onMounted(fetchClients);
         <div v-if="loading" class="text-center py-8 text-gray-500">加载中...</div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-for="client in clients" :key="client.id"
+            <div v-for="(client, index) in clients" :key="client.id"
                 class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 misub-radius-lg p-4 pb-10 md:pb-4 hover:shadow-md transition-shadow group">
 
                 <div class="flex items-start gap-3 min-w-0">
@@ -238,6 +267,22 @@ onMounted(fetchClients);
 
                 <!-- Mobile Actions (Bottom Right, Smaller) -->
                 <div class="absolute bottom-3 right-3 flex gap-1">
+                    <button @click.stop="moveClient(index, -1)"
+                        :disabled="ordering || index === 0"
+                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </button>
+                    <button @click.stop="moveClient(index, 1)"
+                        :disabled="ordering || index === clients.length - 1"
+                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                     <button @click.stop="handleEdit(client)"
                         class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"

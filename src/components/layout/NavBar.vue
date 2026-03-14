@@ -1,6 +1,9 @@
 <script setup>
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUIStore } from '../../stores/ui.js';
+import { useSessionStore } from '../../stores/session.js';
+import { storeToRefs } from 'pinia';
 import BaseIcon from '../ui/BaseIcon.vue';
 import BrandLogo from './BrandLogo.vue';
 import NavActionGroup from './NavActionGroup.vue';
@@ -8,6 +11,9 @@ import { MAIN_NAV_ITEMS } from '../../constants/navigation.js';
 
 const route = useRoute();
 const uiStore = useUIStore();
+const sessionStore = useSessionStore();
+const { publicConfig } = storeToRefs(sessionStore);
+const isPublicEnabled = computed(() => publicConfig.value?.enablePublicPage === true);
 
 defineProps({
   isLoggedIn: Boolean
@@ -25,6 +31,7 @@ const navItems = MAIN_NAV_ITEMS;
       
       <NavActionGroup
         :is-logged-in="true"
+        :show-explore="isPublicEnabled"
         :with-focus-ring="true"
         rounded-class="rounded-full"
         @toggle-layout="uiStore.toggleLayout()"
@@ -42,20 +49,20 @@ const navItems = MAIN_NAV_ITEMS;
       </div>
 
       <!-- Navigation Links -->
-      <nav class="flex items-center gap-1">
-        <router-link 
-          v-for="item in navItems" 
-          :key="item.path" 
-          :to="item.path"
-          class="nav-tab group"
-          :class="[
-            route.path === item.path 
-              ? 'nav-tab-active' 
-              : 'nav-tab-inactive'
-          ]"
-        >
-          <!-- Active Background Pill -->
-          <div v-if="route.path === item.path" class="nav-tab-active-pill"></div>
+       <nav class="flex items-center gap-1">
+         <router-link 
+           v-for="item in navItems" 
+           :key="item.path" 
+           :to="item.path"
+           class="nav-tab group"
+           :class="[
+             route.path === item.path
+               ? 'nav-tab-active'
+               : 'nav-tab-inactive'
+           ]"
+         >
+           <!-- Active Background Pill -->
+           <div v-if="route.path === item.path" class="nav-tab-active-pill"></div>
           
           <span class="relative z-10">{{ item.name }}</span>
         </router-link>
@@ -65,6 +72,7 @@ const navItems = MAIN_NAV_ITEMS;
       <div class="flex items-center pl-4 ml-2 gap-2 border-l border-gray-200 dark:border-white/10">
         <NavActionGroup
           :is-logged-in="true"
+          :show-explore="isPublicEnabled"
           :with-focus-ring="true"
           :show-divider="true"
           rounded-class="rounded-full"
@@ -76,7 +84,7 @@ const navItems = MAIN_NAV_ITEMS;
     </header>
 
     <!-- Mobile Bottom Navigation -->
-    <nav v-if="isLoggedIn" class="md:hidden pointer-events-auto mobile-nav-glass fixed bottom-0 inset-x-0 safe-bottom-inset z-[60]">
+     <nav v-if="isLoggedIn" class="md:hidden pointer-events-auto mobile-nav-glass fixed bottom-0 inset-x-0 safe-bottom-inset z-[60]">
         <div class="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
           <router-link 
             v-for="item in navItems" 

@@ -12,6 +12,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showExplore: {
+    type: Boolean,
+    default: false
+  },
   showSettings: {
     type: Boolean,
     default: false
@@ -36,7 +40,16 @@ const props = defineProps({
 
 const emit = defineEmits(['openSettings', 'toggleLayout', 'logout']);
 const route = useRoute();
-const showPublicFeedback = computed(() => !props.isLoggedIn && route.name === 'Home');
+const showPublicFeedback = computed(() => !props.isLoggedIn && (route.name === 'Home' || route.name === 'Explore'));
+const canShowExplore = computed(() => props.showExplore);
+const isExploreActive = computed(() => route.path === '/explore');
+const exploreBtnClass = computed(() => {
+  const classes = buildBtnClass('neutral');
+  if (isExploreActive.value) {
+    classes.push('bg-primary-50', 'text-primary-600', 'dark:bg-primary-900/20', 'dark:text-primary-400', 'ring-1', 'ring-primary-400/40');
+  }
+  return classes;
+});
 
 function handlePublicFeedback() {
   if (typeof window !== 'undefined') {
@@ -61,6 +74,16 @@ function buildBtnClass(type) {
 
 <template>
   <div class="flex items-center gap-2">
+    <router-link
+      v-if="canShowExplore"
+      to="/explore"
+      :class="exploreBtnClass"
+      title="公开页"
+      aria-label="公开页"
+    >
+      <BaseIcon :path="NAV_ICONS.explore" className="h-5 w-5" />
+    </router-link>
+
     <button
       v-if="showPublicFeedback"
       @click="handlePublicFeedback"

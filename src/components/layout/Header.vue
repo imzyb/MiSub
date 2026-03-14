@@ -26,7 +26,7 @@ const shouldHideLoginButton = computed(() => {
   return true;
 });
 
-defineProps({
+const props = defineProps({
   isLoggedIn: Boolean
 });
 
@@ -46,6 +46,7 @@ const emit = defineEmits(['logout']);
 
           <NavActionGroup
             :is-logged-in="isLoggedIn"
+            :show-explore="false"
             :show-settings="true"
             :show-login-button="!shouldHideLoginButton"
             :with-focus-ring="true"
