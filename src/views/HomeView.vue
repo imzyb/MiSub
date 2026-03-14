@@ -2,6 +2,7 @@
 import { defineAsyncComponent, computed } from 'vue';
 import { useSessionStore } from '../stores/session';
 import { storeToRefs } from 'pinia';
+import { useRoute } from 'vue-router';
 
 // Lazy load components
 const DashboardView = defineAsyncComponent(() => import('./DashboardView.vue'));
@@ -10,11 +11,19 @@ const NotFoundView = defineAsyncComponent(() => import('./NotFound.vue')); // [N
 
 const sessionStore = useSessionStore();
 const { sessionState, publicConfig } = storeToRefs(sessionStore);
-import { useRouter } from 'vue-router';
+const route = useRoute();
 
-const router = useRouter();
+const isExploreRoute = computed(() => route.path === '/explore');
 
 const currentView = computed(() => {
+    // Always allow public page on /explore
+    if (isExploreRoute.value) {
+        if (publicConfig.value && !publicConfig.value.enablePublicPage) {
+            return NotFoundView;
+        }
+        return PublicProfilesView;
+    }
+
     // If logged using 'loggedIn' state, show Dashboard
     if (sessionState.value === 'loggedIn') {
         return DashboardView;
