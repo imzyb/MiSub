@@ -174,7 +174,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             lineWidth: -1,
             noRefs: true,
             quotingType: '"',
-            forceQuotes: false
+            forceQuotes: true
         });
 
         // 应用 WireGuard 修复
