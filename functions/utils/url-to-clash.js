@@ -146,12 +146,12 @@ function parseVlessUrl(url) {
             proxy.tls = true;
         }
 
-// SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
-      if (params.get('sni')) {
-        proxy.sni = params.get('sni');
-      } else if (params.get('peer')) {
-        proxy.sni = params.get('peer');
-      }
+        // SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
+        if (params.get('sni')) {
+            proxy.servername = params.get('sni');
+        } else if (params.get('peer')) {
+            proxy.servername = params.get('peer');
+        }
 
         // Fingerprint
         if (params.get('fp')) {
@@ -242,9 +242,9 @@ function parseTrojanUrl(url) {
 
         // SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
         if (params.get('sni')) {
-            proxy.sni = params.get('sni');
+            proxy.servername = params.get('sni');
         } else if (params.get('peer')) {
-            proxy.sni = params.get('peer');
+            proxy.servername = params.get('peer');
         }
 
         // Fingerprint
@@ -481,7 +481,7 @@ function parseHysteria2Url(url) {
 
         // SNI
         if (params.get('sni')) {
-            proxy.sni = params.get('sni');
+            proxy.servername = params.get('sni');
         }
 
         // Skip cert verify
@@ -502,11 +502,11 @@ function parseHysteria2Url(url) {
             proxy['dialer-proxy'] = params.get('dp');
         }
 
-return proxy;
-} catch (e) {
-console.error('解析 Hysteria2 URL 失败:', e);
-return null;
-}
+        return proxy;
+    } catch (e) {
+        console.error('解析 Hysteria2 URL 失败:', e);
+        return null;
+    }
 }
 
 /**
@@ -551,7 +551,7 @@ function parseTuicUrl(url) {
 
         // SNI
         if (params.get('sni')) {
-            proxy.sni = params.get('sni');
+            proxy.servername = params.get('sni');
         }
 
         // ALPN
@@ -563,7 +563,7 @@ function parseTuicUrl(url) {
         if (params.get('allowInsecure') === '1' || params.get('insecure') === '1') {
             proxy['skip-cert-verify'] = true;
         }
-        
+
         // 拥塞控制
         if (params.get('congestion_control')) {
             proxy['congestion-controller'] = params.get('congestion_control');
@@ -589,98 +589,98 @@ function parseTuicUrl(url) {
 * @returns {Object|null} Clash 代理对象
 */
 function parseWireguardUrl(url) {
-try {
-// wireguard://privatekey@server:port?params#name
-const body = url.substring('wireguard://'.length);
+    try {
+        // wireguard://privatekey@server:port?params#name
+        const body = url.substring('wireguard://'.length);
 
-const atIndex = body.indexOf('@');
-if (atIndex === -1) return null;
+        const atIndex = body.indexOf('@');
+        if (atIndex === -1) return null;
 
-let privateKey = body.substring(0, atIndex);
-try {
-privateKey = decodeURIComponent(privateKey);
-} catch { }
+        let privateKey = body.substring(0, atIndex);
+        try {
+            privateKey = decodeURIComponent(privateKey);
+        } catch { }
 
-let serverPart = body.substring(atIndex + 1);
-const queryIndex = serverPart.indexOf('?');
-const hashIndex = serverPart.indexOf('#');
+        let serverPart = body.substring(atIndex + 1);
+        const queryIndex = serverPart.indexOf('?');
+        const hashIndex = serverPart.indexOf('#');
 
-if (queryIndex !== -1) {
-serverPart = serverPart.substring(0, queryIndex);
-} else if (hashIndex !== -1) {
-serverPart = serverPart.substring(0, hashIndex);
-}
+        if (queryIndex !== -1) {
+            serverPart = serverPart.substring(0, queryIndex);
+        } else if (hashIndex !== -1) {
+            serverPart = serverPart.substring(0, hashIndex);
+        }
 
-const { server, port } = parseHostPort(serverPart);
-const params = parseQueryParams(url);
-const name = extractName(url);
+        const { server, port } = parseHostPort(serverPart);
+        const params = parseQueryParams(url);
+        const name = extractName(url);
 
-const proxy = {
-name: name || `WireGuard-${server}`,
-type: 'wireguard',
-server,
-port,
-'private-key': privateKey,
-'remote-dns-resolve': true,
-udp: true
-};
+        const proxy = {
+            name: name || `WireGuard-${server}`,
+            type: 'wireguard',
+            server,
+            port,
+            'private-key': privateKey,
+            'remote-dns-resolve': true,
+            udp: true
+        };
 
-// 公钥
-const publicKey = params.get('publickey') || params.get('public-key');
-if (publicKey) {
-proxy['public-key'] = publicKey;
-}
+        // 公钥
+        const publicKey = params.get('publickey') || params.get('public-key');
+        if (publicKey) {
+            proxy['public-key'] = publicKey;
+        }
 
-// 本地地址
-const address = params.get('address');
-if (address) {
-proxy.ip = address.split(',').map(a => a.trim());
-}
+        // 本地地址
+        const address = params.get('address');
+        if (address) {
+            proxy.ip = address.split(',').map(a => a.trim());
+        }
 
-// Allowed IPs
-const allowedIPs = params.get('allowedips') || params.get('allowed-ips');
-if (allowedIPs) {
-proxy['allowed-ips'] = allowedIPs.split(',').map(a => a.trim());
-}
+        // Allowed IPs
+        const allowedIPs = params.get('allowedips') || params.get('allowed-ips');
+        if (allowedIPs) {
+            proxy['allowed-ips'] = allowedIPs.split(',').map(a => a.trim());
+        }
 
-// Reserved (Cloudflare WARP)
-const reserved = params.get('reserved');
-if (reserved) {
-const reservedArr = reserved.split(',').map(n => parseInt(n.trim()));
-if (reservedArr.every(n => !isNaN(n))) {
-proxy.reserved = reservedArr;
-}
-}
+        // Reserved (Cloudflare WARP)
+        const reserved = params.get('reserved');
+        if (reserved) {
+            const reservedArr = reserved.split(',').map(n => parseInt(n.trim()));
+            if (reservedArr.every(n => !isNaN(n))) {
+                proxy.reserved = reservedArr;
+            }
+        }
 
-// MTU
-const mtu = params.get('mtu');
-if (mtu) {
-proxy.mtu = parseInt(mtu);
-}
+        // MTU
+        const mtu = params.get('mtu');
+        if (mtu) {
+            proxy.mtu = parseInt(mtu);
+        }
 
-// DNS
-const dns = params.get('dns');
-if (dns) {
-proxy.dns = dns.split(',').map(d => d.trim());
-}
+        // DNS
+        const dns = params.get('dns');
+        if (dns) {
+            proxy.dns = dns.split(',').map(d => d.trim());
+        }
 
-// Keepalive
-const keepalive = params.get('keepalive');
-if (keepalive) {
-proxy['persistent-keepalive'] = parseInt(keepalive);
-}
+        // Keepalive
+        const keepalive = params.get('keepalive');
+        if (keepalive) {
+            proxy['persistent-keepalive'] = parseInt(keepalive);
+        }
 
-// Preshared Key
-const presharedKey = params.get('presharedkey') || params.get('preshared-key');
-if (presharedKey) {
-proxy['preshared-key'] = presharedKey;
-}
+        // Preshared Key
+        const presharedKey = params.get('presharedkey') || params.get('preshared-key');
+        if (presharedKey) {
+            proxy['preshared-key'] = presharedKey;
+        }
 
-return proxy;
-} catch (e) {
-console.error('解析 WireGuard URL 失败:', e);
-return null;
-}
+        return proxy;
+    } catch (e) {
+        console.error('解析 WireGuard URL 失败:', e);
+        return null;
+    }
 }
 
 /**
@@ -689,28 +689,28 @@ return null;
 * @returns {Object|null} Clash 代理对象
 */
 export function urlToClashProxy(url) {
-if (!url || typeof url !== 'string') return null;
+    if (!url || typeof url !== 'string') return null;
 
-const lowerUrl = url.toLowerCase();
+    const lowerUrl = url.toLowerCase();
 
-if (lowerUrl.startsWith('vless://')) {
-return parseVlessUrl(url);
-} else if (lowerUrl.startsWith('trojan://')) {
-return parseTrojanUrl(url);
-} else if (lowerUrl.startsWith('vmess://')) {
-return parseVmessUrl(url);
-} else if (lowerUrl.startsWith('ss://')) {
-return parseSsUrl(url);
-} else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
-return parseHysteria2Url(url);
-} else if (lowerUrl.startsWith('tuic://')) {
-return parseTuicUrl(url);
-} else if (lowerUrl.startsWith('wireguard://')) {
-return parseWireguardUrl(url);
-}
+    if (lowerUrl.startsWith('vless://')) {
+        return parseVlessUrl(url);
+    } else if (lowerUrl.startsWith('trojan://')) {
+        return parseTrojanUrl(url);
+    } else if (lowerUrl.startsWith('vmess://')) {
+        return parseVmessUrl(url);
+    } else if (lowerUrl.startsWith('ss://')) {
+        return parseSsUrl(url);
+    } else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
+        return parseHysteria2Url(url);
+    } else if (lowerUrl.startsWith('tuic://')) {
+        return parseTuicUrl(url);
+    } else if (lowerUrl.startsWith('wireguard://')) {
+        return parseWireguardUrl(url);
+    }
 
-// 不支持的协议
-return null;
+    // 不支持的协议
+    return null;
 }
 
 /**
