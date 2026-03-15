@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Transition } from 'vue';
+import { ref, watch, nextTick, onUnmounted } from 'vue';
 
 const props = defineProps({
   show: Boolean,
@@ -9,12 +8,11 @@ const props = defineProps({
     type: String,
     default: 'sm',
   },
-  // --- 新增 props ---
-  confirmDisabled: { // 用於接收外部傳入的禁用狀態
+  confirmDisabled: {
     type: Boolean,
     default: false,
   },
-  confirmButtonTitle: { // 用於在禁用時顯示提示
+  confirmButtonTitle: {
     type: String,
     default: '确认'
   },
@@ -31,29 +29,92 @@ const props = defineProps({
 const emit = defineEmits(['update:show', 'confirm']);
 
 const confirmInput = ref('');
+const modalPanelRef = ref(null);
 
+// 记录打开弹窗前的焦点元素，关闭时还原
+let previouslyFocused = null;
+
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+function getFocusableElements() {
+  return modalPanelRef.value
+    ? Array.from(modalPanelRef.value.querySelectorAll(FOCUSABLE))
+    : [];
+}
+
+// Focus trap：Tab / Shift+Tab 循环限制在弹窗内，Escape 关闭
 const handleKeydown = (e) => {
   if (e.key === 'Escape') {
     emit('update:show', false);
+    return;
+  }
+  if (e.key !== 'Tab') return;
+
+  const focusable = getFocusableElements();
+  if (!focusable.length) { e.preventDefault(); return; }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 };
+
+watch(() => props.show, async (val) => {
+  if (val) {
+    previouslyFocused = document.activeElement;
+    window.addEventListener('keydown', handleKeydown);
+    await nextTick();
+    // 优先聚焦第一个可交互元素，否则聚焦弹窗面板本身
+    const focusable = getFocusableElements();
+    if (focusable.length) {
+      focusable[0].focus();
+    } else {
+      modalPanelRef.value?.focus();
+    }
+  } else {
+    window.removeEventListener('keydown', handleKeydown);
+    // 还原焦点到触发元素
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      previouslyFocused.focus();
+      previouslyFocused = null;
+    }
+  }
+});
+
+onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
 
 const handleConfirm = () => {
   emit('confirm');
   emit('update:show', false);
-}
-
-onMounted(() => window.addEventListener('keydown', handleKeydown));
-onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
+};
 </script>
 
 <template>
   <Transition name="modal-fade">
     <div v-if="show" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-      @click="emit('update:show', false)" role="dialog" aria-modal="true">
+      @click="emit('update:show', false)" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <Transition name="modal-inner">
         <div v-if="show"
-          class="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl misub-radius-lg shadow-2xl w-full text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[85vh] lg:max-h-[90vh] border border-white/20 dark:border-white/5"
+          ref="modalPanelRef"
+          tabindex="-1"
+          class="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl misub-radius-lg shadow-2xl w-full text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[85vh] lg:max-h-[90vh] border border-white/20 dark:border-white/5 focus:outline-none"
           :class="{
             'max-w-sm': size === 'sm',
             'max-w-md': size === 'md',
@@ -67,7 +128,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
           }" @click.stop>
           <div class="p-6 pb-4 shrink-0">
             <slot name="title">
-              <h3 class="text-lg font-bold text-gray-900 dark:text-white">确认操作</h3>
+              <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">确认操作</h3>
             </slot>
           </div>
 
