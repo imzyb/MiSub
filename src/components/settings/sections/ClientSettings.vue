@@ -34,12 +34,12 @@ const iconInputValue = computed({
 });
 
 const platformOptions = [
-    { value: 'windows', label: 'Windows', class: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' },
+    { value: 'windows', label: 'windows', class: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' },
     { value: 'macos', label: 'macOS', class: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
-    { value: 'linux', label: 'Linux', class: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
-    { value: 'android', label: 'Android', class: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
+    { value: 'linux', label: 'linux', class: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
+    { value: 'android', label: 'android', class: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
     { value: 'ios', label: 'iOS', class: 'bg-gray-800 text-white dark:bg-white dark:text-gray-900' },
-    { value: 'HarmonyOS', label: 'HarmonyOS', class: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' }
+    { value: 'HarmonyOS', label: 'harmonyOS', class: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' }
 ];
 
 const handleIconFileSelect = (event) => {
