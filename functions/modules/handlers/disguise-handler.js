@@ -33,6 +33,13 @@ export async function handleDisguiseRequest(context, preloadedSettings = null) {
     // If the user accessed the configured custom login path, ALWAYS allow access.
     // This bypasses the Disguise check.
     const customLoginPath = settings.customLoginPath ? '/' + settings.customLoginPath.replace(/^\//, '') : '/login';
+    const defaultLoginPath = '/login';
+    if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath) {
+        return new Response(null, {
+            status: 302,
+            headers: { Location: customLoginPath }
+        });
+    }
     if (url.pathname === customLoginPath) {
         return null; // Allow access to custom login path
     }

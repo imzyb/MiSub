@@ -18,7 +18,10 @@ import { useToastStore } from '../../../stores/toast';
 const { showToast } = useToastStore();
 
 // 系统保留路径列表，这些路径会与前端路由或后端 API 冲突
-const RESERVED_PATHS = ['settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard', 'api', 'explore'];
+const RESERVED_PATHS = [
+  'settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard',
+  'api', 'explore', 'sub', 'cron', 'assets', '@vite', 'public', 'profile', 'offline'
+];
 
 // 监听自定义登录路径，禁止特殊字符、空格和保留路径
 watch(() => props.settings.customLoginPath, (val) => {

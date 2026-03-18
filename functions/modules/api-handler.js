@@ -246,7 +246,10 @@ export async function handleSettingsSave(request, env) {
 
         // 校验 customLoginPath 是否为系统保留路径
         if (newSettings.customLoginPath) {
-            const reservedPaths = ['settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard', 'api', 'explore'];
+        const reservedPaths = [
+            'settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard',
+            'api', 'explore', 'sub', 'cron', 'assets', '@vite', 'public', 'profile', 'offline'
+        ];
             const pathSegment = newSettings.customLoginPath.replace(/^\/+/, '').split('/')[0].toLowerCase();
             if (reservedPaths.includes(pathSegment)) {
                 return createJsonResponse({

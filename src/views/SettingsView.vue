@@ -58,8 +58,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="pt-0 pb-8 h-[calc(100vh-100px)]">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 mt-2 px-1">设置</h1>
+  <div class="pt-0 pb-6 min-h-[calc(100vh-80px)]">
+    <div class="mb-4 bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg p-4">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">设置</h1>
+    </div>
     
     <SettingsLayout class="h-full">
       <template #sidebar>
@@ -77,7 +79,16 @@ onMounted(() => {
         <p class="text-gray-500">正在加载设置...</p>
       </div>
 
-      <div v-else class="space-y-6">
+      <div v-else class="space-y-6 max-w-6xl w-full mx-auto">
+        <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-white/70 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg shadow-sm">
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">当前模块</p>
+            <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ currentTabLabel }}</p>
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 px-3 py-1.5 misub-radius-pill">
+            修改后记得点击右下角保存
+          </div>
+        </div>
         <BasicSettings v-show="activeTab === 'basic'" :settings="settings" :disguiseConfig="disguiseConfig" />
         <HomeSettings v-show="activeTab === 'home'" :settings="settings" />
         <GlobalSettings v-show="activeTab === 'global'" :settings="settings" />
