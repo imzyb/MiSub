@@ -1,15 +1,29 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import { useSessionStore } from '../../stores/session.js';
+
+const props = defineProps({
   to: {
     type: String,
-    default: '/login'
+    default: ''
   }
+});
+
+const sessionStore = useSessionStore();
+
+const loginPath = computed(() => {
+  if (props.to) {
+    return props.to;
+  }
+  const rawPath = sessionStore.publicConfig?.customLoginPath;
+  const normalizedPath = (rawPath && typeof rawPath === 'string') ? rawPath.trim().replace(/^\/+/, '') : '';
+  return normalizedPath ? `/${normalizedPath}` : '/login';
 });
 </script>
 
 <template>
   <router-link
-    :to="to"
+    :to="loginPath"
     class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 misub-radius-md transition-colors"
   >
     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

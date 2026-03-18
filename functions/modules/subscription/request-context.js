@@ -28,19 +28,18 @@ export function resolveRequestContext(url, config, allProfiles) {
     } else if (pathSegments.length === 2) {
         const [firstSeg, secondSeg] = pathSegments;
 
-        if (firstSeg === config.profileToken) {
-            // /{profileToken}/{profileId} — 订阅组访问
-            // 当 profileToken='sub' 时，/sub/{id} 也会进入此分支（正确行为）
+        if (firstSeg === config.profileToken || firstSeg === config.mytoken) {
+            // /{token}/{profileId} — 订阅组访问
             token = firstSeg;
             profileIdentifier = secondSeg;
-        } else if (firstSeg === config.mytoken) {
-            // /{mytoken}/{profileId} — 管理员指定订阅组
-            token = firstSeg;
-            profileIdentifier = secondSeg;
-        } else {
-            // 第一段不是已知 token，视为路由前缀 'sub'，第二段为实际 token
+        } else if (firstSeg === 'sub' || firstSeg === 's') {
+            // 第一段为常见订阅路由前缀，第二段为实际 token
             // 例如：/sub/{mytoken}
             token = secondSeg;
+        } else {
+            // 兜底：假设为 /{token}/{profileId} 格式，由后续逻辑校验 token 合法性
+            token = firstSeg;
+            profileIdentifier = secondSeg;
         }
     } else if (pathSegments.length === 1) {
         // 单段：/{token}（管理员 mytoken 或 profileToken）

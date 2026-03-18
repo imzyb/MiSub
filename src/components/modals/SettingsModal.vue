@@ -28,9 +28,13 @@ const handleConfirm = () => {
     :show="show" 
     @update:show="emit('update:show', $event)" 
     @confirm="handleConfirm"
-    size="5xl"
+    size="6xl"
   >
-    <template #title><h3 class="text-lg font-bold text-gray-800 dark:text-white">设置</h3></template>
+    <template #title>
+      <div class="bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg px-4 py-2">
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white">设置</h3>
+      </div>
+    </template>
     <template #body>
        <SettingsPanel ref="settingsPanelRef" :export-backup="props.exportBackup" :import-backup="props.importBackup" />
     </template>
