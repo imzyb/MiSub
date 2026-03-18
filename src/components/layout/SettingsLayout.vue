@@ -12,7 +12,7 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col min-w-0 min-h-[500px]">
+    <main class="flex-1 flex flex-col min-w-0 min-h-[520px] relative">
       
       <!-- Scrollable Content -->
       <div class="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -20,7 +20,7 @@
       </div>
 
       <!-- Sticky Footer Area -->
-      <div class="shrink-0 px-6 py-4 bg-white/80 dark:bg-gray-900/70 border-t border-gray-100/70 dark:border-white/10 flex justify-end sticky bottom-0 z-10 backdrop-blur-sm md:rounded-br-2xl md:rounded-bl-none">
+      <div class="shrink-0 px-4 md:px-6 py-3 bg-white/80 dark:bg-gray-900/70 border-t border-gray-100/70 dark:border-white/10 flex justify-end sticky bottom-0 z-10 backdrop-blur-sm md:rounded-br-2xl md:rounded-bl-none">
         <slot name="footer"></slot>
       </div>
 

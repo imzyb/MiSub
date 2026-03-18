@@ -13,6 +13,7 @@ import { isBrowserAgent, determineTargetFormat } from './user-agent-utils.js'; /
 import { authMiddleware } from '../auth-middleware.js';
 import { generateBuiltinClashConfig } from './builtin-clash-generator.js'; // [Added] 内置 Clash 生成器
 import { generateBuiltinSurgeConfig } from './builtin-surge-generator.js'; // [Added] 内置 Surge 生成器
+import { generateBuiltinLoonConfig } from './builtin-loon-generator.js'; // [Added] 内置 Loon 生成器
 
 /**
  * 处理MiSub订阅请求
@@ -519,6 +520,67 @@ export async function handleMisubRequest(context) {
             return new Response(surgeConfig, { headers: responseHeaders });
         } catch (e) {
             console.error('[BuiltinSurge] Generation failed, falling back to subconverter:', e);
+            // 回退到 subconverter
+        }
+    }
+
+    // [新增] 内置 Loon 生成器 - Loon 格式默认使用内置生成器
+    if (targetFormat === 'loon') {
+        try {
+            const publicBaseUrl = getPublicBaseUrl(env, url);
+            const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
+            const managedUrl = `${publicBaseUrl.origin}${callbackPath}?loon`;
+
+            const loonConfig = generateBuiltinLoonConfig(combinedNodeList, {
+                fileName: subName,
+                managedConfigUrl: managedUrl,
+                interval: config.UpdateInterval || 86400,
+                skipCertVerify: shouldSkipCertificateVerify
+            });
+
+            const responseHeaders = new Headers({
+                "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-store, no-cache',
+                'X-MiSub-Mode': 'builtin-loon'
+            });
+
+            Object.entries(cacheHeaders).forEach(([key, value]) => {
+                responseHeaders.set(key, value);
+            });
+
+            if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
+                const clientIp = request.headers.get('CF-Connecting-IP')
+                    || request.headers.get('X-Real-IP')
+                    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+                    || 'N/A';
+                context.waitUntil(
+                    sendEnhancedTgNotification(
+                        config,
+                        '🛰️ *订阅被访问* (内置Loon转换)',
+                        clientIp,
+                        `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                    )
+                );
+
+                if (config.enableAccessLog) {
+                    logAccessSuccess({
+                        context,
+                        env,
+                        request,
+                        userAgentHeader,
+                        targetFormat: 'loon (builtin)',
+                        token,
+                        profileIdentifier,
+                        subName,
+                        domain
+                    });
+                }
+            }
+
+            return new Response(loonConfig, { headers: responseHeaders });
+        } catch (e) {
+            console.error('[BuiltinLoon] Generation failed, falling back to subconverter:', e);
             // 回退到 subconverter
         }
     }

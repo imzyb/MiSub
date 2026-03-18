@@ -137,6 +137,7 @@ export async function onRequest(context) {
                 }
 
                 const customLoginPath = settings.customLoginPath ? '/' + settings.customLoginPath.replace(/^\//, '') : '/login';
+                const defaultLoginPath = '/login';
 
                 // SPA 路由白名单：这些请求应该交由前端路由处理，而不是作为订阅请求
                 // [修复] 增加更多可能的SPA路由，防止被误判为订阅请求
@@ -165,13 +166,20 @@ export async function onRequest(context) {
                 // [Fix] Exclude /explore from auth check
                 // [Fix] Skip auth check on localhost to avoid port 8787/5173 sync issues during dev
                 // [修复] 排除 /offline 路由的认证检查
+                if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath && !isLocalhost) {
+                    return new Response(null, {
+                        status: 302,
+                        headers: { Location: customLoginPath }
+                    });
+                }
+
                 if (isProtectedSpaRoute && !isLocalhost) {
                     const isAuthenticated = await authMiddleware(request, env);
                     if (!isAuthenticated) {
                         // Redirect to login page
                         return new Response(null, {
                             status: 302,
-                            headers: { Location: '/login' }
+                            headers: { Location: customLoginPath }
                         });
                     }
                 }

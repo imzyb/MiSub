@@ -10,7 +10,7 @@ defineEmits(['openLog', 'openBulkImport']);
 </script>
 
 <template>
-  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 glass-panel p-6 misub-radius-lg border border-white/20 dark:border-white/5 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg p-5">
     <div class="flex flex-wrap items-center gap-4">
       <h1 class="text-3xl font-display font-bold text-gray-900 dark:text-white tracking-tight">仪表盘</h1>
       <span v-if="formattedTotalRemainingTraffic !== '0 B'"

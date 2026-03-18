@@ -115,6 +115,19 @@ function parseVlessUrl(url) {
                 proxy['ws-opts'] = wsOpts;
             }
         }
+        
+        // xHTTP 配置 (Loon 3.0+ / Xray 1.8.7+)
+        if (network === 'xhttp') {
+            const xhttpOpts = {};
+            const path = params.get('xhttp-path') || params.get('path');
+            const host = params.get('xhttp-host') || params.get('host');
+            if (path) xhttpOpts.path = path;
+            if (host) xhttpOpts.host = host;
+            if (params.get('mode')) xhttpOpts.mode = params.get('mode');
+            if (Object.keys(xhttpOpts).length > 0) {
+                proxy['xhttp-opts'] = xhttpOpts;
+            }
+        }
 
         // gRPC 配置
         if (network === 'grpc') {
