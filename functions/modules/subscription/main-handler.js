@@ -200,6 +200,7 @@ export async function handleMisubRequest(context) {
     }
 
     const shouldSkipCertificateVerify = Boolean(config.subConverterScv);
+    const shouldSkipCertificateVerifyLoon = config.builtinLoonSkipCertVerify === true;
     const shouldEnableUdp = Boolean(config.subConverterUdp);
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
@@ -311,7 +312,8 @@ export async function handleMisubRequest(context) {
             targetMisubs,
             prependedContentForSubconverter,
             generationSettings,
-            isDebugToken
+            isDebugToken,
+            shouldSkipCertificateVerify
         );
         const sourceNames = targetMisubs
             .filter(s => typeof s?.url === 'string' && s.url.startsWith('http'))
@@ -524,61 +526,69 @@ export async function handleMisubRequest(context) {
         }
     }
 
-    // [新增] 内置 Loon 生成器 - Loon 格式默认使用内置生成器
-    if (targetFormat === 'loon') {
-        try {
-            const publicBaseUrl = getPublicBaseUrl(env, url);
-            const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-            const managedUrl = `${publicBaseUrl.origin}${callbackPath}?loon`;
+    const useBuiltinLoon = url.searchParams.get('builtin') === '1' ||
+        url.searchParams.get('builtin') === 'loon' ||
+        url.searchParams.get('native') === '1';
 
-            const loonConfig = generateBuiltinLoonConfig(combinedNodeList, {
-                fileName: subName,
-                managedConfigUrl: managedUrl,
-                interval: config.UpdateInterval || 86400,
-                skipCertVerify: shouldSkipCertificateVerify
-            });
+    const buildBuiltinLoonResponse = () => {
+        const publicBaseUrl = getPublicBaseUrl(env, url);
+        const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
+        const managedUrl = `${publicBaseUrl.origin}${callbackPath}?loon`;
 
-            const responseHeaders = new Headers({
-                "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
-                'Content-Type': 'text/plain; charset=utf-8',
-                'Cache-Control': 'no-store, no-cache',
-                'X-MiSub-Mode': 'builtin-loon'
-            });
+        const loonConfig = generateBuiltinLoonConfig(combinedNodeList, {
+            fileName: subName,
+            managedConfigUrl: managedUrl,
+            interval: config.UpdateInterval || 86400,
+            skipCertVerify: shouldSkipCertificateVerifyLoon
+        });
 
-            Object.entries(cacheHeaders).forEach(([key, value]) => {
-                responseHeaders.set(key, value);
-            });
+        const responseHeaders = new Headers({
+            "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache',
+            'X-MiSub-Mode': 'builtin-loon'
+        });
 
-            if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-                const clientIp = request.headers.get('CF-Connecting-IP')
-                    || request.headers.get('X-Real-IP')
-                    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-                    || 'N/A';
-                context.waitUntil(
-                    sendEnhancedTgNotification(
-                        config,
-                        '🛰️ *订阅被访问* (内置Loon转换)',
-                        clientIp,
-                        `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
-                    )
-                );
+        Object.entries(cacheHeaders).forEach(([key, value]) => {
+            responseHeaders.set(key, value);
+        });
 
-                if (config.enableAccessLog) {
-                    logAccessSuccess({
-                        context,
-                        env,
-                        request,
-                        userAgentHeader,
-                        targetFormat: 'loon (builtin)',
-                        token,
-                        profileIdentifier,
-                        subName,
-                        domain
-                    });
-                }
+        if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
+            const clientIp = request.headers.get('CF-Connecting-IP')
+                || request.headers.get('X-Real-IP')
+                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+                || 'N/A';
+            context.waitUntil(
+                sendEnhancedTgNotification(
+                    config,
+                    '🛰️ *订阅被访问* (内置Loon转换)',
+                    clientIp,
+                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                )
+            );
+
+            if (config.enableAccessLog) {
+                logAccessSuccess({
+                    context,
+                    env,
+                    request,
+                    userAgentHeader,
+                    targetFormat: 'loon (builtin)',
+                    token,
+                    profileIdentifier,
+                    subName,
+                    domain
+                });
             }
+        }
 
-            return new Response(loonConfig, { headers: responseHeaders });
+        return new Response(loonConfig, { headers: responseHeaders });
+    };
+
+    // [新增] 内置 Loon 生成器 - 仅在显式请求时使用，默认走 subconverter
+    if (useBuiltinLoon && targetFormat === 'loon') {
+        try {
+            return buildBuiltinLoonResponse();
         } catch (e) {
             console.error('[BuiltinLoon] Generation failed, falling back to subconverter:', e);
             // 回退到 subconverter
@@ -637,6 +647,13 @@ export async function handleMisubRequest(context) {
     } catch (e) {
         lastError = e;
         console.error('[MiSub] Subconverter call failed:', e);
+        if (targetFormat === 'loon' && !useBuiltinLoon) {
+            try {
+                return buildBuiltinLoonResponse();
+            } catch (fallbackError) {
+                console.error('[BuiltinLoon] Fallback generation failed:', fallbackError);
+            }
+        }
     }
 
     // 净化错误信息（移除换行符和双引号），防止 header 异常和 YAML 语法错误

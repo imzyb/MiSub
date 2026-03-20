@@ -6,6 +6,19 @@ import { createJsonResponse, createErrorResponse } from '../utils.js';
 const KV_KEY_CLIENTS = 'misub_clients_v1';
 const MAX_ICON_DATA_URL_BYTES = 200 * 1024;
 
+function getKV(env) {
+    if (env?.MISUB_KV) return env.MISUB_KV;
+    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
+    return null;
+}
+
+function isStorageUnavailableError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('kv storage is paused')
+        || message.includes('storage is paused')
+        || message.includes('namespace is paused');
+}
+
 const LEGACY_CLIENT_ICONS = {
     'clash-verge-rev': '⚡️',
     'clash-party': '🎉',
@@ -249,35 +262,58 @@ function generateUUID() {
 export async function handleClientRequest(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
-
-    // Guard against missing KV binding
-    if (!env.MISUB_KV) {
-        return createErrorResponse('KV binding MISUB_KV is missing', 500);
-    }
+    const kv = getKV(env);
 
     try {
         if (request.method === 'GET') {
-            const data = await env.MISUB_KV.get(KV_KEY_CLIENTS, 'json');
-            if (Array.isArray(data) && data.length > 0) {
-                const migration = migrateClientIcons(data);
-                if (migration.updated) {
-                    await env.MISUB_KV.put(KV_KEY_CLIENTS, JSON.stringify(migration.clients));
+            if (!kv) {
+                return createJsonResponse({ success: true, data: DEFAULT_CLIENTS, storageUnavailable: true });
+            }
+            try {
+                const raw = await kv.get(KV_KEY_CLIENTS);
+                const data = raw ? JSON.parse(raw) : null;
+                if (Array.isArray(data) && data.length > 0) {
+                    const migration = migrateClientIcons(data);
+                    if (migration.updated) {
+                        try {
+                            await kv.put(KV_KEY_CLIENTS, JSON.stringify(migration.clients));
+                        } catch (writeError) {
+                            if (!isStorageUnavailableError(writeError)) {
+                                throw writeError;
+                            }
+                        }
+                        return createJsonResponse({
+                            success: true,
+                            data: migration.clients,
+                            storageUnavailable: false
+                        });
+                    }
+                }
+                return createJsonResponse({
+                    success: true,
+                    data: data || DEFAULT_CLIENTS,
+                    storageUnavailable: false
+                });
+            } catch (readError) {
+                if (isStorageUnavailableError(readError)) {
                     return createJsonResponse({
                         success: true,
-                        data: migration.clients
+                        data: DEFAULT_CLIENTS,
+                        storageUnavailable: true,
+                        message: 'KV 存储已暂停，客户端列表已回退为内置默认值。'
                     });
                 }
+                throw readError;
             }
-            return createJsonResponse({
-                success: true,
-                data: data || []
-            });
+        }
+
+        if (!kv) {
+            return createErrorResponse('KV 未绑定，写操作不可用', 503);
         }
 
         if (request.method === 'POST') {
             if (path.endsWith('/init')) {
-                // Initialize default clients
-                await env.MISUB_KV.put(KV_KEY_CLIENTS, JSON.stringify(DEFAULT_CLIENTS));
+                await kv.put(KV_KEY_CLIENTS, JSON.stringify(DEFAULT_CLIENTS));
                 return createJsonResponse({
                     success: true,
                     message: 'Clients initialized',
@@ -292,25 +328,19 @@ export async function handleClientRequest(request, env) {
                 return createErrorResponse('Invalid JSON body', 400);
             }
 
-            // Allow batch update or single add/update
-            let clients = await env.MISUB_KV.get(KV_KEY_CLIENTS, 'json') || [];
+            let clients = await kv.get(KV_KEY_CLIENTS).then(r => r ? JSON.parse(r) : null) || [];
 
             if (Array.isArray(body)) {
-                // Full replacement
                 clients = body;
             } else {
-                // Single add/update
                 if (!body.name) {
                     return createErrorResponse('Client name is required', 400);
                 }
-
-                // Basic icon size guard for data URLs
                 if (typeof body.icon === 'string' && body.icon.startsWith('data:')) {
                     if (body.icon.length > MAX_ICON_DATA_URL_BYTES) {
                         return createErrorResponse('Icon data URL is too large (max 200KB)', 400);
                     }
                 }
-
                 const index = clients.findIndex(c => c.id === body.id);
                 if (index !== -1) {
                     clients[index] = { ...clients[index], ...body };
@@ -320,21 +350,17 @@ export async function handleClientRequest(request, env) {
                 }
             }
 
-            await env.MISUB_KV.put(KV_KEY_CLIENTS, JSON.stringify(clients));
-            return createJsonResponse({
-                success: true,
-                data: clients
-            });
+            await kv.put(KV_KEY_CLIENTS, JSON.stringify(clients));
+            return createJsonResponse({ success: true, data: clients });
         }
 
         if (request.method === 'DELETE') {
-            const url = new URL(request.url);
             const id = url.searchParams.get('id');
             if (!id) {
                 return createErrorResponse('Client ID is required', 400);
             }
 
-            let clients = await env.MISUB_KV.get(KV_KEY_CLIENTS, 'json') || [];
+            let clients = await kv.get(KV_KEY_CLIENTS).then(r => r ? JSON.parse(r) : null) || [];
             const originalLength = clients.length;
             clients = clients.filter(c => c.id !== id);
 
@@ -342,16 +368,16 @@ export async function handleClientRequest(request, env) {
                 return createErrorResponse('Client not found', 404);
             }
 
-            await env.MISUB_KV.put(KV_KEY_CLIENTS, JSON.stringify(clients));
-            return createJsonResponse({
-                success: true,
-                data: clients
-            });
+            await kv.put(KV_KEY_CLIENTS, JSON.stringify(clients));
+            return createJsonResponse({ success: true, data: clients });
         }
 
         return createErrorResponse('Method Not Allowed', 405);
     } catch (e) {
         console.error('[Client Handler Error]', e);
+        if (isStorageUnavailableError(e)) {
+            return createErrorResponse('KV 存储已暂停，客户端配置当前无法保存。若为 EdgeOne 部署，请先恢复 KV；若为 Cloudflare 部署，可改用 D1。', 503);
+        }
         return createErrorResponse(`Operation failed: ${e.message}`, 500);
     }
 }

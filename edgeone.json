@@ -1,0 +1,20 @@
+{
+  "name": "misub",
+  "build": {
+    "command": "npm run build",
+    "output": "dist"
+  },
+  "functions": {
+    "directory": "functions"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "MISUB_KV",
+      "id": ""
+    }
+  ],
+  "env": {
+    "ADMIN_PASSWORD": "",
+    "COOKIE_SECRET": ""
+  }
+}

@@ -6,6 +6,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'happy-dom',
+        passWithNoTests: true,
         include: ['tests/**/*.{test,spec}.{js,ts}'],
         coverage: {
             provider: 'v8',

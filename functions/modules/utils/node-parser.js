@@ -479,12 +479,12 @@ function isValidUUID(uuid) {
 /**
  * 解析节点列表 (用于预览和计数)
  */
-export function parseNodeList(content) {
+export function parseNodeList(content, options = {}) {
     const validNodes = extractValidNodes(content);
 
     return validNodes.map(nodeUrl => {
         // 1. 修复编码 (如 Hysteria2 密码)
-        let fixedUrl = fixNodeUrlEncoding(nodeUrl);
+        let fixedUrl = fixNodeUrlEncoding(nodeUrl, options);
 
         // 2. [新增] 验证和修复 SS 2022 节点 & 过滤传统 SS 算法
         let ss2022Warning = null;

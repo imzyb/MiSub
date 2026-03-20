@@ -276,8 +276,11 @@ async function checkRateLimit(userId, env, config) {
     const minuteKey = `tg_push_rate:${userId}:min`;
     const dayKey = `tg_push_rate:${userId}:day`;
 
-    const minuteCount = parseInt(await env.MISUB_KV.get(minuteKey) || '0');
-    const dayCount = parseInt(await env.MISUB_KV.get(dayKey) || '0');
+    const kv = env?.MISUB_KV || (typeof MISUB_KV !== 'undefined' ? MISUB_KV : null); // eslint-disable-line no-undef
+    if (!kv) return { allowed: true }; // 无 KV 时不限流
+
+    const minuteCount = parseInt(await kv.get(minuteKey) || '0');
+    const dayCount = parseInt(await kv.get(dayKey) || '0');
 
     if (minuteCount >= config.rate_limit.max_per_minute) {
         return { allowed: false, reason: `操作过快，请1分钟后再试（${config.rate_limit.max_per_minute}/分钟）` };
@@ -287,8 +290,8 @@ async function checkRateLimit(userId, env, config) {
         return { allowed: false, reason: `今日配额已用完（${config.rate_limit.max_per_day}/天）` };
     }
 
-    await env.MISUB_KV.put(minuteKey, (minuteCount + 1).toString(), { expirationTtl: 60 });
-    await env.MISUB_KV.put(dayKey, (dayCount + 1).toString(), { expirationTtl: 86400 });
+    await kv.put(minuteKey, (minuteCount + 1).toString(), { expirationTtl: 60 });
+    await kv.put(dayKey, (dayCount + 1).toString(), { expirationTtl: 86400 });
 
     return { allowed: true };
 }
