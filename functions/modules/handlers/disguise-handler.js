@@ -4,6 +4,12 @@ import { KV_KEY_SETTINGS } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
 import { authMiddleware } from '../auth-middleware.js';
 
+function normalizeLoginPath(customLoginPath) {
+    if (typeof customLoginPath !== 'string') return '/login';
+    const normalized = customLoginPath.trim().replace(/^\/+/, '');
+    return normalized ? `/${normalized}` : '/login';
+}
+
 /**
  * Handle Disguise Logic for Root and SPA paths.
  * Returns a Response if disguise should be effective (block access),
@@ -32,7 +38,7 @@ export async function handleDisguiseRequest(context, preloadedSettings = null) {
     // Custom Login Path Logic (Priority: High)
     // If the user accessed the configured custom login path, ALWAYS allow access.
     // This bypasses the Disguise check.
-    const customLoginPath = settings.customLoginPath ? '/' + settings.customLoginPath.replace(/^\//, '') : '/login';
+    const customLoginPath = normalizeLoginPath(settings?.customLoginPath);
     const defaultLoginPath = '/login';
     if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath) {
         return new Response(null, {

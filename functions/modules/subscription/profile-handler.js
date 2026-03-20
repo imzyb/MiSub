@@ -16,7 +16,7 @@ import { applyManualNodeName } from '../utils/node-cleaner.js';
  * @param {boolean} applyTransform - 是否应用节点转换规则（智能重命名、前缀等）
  * @returns {Promise<Object>} 处理结果
  */
-export async function handleProfileMode(request, env, profileId, userAgent, applyTransform = false) {
+export async function handleProfileMode(request, env, profileId, userAgent, applyTransform = false, skipCertVerify = false) {
     const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
 
     // 获取订阅组和所有数据
@@ -85,7 +85,7 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
 
     // 并行获取HTTP订阅节点
     const subscriptionResults = await Promise.all(
-        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, sub.customUserAgent, false, sub.exclude, sub.fetchProxy))
+        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, sub.customUserAgent, false, sub.exclude, sub.fetchProxy, skipCertVerify, Boolean(sub?.plusAsSpace)))
     );
 
     // 合并所有结果

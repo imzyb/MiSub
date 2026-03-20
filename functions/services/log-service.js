@@ -7,6 +7,12 @@ const LOG_KV_KEY = 'misub_system_logs';
 const MAX_LOG_ENTRIES = 500;
 const MAX_LOG_AGE_DAYS = 30;
 const MAX_LOG_AGE_MS = MAX_LOG_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+function getKV(env) {
+    if (env?.MISUB_KV) return env.MISUB_KV;
+    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
+    return null;
+}
 // 全局内存队列，用于削峰填谷和防写竞争
 let logBatch = [];
 let isFlushing = false;
@@ -18,7 +24,7 @@ export const LogService = {
      * @param {Object} logEntry - 日志内容
      */
     async addLog(env, logEntry) {
-        if (!env.MISUB_KV) return;
+        if (!getKV(env)) return;
 
         const enrichedLog = {
             id: crypto.randomUUID(),
@@ -56,7 +62,8 @@ export const LogService = {
 
         try {
             // 获取现有日志
-            let logs = await env.MISUB_KV.get(LOG_KV_KEY, 'json') || [];
+            const kv = getKV(env);
+            let logs = await kv.get(LOG_KV_KEY).then(r => r ? JSON.parse(r) : null) || [];
             if (!Array.isArray(logs)) logs = [];
 
             // 把新收集到的一批日志插入到头部 (倒序输入保证时间线不乱)
@@ -72,7 +79,7 @@ export const LogService = {
             }
 
             // 保存回 KV
-            await env.MISUB_KV.put(LOG_KV_KEY, JSON.stringify(logs));
+            await kv.put(LOG_KV_KEY, JSON.stringify(logs));
         } catch (error) {
             console.error('[LogService] Failed to flush batch logs:', error);
             // 写入失败时尝试把日志塞回队列前部
@@ -93,9 +100,11 @@ export const LogService = {
      * @param {Object} env - Cloudflare Environment
      */
     async getLogs(env) {
-        if (!env.MISUB_KV) return [];
+        const kv = getKV(env);
+        if (!kv) return [];
         try {
-            const logs = await env.MISUB_KV.get(LOG_KV_KEY, 'json');
+            const raw = await kv.get(LOG_KV_KEY);
+            const logs = raw ? JSON.parse(raw) : null;
             return Array.isArray(logs) ? logs : [];
         } catch (error) {
             console.error('[LogService] Failed to get logs:', error);
@@ -108,9 +117,10 @@ export const LogService = {
      * @param {Object} env - Cloudflare Environment
      */
     async clearLogs(env) {
-        if (!env.MISUB_KV) return;
+        const kv = getKV(env);
+        if (!kv) return;
         try {
-            await env.MISUB_KV.delete(LOG_KV_KEY);
+            await kv.delete(LOG_KV_KEY);
             return true;
         } catch (error) {
             console.error('[LogService] Failed to clear logs:', error);

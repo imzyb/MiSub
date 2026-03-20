@@ -4,7 +4,16 @@
  */
 
 import { COOKIE_NAME, SESSION_DURATION } from './config.js';
-import { getCookieSecret, getAdminPassword } from './utils.js';
+import { getCookieSecret, getAdminPassword, getAuthDebugInfo } from './utils.js';
+import { StorageFactory } from '../storage-adapter.js';
+
+function normalizeSecret(value) {
+    return String(value ?? '')
+        .replace(/\uFEFF/g, '')
+        .replace(/[\u200B-\u200D]/g, '')
+        .trim()
+        .replace(/^['"]|['"]$/g, '');
+}
 
 function buildRequestMeta(request, env) {
     return {
@@ -16,7 +25,7 @@ function buildRequestMeta(request, env) {
         origin: request?.headers?.get('Origin'),
         referer: request?.headers?.get('Referer'),
         cfRay: request?.headers?.get('CF-Ray'),
-        hasKv: !!env?.MISUB_KV,
+        hasKv: !!StorageFactory.resolveKV(env),
         hasD1: !!env?.MISUB_DB
     };
 }
@@ -86,6 +95,153 @@ export async function verifySignedToken(key, token) {
 }
 
 /**
+ * 获取认证会话调试信息（不包含敏感值）
+ * @param {Request} request
+ * @param {Object} env
+ * @returns {Promise<Object>}
+ */
+export async function getAuthSessionDiagnostic(request, env) {
+    const result = {
+        isAuthenticated: false,
+        reason: 'unknown',
+        cookieHeaderPresent: false,
+        authSessionCookieCount: 0,
+        token: {
+            exists: false,
+            decodeMode: 'none',
+            length: 0,
+            partCount: 0
+        },
+        verify: {
+            success: false,
+            hasTimestamp: false,
+            isExpired: null
+        }
+    };
+
+    const secret = await getCookieSecret(env);
+    if (!secret) {
+        result.reason = 'no_secret';
+        return result;
+    }
+
+    const cookieHeader = request.headers.get('Cookie') || '';
+    result.cookieHeaderPresent = cookieHeader.length > 0;
+
+    const matchedCookies = cookieHeader
+        .split(';')
+        .map(c => c.trim())
+        .filter(c => c.startsWith(`${COOKIE_NAME}=`));
+
+    result.authSessionCookieCount = matchedCookies.length;
+    if (matchedCookies.length === 0) {
+        result.reason = 'no_cookie';
+        return result;
+    }
+
+    const rawToken = matchedCookies[matchedCookies.length - 1].slice(COOKIE_NAME.length + 1);
+    if (!rawToken) {
+        result.reason = 'empty_token';
+        return result;
+    }
+
+    let token = rawToken;
+    try {
+        token = decodeURIComponent(rawToken);
+        result.token.decodeMode = 'decodeURIComponent';
+    } catch (_) {
+        result.token.decodeMode = 'raw';
+    }
+
+    token = String(token || '').replace(/^"|"$/g, '');
+    result.token.exists = token.length > 0;
+    result.token.length = token.length;
+    result.token.partCount = token ? token.split('.').length : 0;
+
+    if (!token) {
+        result.reason = 'empty_token';
+        return result;
+    }
+
+    const verifiedData = await verifySignedToken(secret, token);
+    if (!verifiedData) {
+        result.reason = 'invalid_signature_or_secret';
+        return result;
+    }
+
+    result.verify.success = true;
+    const ts = parseInt(verifiedData, 10);
+    const hasTimestamp = Number.isFinite(ts);
+    result.verify.hasTimestamp = hasTimestamp;
+
+    if (!hasTimestamp) {
+        result.reason = 'invalid_timestamp';
+        return result;
+    }
+
+    const isExpired = (Date.now() - ts) >= SESSION_DURATION;
+    result.verify.isExpired = isExpired;
+    if (isExpired) {
+        result.reason = 'expired';
+        return result;
+    }
+
+    result.isAuthenticated = true;
+    result.reason = 'ok';
+    return result;
+}
+
+/**
+ * 获取登录密码诊断信息（不返回明文密码）
+ * @param {Request} request
+ * @param {Object} env
+ * @returns {Promise<Object>}
+ */
+export async function getLoginPasswordDiagnostic(request, env) {
+    const debugInfo = await getAuthDebugInfo(env);
+    const result = {
+        success: false,
+        matched: false,
+        reason: 'unknown',
+        runtime: {
+            adminPasswordSource: debugInfo?.adminPassword?.source || 'unknown'
+        },
+        input: {
+            provided: false,
+            normalizedLength: 0
+        },
+        expected: {
+            normalizedLength: 0
+        }
+    };
+
+    let payload;
+    try {
+        payload = await request.json();
+    } catch (_) {
+        result.reason = 'invalid_json';
+        return result;
+    }
+
+    const inputPassword = normalizeSecret(payload?.password);
+    const currentPassword = normalizeSecret(await getAdminPassword(env));
+
+    result.input.provided = typeof payload?.password === 'string';
+    result.input.normalizedLength = inputPassword.length;
+    result.expected.normalizedLength = currentPassword.length;
+
+    if (!result.input.provided) {
+        result.reason = 'missing_password';
+        return result;
+    }
+
+    result.matched = inputPassword === currentPassword;
+    result.success = true;
+    result.reason = result.matched ? 'matched' : 'mismatch';
+    return result;
+}
+
+/**
  * 认证中间件 - 检查用户是否已登录
  * @param {Request} request - HTTP 请求对象
  * @param {Object} env - Cloudflare 环境对象
@@ -94,18 +250,8 @@ export async function verifySignedToken(key, token) {
 export async function authMiddleware(request, env) {
     const logMeta = buildRequestMeta(request, env);
     try {
-        if (!env?.MISUB_KV) {
-            console.error('[Auth] KV 绑定 MISUB_KV 缺失', logMeta);
-            return false;
-        }
-        const secret = await getCookieSecret(env);
-        if (!secret) return false;
-        const cookie = request.headers.get('Cookie');
-        const sessionCookie = cookie?.split(';').find(c => c.trim().startsWith(`${COOKIE_NAME}=`));
-        if (!sessionCookie) return false;
-        const token = sessionCookie.split('=')[1];
-        const verifiedData = await verifySignedToken(secret, token);
-        return verifiedData && (Date.now() - parseInt(verifiedData, 10) < SESSION_DURATION);
+        const diagnostic = await getAuthSessionDiagnostic(request, env);
+        return diagnostic.isAuthenticated;
     } catch (e) {
         console.error('[Auth] 鉴权失败', { ...logMeta, error: e?.message });
         return false;
@@ -132,15 +278,13 @@ export async function handleLogin(request, env) {
         return new Response(JSON.stringify({ error: '请求体解析失败' }), { status: 400 });
     }
 
-    if (!env?.MISUB_KV) {
-        console.error('[API Error /login] KV 绑定 MISUB_KV 缺失', logMeta);
-        return new Response(JSON.stringify({ error: 'KV 绑定 MISUB_KV 缺失' }), { status: 500 });
-    }
-
     try {
         const { password } = payload || {};
-        const currentPassword = await getAdminPassword(env);
-        if (password === currentPassword) {
+        const inputPassword = normalizeSecret(password);
+        const currentPassword = normalizeSecret(await getAdminPassword(env));
+        const isPasswordMatched = inputPassword === currentPassword;
+
+        if (isPasswordMatched) {
             const secret = await getCookieSecret(env);
             const token = await createSignedToken(secret, String(Date.now()));
             const headers = new Headers({ 'Content-Type': 'application/json' });

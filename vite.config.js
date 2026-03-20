@@ -12,13 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // 使用离线回退页面，并显式忽略订阅路径
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [
-          /^\/sub\/.*/,      // /sub/...
-          /^\/cdn-cgi\/.*/,  // Cloudflare Web Analytics
-          /^\/[^/]+\/[^/]+(\?.*)?$/ // Two-segment paths like /test1/work, optionally with query params
-        ],
+        // SPA 刷新统一交给服务端的 `functions/[[path]].js` 处理，避免 Service Worker 持有旧版 `index.html`
+        navigateFallbackDenylist: [/^\/.*$/],
         runtimeCaching: [
           {
             urlPattern: /^\/cdn-cgi\/.*/,
@@ -41,18 +36,7 @@ export default defineConfig({
           },
           {
             urlPattern: /\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'local-api-cache',
-              networkTimeoutSeconds: 8,
-              cacheableResponse: {
-                statuses: [0, 200]
-              },
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 3 * 60 // 3分钟
-              }
-            }
+            handler: 'NetworkOnly'
           },
 
           {
@@ -94,13 +78,7 @@ export default defineConfig({
       manifest,
       devOptions: {
         enabled: true,
-        type: 'module',
-
-        navigateFallbackDenylist: [
-          /^\/sub\/.*/,
-          /^\/cdn-cgi\/.*/,
-          /^\/[^/]+\/[^/]+(\?.*)?$/
-        ],
+        type: 'module'
       }
     }),
     {

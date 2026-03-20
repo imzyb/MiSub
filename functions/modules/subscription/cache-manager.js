@@ -42,7 +42,6 @@ export async function resolveNodeListWithCache({
         // 有缓存：立即返回缓存数据，同时后台刷新确保下次获取最新
         combinedNodeList = cachedData.nodes;
         cacheHeaders = createCacheHeaders(`REFRESHING`, cachedData.nodeCount);
-        cacheHeaders = createCacheHeaders(`REFRESHING`, cachedData.nodeCount);
 
         // 内存防抖：如果最近 10 秒内已触发过刷新，则跳过
         const lastRun = refreshDebounce.get(cacheKey);

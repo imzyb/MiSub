@@ -8,6 +8,7 @@
  */
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
+import { getUniqueName } from './name-utils.js';
 
 /**
  * 清理字符串中的控制字符（保留换行和制表符）
@@ -345,7 +346,7 @@ function appendTlsParams(parts, proxy) {
     if (proxy.sni || proxy.servername) {
         parts.push(`sni=${proxy.sni || proxy.servername}`);
     }
-    if (proxy['skip-cert-verify'] || proxy.skipCertVerify) {
+    if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) {
         parts.push('skip-cert-verify=true');
     }
     if (proxy['server-cert-fingerprint-sha256']) {
@@ -364,7 +365,8 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
         fileName = 'MiSub',
         managedConfigUrl = '',
         interval = 86400,
-        skipCertVerify = false
+        skipCertVerify = false,
+        enableUdp = false
     } = options;
 
     // 清理控制字符后解析节点 URL 列表
@@ -386,6 +388,10 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
             clashProxy['skip-cert-verify'] = true;
         }
 
+        if (enableUdp) {
+            clashProxy.udp = true;
+        }
+
         const result = clashProxyToSurgeResult(clashProxy);
         if (result) {
             results.push(result);
@@ -394,32 +400,28 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
     }
 
     // 处理重名（使用精确的名称匹配替换，避免误伤参数内容）
-    const usedNames = new Set();
+    const usedNames = new Map();
     const finalResults = [];
     const finalProxyNames = [];
 
     for (let i = 0; i < results.length; i++) {
-        let name = proxyNames[i];
-        if (usedNames.has(name)) {
-            let j = 1;
-            while (usedNames.has(`${name}_${j}`)) j++;
-            const newName = `${name}_${j}`;
+        const baseName = proxyNames[i];
+        const uniqueName = getUniqueName(baseName, usedNames);
+        if (uniqueName !== baseName) {
             // 仅替换行首的名称部分（"name = " 前缀）
             const updatedResult = { ...results[i] };
-            updatedResult.proxyLine = results[i].proxyLine.replace(`${name} = `, `${newName} = `);
+            updatedResult.proxyLine = results[i].proxyLine.replace(`${baseName} = `, `${uniqueName} = `);
             // WireGuard section 中也需要更新名称
             if (updatedResult.wireguardSection) {
                 updatedResult.wireguardSection = results[i].wireguardSection
-                    .replace(new RegExp(`WG_${escapeRegExp(name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_'))}`, 'g'),
-                        `WG_${newName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_')}`);
+                    .replace(new RegExp(`WG_${escapeRegExp(baseName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_'))}`, 'g'),
+                        `WG_${uniqueName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_')}`);
             }
             finalResults.push(updatedResult);
-            finalProxyNames.push(newName);
-            usedNames.add(newName);
+            finalProxyNames.push(uniqueName);
         } else {
             finalResults.push(results[i]);
-            finalProxyNames.push(name);
-            usedNames.add(name);
+            finalProxyNames.push(baseName);
         }
     }
 

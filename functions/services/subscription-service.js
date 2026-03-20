@@ -135,7 +135,7 @@ function createConcurrencyLimiter(limit) {
  * @param {boolean} debug - 是否启用调试日志
  * @returns {Promise<string>} - 组合后的节点列表
  */
-export async function generateCombinedNodeList(context, config, userAgent, misubs, prependedContent = '', profilePrefixSettings = null, debug = false) {
+export async function generateCombinedNodeList(context, config, userAgent, misubs, prependedContent = '', profilePrefixSettings = null, debug = false, skipCertVerify = false) {
 // 判断是否启用手动节点前缀
 const shouldPrependManualNodes = profilePrefixSettings?.enableManualNodes ?? true;
 
@@ -173,7 +173,7 @@ return rawUrl; // Directly use the URL for expired node
 }
 
 // 修复手动SS节点中的URL编码问题（以及 Hysteria2 等其他协议）
-let processedUrl = fixNodeUrlEncoding(rawUrl);
+            let processedUrl = fixNodeUrlEncoding(rawUrl, { plusAsSpace: Boolean(node?.plusAsSpace) });
 if (typeof processedUrl !== 'string' || !processedUrl) {
 processedUrl = rawUrl;
 }
@@ -231,11 +231,13 @@ return '';
             const response = await fetchWithRetry(requestUrl, {
                 headers: requestHeaders,
                 redirect: "follow",
-                cf: {
-                    insecureSkipVerify: true,
-                    allowUntrusted: true,
-                    validateCertificate: false
-                }
+                ...(skipCertVerify ? {
+                    cf: {
+                        insecureSkipVerify: true,
+                        allowUntrusted: true,
+                        validateCertificate: false
+                    }
+                } : {})
             });
 
             if (!response.ok) {

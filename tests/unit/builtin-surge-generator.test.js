@@ -49,6 +49,12 @@ describe('Surge 内置生成器', () => {
             const result = generateBuiltinSurgeConfig(ss);
             expect(result).toContain('udp-relay=true');
         });
+
+        it('应在启用 UDP 开关时强制开启', () => {
+            const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
+            const result = generateBuiltinSurgeConfig(ss, { enableUdp: true });
+            expect(result).toContain('udp-relay=true');
+        });
     });
 
     describe('VMess', () => {

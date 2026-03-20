@@ -130,7 +130,7 @@ export async function handleSystemInfoRequest(request, env) {
                     dual: StorageFactory.hasDualStorage(env)
                 },
                 bindings: {
-                    hasKv: !!env.MISUB_KV,
+                    hasKv: !!StorageFactory.resolveKV(env),
                     hasD1: !!env.MISUB_DB,
                     hasAdminPassword: !!env.ADMIN_PASSWORD,
                     hasCookieSecret: !!env.COOKIE_SECRET,
@@ -196,7 +196,7 @@ export async function handleStorageTestRequest(request, env) {
 
         // 测试删除
         const deleteStart = Date.now();
-        await storageAdapter.delete ? storageAdapter.delete(testKey) : env.MISUB_KV.delete(testKey);
+        await storageAdapter.delete(testKey);
         const deleteTime = Date.now() - deleteStart;
 
         const isSuccessful = JSON.stringify(readValue) === JSON.stringify(testValue);

@@ -3,6 +3,12 @@
  * @author MiSub Team
  */
 
+function getKV(env) {
+    if (env?.MISUB_KV) return env.MISUB_KV;
+    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
+    return null;
+}
+
 /**
  * 计算数据的简单哈希值，用于检测变更
  * @param {any} data - 要计算哈希的数据
@@ -40,20 +46,21 @@ export function hasDataChanged(oldData, newData) {
  * @returns {Promise<boolean>} - 是否执行了写入操作
  */
 export async function conditionalKVPut(env, key, newData, oldData = null) {
+    const kv = getKV(env);
     // 如果没有提供旧数据，先从KV读取
     if (oldData === null) {
         try {
-            oldData = await env.MISUB_KV.get(key, 'json');
+            oldData = await kv.get(key).then(r => r ? JSON.parse(r) : null);
         } catch (error) {
             // 读取失败时，为安全起见执行写入
-            await env.MISUB_KV.put(key, JSON.stringify(newData));
+            await kv.put(key, JSON.stringify(newData));
             return true;
         }
     }
 
     // 检测数据是否变更
     if (hasDataChanged(oldData, newData)) {
-        await env.MISUB_KV.put(key, JSON.stringify(newData));
+        await kv.put(key, JSON.stringify(newData));
         return true;
     } else {
         return false;
