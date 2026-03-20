@@ -22,7 +22,7 @@ export async function handleNodeCountRequest(request, env) {
     }
 
     try {
-        const { url: subUrl, fetchProxy } = await request.json();
+        const { url: subUrl, fetchProxy, plusAsSpace } = await request.json();
         if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
             return createErrorResponse('Invalid or missing url', 400);
         }
@@ -177,7 +177,7 @@ export async function handleNodeCountRequest(request, env) {
                     }
 
                     // 使用 parseNodeList 函数，与预览功能完全一致
-                    const parsedNodes = parseNodeList(text);
+                    const parsedNodes = parseNodeList(text, { plusAsSpace: Boolean(plusAsSpace) });
 
                     // [回退2] 如果响应头中也没有流量信息，尝试从 body 伪节点中解析
                     // 这在使用 FetchProxy（如 Vercel）时非常重要，因为代理会丢弃上游响应头

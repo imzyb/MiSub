@@ -49,7 +49,8 @@ export async function handlePublicPreviewRequest(request, env) {
         }
 
         // 调用 handleProfileMode 获取节点（公开页默认显示处理后的结果）
-        const result = await handleProfileMode(request, env, profile.id, userAgent, true);
+        const shouldSkipCertificateVerify = Boolean(profile?.subConverterScv || profile?.skipCertVerify || profile?.skipCertificateVerify || profile?.settings?.subConverterScv);
+        const result = await handleProfileMode(request, env, profile.id, userAgent, true, shouldSkipCertificateVerify);
 
         return createJsonResponse(result);
 
@@ -76,7 +77,9 @@ export async function handleSubscriptionNodesRequest(request, env) {
             subscriptionId,
             profileId,
             userAgent = 'MiSub-Node-Preview/1.0',
-            applyTransform = false  // 管理后台默认不应用转换，由前端控制
+            applyTransform = false,  // 管理后台默认不应用转换，由前端控制
+            skipCertVerify = false,
+            plusAsSpace = false
         } = requestData;
 
         // 验证必需参数
@@ -94,13 +97,13 @@ export async function handleSubscriptionNodesRequest(request, env) {
             case 'profile':
                 // [Modified] Default applyTransform to true for profile preview if not specified
                 // This ensures preview matches the final output ("What You See Is What You Get")
-                result = await handleProfileMode(request, env, profileId, userAgent, requestData.applyTransform !== undefined ? requestData.applyTransform : true);
+                result = await handleProfileMode(request, env, profileId, userAgent, requestData.applyTransform !== undefined ? requestData.applyTransform : true, skipCertVerify);
                 break;
             case 'subscription':
-                result = await handleSingleSubscriptionMode(request, env, subscriptionId, userAgent);
+                result = await handleSingleSubscriptionMode(request, env, subscriptionId, userAgent, skipCertVerify);
                 break;
             case 'direct':
-                result = await handleDirectUrlMode(subscriptionUrl, userAgent);
+                result = await handleDirectUrlMode(subscriptionUrl, userAgent, skipCertVerify, plusAsSpace);
                 break;
             default:
                 return createJsonResponse({

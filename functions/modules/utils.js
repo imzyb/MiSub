@@ -32,6 +32,79 @@ export function hasDataChanged(oldData, newData) {
 }
 
 /**
+ * 获取 KV namespace
+ * EdgeOne Pages: KV 作为全局变量注入（如 MISUB_KV），而非通过 env
+ * Cloudflare Pages: KV 通过 env.MISUB_KV 注入
+ * @param {Object} env
+ * @returns {Object|null}
+ */
+function getKV(env) {
+    // Cloudflare 方式
+    if (env?.MISUB_KV) return env.MISUB_KV;
+    // EdgeOne 方式：全局变量
+    try {
+        if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; // eslint-disable-line no-undef
+    } catch (_) {}
+    return null;
+}
+
+/**
+ * 读取运行时环境变量（兼容 Cloudflare/EdgeOne）
+ * @param {Object} env
+ * @param {string} key
+ * @returns {string|undefined}
+ */
+function getRuntimeEnvValue(env, key) {
+    const envValue = env?.[key];
+    if (envValue !== undefined && envValue !== null && String(envValue).trim() !== '') {
+        return String(envValue);
+    }
+
+    try {
+        const globalValue = globalThis?.[key];
+        if (globalValue !== undefined && globalValue !== null && String(globalValue).trim() !== '') {
+            return String(globalValue);
+        }
+    } catch (_) {}
+
+    return undefined;
+}
+
+function isStorageUnavailableError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('kv storage is paused')
+        || message.includes('storage is paused')
+        || message.includes('namespace is paused');
+}
+
+async function safeKvGet(kv, key) {
+    if (!kv) return null;
+    try {
+        return await kv.get(key);
+    } catch (error) {
+        if (isStorageUnavailableError(error)) {
+            console.warn(`[Auth Storage] KV get skipped for ${key}: ${error.message}`);
+            return null;
+        }
+        throw error;
+    }
+}
+
+async function safeKvPut(kv, key, value) {
+    if (!kv) return false;
+    try {
+        await kv.put(key, value);
+        return true;
+    } catch (error) {
+        if (isStorageUnavailableError(error)) {
+            console.warn(`[Auth Storage] KV put skipped for ${key}: ${error.message}`);
+            return false;
+        }
+        throw error;
+    }
+}
+
+/**
  * 条件性写入KV存储，只在数据真正变更时写入
  * @param {Object} env - Cloudflare环境对象
  * @param {string} key - KV键名
@@ -40,20 +113,21 @@ export function hasDataChanged(oldData, newData) {
  * @returns {Promise<boolean>} - 是否执行了写入操作
  */
 export async function conditionalKVPut(env, key, newData, oldData = null) {
+    const kv = getKV(env);
     // 如果没有提供旧数据，先从KV读取
     if (oldData === null) {
         try {
-            oldData = await env.MISUB_KV.get(key, 'json');
+            oldData = await kv.get(key).then(r => r ? JSON.parse(r) : null);
         } catch (error) {
             // 读取失败时，为安全起见执行写入
-            await env.MISUB_KV.put(key, JSON.stringify(newData));
+            await kv.put(key, JSON.stringify(newData));
             return true;
         }
     }
 
     // 检测数据是否变更
     if (hasDataChanged(oldData, newData)) {
-        await env.MISUB_KV.put(key, JSON.stringify(newData));
+        await kv.put(key, JSON.stringify(newData));
         return true;
     } else {
         return false;
@@ -62,54 +136,110 @@ export async function conditionalKVPut(env, key, newData, oldData = null) {
 
 /**
  * 获取或生成 Cookie 加密密钥
- * 优先从 KV 读取，不存在则生成新的并保存
- * @param {Object} env - Cloudflare环境对象
+ * 优先顺序：KV → 环境变量 COOKIE_SECRET → 随机生成（无 KV 时仅内存有效）
+ * @param {Object} env - 运行时环境对象（Cloudflare / EdgeOne）
  * @returns {Promise<string>} 密钥
  */
 export async function getCookieSecret(env) {
-    if (!env?.MISUB_KV) {
-        throw new Error('KV 绑定 MISUB_KV 缺失');
-    }
-    // 1. 尝试从 KV 读取
-    const kvSecret = await env.MISUB_KV.get('SYSTEM_COOKIE_SECRET');
-    if (kvSecret) {
-        return kvSecret;
+    const kv = getKV(env);
+    const runtimeCookieSecret = getRuntimeEnvValue(env, 'COOKIE_SECRET');
+
+    if (kv) {
+        // 1. 尝试从 KV 读取
+        const kvSecret = await safeKvGet(kv, 'SYSTEM_COOKIE_SECRET');
+        if (kvSecret) return kvSecret;
+
+        // 2. 有环境变量则优先回退到环境变量，并尽力写回 KV
+        if (runtimeCookieSecret) {
+            await safeKvPut(kv, 'SYSTEM_COOKIE_SECRET', runtimeCookieSecret);
+            return runtimeCookieSecret;
+        }
+
+        // 3. 生成新密钥并尽力持久化到 KV；若 KV 暂不可用则退化为本次运行临时密钥
+        const newSecret = crypto.randomUUID();
+        await safeKvPut(kv, 'SYSTEM_COOKIE_SECRET', newSecret);
+        return newSecret;
     }
 
-    // 2. 兼容旧版：尝试读取环境变量
-    if (env.COOKIE_SECRET) {
-        // 将环境变量迁移到 KV 以便后续统一管理
-        await env.MISUB_KV.put('SYSTEM_COOKIE_SECRET', env.COOKIE_SECRET);
-        return env.COOKIE_SECRET;
-    }
-
-    // 3. 生成新密钥并保存
-    const newSecret = crypto.randomUUID();
-    await env.MISUB_KV.put('SYSTEM_COOKIE_SECRET', newSecret);
-    return newSecret;
+    // 无 KV：直接使用环境变量，无则生成临时密钥（重启后失效）
+    if (runtimeCookieSecret) return runtimeCookieSecret;
+    return crypto.randomUUID();
 }
 
 /**
  * 获取管理员密码
- * 优先从 KV 读取，不存在则使用环境变量
- * @param {Object} env - Cloudflare环境对象
+ * 优先顺序：环境变量 ADMIN_PASSWORD → KV → 默认值 'admin'
+ * @param {Object} env - 运行时环境对象（Cloudflare / EdgeOne）
  * @returns {Promise<string>} 密码
  */
 export async function getAdminPassword(env) {
-    if (!env?.MISUB_KV) {
-        throw new Error('KV 绑定 MISUB_KV 缺失');
+    const runtimeAdminPassword = getRuntimeEnvValue(env, 'ADMIN_PASSWORD');
+    if (runtimeAdminPassword) {
+        return runtimeAdminPassword.trim();
     }
-    const kvPassword = await env.MISUB_KV.get('SYSTEM_ADMIN_PASSWORD');
-    if (kvPassword) {
-        return kvPassword;
+
+    const kv = getKV(env);
+    if (kv) {
+        const kvPassword = await safeKvGet(kv, 'SYSTEM_ADMIN_PASSWORD');
+        if (kvPassword) return String(kvPassword).trim();
     }
-    // Return env password if exists, otherwise default to 'admin'
-    return env.ADMIN_PASSWORD || 'admin';
+
+    return 'admin';
+}
+
+/**
+ * 获取认证相关调试信息（不返回任何敏感值）
+ * @param {Object} env
+ * @returns {Promise<Object>}
+ */
+export async function getAuthDebugInfo(env) {
+    const runtimeAdminPassword = getRuntimeEnvValue(env, 'ADMIN_PASSWORD');
+    const runtimeCookieSecret = getRuntimeEnvValue(env, 'COOKIE_SECRET');
+    const kv = getKV(env);
+
+    let hasKvAdminPassword = false;
+    let hasKvCookieSecret = false;
+
+    if (kv) {
+        hasKvAdminPassword = !!(await safeKvGet(kv, 'SYSTEM_ADMIN_PASSWORD'));
+        hasKvCookieSecret = !!(await safeKvGet(kv, 'SYSTEM_COOKIE_SECRET'));
+    }
+
+    let adminPasswordSource = 'default';
+    if (runtimeAdminPassword) {
+        adminPasswordSource = 'env';
+    } else if (hasKvAdminPassword) {
+        adminPasswordSource = 'kv';
+    }
+
+    let cookieSecretSource = 'generated';
+    if (runtimeCookieSecret) {
+        cookieSecretSource = 'env';
+    } else if (hasKvCookieSecret) {
+        cookieSecretSource = 'kv';
+    }
+
+    return {
+        hasKv: !!kv,
+        hasD1: !!env?.MISUB_DB,
+        adminPassword: {
+            source: adminPasswordSource,
+            hasRuntime: !!runtimeAdminPassword,
+            hasKvValue: hasKvAdminPassword,
+            isDefaultFallback: adminPasswordSource === 'default'
+        },
+        cookieSecret: {
+            source: cookieSecretSource,
+            hasRuntime: !!runtimeCookieSecret,
+            hasKvValue: hasKvCookieSecret,
+            mayRegenerateWithoutKv: !kv && !runtimeCookieSecret
+        }
+    };
 }
 
 /**
  * 检查是否正在使用默认密码
- * @param {Object} env 
+ * @param {Object} env
  * @returns {Promise<boolean>}
  */
 export async function isUsingDefaultPassword(env) {
@@ -119,14 +249,16 @@ export async function isUsingDefaultPassword(env) {
 
 /**
  * 设置管理员密码
- * @param {Object} env - Cloudflare环境对象
+ * 有 KV 时持久化到 KV；无 KV 时（EdgeOne 纯环境变量模式）抛出提示
+ * @param {Object} env - 运行时环境对象
  * @param {string} newPassword - 新密码
  */
 export async function setAdminPassword(env, newPassword) {
-    if (!env?.MISUB_KV) {
-        throw new Error('KV 绑定 MISUB_KV 缺失');
+    const kv = getKV(env);
+    if (!kv) {
+        throw new Error('当前部署未绑定 KV，请在平台控制台通过环境变量 ADMIN_PASSWORD 修改密码');
     }
-    await env.MISUB_KV.put('SYSTEM_ADMIN_PASSWORD', newPassword);
+    await kv.put('SYSTEM_ADMIN_PASSWORD', newPassword);
 }
 
 export { formatBytes } from '../../src/shared/utils.js';
@@ -396,6 +528,9 @@ export function migrateConfigSettings(config) {
     }
     if (migratedConfig.hasOwnProperty('subConverterUdp')) {
         migratedConfig.subConverterUdp = toBoolean(migratedConfig.subConverterUdp);
+    }
+    if (migratedConfig.hasOwnProperty('builtinLoonSkipCertVerify')) {
+        migratedConfig.builtinLoonSkipCertVerify = toBoolean(migratedConfig.builtinLoonSkipCertVerify);
     }
 
     return migratedConfig;

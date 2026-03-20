@@ -51,6 +51,10 @@ function applyNoStoreToHtmlResponse(response) {
         return response;
     }
     const headers = new Headers(response.headers);
+    headers.delete('Content-Encoding');
+    headers.delete('content-encoding');
+    headers.delete('Content-Length');
+    headers.delete('content-length');
     headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
@@ -59,6 +63,77 @@ function applyNoStoreToHtmlResponse(response) {
         statusText: response.statusText,
         headers
     });
+}
+
+const INTERNAL_SPA_FETCH_HEADER = 'x-misub-internal-spa-fetch';
+const INTERNAL_ORIGIN_ASSET_FETCH_HEADER = 'x-misub-origin-asset-fetch';
+
+function normalizeLoginPath(customLoginPath) {
+    if (typeof customLoginPath !== 'string') return '/login';
+    const normalized = customLoginPath.trim().replace(/^\/+/g, '');
+    return normalized ? `/${normalized}` : '/login';
+}
+
+async function fetchHostedAssetViaOrigin(request, assetPath) {
+    const assetUrl = new URL(assetPath, request.url);
+    const headers = new Headers(request.headers);
+    headers.delete(INTERNAL_SPA_FETCH_HEADER);
+    headers.set(INTERNAL_ORIGIN_ASSET_FETCH_HEADER, '1');
+
+    return fetch(new Request(assetUrl.toString(), {
+        method: ['GET', 'HEAD'].includes(request.method) ? request.method : 'GET',
+        headers
+    }));
+}
+
+async function fetchStaticAsset(request, env, next) {
+    if (typeof next === 'function') {
+        return next();
+    }
+
+    if (typeof env?.ASSETS?.fetch === 'function') {
+        return env.ASSETS.fetch(request);
+    }
+
+    if (request.headers.get(INTERNAL_ORIGIN_ASSET_FETCH_HEADER) === '1') {
+        return new Response('Not Found', { status: 404 });
+    }
+
+    const url = new URL(request.url);
+
+    if (url.pathname === '/') {
+        return fetchHostedAssetViaOrigin(request, '/index.html');
+    }
+
+    if (url.pathname === '/index.html' || /\.\w+$/.test(url.pathname)) {
+        return fetchHostedAssetViaOrigin(request, `${url.pathname}${url.search}`);
+    }
+
+    return new Response('Not Found', { status: 404 });
+}
+
+async function fetchSpaEntry(request, env, next) {
+    const indexUrl = new URL('/', request.url);
+
+    if (typeof env?.ASSETS?.fetch === 'function') {
+        return env.ASSETS.fetch(new Request(indexUrl, request));
+    }
+
+    if (typeof next === 'function') {
+        const headers = new Headers(request.headers);
+        headers.set(INTERNAL_SPA_FETCH_HEADER, '1');
+
+        if (new URL(request.url).pathname === '/') {
+            return applyNoStoreToHtmlResponse(await next());
+        }
+
+        return fetch(new Request(indexUrl.toString(), {
+            method: 'GET',
+            headers
+        }));
+    }
+
+    return fetchHostedAssetViaOrigin(request, '/index.html');
 }
 
 /**
@@ -72,6 +147,10 @@ export async function onRequest(context) {
 
     try {
         const handleRequest = async () => {
+            if (request.headers.get(INTERNAL_SPA_FETCH_HEADER) === '1') {
+                return applyNoStoreToHtmlResponse(await fetchStaticAsset(request, env, next));
+            }
+
             // 路由分发
             if (url.pathname.startsWith('/api/')) {
                 // API 路由
@@ -110,15 +189,14 @@ export async function onRequest(context) {
 
                 // 本地 wrangler pages dev 调试兜底：优先返回静态资源，避免函数逻辑影响 SPA 首屏
                 if (isLocalhost) {
-                    let localResponse = await next();
+                    let localResponse = await fetchStaticAsset(request, env, next);
                     const isLikelySpaPath = !/\.\w+$/.test(url.pathname)
                         && !url.pathname.startsWith('/api/')
                         && !url.pathname.startsWith('/sub/')
                         && url.pathname !== '/cron';
 
                     if (localResponse.status === 404 && isLikelySpaPath) {
-                        const indexUrl = new URL('/', request.url);
-                        const indexResponse = await env.ASSETS.fetch(new Request(indexUrl, request));
+                        const indexResponse = await fetchSpaEntry(request, env, next);
                         if (indexResponse.status === 200) {
                             localResponse = indexResponse;
                         }
@@ -136,7 +214,7 @@ export async function onRequest(context) {
                     settings = await SettingsCache.get(env) || {};
                 }
 
-                const customLoginPath = settings.customLoginPath ? '/' + settings.customLoginPath.replace(/^\//, '') : '/login';
+                const customLoginPath = normalizeLoginPath(settings?.customLoginPath);
                 const defaultLoginPath = '/login';
 
                 // SPA 路由白名单：这些请求应该交由前端路由处理，而不是作为订阅请求
@@ -214,7 +292,7 @@ export async function onRequest(context) {
                 }
 
                 // Continue to static assets or root
-                let response = await next();
+                let response = await fetchStaticAsset(request, env, next);
 
                 // [Fix] SPA Fallback: If asset not found (404) and it's an SPA route OR it's an HTML request, serve index.html
                 const acceptHeader = request.headers.get('Accept') || '';
@@ -224,16 +302,11 @@ export async function onRequest(context) {
                 const isHtmlRequest = isNavigationRequest && acceptHeader.includes('text/html');
 
                 if (response.status === 404 && (isSpaRoute || isHtmlRequest)) {
-                    // Clone the request to fetch index.html
-                    const indexUrl = new URL('/', request.url);
-                    const indexResponse = await env.ASSETS.fetch(new Request(indexUrl, request));
+                    const indexResponse = await fetchSpaEntry(request, env, next);
 
-                    // If index.html exists (e.g. in production or after build), return it
                     if (indexResponse.status === 200) {
                         response = indexResponse;
-                    } else {
-                        // If index.html is missing (likely local dev serving 'public' dir), redirect to Vite dev server
-                        // This assumes standard Vite port 5173.
+                    } else if (isLocalhost) {
                         return new Response(`Redirecting to frontend dev server...`, {
                             status: 302,
                             headers: {
@@ -242,7 +315,6 @@ export async function onRequest(context) {
                             }
                         });
                     }
-
                 }
 
                 return applyNoStoreToHtmlResponse(response);
@@ -253,7 +325,7 @@ export async function onRequest(context) {
             origins: parseCorsOrigins(env, url),
             allowCredentials: true
         };
-        return corsMiddleware(request, () => securityHeadersMiddleware(request, handleRequest), corsOptions);
+        return await corsMiddleware(request, () => securityHeadersMiddleware(request, handleRequest), corsOptions);
     } catch (error) {
         // 全局错误处理
         console.error('[Main Handler Error]', error);

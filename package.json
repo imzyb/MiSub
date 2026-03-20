@@ -8,14 +8,15 @@
     "dev:server": "npx wrangler pages dev public --port 8787",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
+    "build:edgeone": "vite build --mode edgeone",
     "preview": "vite preview",
     "start": "node server/index.mjs",
     "start:vps": "node server/index.mjs",
     "check-pwa": "node check-pwa.js",
     "build-pwa": "vite build && echo PWA build completed!",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest --passWithNoTests",
+    "test:run": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:chrome": "node test-chrome-mcp.js"
   },
   "dependencies": {

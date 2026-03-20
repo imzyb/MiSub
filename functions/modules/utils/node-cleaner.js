@@ -8,7 +8,7 @@
  * @param {string} nodeUrl 
  * @returns {string}
  */
-export function fixNodeUrlEncoding(nodeUrl) {
+export function fixNodeUrlEncoding(nodeUrl, options = {}) {
     if (!nodeUrl) return '';
 
     // 辅助函数：安全解码
@@ -17,6 +17,24 @@ export function fixNodeUrlEncoding(nodeUrl) {
             return decodeURIComponent(value);
         } catch (e) {
             return value;
+        }
+    };
+
+    const { plusAsSpace = false } = options;
+    const normalizeFragment = (url) => {
+        const hashIndex = url.lastIndexOf('#');
+        if (hashIndex === -1) return url;
+
+        const base = url.substring(0, hashIndex + 1);
+        const rawFragment = url.substring(hashIndex + 1);
+        if (!rawFragment) return url;
+
+        const fragmentToDecode = plusAsSpace ? rawFragment.replace(/\+/g, ' ') : rawFragment;
+        try {
+            const decoded = decodeRepeatedly(fragmentToDecode);
+            return base + encodeURIComponent(decoded);
+        } catch (e) {
+            return url;
         }
     };
 
@@ -48,7 +66,8 @@ export function fixNodeUrlEncoding(nodeUrl) {
             // 修复 hash (节点名称)
             if (urlObj.hash) {
                 const rawHash = urlObj.hash.substring(1);
-                const decodedHash = decodeRepeatedly(rawHash);
+                const normalizedHash = plusAsSpace ? rawHash.replace(/\+/g, ' ') : rawHash;
+                const decodedHash = decodeRepeatedly(normalizedHash);
                 urlObj.hash = '#' + encodeURIComponent(decodedHash);
             }
 
@@ -58,7 +77,7 @@ export function fixNodeUrlEncoding(nodeUrl) {
 
             return urlObj.toString();
         } catch (e) {
-            return fixedUrl;
+            return normalizeFragment(fixedUrl);
         }
     }
 
@@ -110,7 +129,7 @@ export function fixSSEncoding(nodeUrl) {
         return `ss://${normalizedBeforeHash}`;
     }
 
-    const normalizedHash = encodeURIComponent(decodeRepeatedly(rawHash));
+    const normalizedHash = encodeURIComponent(decodeRepeatedly(plusAsSpace ? rawHash.replace(/\+/g, ' ') : rawHash));
     return `ss://${normalizedBeforeHash}#${normalizedHash}`;
 }
 

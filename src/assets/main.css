@@ -292,7 +292,7 @@ animation: wave 1.2s ease-in-out infinite;
 }
 
 .nav-action-btn {
-  @apply p-2 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none;
+  @apply p-2 rounded-lg transition-all duration-200 hover:scale-105 focus:outline-none;
 }
 
 .nav-action-btn-neutral {

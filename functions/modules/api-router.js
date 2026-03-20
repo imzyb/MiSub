@@ -4,8 +4,8 @@
  */
 
 import { StorageFactory, DataMigrator } from '../storage-adapter.js';
-import { createJsonResponse, createErrorResponse } from './utils.js';
-import { authMiddleware, handleLogin, handleLogout } from './auth-middleware.js';
+import { createJsonResponse, createErrorResponse, getAuthDebugInfo } from './utils.js';
+import { authMiddleware, handleLogin, handleLogout, getAuthSessionDiagnostic, getLoginPasswordDiagnostic } from './auth-middleware.js';
 import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
 import { handleCronTrigger } from './notifications.js';
 import {
@@ -92,8 +92,13 @@ export async function handleApiRequest(request, env) {
             return createJsonResponse({ error: 'Unauthorized' }, 401);
         }
         try {
-            const oldData = await env.MISUB_KV.get(OLD_KV_KEY, 'json');
-            const newDataExists = await env.MISUB_KV.get(KV_KEY_SUBS) !== null;
+            const kv = StorageFactory.resolveKV(env);
+            if (!kv) {
+                return createJsonResponse({ success: false, message: 'KV 未绑定' }, 400);
+            }
+            const oldData = await kv.get(OLD_KV_KEY).then(r => r ? JSON.parse(r) : null);
+            const newDataRaw = await kv.get(KV_KEY_SUBS);
+            const newDataExists = newDataRaw !== null;
 
             if (newDataExists) {
                 return createJsonResponse({ success: true, message: '无需迁移，数据已是最新结构。' }, 200);
@@ -102,10 +107,10 @@ export async function handleApiRequest(request, env) {
                 return createJsonResponse({ success: false, message: '未找到需要迁移的旧数据。' }, 404);
             }
 
-            await env.MISUB_KV.put(KV_KEY_SUBS, JSON.stringify(oldData));
-            await env.MISUB_KV.put(KV_KEY_PROFILES, JSON.stringify([]));
-            await env.MISUB_KV.put(OLD_KV_KEY + '_migrated_on_' + new Date().toISOString(), JSON.stringify(oldData));
-            await env.MISUB_KV.delete(OLD_KV_KEY);
+            await kv.put(KV_KEY_SUBS, JSON.stringify(oldData));
+            await kv.put(KV_KEY_PROFILES, JSON.stringify([]));
+            await kv.put(OLD_KV_KEY + '_migrated_on_' + new Date().toISOString(), JSON.stringify(oldData));
+            await kv.delete(OLD_KV_KEY);
 
             return createJsonResponse({ success: true, message: '数据迁移成功！' }, 200);
         } catch (e) {
@@ -118,7 +123,7 @@ export async function handleApiRequest(request, env) {
         return await handleLogin(request, env);
     }
 
-    if (path === '/public_config') {
+    if (path === '/public_config' || path === '/config') {
         return await handlePublicConfig(env);
     }
 
@@ -159,9 +164,6 @@ export async function handleApiRequest(request, env) {
 
     // Special handling for /data to return 200 OK for unauthenticated requests
     if (path === '/data') {
-        if (!env?.MISUB_KV) {
-            return createErrorResponse('KV 绑定 MISUB_KV 缺失', 500);
-        }
         if (!await authMiddleware(request, env)) {
             return createJsonResponse({
                 authenticated: false,
@@ -181,6 +183,27 @@ export async function handleApiRequest(request, env) {
     // Logout 无需认证（cookie 过期时也需能正常登出）
     if (path === '/logout') {
         return await handleLogout(request);
+    }
+
+    // 认证调试端点（公开，不返回敏感值）
+    if (path === '/auth_debug') {
+        const debugInfo = await getAuthDebugInfo(env);
+        const authDiagnostic = await getAuthSessionDiagnostic(request, env);
+
+        return createJsonResponse({
+            success: true,
+            auth: authDiagnostic,
+            runtime: debugInfo
+        });
+    }
+
+    // 登录密码调试端点（公开，不返回敏感值）
+    if (path === '/auth_check') {
+        if (request.method !== 'POST') {
+            return createJsonResponse({ error: 'Method Not Allowed' }, 405);
+        }
+        const diagnostic = await getLoginPasswordDiagnostic(request, env);
+        return createJsonResponse(diagnostic, diagnostic.success ? 200 : 400);
     }
 
     if (!await authMiddleware(request, env)) {
@@ -206,7 +229,77 @@ export async function handleApiRequest(request, env) {
         return await handleTestSubconverterRequest(request, env);
     }
 
+    // KV 诊断端点：测试 KV 读写是否正常（需登录）
+    if (path === '/kv_test') {
+        try {
+            const kv = StorageFactory.resolveKV(env);
+            if (!kv) {
+                // 列出 env 中所有 key 及其类型，帮助诊断绑定情况
+                const envKeys = env ? Object.keys(env).map(k => {
+                    const v = env[k];
+                    const t = typeof v;
+                    const isKVLike = v && t === 'object' && typeof v.get === 'function';
+                    return `${k}(${t}${isKVLike ? ',KV-like' : ''})`;
+                }) : [];
+                return createJsonResponse({ success: false, error: 'KV 未绑定', envKeys });
+            }
+            const testKey = '__kv_test_' + Date.now();
+            const testValue = 'test_' + Math.random().toString(36).slice(2);
 
+            // 写入
+            let putError = null;
+            try {
+                await kv.put(testKey, testValue);
+            } catch (e) {
+                putError = e.message;
+            }
+
+            // 读回
+            let readBack = null;
+            let getError = null;
+            try {
+                readBack = await kv.get(testKey);
+            } catch (e) {
+                getError = e.message;
+            }
+
+            // 清理
+            try { await kv.delete(testKey); } catch (_) {}
+
+            // 读取实际数据键
+            let subsRaw = null;
+            let subsError = null;
+            try {
+                subsRaw = await kv.get('misub_subscriptions_v1');
+            } catch (e) {
+                subsError = e.message;
+            }
+
+            let settingsRaw = null;
+            try {
+                settingsRaw = await kv.get('worker_settings_v1');
+            } catch (_) {}
+
+            return createJsonResponse({
+                success: true,
+                kvBound: true,
+                writeTest: {
+                    wrote: testValue,
+                    readBack,
+                    match: readBack === testValue,
+                    putError,
+                    getError
+                },
+                actualData: {
+                    subscriptions: subsRaw ? `存在，长度=${subsRaw.length}` : 'null（空）',
+                    settings: settingsRaw ? `存在，长度=${settingsRaw.length}` : 'null（空）',
+                    subsError
+                }
+            });
+        } catch (e) {
+            return createJsonResponse({ success: false, error: e.message });
+        }
+    }
 
     switch (path) {
         case '/misubs':
@@ -333,12 +426,7 @@ async function handleExternalFetchRequest(request, env) {
             },
             redirect: "follow",
             signal: controller.signal
-        }), {
-            cf: {
-                insecureSkipVerify: true,
-                timeout: timeout / 1000 // Cloudflare timeout in seconds
-            }
-        });
+        }));
 
         clearTimeout(timeoutId);
 

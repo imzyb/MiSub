@@ -14,9 +14,11 @@ import {
  * @param {string} customUserAgent - 自定义用户代理 (可选)
  * @param {boolean} debug - 是否启用调试日志
  * @param {string} excludeRules - 过滤规则文本
+ * @param {boolean} skipCertVerify - 是否跳过 TLS 证书校验
+ * @param {boolean} plusAsSpace - 是否将名称中的 + 视为空格
  * @returns {Promise<Object>} 节点获取结果
  */
-export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null) {
+export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null, skipCertVerify = false, plusAsSpace = false) {
     // 自动检测调试 Token
     const shouldDebug = debug || (url && url.includes('b0b422857bb46aba65da8234c84f38c6'));
 
@@ -35,7 +37,7 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
         const response = await fetchWithRetry(requestUrl, {
             headers: { 'User-Agent': effectiveUserAgent },
             redirect: "follow",
-            cf: { insecureSkipVerify: true }
+            ...(skipCertVerify ? { cf: { insecureSkipVerify: true } } : {})
         });
 
         if (!response.ok) {
@@ -51,11 +53,11 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
         const buffer = await response.arrayBuffer();
         let text = new TextDecoder('utf-8').decode(buffer);
 
-        let parsedNodes = parseNodeList(text);
+        let parsedNodes = parseNodeList(text, { plusAsSpace });
 
         if (parsedNodes.length === 0) {
             const fallbackBase64 = encodeArrayBufferToBase64(buffer);
-            const fallbackNodes = parseNodeList(fallbackBase64);
+            const fallbackNodes = parseNodeList(fallbackBase64, { plusAsSpace });
             if (fallbackNodes.length > 0) {
                 parsedNodes = fallbackNodes;
             }
@@ -121,4 +123,3 @@ function applyExcludeRulesToNodes(nodes, ruleText) {
 
     return resultNodes;
 }
-
