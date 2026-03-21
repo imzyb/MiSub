@@ -187,14 +187,15 @@ if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
             if (proxy.reuse !== undefined) params.push(`reuse=${proxy.reuse}`);
             if (proxy.tfo !== undefined) params.push(`tfo=${proxy.tfo}`);
 
-            const obfsOpts = proxy['obfs-opts'];
+            const obfsOpts = proxy['obfs-opts'] || proxy.pluginOpts;
             if (obfsOpts) {
                 if (obfsOpts.mode) params.push(`obfs=${obfsOpts.mode}`);
                 if (obfsOpts.host) params.push(`obfs-host=${encodeURIComponent(obfsOpts.host)}`);
             }
 
+            const psk = proxy.psk || proxy.password || '';
             const query = params.length > 0 ? `?${params.join('&')}` : '';
-            return `snell://${encodeURIComponent(proxy.psk)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
+            return `snell://${encodeURIComponent(psk)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
         }
 
         if (type === 'naive' || proxy.protocol === 'naive') {
@@ -291,7 +292,7 @@ function parseSurgeOrQxLine(line) {
     if (!line || line.startsWith('#') || line.startsWith(';')) return null;
 
     // Surge 格式: "name = protocol, server, port, key=value, ..."
-    let match = line.match(/^([^=]+)=(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https),\s*([^,]+),\s*(\d+)(.*)$/i);
+    let match = line.match(/^([^=]+?)\s*=\s*(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https)\s*,\s*([^,]+?)\s*,\s*(\d+)(.*)$/i);
     if (match) {
         const proxy = {
             name: match[1].trim(),
@@ -312,6 +313,7 @@ function parseSurgeOrQxLine(line) {
                     
                     if (k === 'password' || k === 'auth' || k === 'psk') {
                         if (proxy.type === 'vless' || proxy.type === 'vmess') proxy.uuid = v;
+                        else if (proxy.type === 'snell') proxy.psk = v;
                         else proxy.password = v;
                     }
                     if (k === 'sni') proxy.sni = v;
@@ -319,6 +321,8 @@ function parseSurgeOrQxLine(line) {
                     if (k === 'encrypt-method' || k === 'cipher' || k === 'method') proxy.cipher = v;
                     if (k === 'obfs') { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.mode = v; }
                     if (k === 'obfs-host') { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.host = v; }
+                    if (k === 'version') proxy.version = parseInt(v);
+                    if (k === 'reuse' && v === 'true') proxy.reuse = true;
                     if (k === 'tfo' && v === 'true') proxy.tfo = true;
                     if (k === 'udp-relay' && v === 'true') proxy.udp = true;
                 }
@@ -328,7 +332,7 @@ function parseSurgeOrQxLine(line) {
     }
 
     // QX 格式: "protocol=server:port, key=value, ..., tag=name"
-    match = line.match(/^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https)=([^,:]+):(\d+)(.*)$/i);
+    match = line.match(/^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https)\s*=\s*([^,:]+?)\s*:\s*(\d+)(.*)$/i);
     if (match) {
         const proxy = {
             name: 'Untitled',
@@ -368,6 +372,10 @@ function parseSurgeOrQxLine(line) {
                         proxy['reality-opts'] = proxy['reality-opts'] || {};
                         proxy['reality-opts']['short-id'] = v;
                     }
+                    if (k === 'version') proxy.version = parseInt(v);
+                    if (k === 'reuse' && v === 'true') proxy.reuse = true;
+                    if (k === 'tfo' && v === 'true') proxy.tfo = true;
+                    if (k === 'udp-relay' && v === 'true') proxy.udp = true;
                 }
             }
         }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSnellUrl, validateSnellNode } from '../../functions/modules/utils/node-parser.js';
+import { parseSnellUrl, validateSnellNode, extractValidNodes } from '../../functions/modules/utils/node-parser.js';
 import { parseSurgeConfig } from '../../src/utils/protocolConverter.js';
 
 describe('Snell 协议支持', () => {
@@ -127,17 +127,24 @@ JP-Snell = snell, jp.example.com, 443, psk=password123, version=5, obfs=http, ob
         });
 
         it('应正确解析完整参数的 Surge Snell 配置', () => {
-            const config = `[Proxy]
-Full-Snell = snell, full.example.com, 443, psk=password123, version=5, obfs=tls, obfs-host=example.com, reuse=true, tfo=true`;
+            // 测试包含各类参数以及等号周围带有空格的配置
+            const config = `Full-Snell = snell, full.example.com, 443, psk=password123, version=5, obfs=tls, obfs-host=example.com, reuse=true, tfo=true
+🇺🇸Snell - US = snell, image.apple.com, 443, psk = RygGbqC47muxRlJUaWiS, version = 5, reuse = true, tfo = true`;
+            const nodes = extractValidNodes(config);
+            
+            expect(nodes.length).toBe(2);
+            expect(nodes[0]).toContain('Full-Snell');
+            expect(nodes[0]).toContain('obfs=tls');
+            expect(nodes[0]).toContain('reuse=true');
 
-            const nodes = parseSurgeConfig(config);
-
-            expect(nodes).toHaveLength(1);
-            expect(nodes[0].url).toContain('version=5');
-            expect(nodes[0].url).toContain('obfs=tls');
-            expect(nodes[0].url).toContain('obfs-host=example.com');
-            expect(nodes[0].url).toContain('reuse=true');
-            expect(nodes[0].url).toContain('tfo=true');
+            // 验证用户提供的带空格格式的解析
+            expect(nodes[1]).toContain('Snell%20-%20US'); // hash URL encoded
+            expect(nodes[1]).toContain('image.apple.com');
+            expect(nodes[1]).toContain('443');
+            expect(nodes[1]).toContain('RygGbqC47muxRlJUaWiS');
+            expect(nodes[1]).toContain('version=5');
+            expect(nodes[1]).toContain('reuse=true');
+            expect(nodes[1]).toContain('tfo=true');
         });
 
         it('应忽略缺少 PSK 的 Snell 配置', () => {

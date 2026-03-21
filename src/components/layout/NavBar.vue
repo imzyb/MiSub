@@ -36,7 +36,7 @@ function isActive(path) {
     aria-label="顶部导航栏"
     class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-2.5 w-full bg-white/85 dark:bg-[#030712]/85 backdrop-blur-xl border-b border-gray-200/50 dark:border-white/5 shadow-sm transition-all duration-300"
   >
-    <BrandLogo text-size-class="text-lg" :icon-size="18" />
+    <BrandLogo text-size-class="text-lg" :icon-size="32" />
 
     <NavActionGroup
       :is-logged-in="isLoggedIn"
@@ -56,7 +56,7 @@ function isActive(path) {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 md:h-20 flex items-center justify-between">
       <!-- Logo Area -->
       <div class="shrink-0 pr-6 border-r border-gray-200 dark:border-white/10">
-        <BrandLogo text-size-class="text-lg" :icon-size="20" />
+        <BrandLogo text-size-class="text-lg" :icon-size="32" />
       </div>
 
       <!-- Navigation Links -->

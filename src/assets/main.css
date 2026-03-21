@@ -280,7 +280,7 @@ animation: wave 1.2s ease-in-out infinite;
 }
 
 .nav-brand-badge {
-  @apply rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30;
+  @apply flex items-center justify-center;
 }
 
 .nav-brand-badge-sm {
