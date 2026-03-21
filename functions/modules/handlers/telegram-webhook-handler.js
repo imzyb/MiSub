@@ -95,7 +95,8 @@ function extractNodeName(url) {
 function extractNodeUrls(text) {
     const protocols = [
         'ss://', 'ssr://', 'vmess://', 'vless://', 'trojan://',
-        'hysteria://', 'hysteria2://', 'hy2://', 'tuic://', 'snell://'
+        'hysteria://', 'hysteria2://', 'hy2://', 'tuic://', 'snell://',
+        'anytls://'
     ];
     const urls = [];
     const lines = text.split('\n');
@@ -327,11 +328,14 @@ async function getNodesWithMapping(userId, env) {
     const storageAdapter = await getStorageAdapter(env);
     const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
 
+    const config = await getTelegramPushConfig(env);
+    const permission = checkUserPermission(userId, config);
+
     const userNodes = [];
     const indexMapping = []; // userIndex -> allIndex
 
     allSubscriptions.forEach((sub, allIndex) => {
-        if (sub.source === 'telegram' && sub.telegram_user_id === userId) {
+        if (permission.allowed || (sub.source === 'telegram' && sub.telegram_user_id === userId)) {
             indexMapping.push(allIndex);
             userNodes.push(sub);
         }
