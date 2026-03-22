@@ -147,6 +147,20 @@ JP-Snell = snell, jp.example.com, 443, psk=password123, version=5, obfs=http, ob
             expect(nodes[1]).toContain('tfo=true');
         });
 
+        it('应在前端 Surge 解析器中兼容带空格名称和键值空格的 Snell 配置', () => {
+            const config = `🇺🇸Snell - US = snell, image.apple.com, 443, psk = RygGbqC47muxRlJUaWiS, version = 5, reuse = true, tfo = true`;
+
+            const nodes = parseSurgeConfig(config);
+
+            expect(nodes).toHaveLength(1);
+            expect(nodes[0].name).toBe('🇺🇸Snell - US');
+            expect(nodes[0].protocol).toBe('snell');
+            expect(nodes[0].url).toContain('image.apple.com');
+            expect(nodes[0].url).toContain('version=5');
+            expect(nodes[0].url).toContain('reuse=true');
+            expect(nodes[0].url).toContain('tfo=true');
+        });
+
         it('应忽略缺少 PSK 的 Snell 配置', () => {
             const config = `[Proxy]
 Invalid-Snell = snell, invalid.example.com, 443, version=5`;
