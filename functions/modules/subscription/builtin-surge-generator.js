@@ -189,15 +189,14 @@ function clashProxyToSurgeResult(proxy) {
         if (proxy.version) parts.push(`version=${proxy.version}`);
         // 连接复用（Snell V4 可选）
         if (proxy.reuse !== undefined) parts.push(`reuse=${proxy.reuse}`);
-        // obfs
+        // TCP Fast Open
+        if (proxy.tfo !== undefined) parts.push(`tfo=${proxy.tfo}`);
         const obfsOpts = proxy['obfs-opts'];
         if (obfsOpts) {
-            if (obfsOpts.mode) parts.push(`obfs=${obfsOpts.mode}`);
+            if (obfsOpts.mode && obfsOpts.mode !== 'none') parts.push(`obfs=${obfsOpts.mode}`);
             if (obfsOpts.host) parts.push(`obfs-host=${obfsOpts.host}`);
             if (obfsOpts.uri) parts.push(`obfs-uri=${obfsOpts.uri}`);
         }
-        // Snell 的 UDP 需要手动开启
-        if (proxy.udp) parts.push('udp-relay=true');
     } else if (type === 'anytls') {
         // 格式: name = anytls, server, port, password=xxx (Surge 5.17+)
         parts.push(`${name} = anytls`);

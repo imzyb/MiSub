@@ -528,7 +528,7 @@ export async function handleHealthCheckRequest(request, env) {
         const healthResults = nodeUrls.map(nodeUrl => {
             try {
                 const url = new URL(nodeUrl);
-                const isValidProtocol = ['ss:', 'ssr:', 'vmess:', 'vless:', 'trojan:', 'hysteria:', 'hysteria2:', 'tuic:'].includes(url.protocol);
+                const isValidProtocol = ['ss:', 'ssr:', 'vmess:', 'vless:', 'trojan:', 'hysteria:', 'hysteria2:', 'tuic:', 'snell:'].includes(url.protocol);
 
                 return {
                     nodeUrl,

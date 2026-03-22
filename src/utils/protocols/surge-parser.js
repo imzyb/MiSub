@@ -55,7 +55,7 @@ export function parseSurgeConfig(content) {
  */
 function parseSurgeVmess(line) {
     try {
-        const parts = line.match(/(\S+)\s*=\s*(.+)$/);
+        const parts = line.match(/^([^=]+?)\s*=\s*(.+)$/);
         if (!parts) return null;
 
         const name = parts[1].trim();
@@ -85,7 +85,7 @@ function parseSurgeVmess(line) {
 
         // 解析选项参数
         options.forEach(opt => {
-            const match = opt.match(/^(\w+(?:-\w+)*)=(.+)$/);
+            const match = opt.match(/^(\w+(?:-\w+)*)\s*=\s*(.+)$/);
             if (match) {
                 const [, key, value] = match;
                 const cleanValue = value.replace(/^["']|["']$/g, '');
@@ -225,7 +225,7 @@ function parseSurgeHTTP(line) {
  */
 function parseSurgeSnell(line) {
     try {
-        const parts = line.match(/(\S+)\s*=\s*(.+)$/);
+        const parts = line.match(/^([^=]+?)\s*=\s*(.+)$/);
         if (!parts) return null;
 
         const name = parts[1].trim();
@@ -250,7 +250,7 @@ function parseSurgeSnell(line) {
 
         // 解析键值对参数
         options.forEach(opt => {
-            const match = opt.match(/^(\w+(?:-\w+)*)=(.+)$/);
+            const match = opt.match(/^(\w+(?:-\w+)*)\s*=\s*(.+)$/);
             if (match) {
                 const [, key, value] = match;
                 const cleanValue = value.replace(/^["']|["']$/g, '');

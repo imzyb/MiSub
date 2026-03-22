@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Unified config file.
  * Includes constants, KV keys, and default settings for the worker.
  */
@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
     enableTrafficNode: false,
+    enablePublicPage: true,
     storageType: 'kv',
     defaultPrefixSettings: {
         enableManualNodes: true,

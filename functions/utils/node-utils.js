@@ -9,7 +9,7 @@ import { extractNodeRegion, getRegionEmoji } from '../modules/utils/geo-utils.js
 /**
  * 节点协议正则表达式
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks|wireguard):\/\//g;
+export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard):\/\//g;
 
 /**
  * 为节点名称添加前缀

@@ -34,7 +34,7 @@ const successMessage = ref('');
 const parseStatus = ref('');
 const groupName = ref(''); // Added
 const DIRECT_URL_PROTOCOLS = COMMON_NODE_PROTOCOLS.filter(protocol =>
-  ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria', 'hysteria2', 'tuic', 'socks5', 'http', 'wireguard'].includes(protocol)
+  ['vmess', 'vless', 'trojan', 'ss', 'ssr', 'hysteria', 'hysteria2', 'tuic', 'socks5', 'http', 'snell', 'wireguard'].includes(protocol)
 );
 
 const toastStore = useToastStore();

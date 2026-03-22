@@ -146,11 +146,25 @@ describe('Surge 内置生成器', () => {
     });
 
     describe('Snell', () => {
-        it('应正确解析 Snell 代理（通过 url-to-clash 的 snell:// 支持）', () => {
-            // Snell 不直接通过 URL 解析，此处仅测试如果 Clash 对象中有 Snell 时的处理
-            // 因为 url-to-clash.js 不解析 snell://，所以这里测试空列表
+        it('应正确生成 Snell 代理行', () => {
             const result = generateBuiltinSurgeConfig('snell://password@1.2.3.4:443?version=4#TestSnell');
-            // url-to-clash.js 不支持 snell://，所以此节点会被跳过
+            expect(result).toContain('TestSnell = snell');
+            expect(result).toContain('psk=password');
+            expect(result).toContain('version=4');
+        });
+
+        it('应保留 Snell 的 reuse、tfo 和 obfs 参数', () => {
+            const result = generateBuiltinSurgeConfig('snell://password@1.2.3.4:443?version=5&reuse=true&tfo=true&obfs=http&obfs-host=example.com#TestSnellFull');
+            expect(result).toContain('TestSnellFull = snell');
+            expect(result).toContain('version=5');
+            expect(result).toContain('reuse=true');
+            expect(result).toContain('tfo=true');
+            expect(result).toContain('obfs=http');
+            expect(result).toContain('obfs-host=example.com');
+        });
+
+        it('应在无效 Snell 输入时回退为空代理段', () => {
+            const result = generateBuiltinSurgeConfig('snell://');
             expect(result).toContain('[Proxy]');
         });
     });
