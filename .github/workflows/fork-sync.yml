@@ -1,8 +1,7 @@
 name: Fork Sync
 
 on:
-  schedule:
-    - cron: "0 19 * * *"   # 北京时间 03:00
+  # 取消定时自动同步
   workflow_dispatch:
 
 permissions:
