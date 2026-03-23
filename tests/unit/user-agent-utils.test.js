@@ -45,7 +45,7 @@ describe('User-Agent Utils', () => {
     describe('determineTargetFormat', () => {
         it('should prioritize URL search params', () => {
             const params = new URLSearchParams('?target=singbox');
-            expect(determineTargetFormat('Clash/1.0', params)).toBe('singbox');
+            expect(determineTargetFormat('Clash/1.0', params)).toBe('base64');
 
             const params2 = new URLSearchParams('?clash=1');
             expect(determineTargetFormat('Other/1.0', params2)).toBe('clash');
@@ -64,7 +64,7 @@ describe('User-Agent Utils', () => {
             expect(determineTargetFormat('Clash.Meta/1.0', params)).toBe('clash');
             expect(determineTargetFormat('ClashVerge/1.0', params)).toBe('clash');
             expect(determineTargetFormat('Shadowrocket/2.0', params)).toBe('base64');
-            expect(determineTargetFormat('sing-box/1.0', params)).toBe('singbox');
+            expect(determineTargetFormat('sing-box/1.0', params)).toBe('base64');
             expect(determineTargetFormat('Quantumult X', params)).toBe('quanx');
             expect(determineTargetFormat('Loon/2.1', params)).toBe('loon');
         });

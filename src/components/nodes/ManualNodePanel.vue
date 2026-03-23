@@ -16,15 +16,18 @@ const props = defineProps({
   groups: { type: Array, default: () => [] },
   activeGroupFilter: { type: String, default: null }, // New
   itemsPerPage: { type: Number, default: 24 }, // Added
+  pingResults: { type: Object, default: () => ({}) },
+  pingingNodes: { type: Object, default: () => new Set() }
 });
 
 const emit = defineEmits([
   'add', 'delete', 'edit', 'changePage', 'update:searchTerm', 'update:viewMode',
   'toggleSort', 'markDirty', 'autoSort', 'deduplicate', 'import', 'deleteAll', 'reorder',
   'rename-group', 'delete-group',
-  'set-group-filter', 'batch-update-group', 'batch-delete-nodes',
   'update:itemsPerPage', // Added
-  'open-batch-group-modal' // Added
+  'open-batch-group-modal', // Added
+  'ping',
+  'ping-all'
 ]);
 
 const isSelectionMode = ref(false);
@@ -159,6 +162,7 @@ const handleDeleteAll = () => {
       @toggle-sort="handleToggleSort"
       @delete-all="handleDeleteAll"
       @toggle-selection-mode="toggleSelectionMode"
+      @ping-all="emit('ping-all')"
     />
 
     <BulkOperations
@@ -194,6 +198,9 @@ const handleDeleteAll = () => {
       @sort-end="handleSortEnd"
       @change-page="handleChangePage"
       @set-group-filter="emit('set-group-filter', $event)"
+      :ping-results="pingResults"
+      :pinging-nodes="pingingNodes"
+      @ping="emit('ping', $event)"
     />
   </div>
 </template>

@@ -30,7 +30,7 @@ export function determineTargetFormat(userAgent, searchParams) {
     // 1. Check URL parameters first
     let targetFormat = searchParams.get('target');
     if (!targetFormat) {
-        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan'];
+        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan', 'quanx'];
         for (const format of supportedFormats) {
             if (searchParams.has(format)) {
                 // Normalize v2ray/trojan to base64 as they share the output format
@@ -40,7 +40,21 @@ export function determineTargetFormat(userAgent, searchParams) {
         }
     }
 
-    if (targetFormat) return targetFormat;
+    if (targetFormat) {
+        const normalizedTarget = targetFormat.toLowerCase();
+        if (normalizedTarget === 'singbox' || normalizedTarget === 'sing-box') {
+            return 'base64';
+        }
+        if (normalizedTarget === 'surge') {
+            const ver = searchParams.get('ver');
+            const safeVer = ver && /^\d+$/.test(ver) ? parseInt(ver, 10) : 4;
+            return `surge&ver=${safeVer}`;
+        }
+        if (normalizedTarget.startsWith('surge&ver=')) {
+            return normalizedTarget;
+        }
+        return targetFormat;
+    }
 
     // 2. Check User-Agent
     const ua = (userAgent || '').toLowerCase();
@@ -71,7 +85,8 @@ export function determineTargetFormat(userAgent, searchParams) {
         // Other Clients
         ['stash', 'clash'],
         ['nekoray', 'clash'],
-        ['sing-box', 'singbox'],
+        ['sing-box', 'base64'],
+        ['singbox', 'base64'],
         ['shadowrocket', 'base64'],
         ['v2rayn', 'base64'],
         ['v2rayng', 'base64'],

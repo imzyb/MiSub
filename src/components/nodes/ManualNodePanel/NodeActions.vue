@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed } from 'vue';
 import MoreActionsMenu from '@/components/shared/MoreActionsMenu.vue';
 
@@ -47,7 +47,8 @@ const emit = defineEmits([
   'deduplicate',
   'toggle-sort',
   'delete-all',
-  'toggle-selection-mode'
+  'toggle-selection-mode',
+  'ping-all'
 ]);
 
 const searchModel = computed({
@@ -105,6 +106,7 @@ const searchModel = computed({
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
         </button>
       </div>
+      <button @click="emit('ping-all')" class="text-sm font-medium px-4 py-2 misub-radius-md bg-green-500/10 hover:bg-green-500/20 text-green-700 dark:text-green-400 transition-colors shrink-0">全部测速</button>
       <button @click="emit('add')" class="text-sm font-medium px-4 py-2 misub-radius-md bg-primary-600 hover:bg-primary-700 text-white transition-colors shadow-sm shadow-primary-500/20 shrink-0">新增</button>
       <MoreActionsMenu menu-width-class="w-36">
         <template #menu="{ close }">

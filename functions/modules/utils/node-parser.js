@@ -148,7 +148,7 @@ if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
             return `vless://${uuid}@${server}:${port}?${params.join('&')}#${encodeURIComponent(name)}`;
         }
 
-        if (type === 'hysteria2') {
+        if (type === 'hysteria2' || type === 'hy2' || type === 'hy') {
             const params = [];
             const password = proxy.password || proxy.auth || '';
 
@@ -161,6 +161,20 @@ if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
 
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `hysteria2://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
+        }
+
+        if (type === 'hysteria') {
+            const params = [];
+            const password = proxy.password || proxy.auth || '';
+
+            if (proxy.protocol === 'udp') params.push('protocol=udp');
+            if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
+            if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('insecure=1');
+            if (proxy.up || proxy['up-mbps']) params.push(`up=${proxy.up || proxy['up-mbps']}`);
+            if (proxy.down || proxy['down-mbps']) params.push(`down=${proxy.down || proxy['down-mbps']}`);
+
+            const query = params.length > 0 ? `?${params.join('&')}` : '';
+            return `hysteria://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
         }
 
         if (type === 'socks5') {
@@ -303,6 +317,7 @@ function parseSurgeOrQxLine(line) {
         const extraParams = match[5];
         if (extraParams) {
             const parts = extraParams.split(',').map(p => p.trim());
+            let positionalIndex = 0;
             for (const p of parts) {
                 if (!p) continue;
                 const kv = p.split('=');
@@ -311,10 +326,13 @@ function parseSurgeOrQxLine(line) {
                     let v = kv.slice(1).join('=').trim();
                     if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
                     
-                    if (k === 'password' || k === 'auth' || k === 'psk') {
+                    if (k === 'password' || k === 'auth' || k === 'psk' || k === 'username' || k === 'uuid') {
                         if (proxy.type === 'vless' || proxy.type === 'vmess') proxy.uuid = v;
                         else if (proxy.type === 'snell') proxy.psk = v;
                         else proxy.password = v;
+                    }
+                    if (k === 'token') {
+                        if (proxy.type === 'tuic') proxy.token = proxy.password = v;
                     }
                     if (k === 'sni') proxy.sni = v;
                     if (k === 'skip-cert-verify' && v === 'true') proxy.skipCertVerify = true;
@@ -325,6 +343,22 @@ function parseSurgeOrQxLine(line) {
                     if (k === 'reuse' && v === 'true') proxy.reuse = true;
                     if (k === 'tfo' && v === 'true') proxy.tfo = true;
                     if (k === 'udp-relay' && v === 'true') proxy.udp = true;
+                } else {
+                    // 处理位置参数 (针对 Surge)
+                    const val = p.trim();
+                    if (!val) continue;
+
+                    if (proxy.type === 'shadowsocks' || proxy.type === 'ss') {
+                        if (positionalIndex === 0) proxy.cipher = val;
+                        else if (positionalIndex === 1) proxy.password = val;
+                    } else if (proxy.type === 'vmess' || proxy.type === 'vless') {
+                        if (positionalIndex === 0) proxy.uuid = val;
+                    } else if (proxy.type === 'trojan' || proxy.type.startsWith('hysteria') || proxy.type === 'hy2' || proxy.type === 'tuic') {
+                        if (positionalIndex === 0) proxy.password = val;
+                    } else if (proxy.type === 'snell') {
+                        if (positionalIndex === 0) proxy.psk = val;
+                    }
+                    positionalIndex++;
                 }
             }
         }
@@ -352,9 +386,12 @@ function parseSurgeOrQxLine(line) {
                     if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
                     
                     if (k === 'tag') proxy.name = v;
-                    if (k === 'password' || k === 'auth' || k === 'psk') {
+                    if (k === 'password' || k === 'auth' || k === 'psk' || k === 'username' || k === 'uuid') {
                         if (proxy.type === 'vless' || proxy.type === 'vmess') proxy.uuid = v;
                         else proxy.password = v;
+                    }
+                    if (k === 'token') {
+                        if (proxy.type === 'tuic') proxy.token = proxy.password = v;
                     }
                     if (k === 'sni' || k === 'tls-host' || k === 'obfs-host') proxy.sni = v;
                     if (k === 'tls-verification' && v === 'false') proxy.skipCertVerify = true;
@@ -647,10 +684,8 @@ export function parseNodeList(content, options = {}) {
             }
 
             if (id) {
-                // 如果是 auto: 开头，去掉 auto: 再验证 UUID?
-                // 不，用户不想看这些节点，直接验证完整 ID 是否为 UUID
-                // 包含 auto: 的 ID 会导致 isValidUUID 返回 false
-                if (!isValidUUID(id)) {
+                // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
+                if (String(id).startsWith('auto:')) {
                     isValidNode = false;
                 }
             }
@@ -667,7 +702,8 @@ export function parseNodeList(content, options = {}) {
                     }
                     const jsonStr = atob(safeBody);
                     const config = JSON.parse(jsonStr);
-                    if (config && config.id && !isValidUUID(config.id)) {
+                    // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
+                    if (config && config.id && String(config.id).startsWith('auto:')) {
                         isValidNode = false;
                     }
                 } catch (e) {

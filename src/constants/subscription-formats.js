@@ -6,7 +6,6 @@
 export const SUBSCRIPTION_FORMATS = {
     BASE64: 'base64',
     CLASH: 'clash',
-    SINGBOX: 'singbox',
     SURGE: 'surge',
     LOON: 'loon',
     QUANX: 'quanx'
@@ -37,7 +36,7 @@ export const USER_AGENT_MAPPING = [
     // 其他客户端
     ['stash', SUBSCRIPTION_FORMATS.CLASH],
     ['nekoray', SUBSCRIPTION_FORMATS.CLASH],
-    ['sing-box', SUBSCRIPTION_FORMATS.SINGBOX],
+    ['sing-box', SUBSCRIPTION_FORMATS.BASE64],
     ['shadowrocket', SUBSCRIPTION_FORMATS.BASE64],
     ['v2rayn', SUBSCRIPTION_FORMATS.BASE64],
     ['v2rayng', SUBSCRIPTION_FORMATS.BASE64],
