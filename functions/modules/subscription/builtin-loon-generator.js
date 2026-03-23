@@ -186,6 +186,16 @@ function clashProxyToLoonResult(proxy) {
         parts.push(String(port));
         parts.push(proxy.psk || proxy.password || '');
         if (proxy.version) parts.push(`version=${proxy.version}`);
+        // 连接复用（Snell V3+ 支持）
+        if (proxy.reuse !== undefined) parts.push(`reuse=${proxy.reuse}`);
+        // TCP Fast Open
+        if (proxy.tfo !== undefined) parts.push(`tfo=${proxy.tfo}`);
+        // 混淆参数
+        const obfsOpts = proxy['obfs-opts'];
+        if (obfsOpts) {
+            if (obfsOpts.mode && obfsOpts.mode !== 'none') parts.push(`obfs=${obfsOpts.mode}`);
+            if (obfsOpts.host) parts.push(`obfs-host=${obfsOpts.host}`);
+        }
     } else {
         return null;
     }

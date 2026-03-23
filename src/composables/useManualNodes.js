@@ -3,7 +3,8 @@ import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore.js';
 import { useToastStore } from '../stores/toast.js'; // Restored
-import { extractNodeName } from '../lib/utils.js';
+import { extractNodeName, extractHostAndPort } from '../lib/utils.js';
+import { pingNode } from '../utils/ping.js';
 import { filterManualNodes, isManualNodeEntry } from './manual-nodes/filters.js';
 import { buildDedupPlan as buildDedupPlanCore } from './manual-nodes/dedup.js';
 import { buildAutoSortedSubscriptions } from './manual-nodes/sorting.js';
@@ -248,6 +249,58 @@ export function useManualNodes(markDirty) {
     markDirty();
   }
 
+  // --- 连通性测试 (Ping) ---
+  const pingResults = ref({}); // { [nodeId]: { status: 'ok'|'error'|'timeout', latency: 120 } }
+  const pingingNodes = ref(new Set());
+
+  async function pingNodeId(nodeId) {
+      if (pingingNodes.value.has(nodeId)) return;
+      const node = manualNodes.value.find(n => n.id === nodeId);
+      if (!node) return;
+  
+      const { host, port } = extractHostAndPort(node.url);
+      if (!host || !port) {
+          pingResults.value[nodeId] = { status: 'error', latency: -1, message: '解析地址失败' };
+          return;
+      }
+  
+      pingingNodes.value.add(nodeId);
+      pingResults.value = { ...pingResults.value, [nodeId]: { status: 'loading', latency: 0 } };
+  
+      try {
+          // 由于 fetch ping 主要看 tcp 连通性，给个 3000ms 兜底即可
+          const result = await pingNode(host, port, 3000);
+          pingResults.value = { ...pingResults.value, [nodeId]: result };
+      } catch(e) {
+          pingResults.value = { ...pingResults.value, [nodeId]: { status: 'error', latency: -1 } };
+      } finally {
+          pingingNodes.value.delete(nodeId);
+      }
+  }
+
+  // 批量并发测试所有开启的手动节点
+  async function pingAllNodes() {
+      const nodesToTest = enabledManualNodes.value.map(n => n.id);
+      if (nodesToTest.length === 0) return;
+      
+      showToast(`开始测速 ${nodesToTest.length} 个节点...`, 'info');
+      
+      // 控制并发数 (比如最大 10 并发)
+      const CONCURRENCY = 10;
+      let currentIndex = 0;
+      
+      const workers = Array(Math.min(CONCURRENCY, nodesToTest.length)).fill(null).map(async () => {
+          while (currentIndex < nodesToTest.length) {
+              const idx = currentIndex++;
+              const nodeId = nodesToTest[idx];
+              await pingNodeId(nodeId);
+          }
+      });
+      
+      await Promise.allSettled(workers);
+      showToast(`已完成 ${nodesToTest.length} 个节点的连通性测试`, 'success');
+  }
+
   return {
     manualNodes, // Returns computed filtered list
     manualNodeGroups,
@@ -274,6 +327,10 @@ export function useManualNodes(markDirty) {
     setGroupFilter, // New
     batchUpdateGroup, // New
     batchDeleteNodes, // New
-    manualNodesPerPage // Added
+    manualNodesPerPage, // Added
+    pingResults,
+    pingingNodes,
+    pingNodeId,
+    pingAllNodes
   };
 }

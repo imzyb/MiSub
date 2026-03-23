@@ -103,7 +103,7 @@
 | 客户端 | 格式支持 | 自动识别 |
 |--------|---------|---------|
 | Clash / Clash Meta | ✅ | ✅ |
-| Sing-Box | ✅ | ✅ |
+| Sing-Box | ✅ (Base64) | ✅ |
 | Surge | ✅ | ✅ |
 | Shadowrocket | ✅ | ✅ |
 | V2rayN / V2rayNG | ✅ | ✅ |
@@ -340,6 +340,28 @@ http://<vps-ip>:8080
 2. 选择要包含的订阅和节点
 3. 设置分组名称
 4. 保存并获取订阅链接
+
+### SubConverter 后端对齐说明
+
+MiSub 通过 SubConverter 后端进行订阅格式转换，核心调用路径为 `/sub`，并基于客户端 User-Agent 或 URL 参数决定输出格式。
+
+支持的常见参数（与 SubConverter 文档一致，使用时需要 URLEncode 的参数会由后端处理）：
+
+- `target`：目标格式（`clash` / `surge&ver=4` / `loon` / `quanx` / `base64`）
+- `url`：订阅链接或节点分享链接（可合并多链接）
+- `config`：远程规则配置（仅对 Clash/Surge/Loon 生效）
+- `scv`：跳过 TLS 证书校验（默认关闭）
+- `udp`：开启 UDP（默认关闭）
+- `emoji`：节点名称 Emoji（按重命名模板自动启用）
+
+MiSub 的几个适配细节：
+
+- `surge` 目标会自动补齐版本为 `surge&ver=4`（可用 `?target=surge&ver=3` 指定版本）。
+- Surge 客户端不识别 `snell://` 订阅链接，MiSub 会在 Surge 输出中使用原生 `snell, server, port, psk=..., version=...` 格式；如后端返回的是节点列表，会自动回退到内置 Surge 生成器。
+- `sing-box` 与 `singbox` 会自动落到 Base64 输出（SubConverter 目前无 sing-box 目标）。
+- `quanx` 需要显式参数（`?quanx` 或 `?target=quanx`）或对应的 User-Agent。
+
+如需检查后端可用性，可在设置页使用“测试可用性”按钮访问 `/api/test_subconverter`。
 
 ### 数据迁移 (KV → D1)
 

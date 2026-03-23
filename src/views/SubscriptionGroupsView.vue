@@ -47,6 +47,10 @@ const {
   handleBulkImport
 } = useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk });
 
+const openBulkImportModal = () => {
+    showBulkImportModal.value = true;
+};
+
 const handleDeleteSubscriptionWithCleanup = (subId) => {
     deleteSubscription(subId);
     cleanupSubscriptions(subId);
@@ -115,7 +119,7 @@ const handleQRCode = (id) => {
       @delete-all="showDeleteSubsModal = true"
       @preview="handlePreviewSubscription"
       @reorder="reorderSubscriptions"
-      @import="showBulkImportModal = true"
+      @import="openBulkImportModal"
       @qrcode="handleQRCode"
     >
         <!-- Slot removed as user requested button move to dropdown -->

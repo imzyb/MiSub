@@ -35,7 +35,8 @@ const {
   reorderManualNodes,
   manualNodeGroups, renameGroup, deleteGroup,
   activeGroupFilter, setGroupFilter, batchUpdateGroup, batchDeleteNodes,
-  manualNodesPerPage
+  manualNodesPerPage,
+  pingResults, pingingNodes, pingNodeId, pingAllNodes
 } = useManualNodes(markDirty);
 
 const {
@@ -130,10 +131,15 @@ const confirmBatchDelete = () => {
       @toggle-sort="isSortingNodes = !isSortingNodes" @mark-dirty="markDirty" @auto-sort="handleAutoSortNodes"
       @deduplicate="handleDeduplicateNodes" @import="showSubscriptionImportModal = true"
       @delete-all="showDeleteNodesModal = true" @reorder="reorderManualNodes" @rename-group="renameGroup"
-      @delete-group="deleteGroup" @set-group-filter="setGroupFilter"
+      @set-group-filter="setGroupFilter"
       @batch-update-group="(ids, group) => batchUpdateGroup(ids, group)"
       @batch-delete-nodes="handleBatchDeleteRequest"
-      @open-batch-group-modal="handleOpenBatchGroupModal" />
+      @open-batch-group-modal="handleOpenBatchGroupModal"
+      :ping-results="pingResults"
+      :pinging-nodes="pingingNodes"
+      @ping="pingNodeId"
+      @ping-all="pingAllNodes"
+    />
 
     <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
       @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />

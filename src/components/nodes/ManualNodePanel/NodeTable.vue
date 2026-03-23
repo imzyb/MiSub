@@ -20,7 +20,9 @@ const props = defineProps({
   basePage: { type: Number, default: 1 },
   baseTotalPages: { type: Number, default: 1 },
   draggableManualNodes: { type: Array, default: () => [] },
-  itemsPerPage: { type: Number, default: 24 } // Added
+  itemsPerPage: { type: Number, default: 24 }, // Added
+  pingResults: { type: Object, default: () => ({}) },
+  pingingNodes: { type: Object, default: () => new Set() }
 });
 
 const emit = defineEmits([
@@ -31,7 +33,8 @@ const emit = defineEmits([
   'sort-end',
   'change-page',
   'update:itemsPerPage', // Added
-  'set-group-filter' // Added
+  'set-group-filter', // Added
+  'ping'
 ]);
 
 const draggableModel = computed({
@@ -76,10 +79,13 @@ const handleChangePage = (page) => {
                 :node="node" 
                 :is-selection-mode="isSelectionMode"
                 :is-selected="selectedNodeIds.has(node.id)"
+                :ping-result="pingResults[node.id]"
+                :is-pinging="pingingNodes.has(node.id)"
                 @toggle-select="emit('toggle-select', node.id)"
                 @edit="emit('edit', node.id)" 
                 @delete="emit('delete', node.id)"
-                @filter-group="emit('set-group-filter', $event)" />
+                @filter-group="emit('set-group-filter', $event)"
+                @ping="emit('ping', node.id)" />
             </div>
           </template>
         </draggable>
@@ -100,9 +106,12 @@ const handleChangePage = (page) => {
                 :index="index + 1"
                 class="list-item-animation"
                 :style="{ '--delay-index': Math.min(index, 20) }"
+                :ping-result="pingResults[node.id]"
+                :is-pinging="pingingNodes.has(node.id)"
                 @edit="emit('edit', node.id)"
                 @delete="emit('delete', node.id)"
                 @filter-group="emit('set-group-filter', $event)"
+                @ping="emit('ping', node.id)"
               />
             </div>
           </template>
@@ -123,10 +132,13 @@ const handleChangePage = (page) => {
             :node="node" 
             :is-selection-mode="isSelectionMode"
             :is-selected="selectedNodeIds.has(node.id)"
+            :ping-result="pingResults[node.id]"
+            :is-pinging="pingingNodes.has(node.id)"
             @toggle-select="emit('toggle-select', node.id)"
             @edit="emit('edit', node.id)" 
             @delete="emit('delete', node.id)" 
             @filter-group="emit('set-group-filter', $event)" 
+            @ping="emit('ping', node.id)"
           />
         </div>
       </div>
@@ -140,10 +152,13 @@ const handleChangePage = (page) => {
           :style="{ '--delay-index': Math.min(index, 20) }"
           :is-selection-mode="isSelectionMode"
           :is-selected="selectedNodeIds.has(node.id)"
+          :ping-result="pingResults[node.id]"
+          :is-pinging="pingingNodes.has(node.id)"
           @toggle-select="emit('toggle-select', node.id)"
           @edit="emit('edit', node.id)"
           @delete="emit('delete', node.id)"
           @filter-group="emit('set-group-filter', $event)"
+          @ping="emit('ping', node.id)"
         />
       </div>
     </div>

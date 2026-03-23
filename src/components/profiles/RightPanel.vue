@@ -45,7 +45,7 @@ const subLink = computed(() => {
     return baseUrl;
   }
   
-  const targetMapping = { 'Sing-Box': 'singbox', 'QuanX': 'quanx' };
+  const targetMapping = { 'Sing-Box': 'base64', 'QuanX': 'quanx' };
   const formatKey = (targetMapping[selectedFormat.value] || selectedFormat.value.toLowerCase());
   return `${baseUrl}?${formatKey}`;
 });

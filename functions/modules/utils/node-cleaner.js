@@ -56,7 +56,7 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
     }
 
     if (fixedUrl.startsWith('ss://')) {
-        return fixSSEncoding(fixedUrl);
+        return fixSSEncoding(fixedUrl, options);
     }
 
     if (fixedUrl.startsWith('trojan://') || fixedUrl.startsWith('vless://') || fixedUrl.startsWith('hy2://') || fixedUrl.startsWith('hysteria2://')) {
@@ -87,8 +87,10 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
 /**
  * 修复SS节点编码
  */
-export function fixSSEncoding(nodeUrl) {
+export function fixSSEncoding(nodeUrl, options = {}) {
     if (!nodeUrl.startsWith('ss://')) return nodeUrl;
+
+    const { plusAsSpace = false } = options;
 
     const safeDecode = (value) => {
         try {
