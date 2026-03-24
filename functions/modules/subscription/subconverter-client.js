@@ -187,7 +187,17 @@ export async function fetchFromSubconverter(candidates, options) {
             (async () => {
                 try {
                     // 构建查询参数
-                    subconverterUrl.searchParams.set('target', targetFormat);
+                    const surgeMatch = typeof targetFormat === 'string'
+                        ? targetFormat.match(/^surge(?:&ver=(\d+))?$/i)
+                        : null;
+                    if (surgeMatch) {
+                        subconverterUrl.searchParams.set('target', 'surge');
+                        if (surgeMatch[1]) {
+                            subconverterUrl.searchParams.set('ver', surgeMatch[1]);
+                        }
+                    } else {
+                        subconverterUrl.searchParams.set('target', targetFormat);
+                    }
                     subconverterUrl.searchParams.set('url', callbackUrl);
                     if (enableScv) subconverterUrl.searchParams.set('scv', 'true');
                     if (enableUdp) subconverterUrl.searchParams.set('udp', 'true');
