@@ -26,6 +26,15 @@ describe('Snell 协议支持', () => {
             expect(result.tfo).toBe(true);
         });
 
+        it('应忽略不支持的参数（如 ecn）', () => {
+            const url = 'snell://password123@example.com:443?version=5&reuse=true&tfo=true&ecn=true#TestNode';
+            const result = parseSnellUrl(url);
+
+            expect(result).toBeTruthy();
+            expect(result.reuse).toBe(true);
+            expect(result.tfo).toBe(true);
+        });
+
         it('应正确解析带混淆参数的 Snell URL', () => {
             const url = 'snell://password123@example.com:443?version=5&obfs=http&obfs-host=cloudflare.com#TestNode';
             const result = parseSnellUrl(url);

@@ -469,13 +469,6 @@ export async function handleMisubRequest(context) {
         url.searchParams.get('builtin') === 'surge' ||
         url.searchParams.get('native') === '1';
 
-    const isLikelyNodeList = (content) => {
-        if (!content || typeof content !== 'string') return false;
-        const trimmed = content.trim();
-        if (!trimmed) return false;
-        if (trimmed.includes('[Proxy]') || trimmed.includes('[Proxy Group]') || trimmed.includes('[Rule]')) return false;
-        return /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy2|tuic|snell|anytls|socks5|http):\/\//mi.test(trimmed);
-    };
 
     const buildBuiltinSurgeResponse = () => {
         const publicBaseUrl = getPublicBaseUrl(env, url);
@@ -626,14 +619,6 @@ export async function handleMisubRequest(context) {
             enableEmoji: shouldUseEmoji,
             timeout: 30000 // 30s timeout
         });
-
-        if (targetFormat.startsWith('surge')) {
-            const responseText = await result.response.clone().text();
-            if (isLikelyNodeList(responseText)) {
-                console.warn('[MiSub] Surge backend returned node list. Falling back to builtin Surge generator.');
-                return buildBuiltinSurgeResponse();
-            }
-        }
 
         // [Success Logic]
         if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
