@@ -357,7 +357,7 @@ MiSub 通过 SubConverter 后端进行订阅格式转换，核心调用路径为
 MiSub 的几个适配细节：
 
 - `surge` 目标会自动补齐版本为 `surge&ver=4`（可用 `?target=surge&ver=3` 指定版本）。
-- Surge 客户端不识别 `snell://` 订阅链接，MiSub 会在 Surge 输出中使用原生 `snell, server, port, psk=..., version=...` 格式；如后端返回的是节点列表，会自动回退到内置 Surge 生成器。
+- Surge 客户端不识别 `snell://` 订阅链接，建议确保 SubConverter 能输出原生 `snell, server, port, psk=..., version=...` 格式的 Surge 配置。
 - `sing-box` 与 `singbox` 会自动落到 Base64 输出（SubConverter 目前无 sing-box 目标）。
 - `quanx` 需要显式参数（`?quanx` 或 `?target=quanx`）或对应的 User-Agent。
 
