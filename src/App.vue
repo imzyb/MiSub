@@ -26,7 +26,7 @@ const { theme } = storeToRefs(themeStore);
 const { initTheme } = themeStore;
 
 const sessionStore = useSessionStore();
-const { sessionState } = storeToRefs(sessionStore);
+const { sessionState, publicHeaderFooter } = storeToRefs(sessionStore);
 const { checkSession, login, logout } = sessionStore;
 
 const toastStore = useToastStore();
@@ -41,7 +41,8 @@ const isLoggedIn = computed(() => sessionState.value === 'loggedIn');
 const isPublicRoute = computed(() => route.meta.isPublic);
 
 const showModernNavBar = computed(() => isLoggedIn.value && layoutMode.value === 'modern');
-const showLegacyHeader = computed(() => !showModernNavBar.value && (isLoggedIn.value || isPublicRoute.value));
+const showLegacyHeader = computed(() => !showModernNavBar.value && (isLoggedIn.value || (isPublicRoute.value && publicHeaderFooter.value?.vpsPublicHeaderEnabled !== false)));
+const showPublicFooter = computed(() => publicHeaderFooter.value?.vpsPublicFooterEnabled !== false);
 
 const shouldCenterMain = computed(() =>
   sessionState.value !== 'loggedIn' &&
@@ -161,7 +162,7 @@ aria-live="polite"
     </main>
 
 <Toast />
-<Footer />
+    <Footer v-if="!isPublicRoute || showPublicFooter" />
 <ScrollToTop v-if="isLoggedIn || isPublicRoute" />
 </div>
 </template>

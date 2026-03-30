@@ -228,7 +228,7 @@ const isLastSeenOffline = computed(() => {
 </script>
 
 <template>
-  <div class="relative w-full bg-white/40 dark:bg-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 p-4 transition-all overflow-hidden group">
+  <div class="relative w-full bg-white/40 dark:bg-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 p-4 transition-all overflow-hidden group vps-latency-shell">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
       <div class="flex flex-col gap-2">
         <div class="flex items-center gap-2">
@@ -306,7 +306,7 @@ const isLastSeenOffline = computed(() => {
         <line v-if="hoverX" 
           :x1="hoverX" :y1="chartPadding.top" 
           :x2="hoverX" :y2="svgHeight - chartPadding.bottom" 
-          stroke="currentColor" class="text-blue-500/50" stroke-width="1.5" stroke-dasharray="4,2" />
+          stroke="currentColor" class="text-blue-500/50 latency-guideline" stroke-width="1.5" stroke-dasharray="4,2" />
 
         <!-- Hover Points -->
         <circle v-for="ap in activePoints" :key="ap.name" 

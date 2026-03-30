@@ -428,7 +428,9 @@ export async function handlePublicConfig(env) {
 
         return createJsonResponse({
             enablePublicPage: mergedSettings.enablePublicPage,
-            customLoginPath: mergedSettings.customLoginPath
+            customLoginPath: mergedSettings.customLoginPath,
+            vpsPublicHeaderEnabled: mergedSettings?.vpsMonitor?.publicPageShowHeader !== false,
+            vpsPublicFooterEnabled: mergedSettings?.vpsMonitor?.publicPageShowFooter !== false
         });
     } catch (e) {
         console.error('[API Error /public/config]', e);

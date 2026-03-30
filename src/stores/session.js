@@ -12,6 +12,7 @@ export const useSessionStore = defineStore('session', () => {
   const initialData = ref(null);
   const subscriptionConfig = ref({}); // [NEW] Added subscriptionConfig
   const publicConfig = ref({ enablePublicPage: true }); // Default true until fetched
+  const publicHeaderFooter = ref({ vpsPublicHeaderEnabled: true, vpsPublicFooterEnabled: true });
 
   async function checkSession() {
     // Parallel fetch of initial data (auth check) and public config
@@ -23,9 +24,14 @@ export const useSessionStore = defineStore('session', () => {
     // Update public config
     if (pConfigResult.success) {
       publicConfig.value = pConfigResult.data;
+      publicHeaderFooter.value = {
+        vpsPublicHeaderEnabled: pConfigResult.data?.vpsPublicHeaderEnabled !== false,
+        vpsPublicFooterEnabled: pConfigResult.data?.vpsPublicFooterEnabled !== false
+      };
     } else {
       // Fallback to default if fetch fails
       publicConfig.value = { enablePublicPage: false };
+      publicHeaderFooter.value = { vpsPublicHeaderEnabled: true, vpsPublicFooterEnabled: true };
     }
 
     if (dataResult.success) {
@@ -87,5 +93,5 @@ export const useSessionStore = defineStore('session', () => {
     router.push({ path: '/' });
   }
 
-  return { sessionState, initialData, publicConfig, subscriptionConfig, checkSession, login, logout };
+  return { sessionState, initialData, publicConfig, publicHeaderFooter, subscriptionConfig, checkSession, login, logout };
 });

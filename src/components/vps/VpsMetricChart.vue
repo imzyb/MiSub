@@ -96,7 +96,7 @@ const gradientId = computed(() => {
 </script>
 
 <template>
-  <div class="rounded-2xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 p-4 shadow-sm">
+  <div class="rounded-2xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 p-4 shadow-sm vps-metric-chart-shell">
     <div class="flex items-center justify-between">
       <div>
         <p class="text-xs text-gray-500 dark:text-gray-400">{{ title }}</p>
@@ -120,7 +120,7 @@ const gradientId = computed(() => {
         </defs>
         <rect x="0" y="0" width="200" height="90" fill="transparent" />
         <path v-if="hasData" :d="areaPath" :fill="`url(#${gradientId})`" />
-        <polyline v-if="hasData" :points="polylinePoints" fill="none" :stroke="color" stroke-width="2" />
+        <polyline v-if="hasData" :points="polylinePoints" fill="none" :stroke="color" stroke-width="2" class="vps-metric-chart-line" />
         <text v-if="!hasData" x="100" y="45" text-anchor="middle" class="fill-gray-400 text-[10px]">暂无数据</text>
       </svg>
     </div>

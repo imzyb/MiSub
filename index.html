@@ -5,7 +5,11 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  <title>MiSub</title>
+  <meta property="og:title" content="MiSub" />
+  <meta property="og:description" content="基于 Cloudflare 的订阅转换和管理工具" />
+  <meta property="og:site_name" content="MiSub" />
+  <meta property="og:image" content="https://sub.dmorz.com/logo.png" />
   <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,14 +74,14 @@
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function (regs) {
             return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
-          }).catch(function () {});
+          }).catch(function () { });
         }
         if ('caches' in window) {
           caches.keys().then(function (keys) {
             return Promise.all(keys.map(function (key) { return caches.delete(key); }));
-          }).catch(function () {});
+          }).catch(function () { });
         }
-      } catch (e) {}
+      } catch (e) { }
     })();
   </script>
 

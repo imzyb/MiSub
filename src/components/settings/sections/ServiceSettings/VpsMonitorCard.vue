@@ -45,6 +45,9 @@ const vpsMonitorConfig = computed({
         publicThemeShowAnomalies: true,
         publicThemeShowFeatured: true,
         publicThemeShowDetailTable: true,
+        publicThemeFooterText: '由 MiSub VPS 监控引擎提供实时数据驱动',
+        publicPageShowHeader: true,
+        publicPageShowFooter: true,
         publicThemeSectionOrder: ['anomalies', 'nodes', 'featured', 'details'],
         publicThemeCustomCss: ''
       };
@@ -87,6 +90,7 @@ const exportThemeConfig = async () => {
     showAnomalies: vpsMonitorConfig.value.publicThemeShowAnomalies !== false,
     showFeatured: vpsMonitorConfig.value.publicThemeShowFeatured !== false,
     showDetailTable: vpsMonitorConfig.value.publicThemeShowDetailTable !== false,
+    footerText: vpsMonitorConfig.value.publicThemeFooterText || '',
     sectionOrder: vpsMonitorConfig.value.publicThemeSectionOrder || themeSections.map(item => item.key),
     customCss: vpsMonitorConfig.value.publicThemeCustomCss || ''
   };
@@ -109,6 +113,7 @@ const importThemeConfig = (event) => {
       updateField('publicThemeShowAnomalies', parsed.showAnomalies !== false);
       updateField('publicThemeShowFeatured', parsed.showFeatured !== false);
       updateField('publicThemeShowDetailTable', parsed.showDetailTable !== false);
+      updateField('publicThemeFooterText', parsed.footerText || '');
       updateField('publicThemeSectionOrder', Array.isArray(parsed.sectionOrder) ? parsed.sectionOrder : themeSections.map(item => item.key));
       updateField('publicThemeCustomCss', parsed.customCss || '');
     } catch {
@@ -242,9 +247,9 @@ const openPreview = (card) => {
           class="block w-full px-3 py-2 bg-white/70 dark:bg-gray-900/50 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 sm:text-sm dark:text-white transition-colors"
         >
           <option value="default">默认</option>
-          <option value="komari">Komari 风</option>
+          <option value="fresh">清爽</option>
           <option value="minimal">极简</option>
-          <option value="tech-dark">深色科技</option>
+          <option value="tech">科技</option>
           <option value="glass">玻璃态</option>
         </select>
       </div>
@@ -401,7 +406,7 @@ const openPreview = (card) => {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         <div class="flex items-center justify-between p-3 bg-white/70 dark:bg-gray-900/50 border border-gray-200/60 dark:border-white/10 misub-radius-lg">
           <div>
             <div class="text-sm font-medium text-gray-900 dark:text-gray-200">显示统计卡片</div>
@@ -429,6 +434,33 @@ const openPreview = (card) => {
             <div class="text-xs text-gray-500 dark:text-gray-400">底部节点明细表格</div>
           </div>
           <Switch :model-value="vpsMonitorConfig.publicThemeShowDetailTable !== false" @update:model-value="updateField('publicThemeShowDetailTable', $event)" />
+        </div>
+        <div class="flex items-center justify-between p-3 bg-white/70 dark:bg-gray-900/50 border border-gray-200/60 dark:border-white/10 misub-radius-lg">
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-200">公开页页头</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">显示 MiSub 顶部导航</div>
+          </div>
+          <Switch :model-value="vpsMonitorConfig.publicPageShowHeader !== false" @update:model-value="updateField('publicPageShowHeader', $event)" />
+        </div>
+        <div class="flex items-center justify-between p-3 bg-white/70 dark:bg-gray-900/50 border border-gray-200/60 dark:border-white/10 misub-radius-lg">
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-200">公开页页眉</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">显示 MiSub 页脚</div>
+          </div>
+          <Switch :model-value="vpsMonitorConfig.publicPageShowFooter !== false" @update:model-value="updateField('publicPageShowFooter', $event)" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">公开页页脚文案</label>
+          <input
+            type="text"
+            :value="vpsMonitorConfig.publicThemeFooterText"
+            @input="updateField('publicThemeFooterText', $event.target.value)"
+            placeholder="例如：由 MiSub VPS 监控引擎提供实时数据驱动"
+            class="block w-full px-3 py-2 bg-white/80 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 sm:text-sm dark:text-white transition-colors"
+          />
         </div>
       </div>
 
