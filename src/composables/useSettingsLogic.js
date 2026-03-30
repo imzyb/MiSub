@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { useToastStore } from '../stores/toast.js';
+import { DEFAULT_SETTINGS } from '../constants/default-settings.js';
 import { fetchSettings, saveSettings } from '../lib/api.js';
 import { useBackupLogic } from './useBackupLogic.js';
 
@@ -14,7 +15,7 @@ export function useSettingsLogic() {
     const { exportBackup, importBackup } = useBackupLogic();
 
     // ========== 状态定义 ==========
-    const settings = ref({});
+    const settings = ref({ ...DEFAULT_SETTINGS });
     const isLoading = ref(false);
     const isSaving = ref(false);
     const showMigrationModal = ref(false);
@@ -48,7 +49,8 @@ export function useSettingsLogic() {
         try {
             const result = await fetchSettings();
             if (result.success) {
-                settings.value = result.data;
+                const incoming = result.data && typeof result.data === 'object' ? result.data : {};
+                settings.value = { ...DEFAULT_SETTINGS, ...incoming };
 
                 // 初始化前缀配置
                 // 初始化伪装配置
@@ -66,9 +68,11 @@ export function useSettingsLogic() {
                 }
             } else {
                 showToast(`加载设置失败: ${result.error}`, 'error');
+                settings.value = { ...DEFAULT_SETTINGS };
             }
         } catch (error) {
             showToast('加载设置失败', 'error');
+            settings.value = { ...DEFAULT_SETTINGS };
         } finally {
             isLoading.value = false;
         }

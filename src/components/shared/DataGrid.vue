@@ -238,7 +238,9 @@ const handlePageChange = (page) => {
                   'px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider',
                   column.width ? `w-${column.width}` : '',
                   column.align === 'center' ? 'text-center' : '',
-                  column.align === 'right' ? 'text-right' : ''
+                  column.align === 'right' ? 'text-right' : '',
+                  column.sticky === 'right' ? 'sticky right-0 z-20 border-l border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95' : '',
+                  column.sticky === 'left' ? 'sticky left-0 z-20 border-r border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95' : ''
                 ]"
               >
                 <div class="flex items-center space-x-1">
@@ -312,7 +314,9 @@ const handlePageChange = (page) => {
                   'px-6 py-4 whitespace-nowrap text-sm',
                   column.align === 'center' ? 'text-center' : '',
                   column.align === 'right' ? 'text-right' : '',
-                  compact ? 'py-2' : ''
+                  compact ? 'py-2' : '',
+                  column.sticky === 'right' ? 'sticky right-0 z-10 border-l border-gray-200 bg-white/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95' : '',
+                  column.sticky === 'left' ? 'sticky left-0 z-10 border-r border-gray-200 bg-white/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95' : ''
                 ]"
               >
                 <slot

@@ -23,6 +23,7 @@ import { handleApiRequest } from './modules/api-router.js';
 import { createJsonResponse } from './modules/utils.js';
 import { corsMiddleware, securityHeadersMiddleware } from './middleware/cors.js';
 import { handleDisguiseRequest } from './modules/handlers/disguise-handler.js';
+import { createDisguiseResponse } from './modules/disguise-page.js';
 
 // 静态导入核心依赖以优化冷加载
 import { StorageFactory, SettingsCache } from './storage-adapter.js';
@@ -223,6 +224,8 @@ export async function onRequest(context) {
                 const isSpaRoute = [
                     '/groups',
                     '/nodes',
+                    '/monitor',
+                    '/vps',
                     '/subscriptions',
                     '/settings',
                     '/login', // 默认 login 仍然需要保留，以便前端处理 "入口" 逻辑
@@ -237,6 +240,7 @@ export async function onRequest(context) {
                     && url.pathname !== '/login'
                     && url.pathname !== customLoginPath
                     && !url.pathname.startsWith('/explore')
+                    && !url.pathname.startsWith('/vps')
                     && url.pathname !== '/offline';
 
                 // Route protection for SPA pages
@@ -254,17 +258,18 @@ export async function onRequest(context) {
                 if (isProtectedSpaRoute && !isLocalhost) {
                     const isAuthenticated = await authMiddleware(request, env);
                     if (!isAuthenticated) {
-                        // Redirect to login page
-                        return new Response(null, {
-                            status: 302,
-                            headers: { Location: customLoginPath }
-                        });
+                        return createDisguiseResponse(settings?.disguise, request.url);
                     }
                 }
 
                 // [Smart Disguise] Check if we need to disguise the SPA/Root
                 // Only applies to non-static assets
                 if ((url.pathname === '/' || isSpaRoute) && !isStaticAsset) {
+                    if (url.pathname === '/vps') {
+                        // public page should never be disguised
+                        const indexResponse = await fetchSpaEntry(request, env, next);
+                        return applyNoStoreToHtmlResponse(indexResponse);
+                    }
                     // Pass settings to avoid double fetch
                     const disguiseResponse = await handleDisguiseRequest(context, settings);
                     if (disguiseResponse) {

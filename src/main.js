@@ -9,31 +9,17 @@ import { useToastStore } from './stores/toast.js'
 // 全局错误处理
 if (typeof window !== 'undefined') {
   console.debug('[MiSub] Error Handler Loaded (v2026-01-11-fix-link-error)');
-  const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-  const clearLocalServiceWorker = async () => {
-    if (!isLocalHost) return;
-    if (sessionStorage.getItem('misub:sw-cleared') === '1') return;
-    sessionStorage.setItem('misub:sw-cleared', '1');
-    try {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((reg) => reg.unregister()));
-      }
-      if ('caches' in window) {
-        const cacheKeys = await caches.keys();
-        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
-      }
-      console.debug('[PWA] Local caches cleared');
-    } catch (error) {
-      console.warn('[PWA] Failed to clear local caches:', error);
-    }
-  };
-
-  clearLocalServiceWorker();
-
   // 处理未捕获的Promise拒绝
   window.addEventListener('unhandledrejection', (event) => {
+    const message = event.reason?.message || '';
+    if (message.includes('Failed to fetch dynamically imported module')
+      || message.includes('error loading dynamically imported module')) {
+      const reloadKey = 'misub:chunk-reload';
+      if (sessionStorage.getItem(reloadKey) !== '1') {
+        sessionStorage.setItem(reloadKey, '1');
+        window.location.reload();
+      }
+    }
     handleError(event.reason, 'Unhandled Promise Rejection', {
       type: 'promise_rejection'
     });
@@ -79,10 +65,7 @@ if (typeof window !== 'undefined') {
 
     markAssetReloaded();
     try {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((reg) => reg.unregister()));
-      }
+      // PWA disabled: skip service worker cleanup
       if ('caches' in window) {
         const cacheKeys = await caches.keys();
         await Promise.all(cacheKeys.map((key) => caches.delete(key)));

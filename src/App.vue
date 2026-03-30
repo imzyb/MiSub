@@ -1,5 +1,6 @@
 <script setup>
 import { defineAsyncComponent, onMounted, watch, computed } from 'vue';
+import RouteErrorBoundary from './components/ui/RouteErrorBoundary.vue';
 import { useRoute } from 'vue-router';
 import { useThemeStore } from './stores/theme';
 import { useSessionStore } from './stores/session';
@@ -14,8 +15,6 @@ const Login = defineAsyncComponent(() => import('./components/modals/Login.vue')
 const NotFound = defineAsyncComponent(() => import('./views/NotFound.vue'));
 const Toast = defineAsyncComponent(() => import('./components/ui/Toast.vue'));
 const Footer = defineAsyncComponent(() => import('./components/layout/Footer.vue'));
-const PWAUpdatePrompt = defineAsyncComponent(() => import('./components/features/PWAUpdatePrompt.vue'));
-const PWADevTools = defineAsyncComponent(() => import('./components/features/PWADevTools.vue'));
 const Dashboard = defineAsyncComponent(() => import('./components/features/Dashboard/Dashboard.vue'));
 const Header = defineAsyncComponent(() => import('./components/layout/Header.vue'));
 const SavePrompt = defineAsyncComponent(() => import('./components/ui/SavePrompt.vue'));
@@ -134,7 +133,9 @@ aria-live="polite"
 
         <router-view v-if="layoutMode === 'modern'" v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <RouteErrorBoundary :reset-key="route.fullPath">
+              <component :is="Component" />
+            </RouteErrorBoundary>
           </transition>
         </router-view>
 
@@ -145,7 +146,9 @@ aria-live="polite"
       <template v-else-if="isPublicRoute">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <RouteErrorBoundary :reset-key="route.fullPath">
+              <component :is="Component" />
+            </RouteErrorBoundary>
           </transition>
         </router-view>
       </template>
@@ -158,8 +161,6 @@ aria-live="polite"
     </main>
 
 <Toast />
-<PWAUpdatePrompt />
-<PWADevTools />
 <Footer />
 <ScrollToTop v-if="isLoggedIn || isPublicRoute" />
 </div>

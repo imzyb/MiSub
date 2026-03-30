@@ -6,6 +6,8 @@ const SubscriptionGroupsView = () => import('../views/SubscriptionGroupsView.vue
 const ManualNodesView = () => import('../views/ManualNodesView.vue');
 const MySubscriptionsView = () => import('../views/MySubscriptionsView.vue');
 const SettingsView = () => import('../views/SettingsView.vue');
+const VpsMonitorView = () => import('../views/VpsMonitorView.vue');
+const PublicVpsMonitorView = () => import('../views/PublicVpsMonitorView.vue');
 
 const HomeView = () => import('../views/HomeView.vue'); // [NEW] Wrapper View
 
@@ -45,6 +47,18 @@ const routes = [
         meta: { title: '我的订阅' }
     },
     {
+        path: '/monitor',
+        name: 'VpsMonitor',
+        component: VpsMonitorView,
+        meta: { title: 'VPS探针' }
+    },
+    {
+        path: '/vps',
+        name: 'PublicVpsMonitor',
+        component: PublicVpsMonitorView,
+        meta: { title: 'VPS探针公开页', isPublic: true }
+    },
+    {
         path: '/settings',
         name: 'Settings',
         component: SettingsView,
@@ -77,6 +91,19 @@ const router = createRouter({
             return savedPosition;
         } else {
             return { top: 0 };
+        }
+    }
+});
+
+// 自动恢复动态 chunk 加载失败导致的白屏
+router.onError((error) => {
+    const message = error?.message || '';
+    if (message.includes('Failed to fetch dynamically imported module')
+        || message.includes('error loading dynamically imported module')) {
+        const reloadKey = 'misub:chunk-reload';
+        if (sessionStorage.getItem(reloadKey) !== '1') {
+            sessionStorage.setItem(reloadKey, '1');
+            window.location.reload();
         }
     }
 });

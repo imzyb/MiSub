@@ -48,9 +48,6 @@ export const ComponentMap = {
     DashboardContainer: () => import('./features/Dashboard/DashboardContainer.vue'),
     SaveIndicator: () => import('./features/Dashboard/SaveIndicator.vue'),
     Overview: () => import('./features/Dashboard/Overview.vue'),
-    PWADevTools: () => import('./features/PWADevTools.vue'),
-    PWAInstallPrompt: () => import('./features/PWAInstallPrompt.vue'),
-    PWAUpdatePrompt: () => import('./features/PWAUpdatePrompt.vue'),
     ThemeToggle: () => import('./features/ThemeToggle.vue')
   },
 

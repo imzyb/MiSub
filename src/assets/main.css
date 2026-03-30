@@ -25,17 +25,17 @@
 */
 
 :root {
-  /* 🎨 Color Palette: Violet-Indigo-Cyan Fusion */
-  --color-primary-50: #f5f3ff;
-  --color-primary-100: #ede9fe;
-  --color-primary-200: #ddd6fe;
-  --color-primary-300: #c4b5fd;
-  --color-primary-400: #a78bfa;
-  --color-primary-500: #8b5cf6;
-  --color-primary-600: #7c3aed;
-  --color-primary-700: #6d28d9;
-  --color-primary-800: #5b21b6;
-  --color-primary-900: #4c1d95;
+   /* 🎨 Color Palette: Violet-Indigo-Cyan Fusion */
+   --color-primary-50: #f5f3ff;
+   --color-primary-100: #ede9fe;
+   --color-primary-200: #ddd6fe;
+   --color-primary-300: #c4b5fd;
+   --color-primary-400: #a78bfa;
+   --color-primary-500: #8b5cf6;
+   --color-primary-600: #7c3aed;
+   --color-primary-700: #6d28d9;
+   --color-primary-800: #5b21b6;
+   --color-primary-900: #4c1d95;
 
   --bg-page-light: #f8fafc;
   --bg-page-dark: #030712;

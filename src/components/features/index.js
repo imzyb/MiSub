@@ -10,9 +10,6 @@ export { default as SaveIndicator } from './Dashboard/SaveIndicator.vue';
 export { default as Overview } from './Dashboard/Overview.vue';
 
 // 导出其他功能组件
-export { default as PWADevTools } from './PWADevTools.vue';
-export { default as PWAInstallPrompt } from './PWAInstallPrompt.vue';
-export { default as PWAUpdatePrompt } from './PWAUpdatePrompt.vue';
 export { default as ThemeToggle } from './ThemeToggle.vue';
 
 // 组件列表
@@ -23,10 +20,6 @@ export const FeatureComponents = {
   SaveIndicator,
   Overview,
 
-  // PWA组件
-  PWADevTools,
-  PWAInstallPrompt,
-  PWAUpdatePrompt,
 
   // 其他功能组件
   ThemeToggle
