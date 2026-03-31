@@ -3,35 +3,20 @@
  * 处理各种API请求
  */
 
-import { StorageFactory } from '../storage-adapter.js';
-import { createJsonResponse } from './utils.js';
+import { StorageFactory, SettingsCache, STORAGE_TYPES } from '../storage-adapter.js';
+import { getCookieSecret, getAdminPassword, setAdminPassword, isUsingDefaultPassword, createJsonResponse, createErrorResponse, migrateProfileIds } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, createUnauthorizedResponse } from './auth-middleware.js';
 import { sendTgNotification, checkAndNotify } from './notifications.js';
+import { clearAllNodeCaches } from '../services/node-cache-service.js';
 
-// 常量定义
-const OLD_KV_KEY = 'misub_data_v1';
-const KV_KEY_SUBS = 'misub_subscriptions_v1';
-const KV_KEY_PROFILES = 'misub_profiles_v1';
-const KV_KEY_SETTINGS = 'worker_settings_v1';
+import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings } from './config.js';
 
-// 默认设置
-const defaultSettings = {
-    FileName: 'MiSub',
-    mytoken: 'auto',
-    profileToken: 'profiles',
-    subConverter: 'url.v1.mk',
-    subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
-    prependSubName: true,
-    prefixConfig: {
-        enableManualNodes: true,
-        enableSubscriptions: true,
-        manualNodePrefix: '手动节点',
-        enableNodeEmoji: true
-    },
-    NotifyThresholdDays: 3,
-    NotifyThresholdPercent: 90,
-    storageType: 'kv'
-};
+function isStorageUnavailableError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('kv storage is paused')
+        || message.includes('storage is paused')
+        || message.includes('namespace is paused');
+}
 
 /**
  * 获取存储适配器实例
@@ -49,24 +34,54 @@ async function getStorageAdapter(env) {
  * @returns {Promise<Response>} HTTP响应
  */
 export async function handleDataRequest(env) {
+    let storageType = 'unknown';
     try {
-        const storageAdapter = await getStorageAdapter(env);
+        storageType = await StorageFactory.getStorageType(env);
+        if (storageType === 'd1' && !env.MISUB_DB) {
+            console.error('[API Error /data] D1 binding missing while storageType=d1');
+        }
+        if (storageType === 'kv' && !StorageFactory.resolveKV(env)) {
+            console.error('[API Error /data] KV binding missing while storageType=kv');
+        }
+        const storageAdapter = StorageFactory.createAdapter(env, storageType);
         const [misubs, profiles, settings] = await Promise.all([
             storageAdapter.get(KV_KEY_SUBS).then(res => res || []),
             storageAdapter.get(KV_KEY_PROFILES).then(res => res || []),
             storageAdapter.get(KV_KEY_SETTINGS).then(res => res || {})
         ]);
+
+        // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
+        if (migrateProfileIds(profiles)) {
+            storageAdapter.put(KV_KEY_PROFILES, profiles).catch(err =>
+                console.error('[Migration] Failed to persist migrated profile IDs:', err)
+            );
+        }
         const config = {
-            FileName: settings.FileName || 'MISUB',
-            mytoken: settings.mytoken || 'auto',
-            profileToken: settings.profileToken || 'profiles'
+            ...defaultSettings,
+            ...settings,
+            isDefaultPassword: await isUsingDefaultPassword(env)
         };
         return createJsonResponse({ misubs, profiles, config });
     } catch (e) {
-        console.error('[API Error /data]', 'Failed to read from storage:', e);
-        return createJsonResponse({ error: '读取初始数据失败' }, 500);
+        console.error('[API Error /data] Failed to read from storage', {
+            error: e?.message,
+            storageType,
+            hasKv: !!StorageFactory.resolveKV(env),
+            hasD1: !!env?.MISUB_DB
+        });
+        return createErrorResponse(e, 500);
     }
 }
+
+/**
+ * 处理订阅和配置保存API
+ * @param {Object} request - HTTP请求对象
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+import { applyPatch } from './patch-utils.js';
+
+// ... (existing imports)
 
 /**
  * 处理订阅和配置保存API
@@ -88,74 +103,120 @@ export async function handleMisubsSave(request, env) {
             }, 400);
         }
 
-        const { misubs, profiles } = requestData;
+        const { misubs, profiles, diff } = requestData;
+        const storageAdapter = await getStorageAdapter(env);
 
-        // 步骤2: 验证必需字段
-        if (typeof misubs === 'undefined' || typeof profiles === 'undefined') {
-            return createJsonResponse({
-                success: false,
-                message: '请求体中缺少 misubs 或 profiles 字段'
-            }, 400);
-        }
+        let finalMisubs = misubs;
+        let finalProfiles = profiles;
 
-        // 步骤3: 验证数据类型
-        if (!Array.isArray(misubs) || !Array.isArray(profiles)) {
-            return createJsonResponse({
-                success: false,
-                message: 'misubs 和 profiles 必须是数组格式'
-            }, 400);
+        // 步骤1.5: 检查是否为 Diff 模式
+        if (diff) {
+            console.info('[API] Processing Diff Patch...');
+            // 获取当前数据
+            const [currentMisubs, currentProfiles] = await Promise.all([
+                storageAdapter.get(KV_KEY_SUBS).then(res => res || []),
+                storageAdapter.get(KV_KEY_PROFILES).then(res => res || [])
+            ]);
+
+            // 应用补丁
+            if (diff.subscriptions) {
+                finalMisubs = applyPatch(currentMisubs, diff.subscriptions);
+            } else {
+                finalMisubs = currentMisubs; // 无变动
+            }
+
+            if (diff.profiles) {
+                finalProfiles = applyPatch(currentProfiles, diff.profiles);
+            } else {
+                finalProfiles = currentProfiles; // 无变动
+            }
+
+            if (!Array.isArray(finalMisubs) || !Array.isArray(finalProfiles)) {
+                return createJsonResponse({
+                    success: false,
+                    message: '增量更新结果格式错误，请检查补丁数据'
+                }, 400);
+            }
+        } else {
+            // 步骤2: 验证必需字段 (仅在非Diff模式下)
+            if (typeof misubs === 'undefined' || typeof profiles === 'undefined') {
+                return createJsonResponse({
+                    success: false,
+                    message: '请求体中缺少 misubs 或 profiles 字段'
+                }, 400);
+            }
+
+            // 步骤3: 验证数据类型
+            if (!Array.isArray(misubs) || !Array.isArray(profiles)) {
+                return createJsonResponse({
+                    success: false,
+                    message: 'misubs 和 profiles 必须是数组格式'
+                }, 400);
+            }
         }
 
         // 步骤4: 获取设置（带错误处理）
         let settings;
         try {
-            const storageAdapter = await getStorageAdapter(env);
             settings = await storageAdapter.get(KV_KEY_SETTINGS) || defaultSettings;
         } catch (settingsError) {
             settings = defaultSettings; // 使用默认设置继续
         }
 
         // 步骤5: 处理通知（非阻塞，错误不影响保存）
-        try {
-            const notificationPromises = misubs
-                .filter(sub => sub && sub.url && sub.url.startsWith('http'))
-                .map(sub => checkAndNotify(sub, settings, env).catch(notifyError => {
-                    // 通知失败不影响保存流程
-                }));
+        // 仅在有订阅数据时处理
+        if (finalMisubs && finalMisubs.length > 0) {
+            try {
+                const notificationPromises = finalMisubs
+                    .filter(sub => sub && sub.url && sub.url.startsWith('http'))
+                    .map(sub => checkAndNotify(sub, settings, env).catch(notifyError => {
+                        console.warn('[API] Notification failed for subscription:', sub?.name || sub?.url, notifyError);
+                    }));
 
-            // 并行处理通知，但不等待完成
-            Promise.all(notificationPromises).catch(e => {
-                // 部分通知处理失败
-            });
-        } catch (notificationError) {
-            // 通知系统错误，继续保存流程
+                // 并行处理通知，但不等待完成
+                Promise.all(notificationPromises).catch(e => {
+                    console.warn('[API] Notification batch error:', e);
+                });
+            } catch (notificationError) {
+                console.warn('[API] Notification system error:', notificationError);
+            }
         }
 
         // 步骤6: 保存数据到存储（使用存储适配器）
         try {
-            const storageAdapter = await getStorageAdapter(env);
             await Promise.all([
-                storageAdapter.put(KV_KEY_SUBS, misubs),
-                storageAdapter.put(KV_KEY_PROFILES, profiles)
+                storageAdapter.put(KV_KEY_SUBS, finalMisubs),
+                storageAdapter.put(KV_KEY_PROFILES, finalProfiles)
             ]);
         } catch (storageError) {
+            console.error('[API Error /misubs] Storage put failed:', storageError);
             return createJsonResponse({
                 success: false,
                 message: `数据保存失败: ${storageError.message || '存储服务暂时不可用，请稍后重试'}`
             }, 500);
         }
 
+        // 步骤6.5: 清除节点缓存（订阅变动后确保拉取最新数据）
+        try {
+            const cacheResult = await clearAllNodeCaches(storageAdapter);
+            console.info(`[API] Cleared ${cacheResult.cleared} node caches after subscription update`);
+        } catch (cacheError) {
+            // 缓存清除失败不影响保存结果
+            console.warn('[API] Failed to clear node caches:', cacheError.message);
+        }
+
         // 步骤7: 返回保存后的数据，确保前端能更新状态
         return createJsonResponse({
             success: true,
-            message: '订阅源及订阅组已保存',
+            message: diff ? '增量更新已保存' : '订阅源及订阅组已保存',
             data: {
-                misubs,
-                profiles
+                misubs: finalMisubs,
+                profiles: finalProfiles
             }
         });
 
     } catch (e) {
+        console.error('[API Error /misubs] Uncaught error:', e);
         return createJsonResponse({
             success: false,
             message: `保存失败: ${e.message || '服务器内部错误，请稍后重试'}`
@@ -174,7 +235,14 @@ export async function handleSettingsGet(env) {
         const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
         return createJsonResponse({ ...defaultSettings, ...settings });
     } catch (e) {
-        return createJsonResponse({ error: '读取设置失败' }, 500);
+        if (isStorageUnavailableError(e)) {
+            return createJsonResponse({
+                ...defaultSettings,
+                storageType: 'kv',
+                storageUnavailable: true
+            });
+        }
+        return createErrorResponse('读取设置失败', 500);
     }
 }
 
@@ -187,18 +255,212 @@ export async function handleSettingsGet(env) {
 export async function handleSettingsSave(request, env) {
     try {
         const newSettings = await request.json();
+
+        const reservedPathRoots = new Set([
+            'settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard',
+            'api', 'explore', 'sub', 'cron', 'assets', '@vite', 'public', 'profile', 'offline',
+            'vps', 'monitor', 'logout', 'auth_debug', 'auth_check', 'data', 'kv_test',
+            'clients', 'system', 'github', 'telegram', 'test_notification', 'test_subconverter',
+            'misubs', 'node_count', 'nodes', 'fetch_external_url', 'batch_update_nodes',
+            'subscription_nodes', 'debug_subscription', 'preview'
+        ]);
+
+        const normalizePathRoot = (value) => {
+            if (typeof value !== 'string') return '';
+            return value.trim().replace(/^\/+/, '').split('/')[0].toLowerCase();
+        };
+
+        const rejectReservedValue = (value, fieldLabel) => {
+            const pathRoot = normalizePathRoot(value);
+            if (pathRoot && reservedPathRoots.has(pathRoot)) {
+                return createJsonResponse({
+                    success: false,
+                    message: `"/${pathRoot}" 是系统保留路径，不可用作${fieldLabel}`
+                }, 400);
+            }
+            return null;
+        };
+
+        // 校验 customLoginPath 是否为系统保留路径
+        if (newSettings.customLoginPath) {
+            const rejected = rejectReservedValue(newSettings.customLoginPath, '自定义登录路径');
+            if (rejected) return rejected;
+        }
+
+        // 订阅 Token 也不能使用会和路由冲突的保留路径
+        if (newSettings.mytoken && newSettings.mytoken !== 'auto') {
+            const rejected = rejectReservedValue(newSettings.mytoken, '自定义订阅Token');
+            if (rejected) return rejected;
+        }
+        if (newSettings.profileToken && newSettings.profileToken !== 'profiles') {
+            const rejected = rejectReservedValue(newSettings.profileToken, '订阅组分享Token');
+            if (rejected) return rejected;
+        }
+
         const storageAdapter = await getStorageAdapter(env);
         const oldSettings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
         const finalSettings = { ...oldSettings, ...newSettings };
 
         // 使用存储适配器保存设置
-        await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
+        try {
+            await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
+        } catch (storageError) {
+            if (isStorageUnavailableError(storageError)) {
+                return createJsonResponse({
+                    success: false,
+                    message: 'KV 存储已暂停，设置当前无法保存。若为 EdgeOne 部署，请先恢复 KV；若为 Cloudflare 部署，可配置 D1 后切换到 D1 存储。'
+                }, 503);
+            }
+            throw storageError;
+        }
+
+        // 双存储同步：尽量保持 KV / D1 一致
+        try {
+            const d1Adapter = StorageFactory.createAdapter(env, STORAGE_TYPES.D1);
+            await d1Adapter.put(KV_KEY_SETTINGS, finalSettings);
+        } catch (syncError) {
+            console.warn('[API] Failed to sync settings to D1:', syncError?.message || syncError);
+        }
+        try {
+            const kvAdapter = StorageFactory.createAdapter(env, STORAGE_TYPES.KV);
+            await kvAdapter.put(KV_KEY_SETTINGS, finalSettings);
+        } catch (syncError) {
+            console.warn('[API] Failed to sync settings to KV:', syncError?.message || syncError);
+        }
+        SettingsCache.clear();
+
+        // 清除节点缓存（设置变更可能影响节点处理逻辑）
+        try {
+            await clearAllNodeCaches(storageAdapter);
+        } catch (cacheError) {
+            console.warn('[API] Failed to clear node caches:', cacheError.message);
+        }
 
         const message = `⚙️ *MiSub 设置更新* ⚙️\n\n您的 MiSub 应用设置已成功更新。`;
         await sendTgNotification(finalSettings, message);
 
-        return createJsonResponse({ success: true, message: '设置已保存' });
+        return createJsonResponse({ success: true, message: '设置已保存', data: finalSettings });
     } catch (e) {
-        return createJsonResponse({ error: '保存设置失败' }, 500);
+        return createErrorResponse('保存设置失败', 500);
+    }
+}
+
+/**
+ * 处理公开订阅组获取API
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handlePublicProfilesRequest(env) {
+    try {
+        const storageAdapter = await getStorageAdapter(env);
+        const [profiles, settings] = await Promise.all([
+            storageAdapter.get(KV_KEY_PROFILES).then(res => res || []),
+            storageAdapter.get(KV_KEY_SETTINGS).then(res => res || {})
+        ]);
+
+        const profileToken = settings.profileToken || 'profiles';
+
+        // 获取公告配置（仅当启用时返回）
+        const announcement = settings.announcement?.enabled ? {
+            enabled: true, // [修复] 必须包含此字段，否则前端 v-if 判断会失败
+            title: settings.announcement.title || '',
+            content: settings.announcement.content || '',
+            type: settings.announcement.type || 'info',
+            dismissible: settings.announcement.dismissible !== false,
+            updatedAt: settings.announcement.updatedAt
+        } : null;
+
+        // Hero Configuration
+        const hero = {
+            title1: settings.heroTitle1 || '发现',
+            title2: settings.heroTitle2 || '优质订阅',
+            description: settings.heroDescription || '浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。'
+        };
+
+        // Guestbook Config (Safe subset)
+        const guestbook = {
+            enabled: settings.guestbook?.enabled,
+            requireAudit: settings.guestbook?.requireAudit,
+            allowAnonymous: settings.guestbook?.allowAnonymous,
+        };
+
+        // 过滤出公开且启用的订阅组
+        const publicProfiles = profiles
+            .filter(p => p.isPublic && p.enabled)
+            .map(p => ({
+                id: p.id,
+                name: p.name,
+                description: p.description || '',
+                customId: p.customId,
+                updatedAt: p.updatedAt,
+                subscriptionCount: (p.subscriptions || []).length,
+                manualNodeCount: (p.manualNodes || []).length,
+            }));
+
+        return createJsonResponse({
+            success: true,
+            data: publicProfiles,
+            config: {
+                profileToken,
+                announcement,
+                hero,
+                guestbook
+            }
+        });
+    } catch (e) {
+        console.error('[API Error /public/profiles]', e);
+        return createErrorResponse('获取公开订阅组失败', 500);
+    }
+}
+
+/**
+ * 处理公开配置获取API
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handlePublicConfig(env) {
+    try {
+        const storageAdapter = await getStorageAdapter(env);
+        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+
+        // Merge with default settings to ensure enablePublicPage exists
+        const mergedSettings = { ...defaultSettings, ...settings };
+
+        return createJsonResponse({
+            enablePublicPage: mergedSettings.enablePublicPage,
+            customLoginPath: mergedSettings.customLoginPath,
+            vpsPublicHeaderEnabled: mergedSettings?.vpsMonitor?.publicPageShowHeader !== false,
+            vpsPublicFooterEnabled: mergedSettings?.vpsMonitor?.publicPageShowFooter !== false
+        });
+    } catch (e) {
+        console.error('[API Error /public/config]', e);
+        return createErrorResponse('获取公开配置失败', 500);
+    }
+}
+
+/**
+ * 处理密码更新API
+ * @param {Object} request - HTTP请求对象
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handleUpdatePassword(request, env) {
+    if (request.method !== 'POST') {
+        return createErrorResponse('Method Not Allowed', 405);
+    }
+
+    try {
+        const { password } = await request.json();
+
+        if (!password || typeof password !== 'string' || password.length < 6) {
+            return createErrorResponse('密码必须至少6位字符', 400);
+        }
+
+        await setAdminPassword(env, password);
+        return createJsonResponse({ success: true, message: '密码已更新' });
+
+    } catch (e) {
+        console.error('[API Error /settings/password]', e);
+        return createErrorResponse('Failed to update password', 500);
     }
 }

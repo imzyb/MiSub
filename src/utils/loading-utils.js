@@ -4,6 +4,7 @@
  */
 
 import { ref } from 'vue';
+import { TIMING } from '../constants/timing.js';
 
 /**
  * 创建可复用的加载状态
@@ -84,7 +85,7 @@ export function createLoadingState() {
  * @param {number} timeout - 超时时间（毫秒）
  * @returns {Object} 加载状态对象
  */
-export function createTimeoutLoadingState(timeout = 30000) {
+export function createTimeoutLoadingState(timeout = TIMING.REQUEST_TIMEOUT_MS) {
     const loadingState = createLoadingState();
     let timeoutId = null;
 

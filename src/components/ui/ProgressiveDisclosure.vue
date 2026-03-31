@@ -40,17 +40,17 @@ const levelClasses = computed(() => {
   const levels = {
     1: {
       title: 'text-lg font-bold text-gray-900 dark:text-white',
-      container: 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-2xl card-shadow',
+      container: 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md misub-radius-lg card-shadow',
       padding: 'p-6'
     },
     2: {
       title: 'text-base font-semibold text-gray-800 dark:text-gray-200',
-      container: 'bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl',
+      container: 'bg-gray-50/80 dark:bg-gray-800/60 backdrop-blur-sm misub-radius-lg',
       padding: 'p-4'
     },
     3: {
       title: 'text-sm font-medium text-gray-700 dark:text-gray-300',
-      container: 'bg-gray-25/60 dark:bg-gray-700/40 rounded-lg',
+      container: 'bg-gray-25/60 dark:bg-gray-700/40 misub-radius-md',
       padding: 'p-3'
     }
   };
@@ -87,7 +87,7 @@ const levelClasses = computed(() => {
       <!-- 展开/收起图标 -->
       <button 
         v-if="collapsible"
-        class="ml-4 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 smooth-all"
+        class="ml-4 p-1 misub-radius-md hover:bg-gray-100 dark:hover:bg-gray-700 smooth-all"
       >
         <svg 
           class="w-5 h-5 text-gray-400 smooth-transform"

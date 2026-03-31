@@ -1,0 +1,14 @@
+node_modules
+dist
+data
+logs
+.git
+.github
+.DS_Store
+.vscode
+.idea
+.wrangler
+.agent
+.gemini
+*.md
+images

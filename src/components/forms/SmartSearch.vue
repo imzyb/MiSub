@@ -120,7 +120,7 @@ watch([searchResults, searchQuery], () => {
         v-model="searchQuery"
         type="text"
         :placeholder="placeholder"
-        class="w-full pl-10 pr-12 py-3 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent smooth-all text-gray-900 dark:text-gray-100"
+        class="w-full pl-10 pr-12 py-3 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-700 misub-radius-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent smooth-all text-gray-900 dark:text-gray-100"
         @keyup.enter="addToHistory(searchQuery)"
       >
       
@@ -156,14 +156,14 @@ watch([searchResults, searchQuery], () => {
     </div>
 
     <!-- 搜索建议 -->
-    <div v-if="suggestions.length > 0" class="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-2xl card-shadow border border-gray-200 dark:border-gray-700 z-50">
+    <div v-if="suggestions.length > 0" class="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md misub-radius-lg card-shadow border border-gray-200 dark:border-gray-700 z-50">
       <div class="p-2">
         <p class="text-xs text-gray-500 dark:text-gray-400 px-3 py-1">搜索建议</p>
         <button
           v-for="suggestion in suggestions"
           :key="suggestion"
           @click="selectSuggestion(suggestion)"
-          class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg smooth-all"
+          class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 misub-radius-md smooth-all"
         >
           {{ suggestion }}
         </button>

@@ -367,7 +367,7 @@ defineExpose({
 }
 
 .drag-drop-container {
-  @apply border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden;
+  @apply border border-gray-200 dark:border-gray-700 misub-radius-md bg-white dark:bg-gray-800 overflow-hidden;
 }
 
 .drag-drop-item-wrapper {

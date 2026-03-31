@@ -3,6 +3,8 @@
  * @author MiSub Team
  */
 
+const isDev = import.meta.env.DEV;
+
 /**
  * 标准化API错误响应
  * @param {Error} error - 错误对象
@@ -33,8 +35,10 @@ export async function handleApiResponseError(response, context = 'API Request') 
     try {
         const errorData = await response.json();
         errorMessage = errorData.error || errorData.message || errorMessage;
-    } catch {
-        // 如果无法解析JSON，使用默认错误消息
+    } catch (error) {
+        if (isDev) {
+            console.debug('[ErrorUtils] Failed to parse error response JSON:', error);
+        }
     }
 
     return createApiError(new Error(errorMessage), context);

@@ -4,11 +4,11 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse } from '../utils.js';
 import { parseNodeList } from '../utils/node-parser.js';
 
 // 创建用于全局匹配的协议正则表达式
-const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp('^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\\/\\/', 'gm');
+const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp('^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\\/\\/', 'gm');
 
 /**
  * 获取订阅节点数量和用户信息
@@ -18,103 +18,269 @@ const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp('^(ss|ssr|vmess|vless|trojan|hyste
  */
 export async function handleNodeCountRequest(request, env) {
     if (request.method !== 'POST') {
-        return createJsonResponse('Method Not Allowed', 405);
+        return createErrorResponse('Method Not Allowed', 405);
     }
 
     try {
-        const { url: subUrl } = await request.json();
+        const { url: subUrl, fetchProxy, plusAsSpace } = await request.json();
         if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
-            return createJsonResponse({ error: 'Invalid or missing url' }, 400);
+            return createErrorResponse('Invalid or missing url', 400);
         }
 
         const result = { count: 0, userInfo: null };
+        let trafficRequestSucceeded = false;
+        let nodeCountRequestSucceeded = false;
+        let fetchError = null;
+
+        let requestUrl = subUrl;
+        if (fetchProxy && typeof fetchProxy === 'string' && fetchProxy.trim()) {
+            requestUrl = fetchProxy.trim() + encodeURIComponent(subUrl);
+        }
 
         try {
             // 使用统一的User-Agent策略
             const fetchOptions = {
                 headers: { 'User-Agent': 'v2rayN/7.23' },
-                redirect: "follow",
-                cf: { insecureSkipVerify: true }
+                redirect: "follow"
             };
             const trafficFetchOptions = {
                 headers: { 'User-Agent': 'clash-verge/v2.4.3' },
-                redirect: "follow",
-                cf: { insecureSkipVerify: true }
+                redirect: "follow"
             };
 
-            const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
-            const nodeCountRequest = fetch(new Request(subUrl, fetchOptions));
+            // cf 选项需传给 fetch() 而非 Request()：Cloudflare 环境生效，Node.js 安全忽略
+            const cfOptions = { cf: { insecureSkipVerify: true } };
+            const trafficRequest = fetch(new Request(requestUrl, trafficFetchOptions), cfOptions);
+            const nodeCountRequest = fetch(new Request(requestUrl, fetchOptions), cfOptions);
 
             // 使用 Promise.allSettled 替换 Promise.all
             const responses = await Promise.allSettled([trafficRequest, nodeCountRequest]);
 
             // 1. 处理流量请求的结果
-            if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
-                const trafficResponse = responses[0].value;
-                const userInfoHeader = trafficResponse.headers.get('subscription-userinfo');
+            // 辅助函数：从响应头提取用户信息
+            const extractUserInfo = (response) => {
+                const userInfoHeader = response.headers.get('subscription-userinfo');
                 if (userInfoHeader) {
                     const info = {};
                     userInfoHeader.split(';').forEach(part => {
                         const [key, value] = part.trim().split('=');
                         if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
                     });
-                    result.userInfo = info;
+                    return info;
                 }
+                return null;
+            };
+
+            // 辅助函数：从响应体伪节点名称中解析流量和到期信息
+            // 许多机场会在节点列表中嵌入 "剩余流量：985.4 GB" / "套餐到期：2025-12-31" 等伪节点
+            const extractUserInfoFromBody = (decodedText) => {
+                if (!decodedText) return null;
+
+                const info = {};
+                // 解析所有 URI fragment（# 后面的部分）
+                const fragments = [];
+                const lines = decodedText.split('\n');
+                for (const line of lines) {
+                    const hashIdx = line.indexOf('#');
+                    if (hashIdx !== -1) {
+                        try {
+                            fragments.push(decodeURIComponent(line.slice(hashIdx + 1).trim()));
+                        } catch {
+                            fragments.push(line.slice(hashIdx + 1).trim());
+                        }
+                    }
+                }
+                const fullText = fragments.join('\n');
+
+                // 解析剩余流量（支持多种格式）
+                const trafficPatterns = [
+                    /剩余流量[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
+                    /Remaining[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
+                    /剩余[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
+                    /Traffic[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i
+                ];
+                for (const pattern of trafficPatterns) {
+                    const match = fullText.match(pattern);
+                    if (match) {
+                        const value = parseFloat(match[1]);
+                        const unit = match[2].toUpperCase();
+                        const multipliers = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
+                        const bytes = Math.round(value * (multipliers[unit] || 1));
+                        // 用 total = bytes, upload = 0, download = 0 表示剩余流量
+                        info.total = bytes;
+                        info.upload = 0;
+                        info.download = 0;
+                        break;
+                    }
+                }
+
+                // 解析到期时间
+                const expirePatterns = [
+                    /(?:套餐到期|到期时间|过期时间|Expire)[：:]\s*(.+)/i
+                ];
+                for (const pattern of expirePatterns) {
+                    const match = fullText.match(pattern);
+                    if (match) {
+                        const expireStr = match[1].trim();
+                        if (/长期有效|永久|永不过期|unlimited|forever/i.test(expireStr)) {
+                            // 设置一个非常远的到期时间表示长期有效
+                            info.expire = Math.floor(new Date('2099-12-31').getTime() / 1000);
+                        } else {
+                            // 尝试解析日期
+                            const dateMatch = expireStr.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
+                            if (dateMatch) {
+                                const ts = new Date(dateMatch[1].replace(/\//g, '-')).getTime();
+                                if (!isNaN(ts)) {
+                                    info.expire = Math.floor(ts / 1000);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // 只有当至少解析到一项信息时才返回
+                return Object.keys(info).length > 0 ? info : null;
+            };
+
+            // 1. 处理流量请求的结果
+            if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
+                const info = extractUserInfo(responses[0].value);
+                if (info) {
+                    result.userInfo = info;
+                    trafficRequestSucceeded = true;
+                }
+            } else {
+                // 仅记录警告，不视为严重错误，因为我们还有 fallback
+                const reason = responses[0].status === 'fulfilled'
+                    ? `HTTP ${responses[0].value.status}`
+                    : (responses[0].reason?.message || 'Unknown Error');
+                console.warn(`[NodeHandler] Traffic specific request failed (${reason}). Will attempt fallback extraction.`);
             }
 
             // 2. 处理节点数请求的结果
             if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
                 const nodeCountResponse = responses[1].value;
-                const text = await nodeCountResponse.text();
-
-                console.log(`[DEBUG] Node count API: Raw text length: ${text.length}`);
-                console.log(`[DEBUG] Node count API: Raw text preview:`, text.substring(0, 200) + '...');
+                const buffer = await nodeCountResponse.arrayBuffer();
+                const text = new TextDecoder('utf-8').decode(buffer);
 
                 // 使用与预览功能相同的节点解析逻辑
                 try {
+                    // [回退1] 如果之前的流量请求失败或没拿到数据，尝试从节点请求的响应头中提取
+                    if (!result.userInfo) {
+                        const info = extractUserInfo(responses[1].value);
+                        if (info) {
+                            console.info('[NodeHandler] Successfully extracted traffic info from node response header (Fallback 1).');
+                            result.userInfo = info;
+                            trafficRequestSucceeded = true;
+                        }
+                    }
+
                     // 使用 parseNodeList 函数，与预览功能完全一致
-                    const parsedNodes = parseNodeList(text);
-                    console.log(`[DEBUG] Node count API: Parsed ${parsedNodes.length} nodes using parseNodeList`);
+                    const parsedNodes = parseNodeList(text, { plusAsSpace: Boolean(plusAsSpace) });
+
+                    // [回退2] 如果响应头中也没有流量信息，尝试从 body 伪节点中解析
+                    // 这在使用 FetchProxy（如 Vercel）时非常重要，因为代理会丢弃上游响应头
+                    if (!result.userInfo) {
+                        // 需要先解码 base64（如果是 base64 编码的话）
+                        let decodedText = text;
+                        try {
+                            const cleanedText = text.replace(/\s/g, '');
+                            let normalized = cleanedText.replace(/-/g, '+').replace(/_/g, '/');
+                            const padding = normalized.length % 4;
+                            if (padding) normalized += '='.repeat(4 - padding);
+                            if (/^[A-Za-z0-9+/=]+$/.test(normalized) && normalized.length >= 20) {
+                                const binaryString = atob(normalized);
+                                const bytes = new Uint8Array(binaryString.length);
+                                for (let i = 0; i < binaryString.length; i++) {
+                                    bytes[i] = binaryString.charCodeAt(i);
+                                }
+                                decodedText = new TextDecoder('utf-8').decode(bytes);
+                            }
+                        } catch { /* 已经是明文 */ }
+
+                        const bodyInfo = extractUserInfoFromBody(decodedText);
+                        if (bodyInfo) {
+                            console.info('[NodeHandler] Successfully extracted traffic info from body fake nodes (Fallback 2).');
+                            result.userInfo = bodyInfo;
+                            trafficRequestSucceeded = true;
+                        }
+                    }
+
                     result.count = parsedNodes.length;
+                    nodeCountRequestSucceeded = true;
                 } catch (e) {
                     // 解析失败，尝试简单统计
                     console.error('Node count parse error:', e);
-                    console.log(`[DEBUG] Node count API: Falling back to regex count`);
+
                     try {
                         const cleanedText = text.replace(/\s/g, '');
+                        let normalized = cleanedText.replace(/-/g, '+').replace(/_/g, '/');
+                        const padding = normalized.length % 4;
+                        if (padding) {
+                            normalized += '='.repeat(4 - padding);
+                        }
                         const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-                        if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
-                            console.log(`[DEBUG] Node count API: Base64 content detected, decoding...`);
-                            const binaryString = atob(cleanedText);
+                        if (base64Regex.test(normalized) && normalized.length >= 20) {
+                            const binaryString = atob(normalized);
                             const bytes = new Uint8Array(binaryString.length);
                             for (let i = 0; i < binaryString.length; i++) {
                                 bytes[i] = binaryString.charCodeAt(i);
                             }
                             const processedText = new TextDecoder('utf-8').decode(bytes);
-                            console.log(`[DEBUG] Node count API: Decoded text length: ${processedText.length}`);
                             const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                            console.log(`[DEBUG] Node count API: Regex matches in decoded text: ${lineMatches ? lineMatches.length : 0}`);
                             if (lineMatches) {
                                 result.count = lineMatches.length;
+                                nodeCountRequestSucceeded = true;
                             }
                         } else {
-                            console.log(`[DEBUG] Node count API: Using raw text regex match`);
                             const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                            console.log(`[DEBUG] Node count API: Regex matches in raw text: ${lineMatches ? lineMatches.length : 0}`);
                             if (lineMatches) {
                                 result.count = lineMatches.length;
+                                nodeCountRequestSucceeded = true;
                             }
                         }
-                    } catch {
+                    } catch (error) {
                         // 最后降级到原始文本统计
-                        console.log(`[DEBUG] Node count API: Final fallback to raw text regex`);
+                        console.debug('[NodeHandler] Failed to decode node count response, falling back to raw text:', error);
                         const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                        console.log(`[DEBUG] Node count API: Final regex matches: ${lineMatches ? lineMatches.length : 0}`);
                         if (lineMatches) {
                             result.count = lineMatches.length;
+                            nodeCountRequestSucceeded = true;
                         }
                     }
                 }
+            } else if (responses[1].status === 'rejected') {
+                if (!fetchError) fetchError = responses[1].reason;
+                console.error('Node count request failed:', responses[1].reason);
+            } else if (responses[1].status === 'fulfilled' && !responses[1].value.ok) {
+                if (!fetchError) fetchError = new Error(`HTTP ${responses[1].value.status}: ${responses[1].value.statusText}`);
+                console.error('Node count request returned error:', responses[1].value.status);
+            }
+
+            // 检查是否两个请求都失败了
+            if (!trafficRequestSucceeded && !nodeCountRequestSucceeded) {
+                // 两个请求都失败,返回错误信息
+                let errorType = 'fetch_failed';
+                let errorMessage = '订阅获取失败';
+
+                if (fetchError) {
+                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('timeout')) {
+                        errorType = 'timeout';
+                        errorMessage = '订阅请求超时';
+                    } else if (fetchError.message?.includes('network') || fetchError.message?.includes('fetch')) {
+                        errorType = 'network';
+                        errorMessage = '网络连接失败';
+                    } else if (fetchError.message?.includes('HTTP')) {
+                        errorType = 'server';
+                        errorMessage = fetchError.message;
+                    }
+                }
+
+                console.error(`[Node Count] Both requests failed for ${subUrl}:`, errorMessage);
+                result.error = errorMessage;
+                result.errorType = errorType;
+                return createJsonResponse(result);
             }
 
             // 只有在至少获取到一个有效信息时，才更新数据库
@@ -135,13 +301,14 @@ export async function handleNodeCountRequest(request, env) {
         } catch (e) {
             // 节点计数处理错误
             console.error('Node count processing error:', e);
+            result.error = `处理失败: ${e.message}`;
+            result.errorType = 'processing_error';
+            return createJsonResponse(result);
         }
 
         return createJsonResponse(result);
     } catch (e) {
-        return createJsonResponse({
-            error: `获取节点数量失败: ${e.message}`
-        }, 500);
+        return createErrorResponse(`获取节点数量失败: ${e.message}`, 500);
     }
 }
 
@@ -181,14 +348,28 @@ export async function handleBatchUpdateNodesRequest(request, env) {
             }, 400);
         }
 
-        // 并行获取所有订阅的节点
+        // 单个订阅超时时间（毫秒）
+        const SINGLE_SUB_TIMEOUT = 15000;
+
+        // 并行获取所有订阅的节点（带超时）
         const updatePromises = targetSubscriptions.map(async (subscription) => {
             try {
-                const response = await fetch(new Request(subscription.url, {
+                let requestUrl = subscription.url;
+                if (subscription.fetchProxy && typeof subscription.fetchProxy === 'string' && subscription.fetchProxy.trim()) {
+                    requestUrl = subscription.fetchProxy.trim() + encodeURIComponent(subscription.url);
+                }
+
+                // 使用 Promise.race 实现超时
+                const fetchPromise = fetch(new Request(requestUrl, {
                     headers: { 'User-Agent': userAgent },
-                    redirect: "follow",
-                    cf: { insecureSkipVerify: true }
-                }));
+                    redirect: "follow"
+                }), { cf: { insecureSkipVerify: true } });
+
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('请求超时')), SINGLE_SUB_TIMEOUT)
+                );
+
+                const response = await Promise.race([fetchPromise, timeoutPromise]);
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -263,9 +444,7 @@ export async function handleBatchUpdateNodesRequest(request, env) {
             }
         });
     } catch (e) {
-        return createJsonResponse({
-            error: `批量更新失败: ${e.message}`
-        }, 500);
+        return createErrorResponse(`批量更新失败: ${e.message}`, 500);
     }
 }
 
@@ -288,14 +467,11 @@ export async function handleCleanNodesRequest(request, env) {
 
         if (profileId) {
             // 清理指定订阅组的节点
-            const { handleSubscriptionNodesRequest } = await import('./subscription-handler.js');
+            const { handleSubscriptionNodesRequest } = await import('../subscription-handler.js');
             const previewResult = await handleSubscriptionNodesRequest(request, env);
 
             if (!previewResult.success) {
-                return createJsonResponse({
-                    error: '获取订阅组节点失败',
-                    details: previewResult.error
-                }, 400);
+                return createErrorResponse(`获取订阅组节点失败: ${previewResult.error}`, 400);
             }
 
             // 去重处理
@@ -319,14 +495,10 @@ export async function handleCleanNodesRequest(request, env) {
             });
         } else {
             // 清理所有订阅的节点（全局清理）
-            return createJsonResponse({
-                error: '全局节点清理功能暂未实现，请指定profileId'
-            }, 501);
+            return createErrorResponse('全局节点清理功能暂未实现，请指定profileId', 501);
         }
     } catch (e) {
-        return createJsonResponse({
-            error: `节点清理失败: ${e.message}`
-        }, 500);
+        return createErrorResponse(`节点清理失败: ${e.message}`, 500);
     }
 }
 
@@ -356,7 +528,7 @@ export async function handleHealthCheckRequest(request, env) {
         const healthResults = nodeUrls.map(nodeUrl => {
             try {
                 const url = new URL(nodeUrl);
-                const isValidProtocol = ['ss:', 'ssr:', 'vmess:', 'vless:', 'trojan:', 'hysteria:', 'hysteria2:', 'tuic:'].includes(url.protocol);
+                const isValidProtocol = ['ss:', 'ssr:', 'vmess:', 'vless:', 'trojan:', 'hysteria:', 'hysteria2:', 'tuic:', 'snell:'].includes(url.protocol);
 
                 return {
                     nodeUrl,

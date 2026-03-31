@@ -20,7 +20,7 @@ export { default as NodeCardView } from './NodePreview/NodeCardView.vue';
 export { default as NodePagination } from './NodePreview/NodePagination.vue';
 
 // 导入composable
-export { default as useNodePreview } from './NodePreview/useNodePreview.js';
+export { useNodePreview } from '@/composables/useNodePreview.js';
 
 // 组件列表
 export const ModalComponents = {

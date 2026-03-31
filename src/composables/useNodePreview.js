@@ -4,6 +4,9 @@
  */
 
 import { ref, computed, watch } from 'vue';
+import { api, APIError } from '@/lib/http.js';
+
+const isDev = import.meta.env.DEV;
 
 export function useNodePreview(props) {
   // 响应式数据
@@ -115,35 +118,11 @@ export function useNodePreview(props) {
         throw new Error('缺少必要的参数');
       }
 
-      console.log('Sending API request with data:', requestData);
-
-      const response = await fetch('/api/subscription_nodes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // 尝试重新获取数据来检查认证状态
-          try {
-            const testResponse = await fetch('/api/data');
-            if (testResponse.status === 401) {
-              throw new Error('认证失败，请重新登录后再试');
-            } else {
-              throw new Error('认证异常，请刷新页面后重试');
-            }
-          } catch (testErr) {
-            throw new Error('认证失败，请重新登录后再试');
-          }
-        }
-        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+      if (isDev) {
+        console.debug('Sending API request with data:', requestData);
       }
 
-      const data = await response.json();
+      const data = await api.post('/api/subscription_nodes', requestData);
 
       if (!data.success) {
         throw new Error(data.error || '获取节点失败');
@@ -162,8 +141,13 @@ export function useNodePreview(props) {
 
     } catch (err) {
       // 提供更友好的错误信息
-      if (err.message.includes('认证失败')) {
-        error.value = '认证失败，请重新登录后再试';
+      if (err instanceof APIError && err.status === 401) {
+        try {
+          await api.get('/api/data');
+          error.value = '认证异常，请刷新页面后重试';
+        } catch (testErr) {
+          error.value = '认证失败，请重新登录后再试';
+        }
       } else if (err.message.includes('网络')) {
         error.value = '网络连接失败，请检查网络连接';
       } else {

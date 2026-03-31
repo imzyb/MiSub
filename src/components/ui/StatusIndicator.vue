@@ -70,25 +70,28 @@ const sizeClasses = computed(() => {
 </script>
 
 <template>
-  <div 
-    class="inline-flex items-center gap-2 rounded-full font-medium transition-all duration-300"
-    :class="[
-      statusConfig.color,
-      statusConfig.bg,
-      sizeClasses.container
-    ]"
-  >
-    <svg 
-      :class="[
-        sizeClasses.icon,
-        statusConfig.animate
-      ]"
-      fill="currentColor" 
-      viewBox="0 0 24 24"
-    >
-      <path :d="statusConfig.icon" />
-    </svg>
-    <span v-if="message">{{ message }}</span>
-    <slot v-else />
-  </div>
+<div
+class="inline-flex items-center gap-2 rounded-full font-medium transition-all duration-300"
+:class="[
+statusConfig.color,
+statusConfig.bg,
+sizeClasses.container
+]"
+role="status"
+aria-live="polite"
+>
+<svg
+:class="[
+sizeClasses.icon,
+statusConfig.animate
+]"
+fill="currentColor"
+viewBox="0 0 24 24"
+aria-hidden="true"
+>
+<path :d="statusConfig.icon" />
+</svg>
+<span v-if="message">{{ message }}</span>
+<slot v-else />
+</div>
 </template>

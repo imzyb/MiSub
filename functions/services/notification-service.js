@@ -77,7 +77,7 @@ export async function sendEnhancedTgNotification(settings, type, clientIp, addit
             }
         }
     } catch (error) {
-        // 获取IP位置信息失败，忽略错误
+        console.debug('[NotificationService] Failed to fetch IP geolocation:', error);
     }
 
     // 构建完整消息
@@ -111,5 +111,54 @@ ${additionalData}
         }
     } catch (error) {
         return false;
+    }
+}
+
+/**
+ * 调试发送Telegram通知（返回详细错误信息）
+ * @param {Object} settings - 设置对象
+ * @param {string} message - 消息内容
+ * @returns {Promise<Object>} - { success: boolean, error?: string, response?: any }
+ */
+export async function debugTgNotification(settings, message) {
+    if (!settings.BotToken || !settings.ChatID) {
+        return { success: false, error: 'BotToken or ChatID not configured' };
+    }
+
+    // 为所有消息添加时间戳
+    const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const fullMessage = `${message}\n\n*时间:* \`${now} (UTC+8)\``;
+
+    const url = `https://api.telegram.org/bot${settings.BotToken}/sendMessage`;
+    const payload = {
+        chat_id: settings.ChatID,
+        text: fullMessage,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            return { success: true, response: data };
+        } else {
+            return {
+                success: false,
+                error: `Telegram API Error: ${response.status} ${response.statusText}`,
+                response: data
+            };
+        }
+    } catch (error) {
+        return {
+            success: false,
+            error: `Network/Fetch Error: ${error.message}`
+        };
     }
 }

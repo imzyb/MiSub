@@ -12,23 +12,35 @@
  */
 export async function corsMiddleware(request, next, options = {}) {
     const {
-        origins = ['*'],
+        origins = [],
         methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         headers = ['Content-Type', 'Authorization', 'X-Requested-With'],
-        maxAge = 86400 // 24小时
+        maxAge = 86400, // 24小时
+        allowCredentials = true
     } = options;
 
     const origin = request.headers.get('Origin');
-    const method = request.headers.get('Access-Control-Request-Method');
-    const headersRequest = request.headers.get('Access-Control-Request-Headers');
+    const allowAll = origins.includes('*');
+    const isAllowedOrigin = allowAll || (origin && origins.includes(origin));
+    const allowOriginValue = allowAll && !allowCredentials ? '*' : (isAllowedOrigin ? origin : '');
+    const shouldSetVary = Boolean(origin && allowOriginValue && allowOriginValue !== '*');
 
     // 处理预检请求
     if (request.method === 'OPTIONS') {
+        if (origin && !isAllowedOrigin) {
+            return new Response('Origin Not Allowed', { status: 403 });
+        }
         const response = new Response(null, { status: 204 });
 
         // 设置允许的源
-        if (origins.includes('*') || (origin && origins.includes(origin))) {
-            response.headers.set('Access-Control-Allow-Origin', origin || '*');
+        if (allowOriginValue) {
+            response.headers.set('Access-Control-Allow-Origin', allowOriginValue);
+            if (shouldSetVary) {
+                response.headers.append('Vary', 'Origin');
+            }
+            if (allowCredentials && allowOriginValue !== '*') {
+                response.headers.set('Access-Control-Allow-Credentials', 'true');
+            }
         }
 
         response.headers.set('Access-Control-Allow-Methods', methods.join(', '));
@@ -42,9 +54,14 @@ export async function corsMiddleware(request, next, options = {}) {
     const response = await next();
 
     // 添加CORS头部
-    if (origins.includes('*') || (origin && origins.includes(origin))) {
-        response.headers.set('Access-Control-Allow-Origin', origin || '*');
-        response.headers.set('Access-Control-Allow-Credentials', 'true');
+    if (allowOriginValue) {
+        response.headers.set('Access-Control-Allow-Origin', allowOriginValue);
+        if (shouldSetVary) {
+            response.headers.append('Vary', 'Origin');
+        }
+        if (allowCredentials && allowOriginValue !== '*') {
+            response.headers.set('Access-Control-Allow-Credentials', 'true');
+        }
     }
 
     response.headers.set('Access-Control-Expose-Headers', headers.join(', '));
@@ -67,6 +84,10 @@ export async function securityHeadersMiddleware(request, next) {
     response.headers.set('X-XSS-Protection', '1; mode=block');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.headers.set(
+        'Content-Security-Policy',
+        "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https: http:; worker-src 'self' blob:;"
+    );
 
     return response;
 }

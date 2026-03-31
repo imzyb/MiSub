@@ -1,6 +1,14 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import Modal from '../forms/Modal.vue';
+import ProfileForm from './ProfileModal/ProfileForm.vue';
+import SubscriptionSelector from './ProfileModal/SubscriptionSelector.vue';
+import NodeSelector from './ProfileModal/NodeSelector.vue';
+import { useManualNodes } from '../../composables/useManualNodes.js';
+import { useDataStore } from '../../stores/useDataStore.js';
+
+const dataStore = useDataStore();
+const { manualNodeGroups } = useManualNodes(dataStore.markDirty);
 
 const props = defineProps({
   show: Boolean,
@@ -15,11 +23,65 @@ const emit = defineEmits(['update:show', 'save']);
 const localProfile = ref({});
 const subscriptionSearchTerm = ref('');
 const nodeSearchTerm = ref('');
+const activeManualNodeGroupFilter = ref(null);
+const showAdvanced = ref(false);
+const uiText = {
+  prefixTitle: '\u8282\u70b9\u524d\u7f00\u8bbe\u7f6e',
+  manualPrefixLabel: '\u624b\u52a8\u8282\u70b9\u524d\u7f00',
+  manualPrefixToggle: '\u624b\u52a8\u8282\u70b9\u524d\u7f00',
+  subscriptionPrefixToggle: '\u673a\u573a\u8ba2\u9605\u524d\u7f00',
+  enable: '\u542f\u7528',
+  disable: '\u7981\u7528',
+  nodeTransformTitle: '\u8282\u70b9\u51c0\u5316\u7ba1\u9053'
+};
+const prefixToggleOptions = [
+{ label: '默认(全局)', value: null },
+{ label: '启用', value: true },
+{ label: '禁用', value: false }
+];
+
+const groupPrefixToggleOptions = [
+{ label: '默认(全局)', value: null },
+{ label: '启用', value: true },
+{ label: '禁用', value: false }
+];
+
+const createDefaultNodeTransform = () => ({
+  enabled: false,
+  rename: {
+    regex: { enabled: false, rules: [] },
+    template: {
+      enabled: false,
+      template: '{emoji}{region}-{protocol}-{index}',
+      indexStart: 1,
+      indexPad: 2,
+      indexScope: 'regionProtocol',
+      regionAlias: {},
+      protocolAlias: { hysteria2: 'hy2' }
+    }
+  },
+  dedup: {
+    enabled: false,
+    mode: 'serverPort',
+    includeProtocol: false,
+    prefer: { protocolOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr'] }
+  },
+  sort: {
+    enabled: false,
+    nameIgnoreEmoji: true,
+    keys: [
+      { key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] },
+      { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr'] },
+      { key: 'name', order: 'asc' }
+    ]
+  }
+});
+
 
 // 国家/地区代码到旗帜和中文名称的映射
 const countryCodeMap = {
   'hk': ['🇭🇰', '香港'],
-  'tw': ['🇹🇼', '台湾', '臺灣'],
+  'tw': ['🇨🇳', '台湾', '臺灣'],
   'sg': ['🇸🇬', '新加坡', '狮城'],
   'jp': ['🇯🇵', '日本'],
   'us': ['🇺🇸', '美国', '美國'],
@@ -75,13 +137,18 @@ const countryCodeMap = {
 };
 
 const filteredSubscriptions = computed(() => {
+  // Only consider items with valid http/https URLs as "Subscriptions"
+  const validSubs = props.allSubscriptions.filter(sub =>
+    sub.url && /^https?:\/\//.test(sub.url)
+  );
+
   if (!subscriptionSearchTerm.value) {
-    return props.allSubscriptions;
+    return validSubs;
   }
   const lowerCaseSearchTerm = subscriptionSearchTerm.value.toLowerCase();
   const alternativeTerms = countryCodeMap[lowerCaseSearchTerm] || [];
 
-  return props.allSubscriptions.filter(sub => {
+  return validSubs.filter(sub => {
     const subNameLower = sub.name ? sub.name.toLowerCase() : '';
 
     if (subNameLower.includes(lowerCaseSearchTerm)) {
@@ -98,13 +165,23 @@ const filteredSubscriptions = computed(() => {
 });
 
 const filteredManualNodes = computed(() => {
+  let nodes = props.allManualNodes;
+
+  if (activeManualNodeGroupFilter.value) {
+    if (activeManualNodeGroupFilter.value === '默认') {
+      nodes = nodes.filter(n => !n.group);
+    } else {
+      nodes = nodes.filter(n => n.group === activeManualNodeGroupFilter.value);
+    }
+  }
+
   if (!nodeSearchTerm.value) {
-    return props.allManualNodes;
+    return nodes;
   }
   const lowerCaseSearchTerm = nodeSearchTerm.value.toLowerCase();
   const alternativeTerms = countryCodeMap[lowerCaseSearchTerm] || [];
 
-  return props.allManualNodes.filter(node => {
+  return nodes.filter(node => {
     const nodeNameLower = node.name ? node.name.toLowerCase() : '';
 
     if (nodeNameLower.includes(lowerCaseSearchTerm)) {
@@ -132,30 +209,40 @@ watch(() => props.profile, (newProfile) => {
         profileCopy.expiresAt = '';
       }
     }
-    // 初始化前缀设置
-    if (!profileCopy.prefixSettings) {
-      profileCopy.prefixSettings = {
-        enableManualNodes: null,
-        enableSubscriptions: null,
-        manualNodePrefix: ''
-      };
+    if (!profileCopy.prefixSettings || typeof profileCopy.prefixSettings !== 'object') {
+      profileCopy.prefixSettings = {};
     }
+profileCopy.prefixSettings.enableManualNodes =
+profileCopy.prefixSettings.enableManualNodes ?? null;
+profileCopy.prefixSettings.enableSubscriptions =
+profileCopy.prefixSettings.enableSubscriptions ?? null;
+profileCopy.prefixSettings.manualNodePrefix =
+profileCopy.prefixSettings.manualNodePrefix ?? '';
+profileCopy.prefixSettings.prependGroupName =
+profileCopy.prefixSettings.prependGroupName ?? null;
+    if (Object.prototype.hasOwnProperty.call(profileCopy.prefixSettings, 'enableNodeEmoji')) {
+      delete profileCopy.prefixSettings.enableNodeEmoji;
+    }
+    profileCopy.nodeTransform = profileCopy.nodeTransform ?? null;
     localProfile.value = profileCopy;
   } else {
-    localProfile.value = { 
-      name: '', 
-      enabled: true, 
-      subscriptions: [], 
-      manualNodes: [], 
-      customId: '', 
-      expiresAt: '',
-      prefixSettings: {
-        enableManualNodes: null,
-        enableSubscriptions: null,
-        manualNodePrefix: '',
-        enableNodeEmoji: null // [新增] 初始化为 null (使用全局设置)
-      }
-    };
+localProfile.value = {
+name: '',
+enabled: true,
+subscriptions: [],
+manualNodes: [],
+customId: '',
+expiresAt: '',
+isPublic: true, // [新增] 默认为 true
+description: '', // [新增]
+prefixSettings: {
+enableManualNodes: null,
+enableSubscriptions: null,
+manualNodePrefix: '',
+prependGroupName: null
+},
+nodeTransform: null
+};
   }
 }, { deep: true, immediate: true });
 
@@ -170,248 +257,83 @@ const handleConfirm = () => {
     } catch (e) {
       console.error("Error processing expiresAt date:", e);
       // Decide how to handle error: save as is, or clear it
-      profileToSave.expiresAt = ''; 
+      profileToSave.expiresAt = '';
     }
   }
+  // 顺序已由用户通过拖拽确定，无需额外排序
   emit('save', profileToSave);
 };
 
 const toggleSelection = (listName, id) => {
-    const list = localProfile.value[listName];
-    const index = list.indexOf(id);
-    if (index > -1) {
-        list.splice(index, 1);
-    } else {
-        list.push(id);
-    }
+  const list = localProfile.value[listName];
+  const index = list.indexOf(id);
+  if (index > -1) {
+    list.splice(index, 1);
+  } else {
+    list.push(id);
+  }
 };
 
 const handleSelectAll = (listName, sourceArray) => {
-    const currentSelection = new Set(localProfile.value[listName]);
-    sourceArray.forEach(item => currentSelection.add(item.id));
-    localProfile.value[listName] = Array.from(currentSelection);
+  const currentSelection = new Set(localProfile.value[listName]);
+  sourceArray.forEach(item => currentSelection.add(item.id));
+  localProfile.value[listName] = Array.from(currentSelection);
 };
 
 const handleDeselectAll = (listName, sourceArray) => {
-    const sourceIds = sourceArray.map(item => item.id);
-    localProfile.value[listName] = localProfile.value[listName].filter(id => !sourceIds.includes(id));
+  const sourceIds = sourceArray.map(item => item.id);
+  localProfile.value[listName] = localProfile.value[listName].filter(id => !sourceIds.includes(id));
+};
+
+// 处理拖拽排序后的 ID 顺序更新
+const updateSelectedIds = (listName, newIds) => {
+  localProfile.value[listName] = newIds;
 };
 
 </script>
 
 <template>
-  <Modal :show="show" @update:show="emit('update:show', $event)" @confirm="handleConfirm" size="2xl">
+  <Modal :show="show" @update:show="emit('update:show', $event)" @confirm="handleConfirm" size="6xl">
     <template #title>
-      <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-        {{ isNew ? '新增订阅组' : '编辑订阅组' }}
-      </h3>
+      <div class="flex items-center gap-3">
+        <div class="p-2 misub-radius-lg bg-indigo-500/10">
+          <!-- Folder Icon for Profile -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+          {{ isNew ? '新增订阅组' : '编辑订阅组' }}
+        </h3>
+      </div>
     </template>
     <template #body>
       <div v-if="localProfile" class="space-y-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label for="profile-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                订阅组名称
-              </label>
-              <input
-                type="text"
-                id="profile-name"
-                v-model="localProfile.name"
-                placeholder="例如：家庭共享"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-              >
-            </div>
-            <div>
-              <label for="profile-custom-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                自定义 ID (可选)
-              </label>
-              <input
-                type="text"
-                id="profile-custom-id"
-                v-model="localProfile.customId"
-                placeholder="如: home, game (限字母、数字、-、_)"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-              >
-               <p class="text-xs text-gray-400 mt-1">设置后，订阅链接会更短，如 /token/home</p>
-            </div>
-            <div>
-              <label for="profile-subconverter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                自定义后端 (可选)
-              </label>
-              <input
-                type="text"
-                id="profile-subconverter"
-                v-model="localProfile.subConverter"
-                placeholder="留空则使用全局设置"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-              >
-              <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 SubConverter 后端地址。</p>
-            </div>
-            <div>
-              <label for="profile-subconfig" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                自定义远程配置 (可选)
-              </label>
-              <input
-                type="text"
-                id="profile-subconfig"
-                v-model="localProfile.subConfig"
-                placeholder="留空则使用全局设置"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-              >
-              <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 Subconverter 配置文件。</p>
-            </div>
-            <div>
-              <label for="profile-expires-at" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                到期时间 (可选)
-              </label>
-              <input
-                type="date"
-                id="profile-expires-at"
-                v-model="localProfile.expiresAt"
-                class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-              >
-              <p class="text-xs text-gray-400 mt-1">设置此订阅组的到期时间，到期后将返回默认节点。</p>
-            </div>
-            
-            <!-- 前缀设置部分 -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">前缀设置 (可选)</label>
-              <div class="space-y-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">手动节点前缀</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">覆盖全局设置，控制是否为手动节点添加前缀</p>
-                  </div>
-                  <select 
-                    v-model="localProfile.prefixSettings.enableManualNodes" 
-                    class="text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-                  >
-                    <option :value="null">使用全局设置</option>
-                    <option :value="true">启用</option>
-                    <option :value="false">禁用</option>
-                  </select>
-                </div>
-                
-                <div v-if="localProfile.prefixSettings.enableManualNodes === true" class="ml-4">
-                  <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">自定义手动节点前缀</label>
-                  <input 
-                    type="text" 
-                    v-model="localProfile.prefixSettings.manualNodePrefix" 
-                    placeholder="留空使用全局设置"
-                    class="block w-full px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-                  >
-                </div>
-                
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">机场订阅前缀</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">覆盖全局设置，控制是否为订阅节点添加前缀</p>
-                  </div>
-                  <select 
-                    v-model="localProfile.prefixSettings.enableSubscriptions" 
-                    class="text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-                  >
-                    <option :value="null">使用全局设置</option>
-                    <option :value="true">启用</option>
-                    <option :value="false">禁用</option>
-                  </select>
-                </div>
-                <div class="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-600 mt-2">
-                  <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">节点国旗 Emoji</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">是否为此订阅组添加国旗图标</p>
-                  </div>
-                  <select
-                    v-model="localProfile.prefixSettings.enableNodeEmoji"
-                    class="text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-                  >
-                    <option :value="null">使用全局设置</option>
-                    <option :value="true">启用</option>
-                    <option :value="false">禁用</option>
-                  </select>
-                </div>
-              </div>
-              <p class="text-xs text-gray-400 mt-1">单独为此订阅组配置前缀设置，优先级高于全局设置。</p>
-            </div>
-        </div>
+<ProfileForm :local-profile="localProfile" :show-advanced="showAdvanced" :ui-text="uiText"
+:prefix-toggle-options="prefixToggleOptions" :group-prefix-toggle-options="groupPrefixToggleOptions"
+:create-default-node-transform="createDefaultNodeTransform"
+@toggle-advanced="showAdvanced = !showAdvanced" />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            <div v-if="allSubscriptions.length > 0" class="space-y-2">
-              <div class="flex justify-between items-center mb-2">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">选择机场订阅</h4>
-                <div class="space-x-2">
-                    <button @click="handleSelectAll('subscriptions', filteredSubscriptions)" class="text-xs text-indigo-600 hover:underline">全选</button>
-                    <button @click="handleDeselectAll('subscriptions', filteredSubscriptions)" class="text-xs text-indigo-600 hover:underline">全不选</button>
-                </div>
-              </div>
-              <div class="relative mb-2">
-                <input
-                  type="text"
-                  v-model="subscriptionSearchTerm"
-                  placeholder="搜索订阅..."
-                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              </div>
-              <div class="overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700 h-48">
-                <div v-for="sub in filteredSubscriptions" :key="sub.id">
-                  <label class="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      :checked="localProfile.subscriptions?.includes(sub.id)"
-                      @change="toggleSelection('subscriptions', sub.id)"
-                      class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="sub.name">{{ sub.name || '未命名订阅' }}</span>
-                  </label>
-                </div>
-                <div v-if="filteredSubscriptions.length === 0" class="text-center text-gray-500 text-sm py-4">
-                  没有找到匹配的订阅。
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-center text-sm text-gray-500 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg flex items-center justify-center h-full">
-              没有可用的机场订阅
-            </div>
+          <SubscriptionSelector :subscriptions="allSubscriptions" :filtered-subscriptions="filteredSubscriptions"
+            :search-term="subscriptionSearchTerm" :selected-ids="localProfile.subscriptions || []"
+            @update:search-term="subscriptionSearchTerm = $event"
+            @update:selected-ids="updateSelectedIds('subscriptions', $event)"
+            @toggle-selection="toggleSelection('subscriptions', $event)"
+            @select-all="handleSelectAll('subscriptions', filteredSubscriptions)"
+            @deselect-all="handleDeselectAll('subscriptions', filteredSubscriptions)" />
 
-            <div v-if="allManualNodes.length > 0" class="space-y-2">
-              <div class="flex justify-between items-center mb-2">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">选择手动节点</h4>
-                 <div class="space-x-2">
-                    <button @click="handleSelectAll('manualNodes', filteredManualNodes)" class="text-xs text-indigo-600 hover:underline">全选</button>
-                    <button @click="handleDeselectAll('manualNodes', filteredManualNodes)" class="text-xs text-indigo-600 hover:underline">全不选</button>
-                </div>
-              </div>
-              <div class="relative mb-2">
-                <input
-                  type="text"
-                  v-model="nodeSearchTerm"
-                  placeholder="搜索节点..."
-                  class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              </div>
-               <div class="overflow-y-auto space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border dark:border-gray-700 h-48">
-                <div v-for="node in filteredManualNodes" :key="node.id">
-                  <label class="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      :checked="localProfile.manualNodes?.includes(node.id)"
-                      @change="toggleSelection('manualNodes', node.id)"
-                      class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || '未命名节点' }}</span>
-                  </label>
-                </div>
-                <div v-if="filteredManualNodes.length === 0" class="text-center text-gray-500 text-sm py-4">
-                  没有找到匹配的节点。
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-center text-sm text-gray-500 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg flex items-center justify-center h-full">
-               没有可用的手动节点
-            </div>
+          <NodeSelector :nodes="allManualNodes" :filtered-nodes="filteredManualNodes" :search-term="nodeSearchTerm"
+            :active-group-filter="activeManualNodeGroupFilter" :groups="manualNodeGroups"
+            :selected-ids="localProfile.manualNodes || []" @update:search-term="nodeSearchTerm = $event"
+            @update:group-filter="activeManualNodeGroupFilter = $event"
+            @update:selected-ids="updateSelectedIds('manualNodes', $event)"
+            @toggle-selection="toggleSelection('manualNodes', $event)"
+            @select-all="handleSelectAll('manualNodes', filteredManualNodes)"
+            @deselect-all="handleDeselectAll('manualNodes', filteredManualNodes)" />
         </div>
 
       </div>

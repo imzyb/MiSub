@@ -4,19 +4,22 @@
  */
 
 import { StorageFactory, DataMigrator } from '../storage-adapter.js';
-import { createJsonResponse } from './utils.js';
-import { authMiddleware, handleLogin, handleLogout } from './auth-middleware.js';
-import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave } from './api-handler.js';
+import { createJsonResponse, createErrorResponse, getAuthDebugInfo } from './utils.js';
+import { authMiddleware, handleLogin, handleLogout, getAuthSessionDiagnostic, getLoginPasswordDiagnostic } from './auth-middleware.js';
+import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
 import { handleCronTrigger } from './notifications.js';
 import {
-    handleSubscriptionNodesRequest
-} from './handlers/subscription-handler.js';
+    handleSubscriptionNodesRequest,
+    handlePublicPreviewRequest
+} from './subscription-handler.js';
 import {
     handleDebugSubscriptionRequest,
     handleSystemInfoRequest,
     handleStorageTestRequest,
     handleExportDataRequest,
-    handlePreviewContentRequest
+    handlePreviewContentRequest,
+    handleTestNotificationRequest,
+    handleTestSubconverterRequest
 } from './handlers/debug-handler.js';
 import {
     handleNodeCountRequest as handleLegacyNodeCountRequest,
@@ -24,10 +27,33 @@ import {
     handleCleanNodesRequest,
     handleHealthCheckRequest
 } from './handlers/node-handler.js';
+import { handleClientRequest } from './handlers/client-handler.js';
+import { handleErrorReportRequest } from './handlers/error-report-handler.js';
+import {
+    handleGuestbookGet,
+    handleGuestbookPost,
+    handleGuestbookManageGet,
+    handleGuestbookManageAction
+} from './handlers/guestbook-handler.js';
+import { handleGithubReleaseRequest } from './handlers/github-proxy-handler.js'; // [NEW] Import handler
+import { handleParseSubscription } from './parse-subscription-handler.js';
+import {
+    handleVpsReport,
+    handleVpsNodesRequest,
+    handleVpsNodeDetailRequest,
+    handleVpsAlertsRequest,
+    handleVpsInstallScript,
+    handleVpsUninstallScript,
+    handleVpsNetworkTargetsRequest,
+    handleVpsNetworkCheck,
+    handleVpsConfig,
+    handleVpsPublicNodeDetailRequest
+} from './handlers/vps-monitor-handler.js';
 
 // 常量定义
 const OLD_KV_KEY = 'misub_data_v1';
 const KV_KEY_SUBS = 'misub_subscriptions_v1';
+const KV_KEY_PROFILES = 'misub_profiles_v1'; // Ensure this is defined if used
 
 /**
  * 处理主要的API请求
@@ -51,9 +77,7 @@ export async function handleApiRequest(request, env) {
                     message: 'D1 数据库未配置，请检查 wrangler.toml 配置'
                 }, 400);
             }
-
             const migrationResult = await DataMigrator.migrateKVToD1(env);
-
             if (migrationResult.errors.length > 0) {
                 return createJsonResponse({
                     success: false,
@@ -62,7 +86,6 @@ export async function handleApiRequest(request, env) {
                     partialSuccess: migrationResult
                 }, 500);
             }
-
             return createJsonResponse({
                 success: true,
                 message: '数据已成功迁移到 D1 数据库',
@@ -71,10 +94,7 @@ export async function handleApiRequest(request, env) {
 
         } catch (error) {
             console.error('[API Error /migrate_to_d1]', error);
-            return createJsonResponse({
-                success: false,
-                message: `迁移失败: ${error.message}`
-            }, 500);
+            return createErrorResponse(error, 500);
         }
     }
 
@@ -84,8 +104,13 @@ export async function handleApiRequest(request, env) {
             return createJsonResponse({ error: 'Unauthorized' }, 401);
         }
         try {
-            const oldData = await env.MISUB_KV.get(OLD_KV_KEY, 'json');
-            const newDataExists = await env.MISUB_KV.get(KV_KEY_SUBS) !== null;
+            const kv = StorageFactory.resolveKV(env);
+            if (!kv) {
+                return createJsonResponse({ success: false, message: 'KV 未绑定' }, 400);
+            }
+            const oldData = await kv.get(OLD_KV_KEY).then(r => r ? JSON.parse(r) : null);
+            const newDataRaw = await kv.get(KV_KEY_SUBS);
+            const newDataExists = newDataRaw !== null;
 
             if (newDataExists) {
                 return createJsonResponse({ success: true, message: '无需迁移，数据已是最新结构。' }, 200);
@@ -94,15 +119,15 @@ export async function handleApiRequest(request, env) {
                 return createJsonResponse({ success: false, message: '未找到需要迁移的旧数据。' }, 404);
             }
 
-            await env.MISUB_KV.put(KV_KEY_SUBS, JSON.stringify(oldData));
-            await env.MISUB_KV.put(KV_KEY_PROFILES, JSON.stringify([]));
-            await env.MISUB_KV.put(OLD_KV_KEY + '_migrated_on_' + new Date().toISOString(), JSON.stringify(oldData));
-            await env.MISUB_KV.delete(OLD_KV_KEY);
+            await kv.put(KV_KEY_SUBS, JSON.stringify(oldData));
+            await kv.put(KV_KEY_PROFILES, JSON.stringify([]));
+            await kv.put(OLD_KV_KEY + '_migrated_on_' + new Date().toISOString(), JSON.stringify(oldData));
+            await kv.delete(OLD_KV_KEY);
 
             return createJsonResponse({ success: true, message: '数据迁移成功！' }, 200);
         } catch (e) {
             console.error('[API Error /migrate]', e);
-            return createJsonResponse({ success: false, message: `迁移失败: ${e.message}` }, 500);
+            return createErrorResponse(e, 500);
         }
     }
 
@@ -110,17 +135,227 @@ export async function handleApiRequest(request, env) {
         return await handleLogin(request, env);
     }
 
+    if (path === '/public_config' || path === '/config') {
+        return await handlePublicConfig(env);
+    }
+
+    if (path === '/public/profiles') {
+        return await handlePublicProfilesRequest(env);
+    }
+
+    if (path === '/public/preview') {
+        return await handlePublicPreviewRequest(request, env);
+    }
+
+    // 留言板公开接口
+    if (path === '/public/guestbook') {
+        if (request.method === 'GET') {
+            return await handleGuestbookGet(env);
+        }
+        if (request.method === 'POST') {
+            return await handleGuestbookPost(request, env);
+        }
+        return createErrorResponse('Method Not Allowed', 405);
+    }
+
+    // Telegram Push Bot Webhook (公开接口，内部验证)
+    if (path === '/telegram/webhook') {
+        const { handleTelegramWebhook } = await import('./handlers/telegram-webhook-handler.js');
+        return await handleTelegramWebhook(request, env);
+    }
+
+    // Error report endpoint (public)
+    if (path === '/system/error_report') {
+        return await handleErrorReportRequest(request, env);
+    }
+
+    // VPS monitor public report endpoint
+    if (path === '/vps/report') {
+        return await handleVpsReport(request, env);
+    }
+
+    // VPS monitor install/uninstall script endpoint (public)
+    if (path === '/vps/install') {
+        return await handleVpsInstallScript(request, env);
+    }
+    if (path === '/vps/uninstall') {
+        return await handleVpsUninstallScript(request, env);
+    }
+
+    if (path === '/vps/config') {
+        return await handleVpsConfig(request, env);
+    }
+
+    if (path === '/vps/public') {
+        const { handleVpsPublicSnapshotRequest } = await import('./handlers/vps-monitor-handler.js');
+        return await handleVpsPublicSnapshotRequest(request, env);
+    }
+    
+    if (path.startsWith('/vps/public/nodes/')) {
+        return await handleVpsPublicNodeDetailRequest(request, env);
+    }
+
+    // Public GET access for clients
+    if (path.startsWith('/clients') && request.method === 'GET') {
+        return await handleClientRequest(request, env);
+    }
+
+    // Special handling for /data to return 200 OK for unauthenticated requests
+    if (path === '/data') {
+        if (!await authMiddleware(request, env)) {
+            return createJsonResponse({
+                authenticated: false,
+                message: 'Not logged in'
+            });
+        }
+
+
+        return await handleDataRequest(env);
+    }
+
+    // [New] GitHub Proxy Route (Public)
+    if (path === '/github/release') {
+        return await handleGithubReleaseRequest(request, env);
+    }
+
+    // Logout 无需认证（cookie 过期时也需能正常登出）
+    if (path === '/logout') {
+        return await handleLogout(request);
+    }
+
+    // 认证调试端点（公开，不返回敏感值）
+    if (path === '/auth_debug') {
+        const debugInfo = await getAuthDebugInfo(env);
+        const authDiagnostic = await getAuthSessionDiagnostic(request, env);
+
+        return createJsonResponse({
+            success: true,
+            auth: authDiagnostic,
+            runtime: debugInfo
+        });
+    }
+
+    // 登录密码调试端点（公开，不返回敏感值）
+    if (path === '/auth_check') {
+        if (request.method !== 'POST') {
+            return createJsonResponse({ error: 'Method Not Allowed' }, 405);
+        }
+        const diagnostic = await getLoginPasswordDiagnostic(request, env);
+        return createJsonResponse(diagnostic, diagnostic.success ? 200 : 400);
+    }
+
     if (!await authMiddleware(request, env)) {
         return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
 
+    // Auth-only route for client management (POST, DELETE, etc.)
+    if (path.startsWith('/clients')) {
+        return await handleClientRequest(request, env);
+    }
+
+    if (path === '/vps/nodes') {
+        return await handleVpsNodesRequest(request, env);
+    }
+
+    if (path.startsWith('/vps/nodes/')) {
+        return await handleVpsNodeDetailRequest(request, env);
+    }
+
+    if (path === '/vps/network_targets') {
+        return await handleVpsNetworkTargetsRequest(request, env);
+    }
+
+    if (path === '/vps/network_check') {
+        return await handleVpsNetworkCheck(request, env);
+    }
+
+    if (path === '/test_notification') {
+        if (!await authMiddleware(request, env)) {
+            return createJsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        return await handleTestNotificationRequest(request, env);
+    }
+
+    if (path === '/test_subconverter') {
+        if (!await authMiddleware(request, env)) {
+            return createJsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        return await handleTestSubconverterRequest(request, env);
+    }
+
+    // KV 诊断端点：测试 KV 读写是否正常（需登录）
+    if (path === '/kv_test') {
+        try {
+            const kv = StorageFactory.resolveKV(env);
+            if (!kv) {
+                // 列出 env 中所有 key 及其类型，帮助诊断绑定情况
+                const envKeys = env ? Object.keys(env).map(k => {
+                    const v = env[k];
+                    const t = typeof v;
+                    const isKVLike = v && t === 'object' && typeof v.get === 'function';
+                    return `${k}(${t}${isKVLike ? ',KV-like' : ''})`;
+                }) : [];
+                return createJsonResponse({ success: false, error: 'KV 未绑定', envKeys });
+            }
+            const testKey = '__kv_test_' + Date.now();
+            const testValue = 'test_' + Math.random().toString(36).slice(2);
+
+            // 写入
+            let putError = null;
+            try {
+                await kv.put(testKey, testValue);
+            } catch (e) {
+                putError = e.message;
+            }
+
+            // 读回
+            let readBack = null;
+            let getError = null;
+            try {
+                readBack = await kv.get(testKey);
+            } catch (e) {
+                getError = e.message;
+            }
+
+            // 清理
+            try { await kv.delete(testKey); } catch (_) {}
+
+            // 读取实际数据键
+            let subsRaw = null;
+            let subsError = null;
+            try {
+                subsRaw = await kv.get('misub_subscriptions_v1');
+            } catch (e) {
+                subsError = e.message;
+            }
+
+            let settingsRaw = null;
+            try {
+                settingsRaw = await kv.get('worker_settings_v1');
+            } catch (_) {}
+
+            return createJsonResponse({
+                success: true,
+                kvBound: true,
+                writeTest: {
+                    wrote: testValue,
+                    readBack,
+                    match: readBack === testValue,
+                    putError,
+                    getError
+                },
+                actualData: {
+                    subscriptions: subsRaw ? `存在，长度=${subsRaw.length}` : 'null（空）',
+                    settings: settingsRaw ? `存在，长度=${settingsRaw.length}` : 'null（空）',
+                    subsError
+                }
+            });
+        } catch (e) {
+            return createJsonResponse({ success: false, error: e.message });
+        }
+    }
+
     switch (path) {
-        case '/logout':
-            return await handleLogout();
-
-        case '/data':
-            return await handleDataRequest(env);
-
         case '/misubs':
             return await handleMisubsSave(request, env);
 
@@ -157,6 +392,27 @@ export async function handleApiRequest(request, env) {
         case '/preview/content':
             return await handlePreviewContentRequest(request, env);
 
+        case '/parse_subscription':
+            return await handleParseSubscription(request, env);
+
+        case '/logs':
+            if (request.method === 'GET') {
+                const { LogService } = await import('../services/log-service.js');
+                const logs = await LogService.getLogs(env);
+                return createJsonResponse({ success: true, data: logs }, 200, {
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+                });
+            }
+            if (request.method === 'DELETE') {
+                const { LogService } = await import('../services/log-service.js');
+                await LogService.clearLogs(env);
+                return createJsonResponse({ success: true });
+            }
+            return createErrorResponse('Method Not Allowed', 405);
+
+        case '/vps/alerts':
+            return await handleVpsAlertsRequest(request, env);
+
         case '/settings':
             if (request.method === 'GET') {
                 return await handleSettingsGet(env);
@@ -166,8 +422,20 @@ export async function handleApiRequest(request, env) {
             }
             return createJsonResponse('Method Not Allowed', 405);
 
+        case '/settings/password':
+            return await handleUpdatePassword(request, env);
+
+        case '/guestbook/manage':
+            if (request.method === 'GET') {
+                return await handleGuestbookManageGet(env);
+            }
+            if (request.method === 'POST') {
+                return await handleGuestbookManageAction(request, env);
+            }
+            return createErrorResponse('Method Not Allowed', 405);
+
         default:
-            return createJsonResponse('API route not found', 404);
+            return createErrorResponse('API route not found', 404);
     }
 }
 
@@ -179,30 +447,27 @@ export async function handleApiRequest(request, env) {
  */
 async function handleExternalFetchRequest(request, env) {
     if (request.method !== 'POST') {
-        return createJsonResponse({ error: 'Method Not Allowed' }, 405);
+        return createErrorResponse('Method Not Allowed', 405);
     }
 
     let requestData;
     try {
         requestData = await request.json();
     } catch (e) {
-        return createJsonResponse({ error: 'Invalid JSON format' }, 400);
+        return createErrorResponse('Invalid JSON format', 400);
     }
 
     const { url: externalUrl, timeout = 15000 } = requestData;
 
     if (!externalUrl || typeof externalUrl !== 'string' || !/^https?:\/\/.+/.test(externalUrl)) {
-        return createJsonResponse({
-            error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.'
-        }, 400);
+        return createErrorResponse('Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.', 400);
     }
 
     // 检查URL长度限制
     if (externalUrl.length > 2048) {
-        return createJsonResponse({ error: 'URL too long (max 2048 characters)' }, 400);
+        return createErrorResponse('URL too long (max 2048 characters)', 400);
     }
 
-    console.log(`[External Fetch] Processing URL: ${externalUrl}`);
 
     try {
         // 创建带超时的请求
@@ -217,10 +482,6 @@ async function handleExternalFetchRequest(request, env) {
                 'Cache-Control': 'no-cache'
             },
             redirect: "follow",
-            cf: {
-                insecureSkipVerify: true,
-                timeout: timeout / 1000 // Cloudflare timeout in seconds
-            },
             signal: controller.signal
         }));
 
@@ -240,30 +501,27 @@ async function handleExternalFetchRequest(request, env) {
         // 检查内容类型和大小
         const contentLength = response.headers.get('content-length');
         if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) { // 10MB limit
-            return createJsonResponse({
-                error: 'Content too large (max 10MB limit)'
-            }, 413);
+            return createErrorResponse('Content too large (max 10MB limit)', 413);
         }
 
         const contentType = response.headers.get('content-type') || '';
 
-        // 读取内容
-        const content = await response.text();
-
-        // 检查内容大小限制
-        if (content.length > 10 * 1024 * 1024) { // 10MB limit
-            return createJsonResponse({
-                error: 'Response content too large (max 10MB limit)'
-            }, 413);
+        // 读取响应体并生成 Base64 兜底内容
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength > 10 * 1024 * 1024) { // 10MB limit
+            return createErrorResponse('Response content too large (max 10MB limit)', 413);
         }
 
-        console.log(`[External Fetch] Success: ${content.length} bytes, type: ${contentType}`);
+        const content = new TextDecoder('utf-8').decode(buffer);
+        const contentBase64 = encodeArrayBufferToBase64(buffer);
 
-        // 返回带有元数据的响应
+
+        // 返回包含原文与 Base64 的结果
         return new Response(JSON.stringify({
-            content: content,
-            contentType: contentType,
-            size: content.length,
+            content,
+            contentBase64,
+            contentType,
+            size: buffer.byteLength,
             url: externalUrl,
             success: true
         }), {
@@ -297,10 +555,22 @@ async function handleExternalFetchRequest(request, env) {
             errorType: errorDetails.type
         });
 
-        return createJsonResponse({
-            error: errorMessage,
-            details: errorDetails,
-            url: externalUrl
-        }, 500);
+        return createErrorResponse(errorMessage, 500);
     }
+}
+
+/**
+ * ArrayBuffer -> Base64 ??
+ */
+function encodeArrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode(...chunk);
+    }
+
+    return btoa(binary);
 }

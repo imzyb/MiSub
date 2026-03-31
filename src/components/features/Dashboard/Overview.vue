@@ -19,7 +19,7 @@ const statsData = computed(() => [
 <template>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <div v-for="stat in statsData" :key="stat.name"
-         class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-5 rounded-2xl shadow-lg dark:shadow-2xl">
+         class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-5 misub-radius-lg shadow-lg dark:shadow-2xl">
       <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ stat.name }}</p>
       <p class="mt-1 text-3xl font-semibold" :class="stat.color">{{ stat.value }}</p>
     </div>

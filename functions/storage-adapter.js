@@ -13,9 +13,94 @@ export const STORAGE_TYPES = {
 // 数据键映射
 const DATA_KEYS = {
     SUBSCRIPTIONS: 'misub_subscriptions_v1',
-    PROFILES: 'misub_profiles_v1', 
+    PROFILES: 'misub_profiles_v1',
     SETTINGS: 'worker_settings_v1'
 };
+
+const D1_SCHEMA_STATEMENTS = [
+    `CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS profiles (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_subscriptions_updated_at ON subscriptions(updated_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_profiles_updated_at ON profiles(updated_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`,
+    `CREATE TABLE IF NOT EXISTS vps_nodes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        tag TEXT,
+        region TEXT,
+        description TEXT,
+        secret TEXT NOT NULL,
+        status TEXT NOT NULL,
+        enabled INTEGER DEFAULT 1,
+        use_global_targets INTEGER DEFAULT 0,
+        last_seen_at DATETIME,
+        last_report_json TEXT,
+        overload_state_json TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS vps_reports (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        reported_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        data TEXT NOT NULL
+    );`,
+    `CREATE TABLE IF NOT EXISTS vps_alerts (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_vps_nodes_updated_at ON vps_nodes(updated_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_vps_reports_node_time ON vps_reports(node_id, reported_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_vps_alerts_node_time ON vps_alerts(node_id, created_at);`,
+    `CREATE TABLE IF NOT EXISTS vps_network_targets (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        target TEXT NOT NULL,
+        scheme TEXT,
+        port INTEGER,
+        path TEXT,
+        enabled INTEGER DEFAULT 1,
+        force_check_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_vps_network_targets_node ON vps_network_targets(node_id, created_at);`,
+    `CREATE TABLE IF NOT EXISTS vps_network_samples (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        reported_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        data TEXT NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_vps_network_samples_node_time ON vps_network_samples(node_id, reported_at);`
+];
+
+async function ensureD1Schema(d1Db) {
+    for (const statement of D1_SCHEMA_STATEMENTS) {
+        await d1Db.prepare(statement).run();
+    }
+}
 
 /**
  * KV 存储适配器
@@ -25,9 +110,15 @@ class KVStorageAdapter {
         this.kv = kvNamespace;
     }
 
-    async get(key, type = 'json') {
+    async get(key) {
         try {
-            return await this.kv.get(key, type);
+            const raw = await this.kv.get(key);
+            if (raw === null || raw === undefined) return null;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return raw;
+            }
         } catch (error) {
             console.error(`[KV] Failed to get key ${key}:`, error);
             return null;
@@ -87,6 +178,10 @@ class D1StorageAdapter {
 
             return type === 'json' ? JSON.parse(result.data) : result.data;
         } catch (error) {
+            // 如果是表不存在的错误，说明 D1 还未初始化或未被使用，直接返回 null
+            if (error.message && error.message.includes('no such table')) {
+                return null;
+            }
             console.error(`[D1] Failed to get key ${key}:`, error);
             return null;
         }
@@ -142,15 +237,38 @@ class D1StorageAdapter {
                 { name: 'settings', keyField: 'key' }
             ];
             const keys = [];
+            const effectivePrefix = prefix || '';
+            const matchesKnownKey =
+                DATA_KEYS.SUBSCRIPTIONS.startsWith(effectivePrefix) ||
+                DATA_KEYS.PROFILES.startsWith(effectivePrefix) ||
+                DATA_KEYS.SETTINGS.startsWith(effectivePrefix) ||
+                effectivePrefix.startsWith(DATA_KEYS.SUBSCRIPTIONS) ||
+                effectivePrefix.startsWith(DATA_KEYS.PROFILES) ||
+                effectivePrefix.startsWith(DATA_KEYS.SETTINGS);
+
+            const shouldQuerySubscriptions = !effectivePrefix || effectivePrefix.startsWith(DATA_KEYS.SUBSCRIPTIONS);
+            const shouldQueryProfiles = !effectivePrefix || effectivePrefix.startsWith(DATA_KEYS.PROFILES);
+            const shouldQuerySettings = !effectivePrefix || !matchesKnownKey || effectivePrefix.startsWith(DATA_KEYS.SETTINGS);
 
             for (const table of tables) {
-                const results = await this.db.prepare(
-                    `SELECT ${table.keyField} FROM ${table.name}`
-                ).all();
+                if (table.name === 'subscriptions' && !shouldQuerySubscriptions) continue;
+                if (table.name === 'profiles' && !shouldQueryProfiles) continue;
+                if (table.name === 'settings' && !shouldQuerySettings) continue;
+
+                let results;
+                if (table.name === 'settings' && effectivePrefix) {
+                    results = await this.db.prepare(
+                        `SELECT ${table.keyField} FROM ${table.name} WHERE ${table.keyField} LIKE ?`
+                    ).bind(`${effectivePrefix}%`).all();
+                } else {
+                    results = await this.db.prepare(
+                        `SELECT ${table.keyField} FROM ${table.name}`
+                    ).all();
+                }
 
                 results.results.forEach(row => {
                     const key = this._buildKey(table.name, row[table.keyField]);
-                    if (key.startsWith(prefix)) {
+                    if (key.startsWith(effectivePrefix)) {
                         keys.push({ name: key });
                     }
                 });
@@ -197,10 +315,137 @@ class D1StorageAdapter {
 }
 
 /**
+ * 无存储降级适配器（EdgeOne 纯环境变量模式，不读写持久数据）
+ */
+class NoopStorageAdapter {
+    async get() { return null; }
+    async put() { return true; }
+    async delete() { return true; }
+    async list() { return []; }
+}
+
+
+/**
+ * 判断一个值是否像 KV namespace（有 get/put/delete 方法）
+ */
+function isKVNamespace(val) {
+    return val && typeof val === 'object' &&
+        typeof val.get === 'function' &&
+        typeof val.put === 'function' &&
+        typeof val.delete === 'function';
+}
+
+/**
+ * 解析 KV 命名空间
+ * EdgeOne Pages: KV 作为全局变量注入（globalThis.MISUB_KV），而非通过 env
+ * Cloudflare Pages: KV 通过 env.MISUB_KV 注入
+ * 同时支持自动探测，兼容任意绑定名
+ * @param {Object} env
+ * @returns {Object|null}
+ */
+function resolveKV(env) {
+    // 1. Cloudflare Pages 方式：env.MISUB_KV
+    if (env && isKVNamespace(env.MISUB_KV)) return env.MISUB_KV;
+
+    // 2. EdgeOne Pages 方式：KV 作为全局变量注入
+    if (typeof MISUB_KV !== 'undefined' && isKVNamespace(MISUB_KV)) return MISUB_KV;  // eslint-disable-line no-undef
+
+    // 3. 自动探测 env 中其他 KV 绑定（仅允许变量名包含 KV，避免误识别）
+    if (env) {
+        for (const key of Object.keys(env)) {
+            if (!String(key).toUpperCase().includes('KV')) continue;
+            if (isKVNamespace(env[key])) {
+                console.log(`[Storage] Auto-detected KV in env: ${key}`);
+                return env[key];
+            }
+        }
+    }
+
+    // 4. 自动探测 globalThis 中其他 KV 绑定（仅允许变量名包含 KV，避免误识别）
+    for (const key of Object.keys(globalThis)) {
+        if (key.startsWith('_') || key === 'globalThis') continue;
+        if (!String(key).toUpperCase().includes('KV')) continue;
+        try {
+            const val = globalThis[key];
+            if (isKVNamespace(val)) {
+                console.log(`[Storage] Auto-detected KV in globalThis: ${key}`);
+                return val;
+            }
+        } catch (_) { /* 忽略访问器异常 */ }
+    }
+
+    return null;
+}
+
+let _globalSettingsCache = {
+    data: null,
+    timestamp: 0
+};
+const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60秒缓存过时
+
+export class SettingsCache {
+    /**
+     * 带内存缓存的设置读取
+     */
+    static async get(env) {
+        const now = Date.now();
+        if (_globalSettingsCache.data && (now - _globalSettingsCache.timestamp < SETTINGS_CACHE_TTL_MS)) {
+            return _globalSettingsCache.data;
+        }
+
+        try {
+            let settings = null;
+            if (env.MISUB_DB) {
+                try {
+                    const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
+                    settings = await d1Adapter.get(DATA_KEYS.SETTINGS);
+                } catch (d1Error) {
+                    console.warn('[Storage Cache] Failed to read from D1:', d1Error.message);
+                }
+            }
+
+            const kvNs = resolveKV(env);
+            if (!settings && kvNs) {
+                try {
+                    const raw = await kvNs.get(DATA_KEYS.SETTINGS);
+                    settings = raw ? JSON.parse(raw) : null;
+                } catch (kvError) {
+                    console.warn('[Storage Cache] Failed to read from KV:', kvError.message);
+                }
+            }
+
+            if (settings) {
+                _globalSettingsCache.data = settings;
+                _globalSettingsCache.timestamp = now;
+                return settings;
+            }
+        } catch (error) {
+            console.error('[Storage Cache] Failed to read settings:', error);
+        }
+
+        return null;
+    }
+
+    /**
+     * 在更新设置后主动清除缓存
+     */
+    static clear() {
+        _globalSettingsCache = { data: null, timestamp: 0 };
+    }
+}
+
+/**
  * 存储工厂类
  * 根据配置创建相应的存储适配器
  */
 export class StorageFactory {
+    /**
+     * 解析 KV 命名空间（委托顶层函数）
+     */
+    static resolveKV(env) {
+        return resolveKV(env);
+    }
+
     /**
      * 创建存储适配器
      * @param {Object} env - Cloudflare 环境对象
@@ -212,15 +457,27 @@ export class StorageFactory {
             case STORAGE_TYPES.D1:
                 if (!env.MISUB_DB) {
                     console.warn('[Storage] D1 database not available, falling back to KV');
-                    return new KVStorageAdapter(env.MISUB_KV);
+                    const kvFallback = StorageFactory.resolveKV(env);
+                    if (!kvFallback) {
+                        console.warn('[Storage] KV not available either, using noop adapter');
+                        return new NoopStorageAdapter();
+                    }
+                    return new KVStorageAdapter(kvFallback);
                 }
                 return new D1StorageAdapter(env.MISUB_DB);
-            
+
             case STORAGE_TYPES.KV:
-            default:
-                return new KVStorageAdapter(env.MISUB_KV);
+            default: {
+                const kv = StorageFactory.resolveKV(env);
+                if (!kv) {
+                    console.warn('[Storage] No KV binding found, using noop adapter');
+                    return new NoopStorageAdapter();
+                }
+                return new KVStorageAdapter(kv);
+            }
         }
     }
+
 
     /**
      * 获取当前存储类型设置
@@ -229,35 +486,39 @@ export class StorageFactory {
      */
     static async getStorageType(env) {
         try {
-            // 优先从 D1 读取设置（若已切换到 D1，则后续请求不会触碰 KV）
-            if (env.MISUB_DB) {
-                try {
-                    const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
-                    const d1Settings = await d1Adapter.get(DATA_KEYS.SETTINGS);
-                    if (d1Settings?.storageType) {
-                        return d1Settings.storageType;
-                    }
-                } catch (d1Error) {
-                    console.warn('[Storage] Failed to read from D1:', d1Error.message);
-                }
-            }
-
-            // 回退：从 KV 读取设置（默认仍支持 KV）
-            let settings = null;
-            try {
-                settings = await env.MISUB_KV.get(DATA_KEYS.SETTINGS, 'json');
-            } catch (kvError) {
-                console.warn('[Storage] Failed to read from KV:', kvError.message);
-            }
+            const settings = await SettingsCache.get(env);
             if (settings?.storageType) {
                 return settings.storageType;
             }
-
-            // 默认使用 KV
             return STORAGE_TYPES.KV;
         } catch (error) {
             console.error('[Storage] Failed to get storage type:', error);
             return STORAGE_TYPES.KV;
+        }
+    }
+
+    /**
+     * 将 KV Settings 同步到 D1（当 D1 为空时）
+     */
+    static async ensureD1Settings(env) {
+        if (!env?.MISUB_DB) return false;
+        try {
+            const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
+            const existing = await d1Adapter.get(DATA_KEYS.SETTINGS);
+            if (existing) return true;
+            const kvNs = resolveKV(env);
+            if (!kvNs) return false;
+            const raw = await kvNs.get(DATA_KEYS.SETTINGS);
+            if (!raw) return false;
+            const settings = JSON.parse(raw);
+            if (settings?.storageType !== STORAGE_TYPES.D1) {
+                settings.storageType = STORAGE_TYPES.D1;
+            }
+            await d1Adapter.put(DATA_KEYS.SETTINGS, settings);
+            return true;
+        } catch (error) {
+            console.warn('[Storage] ensureD1Settings failed:', error?.message || error);
+            return false;
         }
     }
 
@@ -267,7 +528,7 @@ export class StorageFactory {
      * @returns {boolean} 是否配置了双重存储
      */
     static hasDualStorage(env) {
-        return !!(env.MISUB_KV && env.MISUB_DB);
+        return !!(StorageFactory.resolveKV(env) && env.MISUB_DB);
     }
 }
 
@@ -282,8 +543,11 @@ export class DataMigrator {
      */
     static async migrateKVToD1(env) {
         try {
-            const kvAdapter = new KVStorageAdapter(env.MISUB_KV);
+            const kvNs = resolveKV(env);
+            if (!kvNs) throw new Error('No KV binding found');
+            const kvAdapter = new KVStorageAdapter(kvNs);
             const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
+            await ensureD1Schema(d1Adapter.db);
 
             const results = {
                 subscriptions: false,

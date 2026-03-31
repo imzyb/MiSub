@@ -3,6 +3,12 @@
  * @author MiSub Team
  */
 
+function getKV(env) {
+    if (env?.MISUB_KV) return env.MISUB_KV;
+    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
+    return null;
+}
+
 /**
  * 计算数据的简单哈希值，用于检测变更
  * @param {any} data - 要计算哈希的数据
@@ -40,20 +46,21 @@ export function hasDataChanged(oldData, newData) {
  * @returns {Promise<boolean>} - 是否执行了写入操作
  */
 export async function conditionalKVPut(env, key, newData, oldData = null) {
+    const kv = getKV(env);
     // 如果没有提供旧数据，先从KV读取
     if (oldData === null) {
         try {
-            oldData = await env.MISUB_KV.get(key, 'json');
+            oldData = await kv.get(key).then(r => r ? JSON.parse(r) : null);
         } catch (error) {
             // 读取失败时，为安全起见执行写入
-            await env.MISUB_KV.put(key, JSON.stringify(newData));
+            await kv.put(key, JSON.stringify(newData));
             return true;
         }
     }
 
     // 检测数据是否变更
     if (hasDataChanged(oldData, newData)) {
-        await env.MISUB_KV.put(key, JSON.stringify(newData));
+        await kv.put(key, JSON.stringify(newData));
         return true;
     } else {
         return false;
@@ -66,12 +73,4 @@ export async function conditionalKVPut(env, key, newData, oldData = null) {
  * @param {number} decimals - 小数位数
  * @returns {string} - 格式化后的字符串
  */
-export function formatBytes(bytes, decimals = 2) {
-    if (!+bytes || bytes < 0) return '0 B';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    if (i < 0) return '0 B'; // Handle log(0) case
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-}
+export { formatBytes } from '../../src/shared/utils.js';

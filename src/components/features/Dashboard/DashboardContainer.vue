@@ -1,13 +1,14 @@
 /**
- * Dashboard 主容器组件
- * @author MiSub Team
- */
+* Dashboard 主容器组件
+* @author MiSub Team
+*/
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { saveMisubs } from '../../../lib/api.js';
 import { useToastStore } from '../../../stores/toast.js';
 import { useUIStore } from '../../../stores/ui.js';
+import { TIMING } from '../../../constants/timing.js';
 
 // 子组件
 import SubscriptionManager from './SubscriptionManager.vue';
@@ -122,7 +123,7 @@ const handleSave = async () => {
     showToast('保存失败: ' + error.message, 'error');
     setTimeout(() => {
       saveState.value = 'idle';
-    }, 3000);
+    }, TIMING.TOAST_DURATION_MS);
   }
 };
 
@@ -146,16 +147,14 @@ const handleBulkImport = (importedSubscriptions) => {
 
 const handleDeleteAllSubscriptionsWithCleanup = () => {
   deleteAllSubscriptions();
-  cleanupAllSubscriptions();
+  // cleanup 已在 deleteAllSubscriptions 内部通过 removeSubscriptionFromProfiles 实现
   showDeleteSubsModal.value = false;
-  showToast('所有订阅已删除', 'info');
 };
 
 const handleDeleteAllNodesWithCleanup = () => {
   deleteAllNodes();
-  cleanupAllNodes();
+  // cleanup 已在 deleteAllNodes 内部通过 removeManualNodeFromProfiles 实现
   showDeleteNodesModal.value = false;
-  showToast('所有节点已删除', 'info');
 };
 
 // Lifecycle
@@ -173,11 +172,7 @@ onUnmounted(() => {
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Header with Save Indicator -->
-      <SaveIndicator
-        :dirty="dirty"
-        :save-state="saveState"
-        @save="handleSave"
-      />
+      <SaveIndicator :dirty="dirty" :save-state="saveState" @save="handleSave" />
 
       <!-- Loading State -->
       <div v-if="isLoading" class="flex justify-center items-center py-12">
@@ -188,70 +183,35 @@ onUnmounted(() => {
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 items-start">
         <div class="lg:col-span-2 md:col-span-2 space-y-12">
           <!-- Subscription Manager -->
-          <SubscriptionManager
-            :subscriptions="subscriptions"
-            :paginated-subscriptions="paginatedSubscriptions"
-            :current-page="subsCurrentPage"
-            :total-pages="subsTotalPages"
-            :total-remaining-traffic="totalRemainingTraffic"
-            @add="addSubscription"
-            @delete="deleteSubscription"
-            @change-page="changeSubsPage"
-            @update-node-count="handleUpdateNodeCount"
-            @edit="updateSubscription"
-            @mark-dirty="markDirty"
-            @delete-all="showDeleteSubsModal = true"
-            @preview="handlePreviewSubscription"
-            @bulk-import="showBulkImportModal = true"
-          />
+          <SubscriptionManager :subscriptions="subscriptions" :paginated-subscriptions="paginatedSubscriptions"
+            :current-page="subsCurrentPage" :total-pages="subsTotalPages"
+            :total-remaining-traffic="totalRemainingTraffic" @add="addSubscription" @delete="deleteSubscription"
+            @change-page="changeSubsPage" @update-node-count="handleUpdateNodeCount" @edit="updateSubscription"
+            @mark-dirty="markDirty" @delete-all="showDeleteSubsModal = true" @preview="handlePreviewSubscription"
+            @bulk-import="showBulkImportModal = true" />
 
           <!-- Node Manager -->
-          <NodeManager
-            :manual-nodes="manualNodes"
-            :paginated-manual-nodes="paginatedManualNodes"
-            :current-page="manualNodesCurrentPage"
-            :total-pages="manualNodesTotalPages"
-            :search-term="searchTerm"
-            @add="addNode"
-            @delete="deleteNode"
-            @edit="updateNode"
-            @change-page="changeManualNodesPage"
-            @update:search-term="newVal => searchTerm = newVal"
-            @mark-dirty="markDirty"
-            @auto-sort="autoSortNodes"
-            @deduplicate="deduplicateNodes"
-            @import="showSubscriptionImportModal = true"
-            @delete-all="showDeleteNodesModal = true"
-          />
+          <NodeManager :manual-nodes="manualNodes" :paginated-manual-nodes="paginatedManualNodes"
+            :current-page="manualNodesCurrentPage" :total-pages="manualNodesTotalPages" :search-term="searchTerm"
+            @add="addNode" @delete="deleteNode" @edit="updateNode" @change-page="changeManualNodesPage"
+            @update:search-term="newVal => searchTerm = newVal" @mark-dirty="markDirty" @auto-sort="autoSortNodes"
+            @deduplicate="deduplicateNodes" @import="showSubscriptionImportModal = true"
+            @delete-all="showDeleteNodesModal = true" />
         </div>
 
         <!-- Profile Manager -->
         <div class="lg:col-span-1">
-          <ProfileManager
-            :config="config"
-            :profiles="profiles"
-            @add="handleAddProfile"
-            @edit="handleEditProfile"
-            @delete="handleDeleteProfile"
-            @delete-all="showDeleteProfilesModal = true"
-            @toggle="handleProfileToggle"
-            @copy-link="copyProfileLink"
-            @preview="handlePreviewProfile"
-          />
+          <ProfileManager :config="config" :profiles="profiles" @add="handleAddProfile" @edit="handleEditProfile"
+            @delete="handleDeleteProfile" @delete-all="showDeleteProfilesModal = true" @toggle="handleProfileToggle"
+            @copy-link="copyProfileLink" @preview="handlePreviewProfile" />
         </div>
       </div>
     </div>
 
     <!-- Modals -->
-    <BulkImportModal
-      v-model:show="showBulkImportModal"
-      @import="handleBulkImport"
-    />
+    <BulkImportModal v-model:show="showBulkImportModal" @import="handleBulkImport" />
 
-    <Modal
-      v-model:show="showDeleteSubsModal"
-      @confirm="handleDeleteAllSubscriptionsWithCleanup"
-    >
+    <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup">
       <template #title>
         <h3 class="text-lg font-bold text-red-500">确认清空订阅</h3>
       </template>
@@ -262,10 +222,7 @@ onUnmounted(() => {
       </template>
     </Modal>
 
-    <Modal
-      v-model:show="showDeleteNodesModal"
-      @confirm="handleDeleteAllNodesWithCleanup"
-    >
+    <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
       <template #title>
         <h3 class="text-lg font-bold text-red-500">确认清空节点</h3>
       </template>
@@ -276,10 +233,7 @@ onUnmounted(() => {
       </template>
     </Modal>
 
-    <Modal
-      v-model:show="showDeleteProfilesModal"
-      @confirm="handleDeleteAllProfiles"
-    >
+    <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles">
       <template #title>
         <h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3>
       </template>
@@ -290,28 +244,14 @@ onUnmounted(() => {
       </template>
     </Modal>
 
-    <ProfileModal
-      v-if="showProfileModal"
-      v-model:show="showProfileModal"
-      :profile="editingProfile"
-      :is-new="isNewProfile"
-      :all-subscriptions="subscriptions"
-      :all-manual-nodes="manualNodes"
-      @save="handleSaveProfile"
-      size="2xl"
-    />
+    <ProfileModal v-if="showProfileModal" v-model:show="showProfileModal" :profile="editingProfile"
+      :is-new="isNewProfile" :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes"
+      @save="handleSaveProfile" size="6xl" />
 
-    <SubscriptionImportModal
-      v-if="showSubscriptionImportModal"
-      v-model:show="showSubscriptionImportModal"
-      @import="addNodesFromBulk"
-    />
+    <SubscriptionImportModal v-if="showSubscriptionImportModal" v-model:show="showSubscriptionImportModal"
+      @import="addNodesFromBulk" />
 
-    <NodePreviewModal
-      v-if="showNodePreviewModal"
-      v-model:show="showNodePreviewModal"
-      :subscription-id="previewSubscriptionId"
-      :profile-id="previewProfileId"
-    />
+    <NodePreviewModal v-if="showNodePreviewModal" v-model:show="showNodePreviewModal"
+      :subscription-id="previewSubscriptionId" :profile-id="previewProfileId" />
   </div>
 </template>

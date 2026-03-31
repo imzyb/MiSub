@@ -8,6 +8,8 @@ const props = defineProps({
   profiles: Array,
 });
 
+const emit = defineEmits(['qrcode']);
+
 const { showToast } = useToastStore();
 const uiStore = useUIStore();
 
@@ -43,7 +45,7 @@ const subLink = computed(() => {
     return baseUrl;
   }
   
-  const targetMapping = { 'Sing-Box': 'singbox', 'QuanX': 'quanx' };
+  const targetMapping = { 'Sing-Box': 'base64', 'QuanX': 'quanx' };
   const formatKey = (targetMapping[selectedFormat.value] || selectedFormat.value.toLowerCase());
   return `${baseUrl}?${formatKey}`;
 });
@@ -66,13 +68,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="sticky top-24">
-    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md card-shadow hover:card-shadow-hover p-6 rounded-2xl transition-all duration-300">
+  <div>
+    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-6 misub-radius-lg border border-gray-100/80 dark:border-white/10 shadow-sm transition-all duration-300">
       <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 list-item-animation" style="--delay-index: 0">生成订阅链接</h3>
 
       <div class="mb-4 list-item-animation" style="--delay-index: 1">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">1. 选择订阅内容</label>
-        <select v-model="selectedId" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white input-enhanced">
+        <select v-model="selectedId" class="w-full px-3 py-2.5 bg-white/80 dark:bg-gray-800/70 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm text-gray-900 dark:text-white input-enhanced">
             <option value="default">默认订阅 (全部启用节点)</option>
             <option v-for="profile in profiles" :key="profile.id" :value="profile.customId || profile.id">
                 {{ profile.name }}
@@ -87,12 +89,13 @@ onUnmounted(() => {
               v-for="(format, index) in formats"
               :key="format"
               @click="selectedFormat = format"
-              class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex justify-center items-center list-item-animation"
+              :aria-pressed="selectedFormat === format"
+              class="px-3 py-2 text-xs font-medium misub-radius-lg border transition-colors flex justify-center items-center list-item-animation"
               :style="{ '--delay-index': index }"
               :class="[
                 selectedFormat === format
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-200/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-300/80 dark:hover:bg-gray-600/50'
+                  ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/30'
+                  : 'bg-white/70 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-gray-800'
               ]"
             >
               {{ format }}
@@ -106,29 +109,36 @@ onUnmounted(() => {
           :value="subLink"
           readonly
           :disabled="!isLinkValid"
-          class="w-full text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 rounded-lg pl-3 pr-10 py-2.5 focus:outline-hidden focus:ring-2 font-mono input-enhanced"
+          class="w-full text-sm text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg pl-3 pr-20 py-2.5 border border-gray-200/70 dark:border-white/10 focus:outline-hidden focus:ring-2 font-mono input-enhanced"
           :class="{
-            'focus:ring-indigo-500': isLinkValid,
+            'focus:ring-primary-500': isLinkValid,
             'focus:ring-red-500 cursor-not-allowed': !isLinkValid,
             'text-red-500 dark:text-red-500': !isLinkValid
           }"
         />
-        <button @click="copyToClipboard" :disabled="!isLinkValid" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 transition-colors duration-200" :class="isLinkValid ? 'hover:text-indigo-500' : 'cursor-not-allowed'">
-            <Transition name="fade" mode="out-in">
-                <svg v-if="copied" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-            </Transition>
-        </button>
+        <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <button @click="$emit('qrcode', subLink, '订阅链接')" :disabled="!isLinkValid" class="flex h-9 w-9 items-center justify-center misub-radius-md text-gray-400 transition-colors duration-200" :class="isLinkValid ? 'hover:text-primary-600 hover:bg-white/80 dark:hover:bg-gray-800' : 'cursor-not-allowed'" title="显示二维码">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+             </svg>
+          </button>
+          <button @click="copyToClipboard" :disabled="!isLinkValid" class="flex h-9 w-9 items-center justify-center misub-radius-md text-gray-400 transition-colors duration-200" :class="isLinkValid ? 'hover:text-primary-600 hover:bg-white/80 dark:hover:bg-gray-800' : 'cursor-not-allowed'" title="复制链接">
+             <Transition name="fade" mode="out-in">
+                 <svg v-if="copied" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                 </svg>
+                 <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                 </svg>
+             </Transition>
+          </button>
+        </div>
       </div>
 
        <p v-if="!isLinkValid || requiredToken.value.value === 'auto'" class="text-xs text-yellow-600 dark:text-yellow-500 mt-2 list-item-animation" style="--delay-index: 4">
            提示：
-           <span v-if="!isLinkValid">请在 
-             <button @click="uiStore.isSettingsModalVisible = true" class="font-bold underline hover:text-yellow-400">设置</button> 
+           <span v-if="!isLinkValid">请在              <router-link to="/settings" class="font-bold underline hover:text-yellow-400">设置</router-link> 
              中配置一个固定的 {{ requiredToken.name }}。
            </span>
            <span v-else-if="requiredToken.type === 'mytoken' && requiredToken.value === 'auto'">

@@ -1,30 +1,42 @@
 {
-  "name": "miusb",
-  "version": "1.0.0",
+  "name": "misub",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "npx wrangler pages dev public --port 8787",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
+    "build:edgeone": "vite build --mode edgeone",
     "preview": "vite preview",
-    "check-pwa": "node check-pwa.js",
-    "build-pwa": "vite build && echo PWA build completed!"
+    "start": "node server/index.mjs",
+    "start:vps": "node server/index.mjs",
+    "test": "vitest --passWithNoTests",
+    "test:run": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:chrome": "node test-chrome-mcp.js"
   },
   "dependencies": {
+    "better-sqlite3": "^11.5.0",
     "clsx": "^2.1.1",
+    "dompurify": "^3.2.6",
     "js-yaml": "^4.1.0",
     "pinia": "^3.0.3",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.18",
+    "vue-router": "^4.6.4",
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.12",
+    "@tailwindcss/vite": "^4.1.18",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.0.11",
     "miniflare": "^4.20250803.0",
-    "postcss": "^8.4.38",
     "tailwindcss": "^4.1.12",
     "vite": "^7.1.2",
-    "vite-plugin-pwa": "^1.0.3",
-    "workbox-window": "^7.3.0"
+    "vitest": "^4.0.16",
+    "wrangler": "^4.56.0"
   }
 }

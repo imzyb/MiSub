@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft-07/schema#",
+    "build": {
+        "type": "docker"
+    },
+    "deploy": {
+        "environment": {
+            "PORT": "8080",
+            "MISUB_DB_PATH": "/app/data/misub.db",
+            "ADMIN_PASSWORD": "change_me",
+            "COOKIE_SECRET": "change_me_too"
+        },
+        "volumes": [
+            {
+                "name": "data",
+                "path": "/app/data"
+            }
+        ]
+    },
+    "ports": [
+        {
+            "name": "web",
+            "port": 8080,
+            "type": "HTTP"
+        }
+    ]
+}

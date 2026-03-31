@@ -32,7 +32,7 @@ const saveButtonText = computed(() => {
 });
 
 const saveButtonClass = computed(() => {
-  const baseClass = 'px-4 py-2 rounded-md text-sm font-medium transition-all duration-200';
+  const baseClass = 'px-4 py-2 misub-radius-md text-sm font-medium transition-all duration-200';
 
   if (saveState.value === 'saving') {
     return `${baseClass} bg-gray-400 text-white cursor-not-allowed`;
@@ -65,7 +65,7 @@ const saveButtonClass = computed(() => {
   >
     <div
       v-if="dirty || saveState !== 'idle'"
-      class="fixed top-4 right-4 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4"
+      class="fixed top-4 right-4 z-50 bg-white dark:bg-gray-800 misub-radius-md shadow-lg border border-gray-200 dark:border-gray-700 p-4"
     >
       <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2">
