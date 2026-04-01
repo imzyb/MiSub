@@ -1,0 +1,71 @@
+name = "misub"
+type = "javascript"
+main = "src/index.js"
+compatibility_date = "2024-04-01"
+
+# 🚀 Cloudflare Pages 部署配置
+# 这个配置用于部署到 Cloudflare Pages
+# 注意：Cloudflare Pages 会自动处理路由和绑定
+
+# Pages 特定配置
+build = { command = "npm run build", cwd = "./" }
+main = "functions"
+
+# 不要设置 account_id 或 zone_id
+# Cloudflare Pages 会自动处理这些
+
+# 兼容性设置
+compatibility_date = "2024-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 环境变量（通过 Cloudflare Pages UI 设置）
+# 不要在这里直接设置敏感信息
+[env.production]
+name = "misub-production"
+vars = {
+  ENVIRONMENT = "production",
+  LOG_LEVEL = "info",
+
+  # Cron 配置（通过环境变量，无需修改代码）
+  ENABLE_CRON = "true",                    # 是否启用Cron功能
+  CRON_TYPE = "hourly-subscription-sync",  # Cron任务类型
+  CRON_MAX_SYNC_COUNT = "50",              # 每次最多同步多少个订阅
+  CRON_SYNC_TIMEOUT = "30000",             # 单个订阅同步超时（毫秒）
+  CRON_ENABLE_PARALLEL = "true"            # 是否启用并行同步
+}
+
+# Cron Triggers 配置
+# 在 Functions 配置页面设置：
+# Settings -> Functions -> Cron Triggers
+# 或者通过 wrangler.json 的 triggers 部分
+# [triggers]
+# crons = [
+#   "0 * * * *",      # 每小时（推荐）
+#   "0 8 * * *",      # 每日8点
+#   "*/30 * * * *"    # 每30分钟
+# ]
+
+# Pages 部署配置
+[pages_build_caching]
+default_cache_on_cookie_presence_match = "session_id"
+
+# 不使用 KV 本地绑定，改用 Cloudflare UI
+# [[kv_namespaces]]
+# binding = "KV_STORAGE"
+# id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# 不使用 D1 本地绑定，改用 Cloudflare UI
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "misub"
+# database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# 📝 部署说明：
+# 1. 在 Cloudflare Pages 仪表板配置：
+#    - 连接 Git 仓库
+#    - 设置构建命令
+#    - 设置构建输出目录
+# 2. 环境变量通过 Pages 设置 -> 环境变量
+# 3. KV 和 D1 通过 Pages 设置 -> Functions -> KV 命名空间/D1 数据库
+# 4. Cron Triggers 通过 Pages 设置 -> Functions -> Cron Triggers
+# 5. 不需要在 wrangler.toml 中设置这些，以避免冲突
