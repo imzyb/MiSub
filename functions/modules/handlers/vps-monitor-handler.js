@@ -833,17 +833,17 @@ async function pruneAlerts(db) {
 async function fetchReportsForNode(db, nodeId, settings) {
     const cutoff = new Date(getReportRetentionCutoff(settings)).toISOString();
     const result = await db.prepare(
-        'SELECT data FROM vps_reports WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at ASC LIMIT ?'
+        'SELECT data FROM vps_reports WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at DESC LIMIT ?'
     ).bind(nodeId, cutoff, REPORTS_MAX_KEEP).all();
-    return (result.results || []).map(row => JSON.parse(row.data));
+    return (result.results || []).map(row => JSON.parse(row.data)).reverse();
 }
 
 async function fetchNetworkSamples(db, nodeId, settings) {
     const cutoff = new Date(getReportRetentionCutoff(settings)).toISOString();
     const result = await db.prepare(
-        'SELECT data FROM vps_network_samples WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at ASC LIMIT ?'
+        'SELECT data FROM vps_network_samples WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at DESC LIMIT ?'
     ).bind(nodeId, cutoff, REPORTS_MAX_KEEP).all();
-    return (result.results || []).map(row => JSON.parse(row.data));
+    return (result.results || []).map(row => JSON.parse(row.data)).reverse();
 }
 
 async function insertNetworkSample(db, sample) {
@@ -1627,7 +1627,9 @@ export async function handleVpsReport(request, env) {
         updated_at: updatedAt
     });
 
-    await invalidatePublicCaches(env, node.id);
+    // In regular reports, we rely on the 60s TTL of the KV cache instead of manual invalidation.
+    // This drastically reduces KV write/delete operations to stay within free limits.
+    // Manual invalidation still occurs on node configuration changes.
     await maybePruneReports(db, settings, env);
     return createJsonResponse({ success: true });
 }
@@ -1845,14 +1847,14 @@ export async function handleVpsPublicNodeDetailRequest(request, env) {
     // Fetch network samples - last 500 points for better precision
     const cutoff = new Date(getReportRetentionCutoff(settings)).toISOString();
     const result = await db.prepare(
-        'SELECT data FROM vps_network_samples WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at ASC LIMIT 500'
+        'SELECT data FROM vps_network_samples WHERE node_id = ? AND reported_at >= ? ORDER BY reported_at DESC LIMIT 500'
     ).bind(nodeId, cutoff).all();
     
     const samples = (result.results || []).map(row => {
         const s = JSON.parse(row.data);
         if (s.checks) s.checks = rehydrateCheckNames(s.checks, targets);
         return s;
-    });
+    }).reverse();
 
     const summary = summarizeNode(node, node.lastReport || null, settings);
     // Security: Remove sensitive IP information
