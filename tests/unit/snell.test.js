@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSnellUrl, validateSnellNode, extractValidNodes } from '../../functions/modules/utils/node-parser.js';
+import { parseSnellUrl, validateSnellNode, extractValidNodes, parseNodeList } from '../../functions/modules/utils/node-parser.js';
 import { parseSurgeConfig } from '../../src/utils/protocolConverter.js';
 
 describe('Snell 协议支持', () => {
@@ -191,6 +191,36 @@ VMess-Node = vmess, vmess.example.com, 443, username=uuid-1234, alterid=0, netwo
             expect(nodes[0].name).toBe('VMess-Node');
             expect(nodes[0].protocol).toBe('vmess');
             expect(nodes[0].url).toContain('vmess://');
+        });
+    });
+
+    describe('Shadowsocks cipher=none 回归测试', () => {
+        it('应解析 Clash YAML 中显式声明 cipher: none 的 SS 节点', () => {
+            const config = `proxies:
+  - name: SS-None
+    type: ss
+    server: 1.2.3.4
+    port: 8388
+    cipher: none
+    password: testpass`;
+
+            const nodes = parseNodeList(config);
+
+            expect(nodes).toHaveLength(1);
+            expect(nodes[0].protocol).toBe('ss');
+            expect(nodes[0].server).toBe('1.2.3.4');
+            expect(nodes[0].port).toBe('8388');
+        });
+
+        it('应解析 Quantumult X 中 method=none 的 SS 节点', () => {
+            const config = 'shadowsocks=1.2.3.4:8388, method=none, password=testpass, tag=SS None';
+
+            const nodes = parseNodeList(config);
+
+            expect(nodes).toHaveLength(1);
+            expect(nodes[0].protocol).toBe('ss');
+            expect(nodes[0].server).toBe('1.2.3.4');
+            expect(nodes[0].port).toBe('8388');
         });
     });
 

@@ -395,7 +395,10 @@ function parseSurgeOrQxLine(line) {
                     }
                     if (k === 'sni' || k === 'tls-host' || k === 'obfs-host') proxy.sni = v;
                     if (k === 'tls-verification' && v === 'false') proxy.skipCertVerify = true;
-                    if (k === 'method' || k === 'cipher') proxy.cipher = v === 'none' ? undefined : v;
+                    if (k === 'method' || k === 'cipher') {
+                        // `none` 是 Shadowsocks 的合法配置，不能在解析阶段被抹掉
+                        proxy.cipher = v;
+                    }
                     if (k === 'obfs') {
                         if (v === 'over-tls') proxy.tls = true;
                         else { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.mode = v; }
@@ -502,10 +505,11 @@ export function extractValidNodes(text) {
 }
 
 /**
- * 支持的 Shadowsocks 加密算法 (AEAD)
- * 现代客户端 (如 Sing-box) 已弃用非 AEAD 算法 (如 aes-256-cfb, rc4-md5)
+ * 支持的 Shadowsocks 加密算法
+ * 包含现代 AEAD / SS2022，同时保留 `none` 以兼容合法的无加密节点。
  */
 const SUPPORTED_SS_CIPHERS = [
+    'none',
     'aes-128-gcm', 'aes-256-gcm',
     'chacha20-poly1305', 'chacha20-ietf-poly1305',
     'xchacha20-ietf-poly1305',

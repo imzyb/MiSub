@@ -5,6 +5,9 @@ import Card from '../ui/Card.vue';
 import MoreActionsMenu from '@/components/shared/MoreActionsMenu.vue';
 import PanelPagination from '@/components/shared/PanelPagination.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import { useUIStore } from '@/stores/ui';
+
+const { layoutMode } = useUIStore();
 
 const props = defineProps({
   subscriptions: { type: Array, default: () => [] },

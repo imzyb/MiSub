@@ -4,6 +4,7 @@
  */
 
 import { StorageFactory, DataMigrator } from '../storage-adapter.js';
+import { KV_KEY_SUBS } from './config.js';
 import { createJsonResponse, createErrorResponse, getAuthDebugInfo } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, getAuthSessionDiagnostic, getLoginPasswordDiagnostic } from './auth-middleware.js';
 import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
@@ -43,15 +44,16 @@ import {
     handleVpsNodeDetailRequest,
     handleVpsAlertsRequest,
     handleVpsInstallScript,
+    handleVpsUninstallScript,
     handleVpsNetworkTargetsRequest,
     handleVpsNetworkCheck,
     handleVpsConfig,
-    handleVpsPublicNodeDetailRequest
+    handleVpsPublicNodeDetailRequest,
+    handleVpsCleanup
 } from './handlers/vps-monitor-handler.js';
 
 // 常量定义
 const OLD_KV_KEY = 'misub_data_v1';
-const KV_KEY_SUBS = 'misub_subscriptions_v1';
 const KV_KEY_PROFILES = 'misub_profiles_v1'; // Ensure this is defined if used
 
 /**
@@ -173,9 +175,12 @@ export async function handleApiRequest(request, env) {
         return await handleVpsReport(request, env);
     }
 
-    // VPS monitor install script endpoint (public)
+    // VPS monitor install/uninstall script endpoint (public)
     if (path === '/vps/install') {
         return await handleVpsInstallScript(request, env);
+    }
+    if (path === '/vps/uninstall') {
+        return await handleVpsUninstallScript(request, env);
     }
 
     if (path === '/vps/config') {
@@ -409,6 +414,9 @@ export async function handleApiRequest(request, env) {
         case '/vps/alerts':
             return await handleVpsAlertsRequest(request, env);
 
+        case '/vps/cleanup':
+            return await handleVpsCleanup(request, env);
+
         case '/settings':
             if (request.method === 'GET') {
                 return await handleSettingsGet(env);
@@ -429,6 +437,18 @@ export async function handleApiRequest(request, env) {
                 return await handleGuestbookManageAction(request, env);
             }
             return createErrorResponse('Method Not Allowed', 405);
+
+        case '/cron/status':
+            if (!await authMiddleware(request, env)) {
+                return createJsonResponse({ error: 'Unauthorized' }, 401);
+            }
+            return await handleCronStatusRequest(env);
+
+        case '/cron/trigger':
+            if (!await authMiddleware(request, env)) {
+                return createJsonResponse({ error: 'Unauthorized' }, 401);
+            }
+            return await handleCronTriggerRequest(env);
 
         default:
             return createErrorResponse('API route not found', 404);
@@ -569,4 +589,237 @@ function encodeArrayBufferToBase64(buffer) {
     }
 
     return btoa(binary);
+}
+
+/**
+ * 处理 Cron 状态查询请求
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+async function handleCronStatusRequest(env) {
+    try {
+        // 检查是否启用Cron功能
+        const enableCron = env.ENABLE_CRON !== 'false';
+
+        // 获取Cron配置
+        const cronType = env.CRON_TYPE || 'hourly-subscription-sync';
+        const maxSyncCount = parseInt(env.CRON_MAX_SYNC_COUNT) || 50;
+        const syncTimeout = parseInt(env.CRON_SYNC_TIMEOUT) || 30000;
+        const enableParallel = env.CRON_ENABLE_PARALLEL !== 'false';
+
+        // 获取最近的Cron执行状态（如果有的话）
+        let lastExecution = null;
+        try {
+            const kv = StorageFactory.resolveKV(env);
+            if (kv) {
+                const statusData = await kv.get('cron_last_execution');
+                if (statusData) {
+                    lastExecution = JSON.parse(statusData);
+                }
+            }
+        } catch (error) {
+            console.warn('[Cron Status] Failed to fetch last execution:', error);
+        }
+
+        const statusData = {
+            enabled: enableCron,
+            config: {
+                type: cronType,
+                maxSyncCount,
+                syncTimeout,
+                enableParallel
+            },
+            totalSubscriptions: lastExecution?.result?.totalSubscriptions || 0,
+            successfulSyncs: lastExecution?.result?.successfulSyncs || 0,
+            failedSyncs: lastExecution?.result?.failedSyncs || 0,
+            lastSync: lastExecution?.timestamp || null,
+            details: lastExecution?.result?.details || [],
+            lastExecution,
+            timestamp: new Date().toISOString()
+        };
+
+        return createJsonResponse(statusData);
+
+    } catch (error) {
+        console.error('[Cron Status Error]', error);
+        return createErrorResponse(error, 500);
+    }
+}
+
+/**
+ * 处理 Cron 手动触发请求
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+async function handleCronTriggerRequest(env) {
+    try {
+        // 检查是否启用Cron功能
+        const enableCron = env.ENABLE_CRON !== 'false';
+        if (!enableCron) {
+            return createJsonResponse({
+                success: false,
+                error: 'Cron functionality is disabled'
+            }, 400);
+        }
+
+        // 获取Cron配置
+        const cronType = env.CRON_TYPE || 'hourly-subscription-sync';
+        const maxSyncCount = parseInt(env.CRON_MAX_SYNC_COUNT) || 50;
+        const syncTimeout = parseInt(env.CRON_SYNC_TIMEOUT) || 30000;
+        const enableParallel = env.CRON_ENABLE_PARALLEL !== 'false';
+
+        // 调用 _schedule.js 中的同步逻辑
+        const scheduleModule = await import('../_schedule.js');
+        const result = await scheduleModule.performSubscriptionSync(env, {
+            maxSyncCount,
+            syncTimeout,
+            enableParallel
+        });
+
+        // 保存执行状态
+        try {
+            const kv = StorageFactory.resolveKV(env);
+            if (kv) {
+                const executionStatus = {
+                    type: 'manual_trigger',
+                    cronType,
+                    timestamp: new Date().toISOString(),
+                    result: {
+                        totalSubscriptions: result.totalSubscriptions,
+                        successfulSyncs: result.successfulSyncs,
+                        failedSyncs: result.failedSyncs
+                    }
+                };
+                await kv.put('cron_last_execution', JSON.stringify(executionStatus), {
+                    expirationTtl: 86400 // 24小时后过期
+                });
+            }
+        } catch (error) {
+            console.warn('[Cron Trigger] Failed to save execution status:', error);
+        }
+
+        return createJsonResponse({
+            success: true,
+            message: 'Cron triggered successfully',
+            result,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('[Cron Trigger Error]', error);
+        return createErrorResponse(error, 500);
+    }
+}
+
+/**
+ * 执行订阅同步（复用_cron.js的逻辑）
+ * @param {Object} env - Cloudflare环境对象
+ * @param {Object} config - 同步配置
+ * @returns {Promise<Object>} 同步结果
+ */
+async function performSubscriptionSync(env, config) {
+    const { maxSyncCount = 50, syncTimeout = 30000, enableParallel = true } = config;
+
+    const results = {
+        timestamp: new Date().toISOString(),
+        totalSubscriptions: 0,
+        successfulSyncs: 0,
+        failedSyncs: 0,
+        config: { maxSyncCount, syncTimeout, enableParallel }
+    };
+
+    try {
+        // 获取订阅列表
+        const subscriptions = await getAllSubscriptions(env);
+        results.totalSubscriptions = subscriptions.length;
+
+        // 限制同步数量
+        const subscriptionsToSync = subscriptions.slice(0, maxSyncCount);
+
+        if (enableParallel) {
+            // 并行同步
+            const syncPromises = subscriptionsToSync.map(async (sub) => {
+                try {
+                    await performSingleSubscriptionSync(sub, env, syncTimeout);
+                    return { success: true };
+                } catch (error) {
+                    console.error(`[Cron] Failed to sync ${sub.name}:`, error);
+                    return { success: false, error: error.message };
+                }
+            });
+
+            const syncResults = await Promise.allSettled(syncPromises);
+            syncResults.forEach(result => {
+                if (result.status === 'fulfilled' && result.value.success) {
+                    results.successfulSyncs++;
+                } else {
+                    results.failedSyncs++;
+                }
+            });
+        } else {
+            // 串行同步
+            for (const sub of subscriptionsToSync) {
+                try {
+                    await performSingleSubscriptionSync(sub, env, syncTimeout);
+                    results.successfulSyncs++;
+                } catch (error) {
+                    console.error(`[Cron] Failed to sync ${sub.name}:`, error);
+                    results.failedSyncs++;
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('[Cron] Subscription sync error:', error);
+        results.error = error.message;
+    }
+
+    return results;
+}
+
+/**
+ * 获取所有订阅
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Array>} 订阅列表
+ */
+async function getAllSubscriptions(env) {
+    try {
+        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+        const subscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+        return Array.isArray(subscriptions) ? subscriptions : [];
+    } catch (error) {
+        console.error('[Cron] Failed to fetch subscriptions:', error);
+        return [];
+    }
+}
+
+/**
+ * 执行单个订阅同步
+ * @param {Object} subscription - 订阅对象
+ * @param {Object} env - 环境变量
+ * @param {number} timeout - 超时时间（毫秒）
+ */
+async function performSingleSubscriptionSync(subscription, env, timeout) {
+    // 创建带超时的 AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        // 这里应该调用实际的订阅同步逻辑
+        // 暂时使用模拟逻辑
+        console.log(`[Single Sync] Processing ${subscription.name || subscription.url} with ${timeout}ms timeout`);
+
+        // 模拟网络请求
+        await new Promise((resolve, reject) => {
+            controller.signal.addEventListener('abort', () => reject(new Error('Timeout')));
+            setTimeout(resolve, Math.random() * 2000); // 模拟1-2秒的处理时间
+        });
+
+        clearTimeout(timeoutId);
+        return { success: true };
+
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
 }

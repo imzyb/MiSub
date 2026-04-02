@@ -29,6 +29,7 @@ import { createDisguiseResponse } from './modules/disguise-page.js';
 import { StorageFactory, SettingsCache } from './storage-adapter.js';
 import { KV_KEY_SETTINGS } from './modules/config.js';
 import { handleCronTrigger } from './modules/notifications.js';
+import { handleVpsCleanup } from './modules/handlers/vps-monitor-handler.js';
 import { authMiddleware } from './modules/auth-middleware.js';
 
 function parseCorsOrigins(env, requestUrl) {
@@ -185,6 +186,25 @@ export async function onRequest(context) {
                 }
 
                 return await handleCronTrigger(env);
+            } else if (url.pathname === '/cron/vps-cleanup') {
+                const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+                const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+                const expectedSecret = settings.cronSecret;
+                if (!expectedSecret) {
+                    return createJsonResponse({
+                        error: 'Cron Secret 未配置',
+                        hint: '请在设置页面的「自动任务配置」中设置 Cron Secret'
+                    }, 500);
+                }
+                const cronAuthHeader = request.headers.get('Authorization');
+                const cronSecretParam = url.searchParams.get('secret');
+                const isAuthorized =
+                    cronAuthHeader === `Bearer ${expectedSecret}` ||
+                    cronSecretParam === expectedSecret;
+                if (!isAuthorized) {
+                    return createJsonResponse({ error: 'Unauthorized' }, 401);
+                }
+                return await handleVpsCleanup(request, env);
             } else {
                 const isLocalhost = ['localhost', '127.0.0.1'].includes(url.hostname);
 

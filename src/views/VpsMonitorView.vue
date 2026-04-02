@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useToastStore } from '../stores/toast.js';
-import { fetchVpsNodes, createVpsNode, updateVpsNode, deleteVpsNode, fetchVpsAlerts, clearVpsAlerts, fetchVpsNodeDetail, saveSettings, fetchSettings } from '../lib/api.js';
+import { fetchVpsNodes, createVpsNode, updateVpsNode, deleteVpsNode, fetchVpsAlerts, clearVpsAlerts, fetchVpsNodeDetail, saveSettings, fetchSettings, requestVpsNetworkCheck } from '../lib/api.js';
 import DataGrid from '../components/shared/DataGrid.vue';
 import Modal from '../components/forms/Modal.vue';
 import VpsMetricChart from '../components/vps/VpsMetricChart.vue';
+import VpsNetworkTargets from '../components/vps/VpsNetworkTargets.vue';
 import VpsMonitorSettingsModal from '../components/modals/VpsMonitorSettingsModal.vue';
 import Switch from '../components/ui/Switch.vue';
 import { useSettingsStore } from '../stores/settings.js';
@@ -54,7 +55,10 @@ const guidePayload = ref(null);
 const detailPayload = ref(null);
 const detailReports = ref([]);
 const detailNetworkSamples = ref([]);
+const detailTargets = ref([]);
+const checkingTargets = ref({});
 const detailError = ref('');
+const isDetailLoading = ref(false);
 const detailRange = ref('24h');
 const detailAggregation = ref('avg');
 const detailSection = ref('overview');
@@ -229,24 +233,69 @@ const openDelete = (node) => {
   showDeleteModal.value = true;
 };
 
+const applyDetailResult = (result) => {
+  if (result.success) {
+    detailPayload.value = result.data.data || null;
+    detailReports.value = result.data.reports || [];
+    detailNetworkSamples.value = result.data.networkSamples || [];
+    detailTargets.value = result.data.targets || [];
+    detailError.value = '';
+    return true;
+  }
+  detailError.value = result.error || '加载详情失败';
+  return false;
+};
+
+const refreshDetail = async (nodeId = editingNode.value?.id || detailPayload.value?.id) => {
+  if (!nodeId) return false;
+  isDetailLoading.value = true;
+  const result = await fetchVpsNodeDetail(nodeId);
+  const success = applyDetailResult(result);
+  if (!success) {
+    showToast(result.error || '加载详情失败', 'error');
+  }
+  isDetailLoading.value = false;
+  return success;
+};
+
 const openDetail = async (node) => {
   editingNode.value = node;
   detailPayload.value = null;
   detailReports.value = [];
   detailNetworkSamples.value = [];
+  detailTargets.value = [];
   detailError.value = '';
   detailRange.value = '24h';
   detailAggregation.value = 'avg';
   detailSection.value = 'overview';
   showDetailModal.value = true;
-  const result = await fetchVpsNodeDetail(node.id);
-  if (result.success) {
-    detailPayload.value = result.data.data || null;
-    detailReports.value = result.data.reports || [];
-    detailNetworkSamples.value = result.data.networkSamples || [];
-  } else {
-    detailError.value = result.error || '加载详情失败';
-    showToast(result.error || '加载详情失败', 'error');
+  await refreshDetail(node.id);
+};
+
+const setCheckingTarget = (targetId, pending) => {
+  checkingTargets.value = {
+    ...checkingTargets.value,
+    [targetId]: pending
+  };
+};
+
+const handleTargetCheck = async (target) => {
+  if (!editingNode.value?.id || !target?.id) return;
+  setCheckingTarget(target.id, true);
+  try {
+    const result = await requestVpsNetworkCheck(editingNode.value.id, target.id);
+    if (result.success) {
+      showToast(result.data?.message || '已加入下次上报检测队列', 'success');
+      detailTargets.value = detailTargets.value.map((item) => (
+        item.id === target.id
+          ? { ...item, forceCheckAt: new Date().toISOString() }
+          : item
+      ));
+    } else {
+      showToast(result.error || '触发检测失败', 'error');
+    }
+  } finally {
+    setCheckingTarget(target.id, false);
   }
 };
 
@@ -689,8 +738,8 @@ onMounted(() => {
                   <div class="flex items-center gap-2">
                     <img
                       v-if="row.countryCode"
-                      :src="`https://flagcdn.com/w20/${row.countryCode.toLowerCase()}.png`"
-                      class="h-3.5 w-auto rounded-sm opacity-80"
+                      :src="`https://flagcdn.com/24x18/${row.countryCode.toLowerCase()}.png`"
+                      class="h-3.5 w-auto shrink-0 rounded-sm object-cover opacity-80"
                       alt=""
                       :title="row.countryCode"
                       @error="getFlagFallback"
@@ -717,6 +766,7 @@ onMounted(() => {
               </div>
               <div class="mt-3 text-xs text-gray-500 dark:text-gray-400">最近上报：{{ formatTime(row.lastSeenAt) }}</div>
               <div class="mt-4 flex flex-wrap gap-2">
+                <button type="button" class="rounded-lg border border-sky-200/60 px-2.5 py-1.5 text-xs font-medium text-sky-600 dark:border-sky-500/20 dark:text-sky-300" @click="openDetail(row)">详情</button>
                 <button type="button" class="rounded-lg border border-indigo-200/60 px-2.5 py-1.5 text-xs font-medium text-indigo-600 dark:border-indigo-500/20 dark:text-indigo-300" @click="openEdit(row)">编辑</button>
                 <button type="button" class="rounded-lg border border-rose-200/60 px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:border-rose-500/20 dark:text-rose-300" @click="openDelete(row)">删除</button>
               </div>
@@ -736,8 +786,8 @@ onMounted(() => {
             <div class="flex items-center gap-2">
               <img 
                 v-if="row.countryCode" 
-                :src="`https://flagcdn.com/w20/${row.countryCode.toLowerCase()}.png`" 
-                class="h-3.5 w-auto rounded-sm opacity-80" 
+                :src="`https://flagcdn.com/24x18/${row.countryCode.toLowerCase()}.png`" 
+                class="h-3.5 w-auto shrink-0 rounded-sm object-cover opacity-80" 
                 alt=""
                 :title="row.countryCode"
                 @error="getFlagFallback"
@@ -795,6 +845,12 @@ onMounted(() => {
                 @click.stop="openGuide(row, row.guide)"
               >
                 安装
+              </button>
+              <button
+                class="px-2.5 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-300 border border-sky-200/60 dark:border-sky-500/20 rounded-lg hover:bg-sky-50/40 dark:hover:bg-sky-500/10"
+                @click.stop="openDetail(row)"
+              >
+                详情
               </button>
               <button
                 class="px-2.5 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-500/20 rounded-lg hover:bg-indigo-50/40 dark:hover:bg-indigo-500/10"
@@ -997,6 +1053,138 @@ onMounted(() => {
     </template>
   </Modal>
 
+  <Modal v-model:show="showDetailModal" confirm-text="关闭" cancel-text="关闭" size="6xl" :confirm-disabled="true">
+    <template #title>
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">VPS 节点详情</h3>
+        <span v-if="detailPayload?.name" class="rounded-full border border-sky-200/70 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">
+          {{ detailPayload.name }}
+        </span>
+      </div>
+    </template>
+    <template #body>
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            v-for="section in detailSections"
+            :key="section.key"
+            type="button"
+            class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+            :class="detailSection === section.key
+              ? 'border-primary-500 bg-primary-500/10 text-primary-700 dark:border-primary-400 dark:bg-primary-500/15 dark:text-primary-200'
+              : 'border-gray-200/80 text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5'"
+            @click="detailSection = section.key"
+          >
+            {{ section.label }}
+          </button>
+
+          <div class="ml-auto flex flex-wrap items-center gap-2">
+            <select v-model="detailRange" class="rounded-lg border border-gray-200/80 bg-white/80 px-2.5 py-1.5 text-xs dark:border-white/10 dark:bg-gray-900/70">
+              <option v-for="item in rangeOptions" :key="item.key" :value="item.key">{{ item.label }}</option>
+            </select>
+            <select v-model="detailAggregation" class="rounded-lg border border-gray-200/80 bg-white/80 px-2.5 py-1.5 text-xs dark:border-white/10 dark:bg-gray-900/70">
+              <option v-for="item in aggregationOptions" :key="item.key" :value="item.key">{{ item.label }}</option>
+            </select>
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200/80 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+              @click="refreshDetail()"
+              :disabled="isDetailLoading"
+            >
+              {{ isDetailLoading ? '刷新中...' : '刷新详情' }}
+            </button>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ rangeHint }}</p>
+
+        <div v-if="isDetailLoading && !detailPayload && !detailError" class="rounded-xl border border-dashed border-gray-300/70 bg-white/60 px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:bg-gray-900/50 dark:text-gray-400">
+          正在加载节点详情...
+        </div>
+        <div v-else-if="detailError" class="rounded-xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+          {{ detailError }}
+        </div>
+        <div v-else-if="detailPayload" class="space-y-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="text-xs text-gray-500 dark:text-gray-400">当前状态</div>
+              <div class="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium" :class="statusBadge(detailPayload.status)">
+                <span class="h-1.5 w-1.5 rounded-full" :class="detailPayload.status === 'online' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                {{ detailPayload.status === 'online' ? '在线' : '离线' }}
+              </div>
+              <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">最近上报：{{ formatTime(detailPayload.lastSeenAt) }}</div>
+            </div>
+            <div class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="text-xs text-gray-500 dark:text-gray-400">资源快照</div>
+              <div class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">CPU {{ formatPercent(detailPayload.latest?.cpuPercent) }}</div>
+              <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">内存 {{ formatPercent(detailPayload.latest?.memPercent) }} / 磁盘 {{ formatPercent(detailPayload.latest?.diskPercent) }}</div>
+            </div>
+            <div class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="text-xs text-gray-500 dark:text-gray-400">系统信息</div>
+              <div class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{{ detailSummary?.hostname || detailPayload.name || '--' }}</div>
+              <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ detailSummary?.os || detailPayload.region || '暂无系统信息' }}</div>
+            </div>
+            <div class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="text-xs text-gray-500 dark:text-gray-400">累计流量</div>
+              <div class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{{ formatTotalTraffic((detailPayload.totalRx || 0) + (detailPayload.totalTx || 0)) }}</div>
+              <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">负载 {{ detailSummary?.load1 ?? '--' }} / 最后样本 {{ detailSummary ? formatTime(detailSummary.reportedAt) : '暂无' }}</div>
+            </div>
+          </div>
+
+          <div v-if="detailSection !== 'network'" class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <VpsMetricChart title="CPU 使用率" color="#4f46e5" unit="%" :points="pickSeries('cpu')" />
+            <VpsMetricChart title="内存使用率" color="#0ea5e9" unit="%" :points="pickSeries('mem')" />
+            <VpsMetricChart title="磁盘使用率" color="#10b981" unit="%" :points="pickSeries('disk')" />
+            <VpsMetricChart title="系统负载" color="#f59e0b" :points="pickScalarSeries((item) => item?.load?.load1)" :max="10" />
+          </div>
+
+          <div v-if="detailSection !== 'metrics'" class="space-y-4">
+            <div class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="mb-3 flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white">网络延迟趋势</h4>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">基于最近上报生成的延迟曲线</p>
+                </div>
+                <span class="text-xs text-gray-400">样本 {{ detailNetworkSamples.length }}</span>
+              </div>
+              <VpsLatencyChart :samples="detailNetworkSamples" />
+            </div>
+
+            <div v-if="latestNetwork.length" class="rounded-xl border border-gray-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-gray-900/60">
+              <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">最近网络检查结果</div>
+              <div class="space-y-2">
+                <div v-for="item in latestNetwork" :key="`${item.type}-${item.target}-${item.port || ''}-${item.path || ''}`" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200/60 bg-white/70 px-3 py-2 text-xs dark:border-white/10 dark:bg-gray-900/50">
+                  <div class="min-w-0">
+                    <div class="font-medium text-gray-800 dark:text-gray-100">{{ item.name || item.target }}</div>
+                    <div class="text-gray-500 dark:text-gray-400">{{ item.type.toUpperCase() }} · {{ item.target }}<span v-if="item.port">:{{ item.port }}</span><span v-if="item.path">{{ item.path }}</span></div>
+                  </div>
+                  <div class="text-right text-gray-500 dark:text-gray-400">
+                    <div>延迟：{{ item.latencyMs !== null && item.latencyMs !== undefined ? `${Math.round(item.latencyMs)} ms` : '--' }}</div>
+                    <div>丢包：{{ item.lossPercent !== null && item.lossPercent !== undefined ? `${item.lossPercent}%` : '--' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div v-if="detailPayload.useGlobalTargets" class="rounded-lg border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                当前节点启用了全局网络监测目标，此处的新增、启停和删除会同步影响所有使用全局目标的节点。
+              </div>
+              <VpsNetworkTargets
+                :node-id="detailPayload.useGlobalTargets ? 'global' : detailPayload.id"
+                :targets="detailTargets"
+                :checking-targets="checkingTargets"
+                :limit="config?.value?.vpsMonitor?.networkTargetsLimit || config?.vpsMonitor?.networkTargetsLimit || 3"
+                @refresh="refreshDetail()"
+                @check="handleTargetCheck"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </Modal>
+
   <Modal v-model:show="showGuideModal" :confirm-disabled="true" cancel-text="关闭" size="4xl">
     <template #title>
       <h3 class="text-lg font-bold text-gray-900 dark:text-white">探针安装信息</h3>
@@ -1004,9 +1192,9 @@ onMounted(() => {
     <template #body>
       <div v-if="guidePayload" class="space-y-4 text-sm text-gray-600 dark:text-gray-300">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">一行安装命令</label>
+          <label class="block text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">一行安装命令</label>
           <div class="flex items-center gap-2">
-            <pre class="text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1">{{ guidePayload.installCommand }}</pre>
+            <pre class="text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1 font-mono">{{ guidePayload.installCommand }}</pre>
             <button
               type="button"
               class="px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
@@ -1016,7 +1204,22 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <div>
+
+        <div v-if="guidePayload.uninstallCommand">
+          <label class="block text-xs font-semibold text-rose-600 dark:text-rose-400 mb-1">一行卸载命令</label>
+          <div class="flex items-center gap-2">
+            <pre class="text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1 font-mono">{{ guidePayload.uninstallCommand }}</pre>
+            <button
+              type="button"
+              class="px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
+              @click="copyText(guidePayload.uninstallCommand)"
+            >
+              复制
+            </button>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-gray-100 dark:border-white/5">
           <label class="block text-xs text-gray-500 mb-1">上报地址</label>
           <div class="font-mono text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2">
             {{ guidePayload.reportUrl }}
@@ -1038,21 +1241,44 @@ onMounted(() => {
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">请求头</label>
-          <pre class="text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto">{{ JSON.stringify(guidePayload.headers, null, 2) }}</pre>
+          <pre class="text-xs font-mono bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto">{{ JSON.stringify(guidePayload.headers, null, 2) }}</pre>
         </div>
-        <details class="text-xs text-gray-500">
-          <summary class="cursor-pointer">查看一键安装脚本</summary>
-          <div class="mt-2 flex items-center gap-2">
-            <pre class="text-xs bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1">{{ guidePayload.installScript }}</pre>
-            <button
-              type="button"
-              class="px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
-              @click="copyText(guidePayload.installScript)"
-            >
-              复制
-            </button>
-          </div>
-        </details>
+        
+        <div class="flex flex-col gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+          <details class="text-xs text-gray-500 group">
+            <summary class="cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors list-none flex items-center gap-1">
+              <span class="rotate-0 group-open:rotate-90 transition-transform">▶</span>
+              查看一键安装脚本内容
+            </summary>
+            <div class="mt-2 flex items-center gap-2">
+              <pre class="text-xs font-mono bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1 max-h-48">{{ guidePayload.installScript }}</pre>
+              <button
+                type="button"
+                class="px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 shrink-0"
+                @click="copyText(guidePayload.installScript)"
+              >
+                复制
+              </button>
+            </div>
+          </details>
+
+          <details v-if="guidePayload.uninstallScript" class="text-xs text-gray-500 group">
+            <summary class="cursor-pointer hover:text-rose-600 dark:hover:text-rose-400 transition-colors list-none flex items-center gap-1">
+              <span class="rotate-0 group-open:rotate-90 transition-transform">▶</span>
+              查看一键卸载脚本内容
+            </summary>
+            <div class="mt-2 flex items-center gap-2">
+              <pre class="text-xs font-mono bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 rounded-lg px-3 py-2 overflow-auto flex-1 max-h-48">{{ guidePayload.uninstallScript }}</pre>
+              <button
+                type="button"
+                class="px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 shrink-0"
+                @click="copyText(guidePayload.uninstallScript)"
+              >
+                复制
+              </button>
+            </div>
+          </details>
+        </div>
       </div>
       <div v-else class="text-sm text-gray-500">暂无安装信息</div>
     </template>

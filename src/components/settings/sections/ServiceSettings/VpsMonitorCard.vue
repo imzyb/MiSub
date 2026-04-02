@@ -444,7 +444,7 @@ const openPreview = (card) => {
         </div>
         <div class="flex items-center justify-between p-3 bg-white/70 dark:bg-gray-900/50 border border-gray-200/60 dark:border-white/10 misub-radius-lg">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-gray-200">公开页页眉</div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-200">公开页页脚</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">显示 MiSub 页脚</div>
           </div>
           <Switch :model-value="vpsMonitorConfig.publicPageShowFooter !== false" @update:model-value="updateField('publicPageShowFooter', $event)" />
