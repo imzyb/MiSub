@@ -1119,7 +1119,7 @@ function buildInstallScript(reportUrl, node) {
         "MEM_USAGE=\"$(free | awk '/Mem/ {printf \"%.0f\", $3/$2*100}')\"",
         "DISK_USAGE=\"$(df -P / | awk 'NR==2 {gsub(/%/,\"\"); print $5}')\"",
         "LOAD1=\"$(awk '{print $1}' /proc/loadavg)\"",
-        "TRAFFIC_JSON=\"$(cat /proc/net/dev | awk 'NR>2 && $1 != \"lo:\" {rx += $2; tx += $10} END {printf \"{\\\"rx\\\": %d, \\\"tx\\\": %d}\", rx, tx}')\"",
+        "TRAFFIC_JSON=\"$(cat /proc/net/dev | awk 'NR>2 && $1 != \"lo:\" {rx += $2; tx += $10} END {printf \"{\\\"rx\\\": %.0f, \\\"tx\\\": %.0f}\", rx, tx}')\"",
         '',
         'REPORT_INTERVAL=60',
         'REPORT_STORE_INTERVAL=60',
