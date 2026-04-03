@@ -6,7 +6,7 @@
 /**
  * 判断是否为浏览器请求（用于伪装/公开页逻辑）
  * 排除常见的代理客户端 User-Agent
- * @param {string} userAgent 
+ * @param {string} userAgent
  * @returns {boolean}
  */
 export function isBrowserAgent(userAgent) {
@@ -66,9 +66,12 @@ export function determineTargetFormat(userAgent, searchParams) {
         if (surgeMatch) {
             const version = parseInt(surgeMatch[1], 10);
             // Subconverter primarily supports &ver=2, 3, 4. For versions >= 4, use 4.
-            return `surge&ver=${version >= 4 ? 4 : Math.max(2, version)}`;
+            // iOS Surge特别处理：优先使用最新兼容版本
+            const iosSurgeVer = ua.includes('surge/') && !ua.includes('mac') ? 4 : Math.max(2, version);
+            return `surge&ver=${iosSurgeVer}`;
         }
-        return 'surge&ver=4';
+        // 默认iOS Surge使用版本4
+        return ua.includes('surge/') && !ua.includes('mac') ? 'surge&ver=4' : 'surge&ver=4';
     }
 
     // Mapping array to ensure priority order

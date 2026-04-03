@@ -1,5 +1,6 @@
 <script setup>
 import { defineAsyncComponent, onMounted, watch, computed } from 'vue';
+import RouteErrorBoundary from './components/ui/RouteErrorBoundary.vue';
 import { useRoute } from 'vue-router';
 import { useThemeStore } from './stores/theme';
 import { useSessionStore } from './stores/session';
@@ -14,8 +15,6 @@ const Login = defineAsyncComponent(() => import('./components/modals/Login.vue')
 const NotFound = defineAsyncComponent(() => import('./views/NotFound.vue'));
 const Toast = defineAsyncComponent(() => import('./components/ui/Toast.vue'));
 const Footer = defineAsyncComponent(() => import('./components/layout/Footer.vue'));
-const PWAUpdatePrompt = defineAsyncComponent(() => import('./components/features/PWAUpdatePrompt.vue'));
-const PWADevTools = defineAsyncComponent(() => import('./components/features/PWADevTools.vue'));
 const Dashboard = defineAsyncComponent(() => import('./components/features/Dashboard/Dashboard.vue'));
 const Header = defineAsyncComponent(() => import('./components/layout/Header.vue'));
 const SavePrompt = defineAsyncComponent(() => import('./components/ui/SavePrompt.vue'));
@@ -27,7 +26,7 @@ const { theme } = storeToRefs(themeStore);
 const { initTheme } = themeStore;
 
 const sessionStore = useSessionStore();
-const { sessionState } = storeToRefs(sessionStore);
+const { sessionState, publicHeaderFooter } = storeToRefs(sessionStore);
 const { checkSession, login, logout } = sessionStore;
 
 const toastStore = useToastStore();
@@ -40,9 +39,23 @@ const { layoutMode } = storeToRefs(uiStore);
 
 const isLoggedIn = computed(() => sessionState.value === 'loggedIn');
 const isPublicRoute = computed(() => route.meta.isPublic);
+const isSessionLoading = computed(() => sessionState.value === 'loading');
+const isVpsPublicRoute = computed(() =>
+  isPublicRoute.value && (route.name === 'PublicVpsMonitor' || route.path === '/vps')
+);
 
 const showModernNavBar = computed(() => isLoggedIn.value && layoutMode.value === 'modern');
-const showLegacyHeader = computed(() => !showModernNavBar.value && (isLoggedIn.value || isPublicRoute.value));
+const showLegacyHeader = computed(() => {
+  if (showModernNavBar.value) return false;
+  if (isLoggedIn.value) return true;
+  if (isSessionLoading.value || !isPublicRoute.value) return false;
+  return !isVpsPublicRoute.value || publicHeaderFooter.value?.vpsPublicHeaderEnabled !== false;
+});
+const showPublicFooter = computed(() => {
+  if (!isVpsPublicRoute.value) return true;
+  return publicHeaderFooter.value?.vpsPublicFooterEnabled !== false;
+});
+const shouldShowFooter = computed(() => !isSessionLoading.value && (!isPublicRoute.value || showPublicFooter.value));
 
 const shouldCenterMain = computed(() =>
   sessionState.value !== 'loggedIn' &&
@@ -134,7 +147,9 @@ aria-live="polite"
 
         <router-view v-if="layoutMode === 'modern'" v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <RouteErrorBoundary :reset-key="route.fullPath">
+              <component :is="Component" />
+            </RouteErrorBoundary>
           </transition>
         </router-view>
 
@@ -145,7 +160,9 @@ aria-live="polite"
       <template v-else-if="isPublicRoute">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <RouteErrorBoundary :reset-key="route.fullPath">
+              <component :is="Component" />
+            </RouteErrorBoundary>
           </transition>
         </router-view>
       </template>
@@ -158,9 +175,7 @@ aria-live="polite"
     </main>
 
 <Toast />
-<PWAUpdatePrompt />
-<PWADevTools />
-<Footer />
+    <Footer v-if="shouldShowFooter" />
 <ScrollToTop v-if="isLoggedIn || isPublicRoute" />
 </div>
 </template>

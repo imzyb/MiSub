@@ -12,5 +12,5 @@ export const TIMING = {
     TOAST_DURATION_ERROR: 5000,
     TOAST_DURATION_WARNING: 4000,
     TOAST_MAX_VISIBLE: 3, // max simultaneous toasts
-    PWA_CHECK_INTERVAL_MS: 30 * 1000 // 30 seconds
+    PWA_CHECK_INTERVAL_MS: 30 * 1000 // 30 seconds (reserved)
 };

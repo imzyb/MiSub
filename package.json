@@ -12,8 +12,6 @@
     "preview": "vite preview",
     "start": "node server/index.mjs",
     "start:vps": "node server/index.mjs",
-    "check-pwa": "node check-pwa.js",
-    "build-pwa": "vite build && echo PWA build completed!",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
@@ -38,9 +36,7 @@
     "miniflare": "^4.20250803.0",
     "tailwindcss": "^4.1.12",
     "vite": "^7.1.2",
-    "vite-plugin-pwa": "^1.0.3",
     "vitest": "^4.0.16",
-    "workbox-window": "^7.3.0",
     "wrangler": "^4.56.0"
   }
 }

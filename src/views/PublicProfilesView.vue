@@ -25,6 +25,7 @@ const heroConfig = computed(() => config.value.hero || {
     description: '浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。'
 });
 const guestbookConfig = computed(() => config.value.guestbook || {});
+const isInitialLoading = computed(() => loading.value && !error.value && publicProfiles.value.length === 0 && Object.keys(config.value || {}).length === 0);
 
 const showGuestbookModal = ref(false);
 const showQuickImportModal = ref(false);
@@ -242,18 +243,27 @@ onUnmounted(() => {
                         <span class="text-xs font-bold text-primary-700 dark:text-primary-300 tracking-widest uppercase">Cosmic Selection</span>
                     </div>
 
-                    <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[1.1] mb-8 animate-fade-in-up delay-100 break-words">
-                        <span class="block text-gray-900 dark:text-white drop-shadow-sm">
-                            {{ heroConfig.title1 }}
-                        </span>
-                        <span class="block text-3xl sm:text-5xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-r from-primary-600 via-purple-500 to-indigo-500 dark:from-primary-400 dark:via-purple-400 dark:to-indigo-400 bg-[length:200%_auto] animate-gradient pb-2 mt-2">
-                            {{ heroConfig.title2 }}
-                        </span>
-                    </h1>
-                    
-                    <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed font-medium max-w-5xl mb-10 animate-fade-in-up delay-200 break-words">
-                        {{ heroConfig.description }}
-                    </p>
+                    <div v-if="isInitialLoading" class="max-w-5xl space-y-4 animate-pulse">
+                        <div class="h-10 w-44 rounded-2xl bg-white/75 dark:bg-white/10 sm:h-14 sm:w-56 lg:h-16 lg:w-72"></div>
+                        <div class="h-10 w-56 rounded-2xl bg-white/70 dark:bg-white/10 sm:h-14 sm:w-72 lg:h-16 lg:w-96"></div>
+                        <div class="h-4 w-full max-w-3xl rounded-full bg-white/65 dark:bg-white/10"></div>
+                        <div class="h-4 w-5/6 max-w-2xl rounded-full bg-white/55 dark:bg-white/10"></div>
+                    </div>
+
+                    <template v-else>
+                        <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[1.1] mb-8 animate-fade-in-up delay-100 break-words">
+                            <span class="block text-gray-900 dark:text-white drop-shadow-sm">
+                                {{ heroConfig.title1 }}
+                            </span>
+                            <span class="block text-3xl sm:text-5xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-r from-primary-600 via-purple-500 to-indigo-500 dark:from-primary-400 dark:via-purple-400 dark:to-indigo-400 bg-[length:200%_auto] animate-gradient pb-2 mt-2">
+                                {{ heroConfig.title2 }}
+                            </span>
+                        </h1>
+                        
+                        <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed font-medium max-w-5xl mb-10 animate-fade-in-up delay-200 break-words">
+                            {{ heroConfig.description }}
+                        </p>
+                    </template>
                 </div>
 
                 <!-- Right Content: Top-Right Concentric Circles (Bottom-Left Quadrant) -->

@@ -85,7 +85,7 @@ const handleQRCode = (profileId) => {
     const baseUrl = window.location.origin;
     // Use customId if available, otherwise use id
     const idToUse = profile.customId || profile.id;
-    qrCodeUrl.value = `${baseUrl}/sub/${token}/${idToUse}`;
+    qrCodeUrl.value = `${baseUrl}/${token}/${idToUse}`;
     qrCodeTitle.value = profile.name || '订阅组二维码';
     showQRCodeModal.value = true;
   }
