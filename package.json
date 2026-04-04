@@ -8,17 +8,13 @@
     "dev:server": "npx wrangler pages dev public --port 8787",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
-    "build:edgeone": "vite build --mode edgeone",
     "preview": "vite preview",
-    "start": "node server/index.mjs",
-    "start:vps": "node server/index.mjs",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:chrome": "node test-chrome-mcp.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.5.0",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
     "js-yaml": "^4.1.0",

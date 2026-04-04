@@ -65,7 +65,6 @@ if (typeof window !== 'undefined') {
 
     markAssetReloaded();
     try {
-      // PWA disabled: skip service worker cleanup
       if ('caches' in window) {
         const cacheKeys = await caches.keys();
         await Promise.all(cacheKeys.map((key) => caches.delete(key)));

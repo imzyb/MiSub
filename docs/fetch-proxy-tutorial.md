@@ -1,5 +1,7 @@
 # Vercel Edge Functions 代理部署指南
 
+> 说明：本文档介绍的是可选的抓取代理组件，用于辅助 MiSub 拉取订阅内容；它不是 MiSub 主站部署方式。MiSub 主站仍然仅支持部署在 Cloudflare Pages。
+
 这是一段极其短小却强大的纯拉取代理解析代码，利用 Vercel Edge Functions 实现，具备以下优势：
 - **冷启动 0ms**
 - **IP 纯净**

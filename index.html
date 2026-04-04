@@ -10,80 +10,17 @@
   <meta property="og:description" content="基于 Cloudflare 的订阅转换和管理工具" />
   <meta property="og:site_name" content="MiSub" />
   <meta property="og:image" content="https://sub.dmorz.com/logo.png" />
+  <meta name="description" content="基于 Cloudflare 的订阅转换和管理工具" />
+  <meta name="theme-color" content="#f8fafc" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a" />
   <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-
-  <!-- PWA Meta Tags -->
-  <meta name="description" content="基于 Cloudflare 的订阅转换和管理工具" />
-
-  <!-- 沉浸式状态栏配置 - 兼容浅色和深色模式 -->
-  <meta name="theme-color" content="#f8fafc" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a" />
-
-  <!-- iOS PWA 配置 -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="MiSub" />
-  <!-- 强制iOS状态栏透明 -->
   <meta name="format-detection" content="telephone=no" />
   <meta name="msapplication-tap-highlight" content="no" />
-
-  <!-- Android PWA 配置 -->
-  <meta name="mobile-web-app-capable" content="yes" />
-
-  <!-- Windows PWA 配置 -->
-  <meta name="msapplication-TileColor" content="#4f46e5" />
-  <meta name="msapplication-navbutton-color" content="#4f46e5" />
-  <meta name="msapplication-config" content="/browserconfig.xml" />
-
-  <!-- Apple Touch Icons - iOS 设备图标配置 -->
-  <link rel="apple-touch-icon" sizes="57x57" href="/icons/icon-72x72.png?v=2" />
-  <link rel="apple-touch-icon" sizes="60x60" href="/icons/icon-72x72.png?v=2" />
-  <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72x72.png?v=2" />
-  <link rel="apple-touch-icon" sizes="76x76" href="/icons/icon-96x96.png?v=2" />
-  <link rel="apple-touch-icon" sizes="114x114" href="/icons/icon-128x128.png?v=2" />
-  <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-128x128.png?v=2" />
-  <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png?v=2" />
-  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png?v=2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png?v=2" />
-  <!-- 默认 Apple Touch 图标 -->
-  <link rel="apple-touch-icon" href="/icons/icon-180x180.png?v=2" />
-
-  <!-- Android Chrome Icons -->
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
-  <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96x96.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-96x96.png" />
-
-  <!-- Manifest -->
-  <link rel="manifest" href="/manifest.json" />
-
-  <script>
-    (function () {
-      var host = window.location.hostname;
-      if (host !== 'localhost' && host !== '127.0.0.1') return;
-      if (window.__misubSwCleanupRan) return;
-      window.__misubSwCleanupRan = true;
-
-      try {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function (regs) {
-            return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
-          }).catch(function () { });
-        }
-        if ('caches' in window) {
-          caches.keys().then(function (keys) {
-            return Promise.all(keys.map(function (key) { return caches.delete(key); }));
-          }).catch(function () { });
-        }
-      } catch (e) { }
-    })();
-  </script>
 
   <title>MISUB</title>
 </head>

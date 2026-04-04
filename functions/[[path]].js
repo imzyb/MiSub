@@ -252,7 +252,6 @@ export async function onRequest(context) {
                     '/dashboard',
                     '/profile',
                     '/explore', // [新增] 公开页面
-                    '/offline',  // [修复] PWA 离线页面
                     customLoginPath // [新增] 自定义登录路径
                 ].some(route => url.pathname === route || url.pathname.startsWith(route + '/'));
 
@@ -260,14 +259,12 @@ export async function onRequest(context) {
                     && url.pathname !== '/login'
                     && url.pathname !== customLoginPath
                     && !url.pathname.startsWith('/explore')
-                    && !url.pathname.startsWith('/vps')
-                    && url.pathname !== '/offline';
+                    && !url.pathname.startsWith('/vps');
 
                 // Route protection for SPA pages
                 // If accessing a protected route without auth, redirect to login
                 // [Fix] Exclude /explore from auth check
                 // [Fix] Skip auth check on localhost to avoid port 8787/5173 sync issues during dev
-                // [修复] 排除 /offline 路由的认证检查
                 if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath && !isLocalhost) {
                     return new Response(null, {
                         status: 302,

@@ -3,7 +3,7 @@
  * Public report endpoint + auth-only management APIs
  */
 
-import { StorageFactory, STORAGE_TYPES } from '../../storage-adapter.js';
+import { StorageFactory, SettingsCache, STORAGE_TYPES } from '../../storage-adapter.js';
 import { createJsonResponse, createErrorResponse, getPublicBaseUrl } from '../utils.js';
 import { sendTgNotification } from '../notifications.js';
 import { KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
@@ -311,8 +311,11 @@ function buildPublicThemeConfig(settings) {
 
 async function loadVpsSettings(env) {
     await StorageFactory.ensureD1Settings(env);
-    const storageAdapter = await getStorageAdapter(env);
-    let rawSettings = await storageAdapter.get(KV_KEY_SETTINGS);
+    let rawSettings = await SettingsCache.get(env);
+    if (!rawSettings) {
+        const storageAdapter = await getStorageAdapter(env);
+        rawSettings = await storageAdapter.get(KV_KEY_SETTINGS);
+    }
     if (!rawSettings) {
         const kvAdapter = StorageFactory.createAdapter(env, STORAGE_TYPES.KV);
         rawSettings = await kvAdapter.get(KV_KEY_SETTINGS);

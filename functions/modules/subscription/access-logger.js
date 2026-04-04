@@ -32,6 +32,7 @@ export function logAccessSuccess({
         token: profileIdentifier ? (profileIdentifier) : token,
         type: profileIdentifier ? 'profile' : 'token',
         domain,
+        persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {
             totalNodes: stats.totalNodes || 0,
             sourceCount: stats.sourceCount || 0,
@@ -76,6 +77,7 @@ export function logAccessError({
         token: profileIdentifier ? (profileIdentifier) : token,
         type: profileIdentifier ? 'profile' : 'token',
         domain,
+        persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {
             totalNodes: stats.totalNodes || 0,
             sourceCount: stats.sourceCount || 0,

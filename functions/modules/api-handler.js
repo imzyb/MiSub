@@ -44,10 +44,11 @@ export async function handleDataRequest(env) {
             console.error('[API Error /data] KV binding missing while storageType=kv');
         }
         const storageAdapter = StorageFactory.createAdapter(env, storageType);
+        const cachedSettings = await SettingsCache.get(env);
         const [misubs, profiles, settings] = await Promise.all([
             storageAdapter.get(KV_KEY_SUBS).then(res => res || []),
             storageAdapter.get(KV_KEY_PROFILES).then(res => res || []),
-            storageAdapter.get(KV_KEY_SETTINGS).then(res => res || {})
+            Promise.resolve(cachedSettings || {}).then(res => res || {})
         ]);
 
         // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
@@ -231,8 +232,7 @@ export async function handleMisubsSave(request, env) {
  */
 export async function handleSettingsGet(env) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const settings = await SettingsCache.get(env) || {};
         return createJsonResponse({ ...defaultSettings, ...settings });
     } catch (e) {
         if (isStorageUnavailableError(e)) {
@@ -258,7 +258,7 @@ export async function handleSettingsSave(request, env) {
 
         const reservedPathRoots = new Set([
             'settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard',
-            'api', 'explore', 'sub', 'cron', 'assets', '@vite', 'public', 'profile', 'offline',
+            'api', 'explore', 'sub', 'cron', 'assets', '@vite', 'public', 'profile',
             'vps', 'monitor', 'logout', 'auth_debug', 'auth_check', 'data', 'kv_test',
             'clients', 'system', 'github', 'telegram', 'test_notification', 'test_subconverter',
             'misubs', 'node_count', 'nodes', 'fetch_external_url', 'batch_update_nodes',
@@ -308,7 +308,7 @@ export async function handleSettingsSave(request, env) {
             if (isStorageUnavailableError(storageError)) {
                 return createJsonResponse({
                     success: false,
-                    message: 'KV 存储已暂停，设置当前无法保存。若为 EdgeOne 部署，请先恢复 KV；若为 Cloudflare 部署，可配置 D1 后切换到 D1 存储。'
+                    message: 'KV 存储已暂停，设置当前无法保存。请先恢复 KV 绑定，或配置 D1 后切换到 D1 存储。'
                 }, 503);
             }
             throw storageError;
@@ -353,9 +353,10 @@ export async function handleSettingsSave(request, env) {
 export async function handlePublicProfilesRequest(env) {
     try {
         const storageAdapter = await getStorageAdapter(env);
+        const cachedSettings = await SettingsCache.get(env);
         const [profiles, settings] = await Promise.all([
             storageAdapter.get(KV_KEY_PROFILES).then(res => res || []),
-            storageAdapter.get(KV_KEY_SETTINGS).then(res => res || {})
+            Promise.resolve(cachedSettings || {}).then(res => res || {})
         ]);
 
         const profileToken = settings.profileToken || 'profiles';
