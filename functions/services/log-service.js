@@ -4,18 +4,67 @@
  */
 
 const LOG_KV_KEY = 'misub_system_logs';
-const MAX_LOG_ENTRIES = 500;
+const MAX_LOG_ENTRIES = 200;
 const MAX_LOG_AGE_DAYS = 30;
 const MAX_LOG_AGE_MS = MAX_LOG_AGE_DAYS * 24 * 60 * 60 * 1000;
+const SUCCESS_LOG_COOLDOWN_MS = 5 * 60 * 1000;
+const ERROR_LOG_COOLDOWN_MS = 60 * 1000;
+const MAX_PERSISTED_LOGS_PER_MINUTE = 12;
 
 function getKV(env) {
-    if (env?.MISUB_KV) return env.MISUB_KV;
-    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
-    return null;
+    return env?.MISUB_KV || null;
 }
 // 全局内存队列，用于削峰填谷和防写竞争
 let logBatch = [];
 let isFlushing = false;
+let recentLogFingerprints = new Map();
+let persistedLogTimestamps = [];
+
+function cleanupLogBudgets(now = Date.now()) {
+    persistedLogTimestamps = persistedLogTimestamps.filter(ts => (now - ts) < 60 * 1000);
+    for (const [fingerprint, expiresAt] of recentLogFingerprints.entries()) {
+        if (expiresAt <= now) {
+            recentLogFingerprints.delete(fingerprint);
+        }
+    }
+}
+
+function getLogFingerprint(logEntry) {
+    const type = logEntry?.type || 'unknown';
+    const token = logEntry?.token || 'unknown';
+    const format = logEntry?.format || 'unknown';
+    const status = logEntry?.status || 'unknown';
+    const domain = logEntry?.domain || 'unknown';
+    const message = logEntry?.details?.error || logEntry?.summary || '';
+    return `${status}|${type}|${token}|${format}|${domain}|${message}`;
+}
+
+function shouldPersistLog(logEntry) {
+    const now = Date.now();
+    cleanupLogBudgets(now);
+
+    const mode = logEntry?.persistenceMode === 'full' ? 'full' : 'light';
+    if (mode === 'full') {
+        return true;
+    }
+
+    const isError = logEntry?.status === 'error';
+    const fingerprint = getLogFingerprint(logEntry);
+    const cooldownMs = isError ? ERROR_LOG_COOLDOWN_MS : SUCCESS_LOG_COOLDOWN_MS;
+    const fingerprintExpiresAt = recentLogFingerprints.get(fingerprint) || 0;
+
+    if (fingerprintExpiresAt > now) {
+        return false;
+    }
+
+    if (!isError && persistedLogTimestamps.length >= MAX_PERSISTED_LOGS_PER_MINUTE) {
+        return false;
+    }
+
+    recentLogFingerprints.set(fingerprint, now + cooldownMs);
+    persistedLogTimestamps.push(now);
+    return true;
+}
 
 export const LogService = {
     /**
@@ -25,6 +74,7 @@ export const LogService = {
      */
     async addLog(env, logEntry) {
         if (!getKV(env)) return;
+        if (!shouldPersistLog(logEntry)) return null;
 
         const enrichedLog = {
             id: crypto.randomUUID(),

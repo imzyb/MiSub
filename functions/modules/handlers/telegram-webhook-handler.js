@@ -278,7 +278,7 @@ async function checkRateLimit(userId, env, config) {
     const minuteKey = `tg_push_rate:${userId}:min`;
     const dayKey = `tg_push_rate:${userId}:day`;
 
-    const kv = env?.MISUB_KV || (typeof MISUB_KV !== 'undefined' ? MISUB_KV : null); // eslint-disable-line no-undef
+    const kv = env?.MISUB_KV || null;
     if (!kv) return { allowed: true }; // 无 KV 时不限流
 
     const minuteCount = parseInt(await kv.get(minuteKey) || '0');

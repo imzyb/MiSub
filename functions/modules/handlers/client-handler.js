@@ -7,9 +7,7 @@ const KV_KEY_CLIENTS = 'misub_clients_v1';
 const MAX_ICON_DATA_URL_BYTES = 200 * 1024;
 
 function getKV(env) {
-    if (env?.MISUB_KV) return env.MISUB_KV;
-    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
-    return null;
+    return env?.MISUB_KV || null;
 }
 
 function isStorageUnavailableError(error) {
@@ -376,7 +374,7 @@ export async function handleClientRequest(request, env) {
     } catch (e) {
         console.error('[Client Handler Error]', e);
         if (isStorageUnavailableError(e)) {
-            return createErrorResponse('KV 存储已暂停，客户端配置当前无法保存。若为 EdgeOne 部署，请先恢复 KV；若为 Cloudflare 部署，可改用 D1。', 503);
+            return createErrorResponse('KV 存储已暂停，客户端配置当前无法保存。请先恢复 KV 绑定，或改用 D1。', 503);
         }
         return createErrorResponse(`Operation failed: ${e.message}`, 500);
     }

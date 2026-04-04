@@ -6,15 +6,18 @@
 import { createJsonResponse, createErrorResponse } from '../utils.js';
 
 const ERROR_REPORT_KV_KEY = 'misub_error_reports';
-const MAX_REPORT_ENTRIES = 200;
+const MAX_REPORT_ENTRIES = 100;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_STACK_LENGTH = 2000;
 const MAX_ADDITIONAL_LENGTH = 2000;
+const ERROR_REPORT_COOLDOWN_MS = 10 * 60 * 1000;
+const MAX_PERSISTED_REPORTS_PER_MINUTE = 6;
+
+let recentReportFingerprints = new Map();
+let persistedReportTimestamps = [];
 
 function getKV(env) {
-    if (env?.MISUB_KV) return env.MISUB_KV;
-    try { if (typeof MISUB_KV !== 'undefined' && MISUB_KV) return MISUB_KV; } catch (_) {} // eslint-disable-line no-undef
-    return null;
+    return env?.MISUB_KV || null;
 }
 
 function safeString(value, limit) {
@@ -34,6 +37,42 @@ function safeAdditionalData(value) {
     }
 }
 
+function cleanupReportBudgets(now = Date.now()) {
+    persistedReportTimestamps = persistedReportTimestamps.filter(ts => (now - ts) < 60 * 1000);
+    for (const [fingerprint, expiresAt] of recentReportFingerprints.entries()) {
+        if (expiresAt <= now) {
+            recentReportFingerprints.delete(fingerprint);
+        }
+    }
+}
+
+function buildReportFingerprint(body, request) {
+    const message = safeString(body?.message, 160);
+    const context = safeString(body?.context, 120);
+    const url = safeString(body?.url, 200);
+    const origin = safeString(request.headers.get('Origin'), 120);
+    return `${context}|${message}|${url}|${origin}`;
+}
+
+function shouldPersistReport(body, request) {
+    const now = Date.now();
+    cleanupReportBudgets(now);
+
+    const fingerprint = buildReportFingerprint(body, request);
+    const fingerprintExpiresAt = recentReportFingerprints.get(fingerprint) || 0;
+    if (fingerprintExpiresAt > now) {
+        return false;
+    }
+
+    if (persistedReportTimestamps.length >= MAX_PERSISTED_REPORTS_PER_MINUTE) {
+        return false;
+    }
+
+    recentReportFingerprints.set(fingerprint, now + ERROR_REPORT_COOLDOWN_MS);
+    persistedReportTimestamps.push(now);
+    return true;
+}
+
 export async function handleErrorReportRequest(request, env) {
     if (request.method !== 'POST') {
         return createErrorResponse('Method Not Allowed', 405);
@@ -47,6 +86,10 @@ export async function handleErrorReportRequest(request, env) {
 
     try {
         const body = await request.json();
+        if (!shouldPersistReport(body, request)) {
+            return createJsonResponse({ success: true, skipped: true });
+        }
+
         const report = {
             id: crypto.randomUUID(),
             receivedAt: new Date().toISOString(),

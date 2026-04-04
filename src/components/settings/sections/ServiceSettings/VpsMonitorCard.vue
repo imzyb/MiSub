@@ -30,10 +30,10 @@ const vpsMonitorConfig = computed({
       notifyOverload: true,
       reportRetentionDays: 30,
       cooldownIgnoreRecovery: true,
-      networkSampleIntervalMinutes: 5,
-      reportIntervalMinutes: 1,
-        reportStoreIntervalMinutes: 1,
-        networkTargetsLimit: 3,
+      networkSampleIntervalMinutes: 10,
+      reportIntervalMinutes: 5,
+        reportStoreIntervalMinutes: 15,
+        networkTargetsLimit: 2,
         publicPageEnabled: false,
         publicPageToken: '',
         publicThemePreset: 'default',
@@ -143,6 +143,9 @@ const openPreview = (card) => {
       </p>
       <p class="text-xs text-amber-600 dark:text-amber-400 mt-2">
         使用 VPS 探针前请确保已绑定 D1 数据库（MISUB_DB），并在存储设置中切换为 D1 模式。
+      </p>
+      <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+        免费版 D1 配额有限，默认已采用更保守的上报、落库和网络采样间隔；如无必要，不建议再继续缩短。
       </p>
     </div>
 

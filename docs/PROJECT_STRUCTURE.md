@@ -169,4 +169,4 @@ functions/services/
 - 涉及敏感操作的 API 需在 `api-router.js` 中添加 `authMiddleware` 保护。
 
 ### 3. 公共资源
-- PWA 相关文件（`manifest.json`, `sw.js` 等）位于 `public/` 目录。
+- 通用静态资源位于 `public/` 目录。

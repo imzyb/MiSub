@@ -174,12 +174,28 @@ watch(() => props.settings.profileToken, (val) => {
             <p class="text-sm font-medium text-gray-900 dark:text-gray-200">开启访问日志 & 计数</p>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">记录订阅访问并统计流量与IP</p>
             <p class="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-              ⚠️ 受 CF KV 最终一致性与缓存机制影响，日志写入和流量统计最高可能有分钟级的延迟，频繁刷新并不能实时反馈。
+              ⚠️ 默认使用轻量持久化模式以节省 Cloudflare 免费版 KV 配额，日志会自动去重并限流，频繁刷新不会完整落库。
             </p>
           </div>
           <Switch 
             v-model="settings.enableAccessLog"
           />
+        </div>
+
+        <div
+          v-if="settings.enableAccessLog"
+          class="p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg space-y-2">
+          <div>
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-200">访问日志持久化模式</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">免费版建议保持轻量模式，仅在需要完整审计时再切到完整模式。</p>
+          </div>
+          <select
+            v-model="settings.accessLogPersistenceMode"
+            class="block w-full px-3 py-2 bg-white/80 dark:bg-gray-900/60 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 sm:text-sm dark:text-white transition-colors"
+          >
+            <option value="light">轻量持久化（推荐）</option>
+            <option value="full">完整持久化</option>
+          </select>
         </div>
 
         <!-- 流量统计节点 -->
