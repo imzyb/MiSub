@@ -850,6 +850,184 @@ export function parseSnellUrl(url) {
 }
 
 /**
+ * 重写节点 URL 中的服务器地址和（可选）端口
+ * @param {string} nodeUrl - 原始节点 URL
+ * @param {string} newHost - 新的服务器地址
+ * @param {number|string|null} newPort - 新的端口号，null 表示不替换
+ * @returns {string} 替换后的节点 URL
+ */
+export function rewriteNodeAddress(nodeUrl, newHost, newPort = null) {
+    if (!nodeUrl || typeof nodeUrl !== 'string' || !newHost) return nodeUrl;
+
+    const protocolMatch = nodeUrl.match(/^(.*?):\/\//);
+    if (!protocolMatch) return nodeUrl;
+    const protocol = protocolMatch[1].toLowerCase();
+
+    try {
+        // VMess: base64 编码的 JSON
+        if (protocol === 'vmess') {
+            const base64Part = nodeUrl.substring(8); // remove vmess://
+            let safeBody = base64Part.replace(/-/g, '+').replace(/_/g, '/');
+            while (safeBody.length % 4) safeBody += '=';
+            const binaryString = atob(safeBody);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const config = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+            config.add = newHost;
+            if (newPort != null) config.port = String(newPort);
+            return `vmess://${btoa(unescape(encodeURIComponent(JSON.stringify(config))))}`;
+        }
+
+        // SS: 两种格式
+        if (protocol === 'ss') {
+            let body = nodeUrl.substring(5); // remove ss://
+            let fragment = '';
+            const hashIdx = body.indexOf('#');
+            if (hashIdx !== -1) {
+                fragment = body.substring(hashIdx);
+                body = body.substring(0, hashIdx);
+            }
+            let query = '';
+            const qIdx = body.indexOf('?');
+            if (qIdx !== -1) {
+                query = body.substring(qIdx);
+                body = body.substring(0, qIdx);
+            }
+
+            const atIdx = body.lastIndexOf('@');
+            if (atIdx !== -1) {
+                // SIP002 格式: ss://base64(method:pass)@host:port
+                const userInfo = body.substring(0, atIdx);
+                const portStr = newPort != null ? `:${newPort}` : `:${body.substring(atIdx + 1).replace(/^\[.*?\]/, '').split(':').pop() || ''}`;
+                const hostStr = newHost.includes(':') ? `[${newHost}]` : newHost;
+                return `ss://${userInfo}@${hostStr}${portStr}${query}${fragment}`;
+            } else {
+                // 旧格式: ss://base64(method:pass@host:port)
+                let decoded;
+                try {
+                    let normalized = body.replace(/-/g, '+').replace(/_/g, '/');
+                    while (normalized.length % 4) normalized += '=';
+                    decoded = atob(normalized);
+                } catch {
+                    return nodeUrl;
+                }
+                const atPosDecoded = decoded.lastIndexOf('@');
+                if (atPosDecoded === -1) return nodeUrl;
+                const userPart = decoded.substring(0, atPosDecoded);
+                // 提取原端口
+                const serverPart = decoded.substring(atPosDecoded + 1);
+                const origPort = serverPart.split(':').pop() || '';
+                const portStr = newPort != null ? String(newPort) : origPort;
+                const hostStr = newHost.includes(':') ? `[${newHost}]` : newHost;
+                const newDecoded = `${userPart}@${hostStr}:${portStr}`;
+                return `ss://${btoa(unescape(encodeURIComponent(newDecoded)))}${query}${fragment}`;
+            }
+        }
+
+        // SSR: base64 编码的整体
+        if (protocol === 'ssr') {
+            let payload = nodeUrl.substring(6);
+            let fragment = '';
+            const hIdx = payload.indexOf('#');
+            if (hIdx !== -1) {
+                fragment = payload.substring(hIdx);
+                payload = payload.substring(0, hIdx);
+            }
+            let normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+            while (normalized.length % 4) normalized += '=';
+            let decoded;
+            try { decoded = atob(normalized); } catch { return nodeUrl; }
+
+            // 格式: server:port:protocol:method:obfs:password/?params
+            let ssrServer, rest;
+            if (decoded.startsWith('[')) {
+                const closeBracket = decoded.indexOf(']');
+                ssrServer = decoded.substring(1, closeBracket);
+                rest = decoded.substring(closeBracket + 1);
+                // rest = :port:protocol:...
+                const colonParts = rest.split(':');
+                const origPort = colonParts[1] || '';
+                const portVal = newPort != null ? String(newPort) : origPort;
+                const newHostStr = newHost.includes(':') ? `[${newHost}]` : newHost;
+                rest = `:${portVal}:${colonParts.slice(2).join(':')}`;
+                const newDecoded = `${newHostStr}${rest}`;
+                const encoded = btoa(unescape(encodeURIComponent(newDecoded))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+                return `ssr://${encoded}${fragment}`;
+            } else {
+                const colonParts = decoded.split(':');
+                const origPort = colonParts[1] || '';
+                const portVal = newPort != null ? String(newPort) : origPort;
+                colonParts[0] = newHost;
+                colonParts[1] = portVal;
+                const newDecoded = colonParts.join(':');
+                const encoded = btoa(unescape(encodeURIComponent(newDecoded))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+                return `ssr://${encoded}${fragment}`;
+            }
+        }
+
+        // 通用格式: protocol://userinfo@host:port?query#fragment
+        // 适用于: vless, trojan, hysteria2, hy2, hysteria, tuic, snell, socks5, http, anytls, wireguard, naive+https, naive+quic
+        {
+            const prefix = `${protocolMatch[0]}`; // e.g. "vless://"
+            let rest = nodeUrl.substring(prefix.length);
+
+            let fragment = '';
+            const hashIdx = rest.indexOf('#');
+            if (hashIdx !== -1) {
+                fragment = rest.substring(hashIdx);
+                rest = rest.substring(0, hashIdx);
+            }
+            let query = '';
+            const qIdx = rest.indexOf('?');
+            if (qIdx !== -1) {
+                query = rest.substring(qIdx);
+                rest = rest.substring(0, qIdx);
+            }
+
+            const atIdx = rest.lastIndexOf('@');
+            if (atIdx === -1) return nodeUrl;
+
+            const userInfo = rest.substring(0, atIdx);
+            const serverPart = rest.substring(atIdx + 1);
+
+            // 提取原端口
+            let origPort = '';
+            if (serverPart.startsWith('[')) {
+                // IPv6
+                const closeBracket = serverPart.indexOf(']');
+                if (closeBracket !== -1) {
+                    const afterBracket = serverPart.substring(closeBracket + 1);
+                    origPort = afterBracket.startsWith(':') ? afterBracket.substring(1) : '';
+                }
+            } else {
+                const parts = serverPart.split(':');
+                origPort = parts.length >= 2 ? parts[parts.length - 1] : '';
+            }
+
+            const portVal = newPort != null ? String(newPort) : origPort;
+            const hostStr = newHost.includes(':') ? `[${newHost}]` : newHost;
+            return `${prefix}${userInfo}@${hostStr}:${portVal}${query}${fragment}`;
+        }
+    } catch (e) {
+        console.error('[rewriteNodeAddress] Error:', e);
+        return nodeUrl;
+    }
+}
+
+/**
+ * 批量重写节点地址
+ * @param {string[]} nodeUrls - 节点 URL 数组
+ * @param {string} newHost - 新的服务器地址
+ * @param {number|string|null} newPort - 新的端口号
+ * @returns {string[]} 替换后的节点 URL 数组
+ */
+export function batchRewriteNodeAddress(nodeUrls, newHost, newPort = null) {
+    return nodeUrls.map(url => rewriteNodeAddress(url, newHost, newPort));
+}
+
+/**
  * 验证 Snell 节点配置
  * @param {string} url - Snell URL
  * @returns {Object} 验证结果 {valid, error?, details?, proxy?}

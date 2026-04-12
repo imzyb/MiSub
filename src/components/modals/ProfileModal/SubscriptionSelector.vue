@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import draggable from 'vuedraggable';
 
 const props = defineProps({
@@ -18,12 +18,17 @@ const props = defineProps({
   selectedIds: {
     type: Array,
     default: () => []
+  },
+  subscriptionOverrides: {
+    type: Object,
+    default: () => ({})
   }
 });
 
 const emit = defineEmits([
   'update:searchTerm',
   'update:selectedIds',
+  'update:subscriptionOverrides',
   'toggle-selection',
   'select-all',
   'deselect-all'
@@ -33,6 +38,28 @@ const searchModel = computed({
   get: () => props.searchTerm,
   set: (val) => emit('update:searchTerm', val)
 });
+
+// 当前展开的地址重写设置面板的订阅 ID
+const expandedOverrideId = ref(null);
+
+const toggleOverridePanel = (subId) => {
+  expandedOverrideId.value = expandedOverrideId.value === subId ? null : subId;
+};
+
+const getOverride = (subId) => {
+  return props.subscriptionOverrides[subId]?.addressRewrite || { enabled: false, host: '', port: '' };
+};
+
+const updateOverride = (subId, field, value) => {
+  const current = { ...props.subscriptionOverrides };
+  if (!current[subId]) {
+    current[subId] = { addressRewrite: { enabled: false, host: '', port: '' } };
+  } else {
+    current[subId] = { ...current[subId], addressRewrite: { ...current[subId].addressRewrite } };
+  }
+  current[subId].addressRewrite[field] = value;
+  emit('update:subscriptionOverrides', current);
+};
 
 // 根据 selectedIds 顺序获取已选订阅对象列表
 const orderedSelectedSubs = computed({
@@ -92,26 +119,73 @@ const orderedSelectedSubs = computed({
         </h5>
       </div>
       <draggable v-model="orderedSelectedSubs" item-key="id" handle=".drag-handle" ghost-class="opacity-40"
-        class="space-y-1 p-2 bg-indigo-50 dark:bg-indigo-900/20 misub-radius-md border border-indigo-200 dark:border-indigo-800 h-32 lg:h-48 overflow-y-auto">
+        class="space-y-1 p-2 bg-indigo-50 dark:bg-indigo-900/20 misub-radius-md border border-indigo-200 dark:border-indigo-800 max-h-80 overflow-y-auto">
         <template #item="{ element, index }">
-          <div
-            class="flex items-center gap-2 px-2 py-1.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 shadow-xs">
-            <span
-              class="drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-              </svg>
-            </span>
-            <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 w-5">{{ index + 1 }}</span>
-            <span class="text-sm text-gray-800 dark:text-gray-200 truncate flex-1" :title="element.name">
-              {{ element.name || '未命名订阅' }}
-            </span>
-            <button @click="emit('toggle-selection', element.id)"
-              class="text-gray-400 hover:text-red-500 transition-colors" title="移除">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div>
+            <div
+              class="flex items-center gap-2 px-2 py-1.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 shadow-xs">
+              <span
+                class="drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+                </svg>
+              </span>
+              <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 w-5">{{ index + 1 }}</span>
+              <span class="text-sm text-gray-800 dark:text-gray-200 truncate flex-1" :title="element.name">
+                {{ element.name || '未命名订阅' }}
+              </span>
+              <!-- 地址重写指示器 -->
+              <span v-if="getOverride(element.id).enabled && getOverride(element.id).host"
+                class="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap" :title="'地址重写: ' + getOverride(element.id).host">
+                &#8594; {{ getOverride(element.id).host }}
+              </span>
+              <!-- 地址重写设置按钮 -->
+              <button @click.stop="toggleOverridePanel(element.id)"
+                class="text-gray-400 hover:text-indigo-500 transition-colors" title="地址重写"
+                :class="{ 'text-indigo-500': expandedOverrideId === element.id || getOverride(element.id).enabled }">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              <button @click="emit('toggle-selection', element.id)"
+                class="text-gray-400 hover:text-red-500 transition-colors" title="移除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <!-- 地址重写展开面板 -->
+            <div v-if="expandedOverrideId === element.id"
+              class="mt-1 ml-6 p-3 bg-gray-50 dark:bg-gray-900/50 rounded border border-gray-200 dark:border-gray-700 space-y-2">
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" :checked="getOverride(element.id).enabled"
+                    @change="updateOverride(element.id, 'enabled', $event.target.checked)"
+                    class="h-3.5 w-3.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-400">地址重写</span>
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">替换地址</label>
+                  <input type="text" :value="getOverride(element.id).host"
+                    @input="updateOverride(element.id, 'host', $event.target.value)"
+                    placeholder="如: 1.2.3.4 或 example.com"
+                    class="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-hidden focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">替换端口 (可选)</label>
+                  <input type="text" :value="getOverride(element.id).port"
+                    @input="updateOverride(element.id, 'port', $event.target.value)"
+                    placeholder="留空不替换"
+                    class="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-hidden focus:ring-1 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <p class="text-xs text-gray-400">该订阅下所有节点的服务器地址将被替换为上面的值</p>
+            </div>
           </div>
         </template>
       </draggable>

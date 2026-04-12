@@ -1,7 +1,7 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
-import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
+import { calculateProtocolStats, calculateRegionStats, rewriteNodeAddress } from '../utils/node-parser.js';
 import { applyNodeTransformPipeline } from '../../utils/node-transformer.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
@@ -87,6 +87,25 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
     const subscriptionResults = await Promise.all(
         targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, sub.customUserAgent, false, sub.exclude, sub.fetchProxy, skipCertVerify, Boolean(sub?.plusAsSpace)))
     );
+
+    // 应用每个订阅的地址重写
+    const overrides = profile.subscriptionOverrides || {};
+    subscriptionResults.forEach((result, index) => {
+        const sub = targetSubscriptions[index];
+        const override = overrides[sub.id];
+        if (override?.addressRewrite?.enabled && override.addressRewrite.host) {
+            const newHost = override.addressRewrite.host;
+            const newPort = override.addressRewrite.port || null;
+            if (result.success && result.nodes) {
+                result.nodes = result.nodes.map(node => {
+                    const newUrl = rewriteNodeAddress(node.url, newHost, newPort);
+                    const rewritten = { ...node, url: newUrl, server: newHost };
+                    if (newPort) rewritten.port = String(newPort);
+                    return rewritten;
+                });
+            }
+        }
+    });
 
     // 合并所有结果
     const allResults = [...subscriptionResults, ...manualNodeResults];

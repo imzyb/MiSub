@@ -224,6 +224,7 @@ profileCopy.prefixSettings.prependGroupName ?? null;
       delete profileCopy.prefixSettings.enableNodeEmoji;
     }
     profileCopy.nodeTransform = profileCopy.nodeTransform ?? null;
+    profileCopy.subscriptionOverrides = profileCopy.subscriptionOverrides ?? {};
     localProfile.value = profileCopy;
   } else {
 localProfile.value = {
@@ -241,7 +242,8 @@ enableSubscriptions: null,
 manualNodePrefix: '',
 prependGroupName: null
 },
-nodeTransform: null
+nodeTransform: null,
+subscriptionOverrides: {}
 };
   }
 }, { deep: true, immediate: true });
@@ -320,8 +322,10 @@ const updateSelectedIds = (listName, newIds) => {
 
           <SubscriptionSelector :subscriptions="allSubscriptions" :filtered-subscriptions="filteredSubscriptions"
             :search-term="subscriptionSearchTerm" :selected-ids="localProfile.subscriptions || []"
+            :subscription-overrides="localProfile.subscriptionOverrides || {}"
             @update:search-term="subscriptionSearchTerm = $event"
             @update:selected-ids="updateSelectedIds('subscriptions', $event)"
+            @update:subscription-overrides="localProfile.subscriptionOverrides = $event"
             @toggle-selection="toggleSelection('subscriptions', $event)"
             @select-all="handleSelectAll('subscriptions', filteredSubscriptions)"
             @deselect-all="handleDeselectAll('subscriptions', filteredSubscriptions)" />
