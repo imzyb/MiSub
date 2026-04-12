@@ -294,7 +294,8 @@ export async function handleMisubRequest(context) {
         const generationSettings = {
             ...effectivePrefixSettings,
             nodeTransform: effectiveNodeTransform,
-            name: subName
+            name: subName,
+            subscriptionOverrides: currentProfile?.subscriptionOverrides || {}
         };
 
         const freshNodes = await generateCombinedNodeList(

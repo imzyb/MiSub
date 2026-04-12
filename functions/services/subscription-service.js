@@ -3,7 +3,7 @@
  * @author MiSub Team
  */
 
-import { parseNodeList } from '../modules/utils/node-parser.js';
+import { parseNodeList, rewriteNodeAddress } from '../modules/utils/node-parser.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
 import { prependNodeName, removeFlagEmoji, fixNodeUrlEncoding, sanitizeNodeForYaml } from '../utils/node-utils.js';
 import { applyNodeTransformPipeline } from '../utils/node-transformer.js';
@@ -266,6 +266,14 @@ return '';
             // 应用过滤规则
             validNodes = applyFilterRules(validNodes, sub);
 
+            // 应用地址重写
+            const overrides = profilePrefixSettings?.subscriptionOverrides || {};
+            const override = overrides[sub.id];
+            if (override?.addressRewrite?.enabled && override.addressRewrite.host) {
+                const newHost = override.addressRewrite.host;
+                const newPort = override.addressRewrite.port || null;
+                validNodes = validNodes.map(nodeUrl => rewriteNodeAddress(nodeUrl, newHost, newPort));
+            }
 
             // 判断是否启用订阅前缀（智能重命名启用时跳过）
             const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ?? true;
