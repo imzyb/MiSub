@@ -69,6 +69,11 @@ async function applyRowLevelDiff(storageAdapter, type, diff) {
         return false;
     }
 
+    // KV 模式下不支持行级 Diff，必须使用全量覆盖以保证原子性
+    if (storageAdapter.type === STORAGE_TYPES.KV) {
+        return false;
+    }
+
     const { added = [], updated = [], removed = [] } = diff;
 
     await Promise.all([
@@ -87,6 +92,11 @@ async function syncCollectionRowLevel(storageAdapter, type, finalItems) {
     const deleteItem = isProfile ? storageAdapter.deleteProfileById?.bind(storageAdapter) : storageAdapter.deleteSubscriptionById?.bind(storageAdapter);
 
     if (!getAll || !putItem || !deleteItem || !Array.isArray(finalItems)) {
+        return false;
+    }
+
+    // KV 模式下不支持行级同步，必须使用全量覆盖以保证原子性
+    if (storageAdapter.type === STORAGE_TYPES.KV) {
         return false;
     }
 
