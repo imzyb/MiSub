@@ -25,12 +25,27 @@ function buildProxyLine(proxy) {
     }
     if (type === 'vmess') {
         const extras = [`username=${proxy.uuid || ''}`];
-        if (proxy.network === 'ws' || proxy['ws-opts']) {
+        const network = proxy.network || '';
+        
+        if (network === 'ws' || proxy['ws-opts']) {
             extras.push('ws=true');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             if (wsOpts?.path) extras.push(`ws-path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`ws-headers=Host:${wsOpts.headers.Host}`);
+        } else if (network === 'grpc') {
+            extras.push('transport=grpc');
+            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
+            if (grpcOpts?.['grpc-service-name']) extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
+        } else if (network === 'h2') {
+            extras.push('transport=h2');
+            const h2Opts = proxy['h2-opts'] || proxy.h2Opts;
+            if (h2Opts?.path) extras.push(`h2-path=${h2Opts.path}`);
+            if (h2Opts?.host) {
+                const host = Array.isArray(h2Opts.host) ? h2Opts.host[0] : h2Opts.host;
+                extras.push(`h2-host=${host}`);
+            }
         }
+
         if (proxy.alterId === 0 || proxy.alterId === undefined || proxy.alterId === null) extras.push('vmess-aead=true');
         if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
         if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
@@ -83,6 +98,16 @@ function buildProxyLine(proxy) {
         if (proxy.password) extras.push(`password=${proxy.password}`);
         if (type === 'https') extras.push('tls=true');
         return `${name} = ${type === 'socks5' ? 'socks5' : 'http'}, ${server}, ${port}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+    }
+    if (type === 'anytls') {
+        const extras = [`password=${proxy.password || ''}`];
+        if (proxy.sni) extras.push(`sni=${proxy.sni}`);
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            extras.push(`alpn=${alpn}`);
+        }
+        if (proxy['skip-cert-verify'] === true) extras.push('skip-cert-verify=true');
+        return `${name} = anytls, ${server}, ${port}, ${extras.join(', ')}`;
     }
 
     return null;
