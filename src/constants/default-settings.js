@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
     enableTrafficNode: false,
+    enableFlagEmoji: true,
     enablePublicPage: true,
     storageType: 'kv',
     autoUpdateInterval: 0, // 分钟，0表示禁用自动更新

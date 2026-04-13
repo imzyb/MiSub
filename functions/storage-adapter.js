@@ -54,6 +54,7 @@ async function ensureD1Schema(d1Db) {
 class KVStorageAdapter {
     constructor(kvNamespace) {
         this.kv = kvNamespace;
+        this.type = STORAGE_TYPES.KV;
     }
 
     async get(key) {
@@ -183,6 +184,7 @@ class KVStorageAdapter {
 class D1StorageAdapter {
     constructor(d1Database) {
         this.db = d1Database;
+        this.type = STORAGE_TYPES.D1;
     }
 
     async get(key, type = 'json') {

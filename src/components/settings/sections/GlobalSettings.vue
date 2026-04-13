@@ -95,6 +95,21 @@ watch(() => props.settings, ensureDefaults, { immediate: true });
             </div>
           </div>
         </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">节点国旗 EMOJI</label>
+          <div class="relative">
+            <select
+              v-model="settings.enableFlagEmoji"
+              class="w-full bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 misub-radius-md py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none"
+            >
+              <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-400">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

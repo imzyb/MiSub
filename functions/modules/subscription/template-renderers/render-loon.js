@@ -58,18 +58,30 @@ function buildProxyLine(proxy) {
     }
     if (type === 'hysteria2' || type === 'hy2') return `${name} = hysteria2, ${server}, ${port}, ${proxy.password || ''}`;
     if (type === 'tuic') {
-        const extras = [proxy.token || proxy.uuid || ''];
-        if (proxy.password) extras.push(`password=${proxy.password}`);
+        const extras = ['version=5'];
+        
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
+        
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
             extras.push(`alpn=${alpn}`);
         }
-        if (proxy['congestion-controller']) extras.push(`congestion-controller=${proxy['congestion-controller']}`);
+        
+        // 拥塞控制 (Loon 标准写法是 congestion-control)
+        const cg = proxy['congestion-control'] || proxy['congestion-controller'] || 'bbr';
+        extras.push(`congestion-control=${cg}`);
+        
         if (proxy['udp-relay-mode']) extras.push(`udp-relay-mode=${proxy['udp-relay-mode']}`);
-        return `${name} = tuic, ${server}, ${port}, ${extras.join(', ')}`;
+        
+        // 性能优化参数
+        extras.push('reduce-rtt=true');
+        if (proxy['fast-open']) extras.push('fast-open=true');
+        
+        // Loon TUIC 语法: Name = tuic, Server, Port, Password, UUID, key=value, ...
+        return `${name} = tuic, ${server}, ${port}, ${proxy.password || ''}, ${proxy.uuid || ''}, ${extras.join(', ')}`;
     }
     if (type === 'wireguard') {
         const extras = [proxy['private-key'] || ''];

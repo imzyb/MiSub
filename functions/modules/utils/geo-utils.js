@@ -175,7 +175,7 @@ export const REGION_EMOJI = {
     '亚美尼亚': '🇦🇲',
     '阿塞拜疆': '🇦🇿',
     '比利时': '🇧🇪',
-    '其他': '🌍'
+    '其他': ''
 };
 
 function normalizeBase64(input) {

@@ -88,7 +88,7 @@ function handleItemsPerPageChange(event) {
     class="panel-pagination-shell mt-4 px-4 py-3 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md shadow-sm border border-gray-100/80 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 transition-all"
   >
     <div class="flex items-center space-x-4 text-xs text-gray-500 whitespace-nowrap">
-      <span v-if="showTotalItems">共 {{ totalItems }} 个节点</span>
+      <span v-if="showTotalItems">共 {{ totalItems }} 个订阅组</span>
       <div v-if="showItemsPerPage" class="flex items-center space-x-2">
         <span>每页:</span>
         <select
