@@ -6,6 +6,10 @@ import { useUIStore } from '../../stores/ui.js';
 const props = defineProps({
   config: Object,
   profiles: Array,
+  compact: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['qrcode']);
@@ -69,8 +73,8 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-6 misub-radius-lg border border-gray-100/80 dark:border-white/10 shadow-sm transition-all duration-300">
-      <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 list-item-animation" style="--delay-index: 0">生成订阅链接</h3>
+    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md misub-radius-lg border border-gray-100/80 dark:border-white/10 shadow-sm transition-all duration-300" :class="compact ? 'p-4' : 'p-6'">
+      <h3 class="font-bold text-gray-900 dark:text-white mb-4 list-item-animation" :class="compact ? 'text-base' : 'text-lg'" style="--delay-index: 0">生成订阅链接</h3>
 
       <div class="mb-4 list-item-animation" style="--delay-index: 1">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">1. 选择订阅内容</label>
@@ -84,13 +88,13 @@ onUnmounted(() => {
 
       <div class="mb-5 list-item-animation" style="--delay-index: 2">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">2. 选择格式</label>
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid gap-2" :class="compact ? 'grid-cols-2' : 'grid-cols-3'">
             <button
               v-for="(format, index) in formats"
               :key="format"
               @click="selectedFormat = format"
               :aria-pressed="selectedFormat === format"
-              class="px-3 py-2 text-xs font-medium misub-radius-lg border transition-colors flex justify-center items-center list-item-animation"
+              class="px-3 py-2 text-xs font-medium misub-radius-lg border transition-colors flex justify-center items-center list-item-animation min-h-[38px]"
               :style="{ '--delay-index': index }"
               :class="[
                 selectedFormat === format

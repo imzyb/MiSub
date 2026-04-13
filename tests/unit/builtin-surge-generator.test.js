@@ -258,7 +258,7 @@ describe('Surge 内置生成器', () => {
         it('应包含正确的默认代理分组', () => {
             const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
             const result = generateBuiltinSurgeConfig(ss);
-            expect(result).toContain('📶 节点选择 = select');
+            expect(result).toContain('🚀 节点选择 = select');
             expect(result).toContain('♻️ 自动选择 = url-test');
         });
 
@@ -274,7 +274,7 @@ describe('Surge 内置生成器', () => {
             expect(result).not.toContain('🇯🇵 日本节点 = url-test'); // 不包含未匹配的地区
             
             // 主分组应包含地区分组和所有节点
-            expect(result).toContain('📶 节点选择 = select, ♻️ 自动选择, 🇭🇰 香港节点, 🇺🇸 美国节点');
+            expect(result).toContain('🚀 节点选择 = select, 🇭🇰 香港节点, 🇺🇸 美国节点, ♻️ 自动选择');
         });
     });
 
@@ -282,10 +282,10 @@ describe('Surge 内置生成器', () => {
         it('应包含高级分流规则', () => {
             const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
             const result = generateBuiltinSurgeConfig(ss);
-            expect(result).toContain('RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/Apple/Apple.list,DIRECT');
-            expect(result).toContain('RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/GlobalMedia/GlobalMedia.list,📶 节点选择');
+            expect(result).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list,🍎 Apple');
+            expect(result).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Netflix.list,🎥 流媒体');
             expect(result).toContain('GEOIP,CN,DIRECT');
-            expect(result).toContain('FINAL,📶 节点选择,dns-failed');
+            expect(result).toContain('FINAL,🚀 节点选择,dns-failed');
         });
     });
 

@@ -71,7 +71,8 @@ const isProcessedToggleVisible = computed(() => {
 <template>
   <!-- 响应式网格布局 -->
   <!-- 移动端：Grid (1列用于搜索，2列用于筛选)，桌面端维持原样 -->
-  <div class="flex flex-col lg:grid lg:grid-cols-4 gap-3 sm:gap-4 lg:items-end">
+  <div class="rounded-xl border border-gray-200/70 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+    <div class="flex flex-col gap-3 lg:grid lg:grid-cols-4 lg:items-end sm:gap-4">
     <!-- 搜索 (移动端置顶) -->
     <div class="w-full">
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
@@ -83,7 +84,7 @@ const isProcessedToggleVisible = computed(() => {
             v-model="searchModel"
             type="text"
             placeholder="搜索..."
-            class="w-full px-2 sm:px-3 py-1.5 sm:py-2 pr-8 sm:pr-10 text-sm border border-gray-300 dark:border-gray-600 misub-radius-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
           />
           <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3">
             <svg class="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,7 +98,7 @@ const isProcessedToggleVisible = computed(() => {
           v-if="isProcessedToggleVisible"
           @click="emit('update:showProcessed', !showProcessed)"
           :class="showProcessed ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600'"
-          class="lg:hidden flex-shrink-0 w-8 h-8 border misub-radius-md hover:opacity-90 transition-colors flex items-center justify-center !min-h-0 !min-w-0"
+          class="!min-h-0 !min-w-0 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border transition-colors hover:opacity-90 lg:hidden"
           title="切换显示原始/处理后节点名称"
         >
           <!-- 原材料 Icon -->
@@ -121,7 +122,7 @@ const isProcessedToggleVisible = computed(() => {
         </label>
         <select
           v-model="protocolModel"
-          class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 misub-radius-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
         >
           <option value="all">全部</option>
           <option v-for="protocol in availableProtocols" :key="protocol" :value="protocol">
@@ -137,7 +138,7 @@ const isProcessedToggleVisible = computed(() => {
         </label>
         <select
           v-model="regionModel"
-          class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 misub-radius-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-white/10 dark:bg-gray-800 dark:text-white"
         >
           <option value="all">全部</option>
           <option v-for="region in availableRegions" :key="region" :value="region">
@@ -158,7 +159,7 @@ const isProcessedToggleVisible = computed(() => {
           <button
             @click="emit('update:viewMode', 'list')"
             :class="viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'"
-            class="w-9 h-9 misub-radius-md text-sm font-medium transition-colors flex items-center justify-center"
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors"
             title="列表视图"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +169,7 @@ const isProcessedToggleVisible = computed(() => {
           <button
             @click="emit('update:viewMode', 'card')"
             :class="viewMode === 'card' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'"
-            class="w-9 h-9 misub-radius-md text-sm font-medium transition-colors flex items-center justify-center"
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors"
             title="卡片视图"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +188,7 @@ const isProcessedToggleVisible = computed(() => {
           <button
             @click="emit('update:showProcessed', !showProcessed)"
             :class="showProcessed ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'"
-            class="w-9 h-9 misub-radius-md text-sm font-medium transition-colors flex items-center justify-center"
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors"
             title="切换显示模式：原始 / 处理后"
           >
             <!-- 魔法棒 Icon (处理后) -->
@@ -201,6 +202,7 @@ const isProcessedToggleVisible = computed(() => {
           </button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>

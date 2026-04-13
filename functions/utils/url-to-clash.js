@@ -798,6 +798,135 @@ function parseAnytlsUrl(url) {
     }
 }
 
+/**
+ * 将 HTTPS URL 转换为 Clash 代理对象
+ * @param {string} url - HTTPS URL
+ * @returns {Object|null} Clash 代理对象
+ */
+function parseHttpsUrl(url) {
+    try {
+        // https://username:password@server:port?params#name
+        const body = url.substring(8);
+        const atIndex = body.indexOf('@');
+        if (atIndex === -1) return null;
+
+        let userInfo = body.substring(0, atIndex);
+        let serverPart = body.substring(atIndex + 1);
+
+        const queryIndex = serverPart.indexOf('?');
+        const hashIndex = serverPart.indexOf('#');
+        if (queryIndex !== -1) {
+            serverPart = serverPart.substring(0, queryIndex);
+        } else if (hashIndex !== -1) {
+            serverPart = serverPart.substring(0, hashIndex);
+        }
+
+        const { server, port } = parseHostPort(serverPart);
+        const params = parseQueryParams(url);
+        const name = extractName(url);
+
+        let username = '';
+        let password = '';
+        const colonIndex = userInfo.indexOf(':');
+        if (colonIndex !== -1) {
+            username = decodeURIComponent(userInfo.substring(0, colonIndex));
+            password = decodeURIComponent(userInfo.substring(colonIndex + 1));
+        } else {
+            username = decodeURIComponent(userInfo);
+        }
+
+        const proxy = {
+            name: name || `HTTPS-${server}`,
+            type: 'https',
+            server,
+            port,
+            username,
+            password
+        };
+
+        if (params.get('sni')) {
+            proxy.sni = params.get('sni');
+        } else if (params.get('peer')) {
+            proxy.sni = params.get('peer');
+        }
+
+        if (params.get('allowInsecure') === '1' || params.get('insecure') === '1') {
+            proxy['skip-cert-verify'] = true;
+        }
+
+        proxy.udp = false;
+        return proxy;
+    } catch (e) {
+        console.error('解析 HTTPS URL 失败:', e);
+        return null;
+    }
+}
+
+/**
+ * 将 SOCKS5 URL 转换为 Clash 代理对象
+ * @param {string} url - SOCKS5 URL
+ * @returns {Object|null} Clash 代理对象
+ */
+function parseSocks5Url(url) {
+    try {
+        // socks5://username:password@server:port?tls=1#name
+        const body = url.substring(9);
+        const atIndex = body.indexOf('@');
+        if (atIndex === -1) return null;
+
+        let userInfo = body.substring(0, atIndex);
+        let serverPart = body.substring(atIndex + 1);
+
+        const queryIndex = serverPart.indexOf('?');
+        const hashIndex = serverPart.indexOf('#');
+        if (queryIndex !== -1) {
+            serverPart = serverPart.substring(0, queryIndex);
+        } else if (hashIndex !== -1) {
+            serverPart = serverPart.substring(0, hashIndex);
+        }
+
+        const { server, port } = parseHostPort(serverPart);
+        const params = parseQueryParams(url);
+        const name = extractName(url);
+
+        let username = '';
+        let password = '';
+        const colonIndex = userInfo.indexOf(':');
+        if (colonIndex !== -1) {
+            username = decodeURIComponent(userInfo.substring(0, colonIndex));
+            password = decodeURIComponent(userInfo.substring(colonIndex + 1));
+        } else {
+            username = decodeURIComponent(userInfo);
+        }
+
+        const useTls = params.get('tls') === '1' || params.get('tls') === 'true' || params.get('secure') === '1';
+        const proxy = {
+            name: name || `SOCKS5-${server}`,
+            type: useTls ? 'socks5-tls' : 'socks5',
+            server,
+            port,
+            username,
+            password,
+            udp: false
+        };
+
+        if (params.get('sni')) {
+            proxy.sni = params.get('sni');
+        } else if (params.get('peer')) {
+            proxy.sni = params.get('peer');
+        }
+
+        if (params.get('allowInsecure') === '1' || params.get('insecure') === '1') {
+            proxy['skip-cert-verify'] = true;
+        }
+
+        return proxy;
+    } catch (e) {
+        console.error('解析 SOCKS5 URL 失败:', e);
+        return null;
+    }
+}
+
 
 /**
 * 将节点 URL 转换为 Clash 代理对象
@@ -827,11 +956,17 @@ return parseSnellUrl(url);
 return parseWireguardUrl(url);
 } else if (lowerUrl.startsWith('anytls://')) {
 return parseAnytlsUrl(url);
+} else if (lowerUrl.startsWith('https://')) {
+return parseHttpsUrl(url);
+} else if (lowerUrl.startsWith('socks5://')) {
+return parseSocks5Url(url);
 }
 
 // 不支持的协议
 return null;
 }
+
+import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 
 /**
  * 批量将节点 URL 转换为 Clash 代理列表
@@ -842,7 +977,21 @@ export function urlsToClashProxies(urls) {
     if (!Array.isArray(urls)) return [];
 
     return urls
-        .map(url => urlToClashProxy(url))
+        .map(url => {
+            const proxy = urlToClashProxy(url);
+            if (!proxy) return null;
+            
+            // [智能增强] 注入元数据
+            proxy.metadata = extractNodeMetadata(proxy.name);
+            
+            // [自动补全] 仅在名称中完全没有国旗 Emoji 时才尝试补全，避免干扰用户通过正则重命名后的结果
+            const HAS_EMOJI_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/u;
+            if (proxy.metadata.flag && !HAS_EMOJI_REGEX.test(proxy.name)) {
+                proxy.name = `${proxy.metadata.flag} ${proxy.name}`;
+            }
+            
+            return proxy;
+        })
         .filter(proxy => proxy !== null);
 }
 

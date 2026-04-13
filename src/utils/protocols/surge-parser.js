@@ -569,15 +569,33 @@ function parseSurgeWireGuard(line) {
         const config = parts[2];
         const params = config.split(',').map(p => p.trim());
 
-        const [protocol] = params;
+        const [protocol, server, port, ...options] = params;
         if (protocol.toLowerCase() !== 'wireguard') return null;
 
-        // WireGuard 在 Surge 中通过独立 section 配置，这里无法还原完整 URL，
-        // 只生成一个占位标记以提示用户
+        if (!server || !port) return null;
+
+        const urlParams = [];
+        let privateKey = '';
+        options.forEach(opt => {
+            const match = opt.match(/^([\w-]+)\s*=\s*(.+)$/);
+            if (!match) return;
+            const [, key, value] = match;
+            const k = key.toLowerCase();
+            const v = value.replace(/^['"]|['"]$/g, '');
+            if (k === 'private-key') privateKey = v;
+            else if (k === 'peer-public-key' || k === 'public-key') urlParams.push(`publickey=${encodeURIComponent(v)}`);
+            else if (k === 'client-id') urlParams.push(`reserved=${encodeURIComponent(v.replace(/\//g, ','))}`);
+            else if (k === 'self-ip') urlParams.push(`address=${encodeURIComponent(v)}`);
+            else if (k === 'mtu') urlParams.push(`mtu=${encodeURIComponent(v)}`);
+            else if (k === 'preshared-key') urlParams.push(`presharedkey=${encodeURIComponent(v)}`);
+        });
+
+        if (!privateKey) return null;
+        const query = urlParams.length ? `?${urlParams.join('&')}` : '';
         return {
             id: generateNodeId(),
             name,
-            url: `wireguard://placeholder@127.0.0.1:51820#${encodeURIComponent(name)}`,
+            url: `wireguard://${encodeURIComponent(privateKey)}@${server}:${port}${query}#${encodeURIComponent(name)}`,
             enabled: true,
             protocol: 'wireguard',
             source: 'surge'
@@ -587,4 +605,3 @@ function parseSurgeWireGuard(line) {
         return null;
     }
 }
-

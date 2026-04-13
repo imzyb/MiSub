@@ -99,6 +99,7 @@ export function determineFormatByUserAgent(userAgentHeader) {
 
         // 其他客戶端
         ['stash', 'clash'],
+        ['egern', 'clash'],
         ['nekoray', 'clash'],
         ['sing-box', 'singbox'],
         ['shadowrocket', 'base64'],
@@ -129,7 +130,7 @@ export function determineFormatByUserAgent(userAgentHeader) {
 export function determineFormatByUrl(url) {
     let targetFormat = url.searchParams.get('target');
     if (!targetFormat) {
-        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan'];
+        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'quanx', 'base64', 'v2ray', 'trojan', 'egern'];
         for (const format of supportedFormats) {
             if (url.searchParams.has(format)) {
                 if (format === 'v2ray' || format === 'trojan') {

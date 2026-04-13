@@ -60,9 +60,8 @@ src/
 src/components/
 ├─ ui/                      # 基础 UI 组件（按钮、提示、加载、卡片等）
 ├─ layout/                  # 全局布局组件（导航栏、侧边栏、底部导航）
-├─ settings/
 │  ├─ sections/             # 设置页各功能分区（基础/服务/公告/留言等）
-│  └─ NodeTransformSettings/ # 节点转换/重命名相关配置 UI
+│  └─ ...
 ├─ modals/                  # 弹窗组件集合
 │  ├─ SubscriptionImport/   # 订阅导入流程
 │  ├─ SubscriptionEditModal/ # 订阅编辑
@@ -71,7 +70,8 @@ src/components/
 ├─ nodes/                   # 节点管理相关组件
 │  └─ ManualNodePanel/      # 手动节点管理面板
 ├─ features/                # 复杂功能模块
-│  └─ Dashboard/            # 仪表盘核心视图模块
+│  ├─ Dashboard/            # 仪表盘核心视图模块
+│  └─ Operators/            # [新增] 操作符链核心组件 (Filter/Rename/Sort)
 ├─ subscriptions/           # 订阅源列表相关组件
 ├─ profiles/                # 订阅组展示卡片等
 ├─ public/                  # 公开页面组件（访客视图、Hero区）
@@ -133,17 +133,16 @@ functions/modules/subscription/
 ├─ preview-handler.js       # 预览节点列表接口
 ├─ cache-manager.js         # 订阅缓存策略管理
 ├─ request-context.js       # 请求上下文解析
-├─ subconverter-client.js   # Subconverter 后端调用适配
+├─ transformer-factory.js   # 订阅格式转换分发工厂
 └─ access-logger.js         # 访问日志记录
 ```
 
-#### 3. 后端工具 (`functions/modules/utils/`)
-```
 functions/modules/utils/
 ├─ node-cleaner.js          # [新增] 节点清洗与URL修复
 ├─ node-parser.js           # 节点解析 (Parse Logic)
-└─ node-transformer.js      # 节点变换 (Rename/Sort/Emoji)
-```
+├─ operator-runner.js       # [新增] 操作符执行引擎 (Core Runtime)
+├─ node-transformer.js      # 节点变换工具集
+└─ ...
 
 ### 服务层 (`functions/services/`)
 ```

@@ -9,6 +9,7 @@
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
+import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
 
 /**
  * 清理字符串中的控制字符（保留换行和制表符）
@@ -359,23 +360,23 @@ function appendTlsParams(parts, proxy) {
  * @param {Object} options - 配置选项
  * @returns {string} Surge INI 配置
  */
+
 export function generateBuiltinSurgeConfig(nodeList, options = {}) {
     const {
         fileName = 'MiSub',
         managedConfigUrl = '',
         interval = 86400,
         skipCertVerify = false,
-        enableUdp = false
+        enableUdp = false,
+        ruleLevel = 'std'
     } = options;
 
-    // 清理控制字符后解析节点 URL 列表
     const cleanedNodeList = cleanControlChars(nodeList);
     const nodeUrls = cleanedNodeList
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
 
-    // URL → Clash Proxy Object → Surge Result
     const results = [];
     const proxyNames = [];
 
@@ -383,22 +384,17 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
         const clashProxy = urlToClashProxy(url);
         if (!clashProxy) continue;
 
-        if (skipCertVerify) {
-            clashProxy['skip-cert-verify'] = true;
-        }
-
-        if (enableUdp) {
-            clashProxy.udp = true;
-        }
+        if (skipCertVerify) clashProxy['skip-cert-verify'] = true;
+        if (enableUdp) clashProxy.udp = true;
 
         const result = clashProxyToSurgeResult(clashProxy);
         if (result) {
+            result.clashProxy = clashProxy; // 存储以保留元数据
             results.push(result);
             proxyNames.push(sanitizeNodeName(clashProxy.name));
         }
     }
 
-    // 处理重名（使用精确的名称匹配替换，避免误伤参数内容）
     const usedNames = new Map();
     const finalResults = [];
     const finalProxyNames = [];
@@ -407,10 +403,8 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
         const baseName = proxyNames[i];
         const uniqueName = getUniqueName(baseName, usedNames);
         if (uniqueName !== baseName) {
-            // 仅替换行首的名称部分（"name = " 前缀）
             const updatedResult = { ...results[i] };
             updatedResult.proxyLine = results[i].proxyLine.replace(`${baseName} = `, `${uniqueName} = `);
-            // WireGuard section 中也需要更新名称
             if (updatedResult.wireguardSection) {
                 updatedResult.wireguardSection = results[i].wireguardSection
                     .replace(new RegExp(`WG_${escapeRegExp(baseName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_'))}`, 'g'),
@@ -428,93 +422,58 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
         return `[General]\nloglevel = notify\n\n[Proxy]\nDIRECT = direct\n\n[Proxy Group]\n\n[Rule]\nFINAL,DIRECT\n`;
     }
 
-    // 提取代理行和 WireGuard sections
     const finalProxyLines = finalResults.map(r => r.proxyLine);
-    const wireguardSections = finalResults
-        .filter(r => r.wireguardSection)
-        .map(r => r.wireguardSection);
+    const wireguardSections = finalResults.filter(r => r.wireguardSection).map(r => r.wireguardSection);
 
-    // 构建 Surge 配置
     const sections = [];
+    const managedLine = managedConfigUrl ? `#!MANAGED-CONFIG ${managedConfigUrl} interval=${interval} strict=false\n\n` : '';
 
-    // #!MANAGED-CONFIG（可选）
-    const managedLine = managedConfigUrl
-        ? `#!MANAGED-CONFIG ${managedConfigUrl} interval=${interval} strict=false\n\n`
-        : '';
-
-    // [General]
     sections.push(`${managedLine}[General]
 loglevel = notify
 skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local
 dns-server = 119.29.29.29, 223.5.5.5, system`);
 
-    // [Proxy]
-    sections.push(`[Proxy]
-DIRECT = direct
-${finalProxyLines.join('\n')}`);
+    sections.push(`[Proxy]\nDIRECT = direct\n${finalProxyLines.join('\n')}`);
 
-    // --- 高级分组逻辑 (按地区分类) ---
-    const regionGroups = {
-        '🇭🇰 香港节点': /港|HK|Hong Kong/i,
-        '🇹🇼 台湾节点': /台|TW|Taiwan/i,
-        '🇯🇵 日本节点': /日|JP|Japan/i,
-        '🇸🇬 狮城节点': /狮城|新|SG|Singapore/i,
-        '🇺🇸 美国节点': /美|US|America/i,
-        '🇰🇷 韩国节点': /韩|KR|Korea/i,
-        '🇬🇧 英国节点': /英|UK|England/i,
-    };
+    const levelKey = (ruleLevel || 'std').toUpperCase();
+    const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
+    
+    // 构造带元数据的代理对象用于策略分组
+    const proxiesForGrouping = finalProxyNames.map((name, index) => ({
+        tag: name,
+        name: name,
+        metadata: finalResults[index].clashProxy?.metadata || {}
+    }));
+    
+    const abstractGroups = policyFactory(proxiesForGrouping);
 
-    const activeRegionGroups = {};
-
-    // 遍历最终的节点名称列表，将节点归类到相应的地区
-    for (const proxyName of finalProxyNames) {
-        for (const [groupName, regex] of Object.entries(regionGroups)) {
-            if (regex.test(proxyName)) {
-                if (!activeRegionGroups[groupName]) {
-                    activeRegionGroups[groupName] = [];
-                }
-                activeRegionGroups[groupName].push(proxyName);
-            }
-        }
-    }
-
-    // [Proxy Group]
-    const proxyNamesList = finalProxyNames.join(', ');
-    const activeRegionGroupNames = Object.keys(activeRegionGroups);
-    const regionGroupRefs = activeRegionGroupNames.length > 0 ? `, ${activeRegionGroupNames.join(', ')}` : '';
-
-    const proxyGroupLines = [];
-    // 主分组，优先层叠地区分组，然后再层叠所有节点（作为垫底或者直选）
-    proxyGroupLines.push(`📶 节点选择 = select, ♻️ 自动选择${regionGroupRefs}, ${proxyNamesList}, DIRECT`);
-    proxyGroupLines.push(`♻️ 自动选择 = url-test, ${proxyNamesList}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50`);
-
-    // 添加各个有效地区的分组
-    for (const groupName of activeRegionGroupNames) {
-        const nodesInGroup = activeRegionGroups[groupName].join(', ');
-        // 地区组内默认使用 url-test 自动测速选择，同时作为二级策略
-        proxyGroupLines.push(`${groupName} = url-test, ${nodesInGroup}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50`);
-    }
+    // 转换为 Surge [Proxy Group]
+    const proxyGroupLines = abstractGroups.map(group => {
+        let type = group.type === 'url-test' ? 'url-test' : 'select';
+        if (group.type === 'fallback') type = 'fallback';
+        if (group.type === 'relay') type = 'relay';
+        
+        const proxies = group.proxies.join(', ');
+        const extra = type === 'url-test' || type === 'fallback' ? ', url=http://www.gstatic.com/generate_204, interval=300, tolerance=50' : '';
+        return `${group.name} = ${type}, ${proxies}${extra}`;
+    });
 
     sections.push(`[Proxy Group]\n${proxyGroupLines.join('\n')}`);
 
-    // [Rule]
-    // 引入高级规则集 (Rule-Set)
+    // Surge [Rule]
+    const builtinRuleLines = getBuiltinRules(levelKey, 'surge');
     const ruleLines = [
-        '# 苹果服务直连',
-        'RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/Apple/Apple.list,DIRECT',
-        '# 全球媒体走代理',
-        'RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/GlobalMedia/GlobalMedia.list,📶 节点选择',
-        '# 电报走代理',
-        'RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/Telegram/Telegram.list,📶 节点选择',
-        '# 国内直连',
-        'RULE-SET,https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/China/China.list,DIRECT',
-        '# 兜底分流',
-        'GEOIP,CN,DIRECT',
-        'FINAL,📶 节点选择,dns-failed'
+        '# 基础分流',
+        'DOMAIN-SUFFIX,localhost,DIRECT',
+        'IP-CIDR,127.0.0.1/8,DIRECT',
+        'IP-CIDR,10.0.0.0/8,DIRECT',
+        'IP-CIDR,172.16.0.0/12,DIRECT',
+        'IP-CIDR,192.168.0.0/16,DIRECT',
+        ...builtinRuleLines,
+        `FINAL,${levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP},dns-failed`
     ];
-    sections.push(`[Rule]\n${ruleLines.join('\n')}`);
+    sections.push(`[Rule]\n${ruleLines.filter(Boolean).join('\n')}`);
 
-    // [WireGuard] sections（如果有）
     if (wireguardSections.length > 0) {
         sections.push(wireguardSections.join('\n\n'));
     }
@@ -522,11 +481,6 @@ ${finalProxyLines.join('\n')}`);
     return sections.join('\n\n') + '\n';
 }
 
-/**
- * 转义正则表达式特殊字符
- * @param {string} str
- * @returns {string}
- */
 function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

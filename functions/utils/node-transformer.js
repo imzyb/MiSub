@@ -1,9 +1,10 @@
 /**
  * 节点统一转换管道
- * 支持：正则重命名、模板重命名、智能去重、排序
+ * 支持：正则过滤、正则重命名、模板重命名、智能去重、排序
  */
 
-import { extractNodeRegion, getRegionEmoji, REGION_KEYWORDS, REGION_EMOJI } from '../modules/utils/geo-utils.js';
+import { parseNodeInfo, extractNodeRegion, getRegionEmoji, REGION_KEYWORDS, REGION_EMOJI } from '../modules/utils/geo-utils.js';
+import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 
 // ============ 默认配置 ============
 
@@ -133,174 +134,6 @@ function parseHostPort(hostPort) {
 
 // ============ 节点解析 ============
 
-function parseSsrServerPort(decoded) {
-    const s = String(decoded || '');
-    const m1 = s.match(/^\[([^\]]+)\]:(\d+):/);
-    if (m1) return { server: m1[1], port: m1[2] };
-    const m2 = s.match(/^(.+):(\d+):/);
-    if (!m2) return { server: '', port: '' };
-    return { server: m2[1], port: m2[2] };
-}
-
-function extractSsrRemarks(decoded) {
-    const s = String(decoded || '');
-    const slashQ = s.indexOf('/?');
-    const q = slashQ !== -1 ? slashQ + 2 : (s.indexOf('?') !== -1 ? s.indexOf('?') + 1 : -1);
-    if (q === -1) return '';
-    const params = s.slice(q);
-    const m = params.match(/(?:^|&)remarks=([^&]*)/);
-    if (!m) return '';
-    const raw = safeDecodeURI(m[1]).replace(/\s+/g, '');
-    try { return base64Decode(raw).trim(); } catch { return ''; }
-}
-
-function extractServerPort(url, protocol) {
-    const proto = normalizeProtocol(protocol || getProtocol(url));
-
-    if (proto === 'vmess') {
-        try {
-            const payload = getSchemePayload(url, 8);
-            const obj = JSON.parse(base64Decode(payload));
-            return { server: String(obj.add || ''), port: String(obj.port || '') };
-        } catch { return { server: '', port: '' }; }
-    }
-
-    if (proto === 'ssr') {
-        try {
-            const payload = getSchemePayload(url, 6);
-            const decoded = base64Decode(payload);
-            return parseSsrServerPort(decoded);
-        } catch { return { server: '', port: '' }; }
-    }
-
-    try {
-        const parsed = new URL(url);
-        if (parsed.hostname) {
-            if (!(proto === 'ss' && !parsed.port && !parsed.username && !url.includes('@'))) {
-                return { server: parsed.hostname, port: parsed.port || '' };
-            }
-        }
-    } catch (error) {
-        console.debug('[NodeTransform] URL parse failed, falling back to manual parsing:', error);
-    }
-
-    try {
-        const main = url.split('#')[0];
-        const protocolEnd = main.indexOf('://');
-        if (protocolEnd === -1) return { server: '', port: '' };
-        let rest = main.slice(protocolEnd + 3).split('?')[0].split('/')[0];
-
-        if (proto === 'ss' && !rest.includes('@')) {
-            try {
-                const decoded = base64Decode(rest);
-                if (decoded.includes('@')) rest = decoded;
-            } catch (error) {
-                console.debug('[NodeTransform] SS base64 decode failed, using raw host segment:', error);
-            }
-        }
-
-        // [新增] 处理 VLESS Base64 编码格式：vless://Base64(auto:uuid@host:port)?...
-        if (proto === 'vless' && !rest.includes('@') && rest.length > 20) {
-            try {
-                const decoded = base64Decode(rest);
-                if (decoded.includes('@')) rest = decoded;
-            } catch (error) {
-                console.debug('[NodeTransform] VLESS base64 decode failed (expected for standard format)');
-            }
-        }
-
-        const at = rest.lastIndexOf('@');
-        return parseHostPort(at === -1 ? rest : rest.slice(at + 1));
-    } catch { return { server: '', port: '' }; }
-}
-
-function getNodeName(url, protocol) {
-    const proto = normalizeProtocol(protocol || getProtocol(url));
-    const fragmentName = getFragment(url);
-    if (fragmentName) return fragmentName;
-
-    // [修复] 如果 fragment 为空，尝试从 URL 查询参数中提取名称
-    // 支持 remarks, des, remark 等常见参数（部分订阅源使用）
-    const remarksMatch = String(url || '').match(/[?&](remarks|des|remark)=([^&#]+)/i);
-    if (remarksMatch && remarksMatch[2]) {
-        try {
-            return decodeURIComponent(remarksMatch[2]).trim();
-        } catch {
-            return remarksMatch[2].trim();
-        }
-    }
-
-    const nameMatch = String(url || '').match(/[?&](name|tag)=([^&#]+)/i);
-    if (nameMatch && nameMatch[2]) {
-        try {
-            return decodeURIComponent(nameMatch[2]).trim();
-        } catch {
-            return nameMatch[2].trim();
-        }
-    }
-
-    if (proto === 'vmess') {
-        try {
-            const payload = getSchemePayload(url, 8);
-            const obj = JSON.parse(base64Decode(payload));
-            return String(obj.ps || '').trim();
-        } catch { return ''; }
-    }
-    if (proto === 'ssr') {
-        try {
-            const payload = getSchemePayload(url, 6);
-            const decoded = base64Decode(payload);
-            return extractSsrRemarks(decoded);
-        } catch { return ''; }
-    }
-    return '';
-}
-
-function setNodeName(url, protocol, name) {
-    const proto = normalizeProtocol(protocol || getProtocol(url));
-
-    if (proto === 'vmess') {
-        try {
-            const { payload, query, hasFragment } = splitSchemeQueryAndFragment(url, 8);
-            const obj = JSON.parse(base64Decode(payload));
-            obj.ps = String(name || '');
-            const rebuilt = `vmess://${base64Encode(JSON.stringify(obj))}${query}`;
-            return hasFragment ? setFragment(rebuilt, name) : rebuilt;
-        } catch { return setFragment(url, name); }
-    }
-    if (proto === 'ssr') {
-        // SSR 需要同时更新 remarks 参数和 fragment
-        try {
-            const { payload, query } = splitSchemeQueryAndFragment(url, 6);
-            const decoded = base64Decode(payload);
-            const slashQ = decoded.indexOf('/?');
-            const qIdx = slashQ !== -1 ? slashQ + 2 : (decoded.indexOf('?') !== -1 ? decoded.indexOf('?') + 1 : -1);
-            if (qIdx === -1) return setFragment(url, name);
-
-            const prefix = decoded.slice(0, qIdx);
-            const paramStr = decoded.slice(qIdx);
-            // 手动解析和重建参数，过滤空段避免非法拼接
-            const rawParts = String(paramStr || '').split('&').filter(p => p && p.trim() !== '');
-            let replaced = false;
-            const parts = rawParts.map(p => {
-                const eq = p.indexOf('=');
-                const k = eq === -1 ? p : p.slice(0, eq);
-                const v = eq === -1 ? '' : p.slice(eq + 1);
-                if (k === 'remarks') {
-                    replaced = true;
-                    return `remarks=${base64UrlEncode(String(name || ''))}`;
-                }
-                return `${k}=${v}`;
-            });
-            if (!replaced) parts.push(`remarks=${base64UrlEncode(String(name || ''))}`);
-            const rebuiltDecoded = prefix + parts.join('&');
-            const rebuilt = `ssr://${base64UrlEncode(rebuiltDecoded)}${query}`;
-            return setFragment(rebuilt, name);
-        } catch { return setFragment(url, name); }
-    }
-    return setFragment(url, name);
-}
-
 function stripLeadingEmoji(name) {
     return String(name || '').replace(/^[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\s*/g, '').trim();
 }
@@ -309,6 +142,7 @@ function stripLeadingEmoji(name) {
 
 function normalizeConfig(cfg) {
     const config = cfg && typeof cfg === 'object' ? cfg : {};
+    const filter = config.filter || {};
     const rename = config.rename || {};
     const regex = rename.regex || {};
     const template = rename.template || {};
@@ -318,10 +152,43 @@ function normalizeConfig(cfg) {
     return {
         enabled: Boolean(config.enabled),
         enableEmoji: config.enableEmoji !== false,
+        filter: {
+            include: {
+                enabled: Boolean(filter.include?.enabled),
+                rules: Array.isArray(filter.include?.rules) ? filter.include.rules : []
+            },
+            exclude: {
+                enabled: Boolean(filter.exclude?.enabled),
+                rules: Array.isArray(filter.exclude?.rules) ? filter.exclude.rules : []
+            },
+            protocols: {
+                enabled: Boolean(filter.protocols?.enabled),
+                values: Array.isArray(filter.protocols?.values)
+                    ? filter.protocols.values.map(value => normalizeProtocol(value)).filter(Boolean)
+                    : []
+            },
+            regions: {
+                enabled: Boolean(filter.regions?.enabled),
+                values: Array.isArray(filter.regions?.values)
+                    ? filter.regions.values.map(value => toRegionZh(value)).filter(Boolean)
+                    : []
+            },
+            script: {
+                enabled: Boolean(filter.script?.enabled),
+                expression: String(filter.script?.expression || '').trim()
+            },
+            useless: {
+                enabled: Boolean(filter.useless?.enabled)
+            }
+        },
         rename: {
             regex: {
                 enabled: Boolean(regex.enabled),
                 rules: Array.isArray(regex.rules) ? regex.rules : []
+            },
+            script: {
+                enabled: Boolean(rename.script?.enabled),
+                expression: String(rename.script?.expression || '').trim()
             },
             template: {
                 enabled: Boolean(template.enabled),
@@ -355,18 +222,248 @@ function normalizeConfig(cfg) {
 
 // ============ 转换函数 ============
 
-function applyRegexRename(name, rules) {
-    let result = String(name || '');
+export function matchesRegexRules(name, rules) {
+    const value = String(name || '');
     for (const rule of rules) {
-        if (!rule?.pattern) continue;
+        if (!rule) continue;
+        
+        // 兼容规则既可以是对象 {pattern: "...", flags: "..."} 也可以是纯字符串
+        const pattern = typeof rule === 'string' ? rule : rule.pattern;
+        const flags = typeof rule === 'string' ? 'i' : (rule.flags || 'i');
+        
+        if (!pattern) continue;
+        
         try {
-            const re = new RegExp(rule.pattern, rule.flags || 'g');
-            result = result.replace(re, rule.replacement || '');
+            const re = new RegExp(pattern, flags);
+            if (re.test(value)) return true;
         } catch (error) {
-            warnInvalidRegex(rule, error);
+            warnInvalidRegex(typeof rule === 'string' ? { pattern: rule } : rule, error);
+        }
+    }
+    return false;
+}
+
+export function ensureRegionInfo(record, enableEmoji = false) {
+    if (record.regionZh) return record;
+    
+    // 优先使用预解析的元数据
+    let regionZh = record.metadata?.regionZh || extractNodeRegion(record.name);
+    let regionCode = record.metadata?.region || '';
+
+    if (regionZh === '其他' && record.server) {
+        regionZh = extractNodeRegion(record.server);
+    }
+    
+    if (!regionCode) {
+        regionCode = toRegionCode(regionZh);
+    }
+    
+    const emoji = enableEmoji ? (record.metadata?.flag || getRegionEmoji(regionZh)) : '';
+    return { ...record, region: regionCode, regionZh, emoji };
+}
+
+function isUselessNode(record) {
+    const name = String(record?.name || '').trim();
+    const protocol = normalizeProtocol(record?.protocol);
+    const server = String(record?.server || '').trim().toLowerCase();
+
+    if (!name) return true;
+
+    if (
+        protocol === 'trojan'
+        && server === '127.0.0.1'
+        && /(?:流量剩余|剩余流量|订阅已失效|订阅已到期|已过期|到期提醒|到期时间|套餐到期|过期时间)/i.test(name)
+    ) {
+        return true;
+    }
+
+    return /(?:流量剩余|剩余流量|已用流量|总流量|套餐到期|到期时间|过期时间|订阅已失效|订阅已到期|已过期|官网|群组|频道|联系客服|测试节点|回车更新|点击订阅|剩余套餐|订阅信息)/i.test(name);
+}
+
+/**
+ * [核心引擎] 将新名称写回不同协议的节点 URL
+ * 支持 VMess (JSON-Base64)、VLESS/Trojan/SS (Fragment)
+ */
+export function setNodeName(url, protocol, newName) {
+    if (!url || !newName) return url;
+    const proto = String(protocol || '').toLowerCase();
+
+    try {
+        if (proto === 'vmess') {
+            let base64Part = url.replace('vmess://', '');
+            // 处理 URL-Safe Base64
+            let safeBody = base64Part.replace(/-/g, '+').replace(/_/g, '/');
+            while (safeBody.length % 4) safeBody += '=';
+            
+            const decoded = new TextDecoder().decode(Uint8Array.from(atob(safeBody), c => c.charCodeAt(0)));
+            const config = JSON.parse(decoded);
+            config.ps = newName;
+            
+            // 重新编码为标准 Base64 (非 URL-Safe 以保持最大兼容性)
+            const newJson = JSON.stringify(config);
+            const newBase64 = btoa(unescape(encodeURIComponent(newJson)));
+            return 'vmess://' + newBase64;
+        } else {
+            // VLESS / Trojan / SS / Shadowsocks / Hysteria2 / Snell
+            // 处理 # 后缀即可
+            const hashIndex = url.lastIndexOf('#');
+            const baseUrl = hashIndex !== -1 ? url.substring(0, hashIndex) : url;
+            return baseUrl + '#' + encodeURIComponent(newName);
+        }
+    } catch (e) {
+        console.warn('[NodeUtils] setNodeName failed:', e);
+        return url;
+    }
+}
+
+export function applyRegexRename(name, rules) {
+    let result = String(name || '');
+    if (!Array.isArray(rules)) return result;
+
+    for (const rule of rules) {
+        if (!rule) continue;
+        
+        // 兼容规则既可以是对象 {pattern: "...", flags: "...", replacement: "..."} 也可以是纯字符串
+        const pattern = typeof rule === 'string' ? rule : rule.pattern;
+        const replacement = typeof rule === 'string' ? '' : (rule.replacement || '');
+        const flags = typeof rule === 'string' ? 'gi' : (rule.flags || 'gi');
+
+        if (!pattern) continue;
+        
+        try {
+            const re = new RegExp(pattern, flags);
+            result = result.replace(re, replacement);
+        } catch (error) {
+            warnInvalidRegex(typeof rule === 'string' ? { pattern: rule } : rule, error);
         }
     }
     return result.trim();
+}
+
+function safeTitle(value) {
+    const text = String(value || '');
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+}
+
+function safeContains(value, keyword) {
+    return String(value || '').toLowerCase().includes(String(keyword || '').toLowerCase());
+}
+
+function safeMatch(value, pattern, flags = 'i') {
+    try {
+        return new RegExp(pattern, flags).test(String(value || ''));
+    } catch {
+        return false;
+    }
+}
+
+function safeFallback(...values) {
+    for (const value of values) {
+        if (value !== null && value !== undefined && String(value).trim() !== '') return value;
+    }
+    return '';
+}
+
+function safePick(condition, truthyValue, falsyValue = '') {
+    return condition ? truthyValue : falsyValue;
+}
+
+function safeRegionAlias(regionValue) {
+    const region = toRegionZh(regionValue);
+    const aliases = {
+        '香港': 'HK',
+        '台湾': 'TW',
+        '日本': 'JP',
+        '新加坡': 'SG',
+        '美国': 'US',
+        '韩国': 'KR',
+        '英国': 'UK'
+    };
+    return aliases[region] || toRegionCode(region);
+}
+
+function safeProtocolAlias(protocolValue) {
+    const protocol = normalizeProtocol(protocolValue);
+    const aliases = {
+        hysteria2: 'hy2',
+        shadowsocks: 'ss'
+    };
+    return aliases[protocol] || protocol;
+}
+
+function applyScriptRename(record, expression) {
+    if (!expression) return record.name;
+    try {
+        const runner = new Function(
+            'ctx',
+            'helpers',
+            `"use strict"; const { name, originalName, protocol, region, regionZh, emoji, server, port, index } = ctx; const { upper, lower, title, trim, replace, contains, match, fallback, pick, regionAlias, protocolAlias } = helpers; return (${expression});`
+        );
+        const result = runner({
+            name: record.name,
+            originalName: record.originalName,
+            protocol: record.protocol,
+            region: record.region,
+            regionZh: record.regionZh,
+            emoji: record.emoji,
+            server: record.server,
+            port: record.port,
+            index: record.index ?? ''
+        }, {
+            upper: value => String(value || '').toUpperCase(),
+            lower: value => String(value || '').toLowerCase(),
+            title: value => safeTitle(value),
+            trim: value => String(value || '').trim(),
+            replace: (value, pattern, replacement, flags = 'g') => String(value || '').replace(new RegExp(pattern, flags), replacement || ''),
+            contains: (value, keyword) => safeContains(value, keyword),
+            match: (value, pattern, flags = 'i') => safeMatch(value, pattern, flags),
+            fallback: (...values) => safeFallback(...values),
+            pick: (condition, truthyValue, falsyValue = '') => safePick(condition, truthyValue, falsyValue),
+            regionAlias: value => safeRegionAlias(value),
+            protocolAlias: value => safeProtocolAlias(value)
+        });
+        return String(result ?? '').trim() || record.name;
+    } catch (error) {
+        console.warn('[NodeTransform] Invalid rename script expression:', error?.message || String(error));
+        return record.name;
+    }
+}
+
+function evaluateScriptExpression(record, expression) {
+    if (!expression) return true;
+    try {
+        const runner = new Function(
+            'ctx',
+            'helpers',
+            `"use strict"; const { name, originalName, protocol, region, regionZh, emoji, server, port, index } = ctx; const { upper, lower, title, trim, replace, contains, match, fallback, pick, regionAlias, protocolAlias } = helpers; return (${expression});`
+        );
+        return runner({
+            name: record.name,
+            originalName: record.originalName,
+            protocol: record.protocol,
+            region: record.region,
+            regionZh: record.regionZh,
+            emoji: record.emoji,
+            server: record.server,
+            port: record.port,
+            index: record.index ?? ''
+        }, {
+            upper: value => String(value || '').toUpperCase(),
+            lower: value => String(value || '').toLowerCase(),
+            title: value => safeTitle(value),
+            trim: value => String(value || '').trim(),
+            replace: (value, pattern, replacement, flags = 'g') => String(value || '').replace(new RegExp(pattern, flags), replacement || ''),
+            contains: (value, keyword) => safeContains(value, keyword),
+            match: (value, pattern, flags = 'i') => safeMatch(value, pattern, flags),
+            fallback: (...values) => safeFallback(...values),
+            pick: (condition, truthyValue, falsyValue = '') => safePick(condition, truthyValue, falsyValue),
+            regionAlias: value => safeRegionAlias(value),
+            protocolAlias: value => safeProtocolAlias(value)
+        });
+    } catch (error) {
+        console.warn('[NodeTransform] Invalid filter script expression:', error?.message || String(error));
+        return true;
+    }
 }
 
 function makeDedupKey(record, cfg) {
@@ -483,7 +580,7 @@ function getIndexGroupKey(record, scope) {
     }
 }
 
-function makeComparator(sortCfg) {
+export function makeComparator(sortCfg) {
     const keys = sortCfg.keys || [];
     const nameIgnoreEmoji = sortCfg.nameIgnoreEmoji !== false;
 
@@ -595,34 +692,102 @@ function makeComparator(sortCfg) {
  * @param {Object} transformConfig - 转换配置
  * @returns {string[]} 处理后的节点 URL 数组
  */
-export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
-    const cfg = normalizeConfig(transformConfig);
+/**
+ * 将 URL 列表转换为结构化 Record 列表
+ */
+export function nodeUrlsToRecords(nodeUrls, options = {}) {
     const input = Array.isArray(nodeUrls)
         ? nodeUrls.map(s => String(s || '').trim()).filter(Boolean)
         : [];
+    
+    return input.map(url => {
+        // 使用统一的解析引擎
+        const nodeInfo = parseNodeInfo(url);
+        const metadata = extractNodeMetadata(nodeInfo.name);
+        
+        const record = { 
+            url, 
+            protocol: nodeInfo.protocol, 
+            name: nodeInfo.name, 
+            originalName: nodeInfo.name, 
+            region: '', 
+            emoji: '', 
+            server: nodeInfo.server || '', 
+            port: nodeInfo.port || '',
+            metadata: metadata // 注入完整元数据
+        };
+        
+        return options.ensureRegion ? ensureRegionInfo(record, options.enableEmoji) : record;
+    });
+}
 
-    if (!cfg.enabled) return input;
+/**
+ * 将 Record 列表写回 URL 列表
+ */
+export function recordsToNodeUrls(records) {
+    if (!Array.isArray(records)) return [];
+    return records.map(r => {
+        // 如果名称发生变化（例如被正则重命名或脚本重命名），同步更新 URL
+        if (r.name && r.name !== r.originalName) {
+            return setNodeName(r.url, r.protocol, r.name);
+        }
+        return r.url;
+    });
+}
 
-    // 预判哪些字段需要计算，避免不必要的开销
+export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
+    const cfg = normalizeConfig(transformConfig);
+    if (!cfg.enabled) return nodeUrls;
+
     const sortKeys = cfg.sort.enabled ? (cfg.sort.keys || []) : [];
     const sortKeySet = new Set(sortKeys.map(k => String(k?.key || '')));
     const needServerPort = (cfg.dedup.enabled && cfg.dedup.mode !== 'url')
         || cfg.rename.template.enabled
         || (cfg.sort.enabled && (sortKeySet.has('server') || sortKeySet.has('port')));
-    const needRegionEmoji = cfg.rename.template.enabled
-        || (cfg.sort.enabled && sortKeySet.has('region'));
 
-    // 解析为结构化记录（延迟计算 region/emoji）
-    let records = input.map(url => {
-        const protocol = normalizeProtocol(getProtocol(url));
-        let name = getNodeName(url, protocol);
-        // [修复] 将台湾旗帜替换为中国国旗
-        name = name.replace(/🇹🇼/g, '🇨🇳');
-        const { server, port } = needServerPort ? extractServerPort(url, protocol) : { server: '', port: '' };
-        return { url, protocol, name, originalName: name, region: '', emoji: '', server, port };
+    let records = nodeUrlsToRecords(nodeUrls, { 
+        needServerPort, 
+        ensureRegion: false 
     });
 
-    // Stage 1: 正则重命名
+    const needRegionEmoji = cfg.rename.template.enabled
+        || (cfg.filter.regions.enabled && cfg.filter.regions.values.length > 0)
+        || (cfg.sort.enabled && sortKeySet.has('region'))
+        || (cfg.filter.script.enabled && cfg.filter.script.expression);
+
+    // Stage 1: 正则过滤
+    if (cfg.filter.include.enabled && cfg.filter.include.rules.length > 0) {
+        records = records.filter(r => matchesRegexRules(r.name, cfg.filter.include.rules));
+    }
+    // ... (rest of the pipe remains similar but simplified)
+
+    if (cfg.filter.exclude.enabled && cfg.filter.exclude.rules.length > 0) {
+        records = records.filter(r => !matchesRegexRules(r.name, cfg.filter.exclude.rules));
+    }
+
+    if (cfg.filter.protocols.enabled && cfg.filter.protocols.values.length > 0) {
+        const allowedProtocols = new Set(cfg.filter.protocols.values.map(value => normalizeProtocol(value)));
+        records = records.filter(r => allowedProtocols.has(r.protocol));
+    }
+
+    if (cfg.filter.regions.enabled && cfg.filter.regions.values.length > 0) {
+        const allowedRegions = new Set(cfg.filter.regions.values.map(value => toRegionZh(value)));
+        records = records
+            .map(r => ensureRegionInfo(r, cfg.enableEmoji))
+            .filter(r => allowedRegions.has(r.regionZh));
+    }
+
+    if (cfg.filter.script.enabled && cfg.filter.script.expression) {
+        records = records
+            .map((r, index) => ({ ...(needRegionEmoji ? r : ensureRegionInfo(r, cfg.enableEmoji)), index: index + 1 }))
+            .filter(r => Boolean(evaluateScriptExpression(r, cfg.filter.script.expression)));
+    }
+
+    if (cfg.filter.useless.enabled) {
+        records = records.filter(r => !isUselessNode(r));
+    }
+
+    // Stage 2: 正则重命名
     if (cfg.rename.regex.enabled && cfg.rename.regex.rules.length > 0) {
         records = records.map(r => ({
             ...r,
@@ -630,7 +795,7 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
         }));
     }
 
-    // Stage 2: 智能去重
+    // Stage 3: 智能去重
     if (cfg.dedup.enabled) {
         if (cfg.dedup.mode === 'url') {
             const seen = new Set();
@@ -656,18 +821,23 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
     // 去重后再计算 region/emoji：修复"正则改名后 region 未更新"问题，并减少大列表开销
     // 注意：extractNodeRegion 返回中文地区名，我们需要同时保存中文名和代码
     if (needRegionEmoji) {
-        records = records.map(r => {
-            let regionZh = extractNodeRegion(r.name);           // 中文地区名，如 '美国'
-            if (regionZh === '其他' && r.server) {
-                regionZh = extractNodeRegion(r.server);
-            }
-            const regionCode = toRegionCode(regionZh);             // 地区代码，如 'US'
-            const emoji = cfg.enableEmoji ? getRegionEmoji(regionZh) : '';  // emoji 需要用中文名查找
-            return { ...r, region: regionCode, regionZh, emoji };
+        records = records.map(r => ensureRegionInfo(r, cfg.enableEmoji));
+    }
+
+    // Stage 4: 受限表达式改写
+    if (cfg.rename.script.enabled && cfg.rename.script.expression) {
+        records = records.map((r, index) => {
+            const enriched = needRegionEmoji ? r : ensureRegionInfo(r, cfg.enableEmoji);
+            const newName = applyScriptRename({ ...enriched, index: index + 1 }, cfg.rename.script.expression);
+            return {
+                ...enriched,
+                name: newName,
+                url: newName ? setNodeName(enriched.url, enriched.protocol, newName) : enriched.url
+            };
         });
     }
 
-    // Stage 3: 模板重命名
+    // Stage 5: 模板重命名
     if (cfg.rename.template.enabled) {
         const templateHasEmoji = cfg.rename.template.template.includes('{emoji}');
         const groupBuckets = new Map();
@@ -713,7 +883,7 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
         }));
     }
 
-    // Stage 4: 排序
+    // Stage 6: 排序
     if (cfg.sort.enabled && cfg.sort.keys.length > 0) {
         records.sort(makeComparator(cfg.sort));
     }

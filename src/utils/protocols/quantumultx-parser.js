@@ -14,11 +14,20 @@ export function parseQuantumultXConfig(content) {
         if (trimmedLine.toLowerCase().startsWith('vmess')) {
             const node = parseQuantumultXVmess(trimmedLine);
             if (node) nodes.push(node);
+        } else if (trimmedLine.toLowerCase().startsWith('vless')) {
+            const node = parseQuantumultXVless(trimmedLine);
+            if (node) nodes.push(node);
         } else if (trimmedLine.toLowerCase().startsWith('shadowsocks')) {
             const node = parseQuantumultXSS(trimmedLine);
             if (node) nodes.push(node);
         } else if (trimmedLine.toLowerCase().startsWith('trojan')) {
             const node = parseQuantumultXTrojan(trimmedLine);
+            if (node) nodes.push(node);
+        } else if (trimmedLine.toLowerCase().startsWith('hysteria2') || trimmedLine.toLowerCase().startsWith('hy2')) {
+            const node = parseQuantumultXHysteria2(trimmedLine);
+            if (node) nodes.push(node);
+        } else if (trimmedLine.toLowerCase().startsWith('tuic')) {
+            const node = parseQuantumultXTuic(trimmedLine);
             if (node) nodes.push(node);
         } else if (trimmedLine.toLowerCase().startsWith('http')) {
             const node = parseQuantumultXHTTP(trimmedLine);
@@ -42,7 +51,14 @@ function parseQuantumultXVmess(line) {
 
         if (params.length < 6) return null;
 
-        const [name, server, port, method, id, aid, ...extra] = params;
+        const [rawName, rawServer, rawPort, rawMethod, rawId, rawAid, ...extra] = params;
+
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const method = decodeURIComponent(rawMethod || '');
+        const id = decodeURIComponent(rawId || '');
+        const aid = rawAid ? decodeURIComponent(rawAid) : '0';
 
         if (!name || !server || !port || !id) return null;
 
@@ -63,16 +79,20 @@ function parseQuantumultXVmess(line) {
 
         // 解析额外参数
         extra.forEach(param => {
-            const [key, value] = param.split('=').map(p => p.trim());
-            if (key && value) {
-                switch (key.toLowerCase()) {
+                const [key, value] = param.split('=').map(p => p.trim());
+                if (key && value) {
+                    switch (key.toLowerCase()) {
                     case 'net':
                     case 'type':
                     case 'host':
                     case 'path':
                     case 'tls':
                     case 'cipher':
-                        vmessConfig[key.toLowerCase()] = value;
+                    case 'obfs':
+                    case 'obfs-host':
+                    case 'tls-host':
+                    case 'udp-relay':
+                        vmessConfig[key.toLowerCase()] = decodeURIComponent(value);
                         break;
                 }
             }
@@ -104,7 +124,13 @@ function parseQuantumultXSS(line) {
 
         if (params.length < 5) return null;
 
-        const [name, server, port, method, password, ...extra] = params;
+        const [rawName, rawServer, rawPort, rawMethod, rawPassword, ...extra] = params;
+
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const method = decodeURIComponent(rawMethod || '');
+        const password = decodeURIComponent(rawPassword || '');
 
         if (!name || !server || !port || !method || !password) return null;
 
@@ -136,7 +162,12 @@ function parseQuantumultXTrojan(line) {
 
         if (params.length < 4) return null;
 
-        const [name, server, port, password, ...extra] = params;
+        const [rawName, rawServer, rawPort, rawPassword, ...extra] = params;
+
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const password = decodeURIComponent(rawPassword || '');
 
         if (!name || !server || !port || !password) return null;
 
@@ -149,6 +180,147 @@ function parseQuantumultXTrojan(line) {
             source: 'quantumultx'
         };
     } catch (e) {
+        return null;
+    }
+}
+
+function parseQuantumultXVless(line) {
+    try {
+        const equalIndex = line.indexOf('=');
+        if (equalIndex === -1) return null;
+
+        const config = line.slice(equalIndex + 1);
+        const params = config.split(',').map(p => p.trim());
+        if (params.length < 4) return null;
+
+        const [rawName, rawServer, rawPort, rawUuid, ...extra] = params;
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const uuid = decodeURIComponent(rawUuid || '');
+        if (!name || !server || !port || !uuid) return null;
+
+        const urlParams = [];
+        extra.forEach(param => {
+            const [key, value] = param.split('=').map(p => p.trim());
+            if (!key || !value) return;
+            switch (key.toLowerCase()) {
+                case 'transport':
+                case 'type':
+                    urlParams.push(`type=${encodeURIComponent(value)}`);
+                    break;
+                case 'path':
+                    urlParams.push(`path=${encodeURIComponent(value)}`);
+                    break;
+                case 'host':
+                case 'tls-host':
+                case 'sni':
+                    urlParams.push(`host=${encodeURIComponent(value)}`);
+                    urlParams.push(`sni=${encodeURIComponent(value)}`);
+                    break;
+                case 'tls':
+                    if (value === 'true') urlParams.push('security=tls');
+                    break;
+                case 'skip-cert-verify':
+                case 'tls-verification':
+                    if (value === 'true' || value === 'false') {
+                        urlParams.push(`allowInsecure=${value === 'false' ? '1' : '0'}`);
+                    }
+                    break;
+                case 'flow':
+                    urlParams.push(`flow=${encodeURIComponent(value)}`);
+                    break;
+            }
+        });
+
+        const query = urlParams.length ? `?${Array.from(new Set(urlParams)).join('&')}` : '';
+
+        return {
+            id: generateNodeId(),
+            name: name.trim().replace(/"/g, ''),
+            url: `vless://${uuid.trim()}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
+            enabled: true,
+            protocol: 'vless',
+            source: 'quantumultx'
+        };
+    } catch {
+        return null;
+    }
+}
+
+function parseQuantumultXHysteria2(line) {
+    try {
+        const equalIndex = line.indexOf('=');
+        if (equalIndex === -1) return null;
+        const config = line.slice(equalIndex + 1);
+        const params = config.split(',').map(p => p.trim());
+        if (params.length < 4) return null;
+
+        const [rawName, rawServer, rawPort, rawPassword, ...extra] = params;
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const password = decodeURIComponent(rawPassword || '');
+        if (!name || !server || !port || !password) return null;
+
+        const urlParams = [];
+        extra.forEach(param => {
+            const [key, value] = param.split('=').map(p => p.trim());
+            if (!key || !value) return;
+            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer') urlParams.push(`sni=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'insecure' || key.toLowerCase() === 'tls-verification') urlParams.push(`insecure=${value === 'false' ? '1' : value}`);
+        });
+
+        const query = urlParams.length ? `?${urlParams.join('&')}` : '';
+        return {
+            id: generateNodeId(),
+            name: name.trim().replace(/"/g, ''),
+            url: `hysteria2://${encodeURIComponent(password.trim())}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
+            enabled: true,
+            protocol: 'hysteria2',
+            source: 'quantumultx'
+        };
+    } catch {
+        return null;
+    }
+}
+
+function parseQuantumultXTuic(line) {
+    try {
+        const equalIndex = line.indexOf('=');
+        if (equalIndex === -1) return null;
+        const config = line.slice(equalIndex + 1);
+        const params = config.split(',').map(p => p.trim());
+        if (params.length < 4) return null;
+
+        const [rawName, rawServer, rawPort, rawUuid, rawPassword, ...extra] = params;
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const uuid = decodeURIComponent(rawUuid || '');
+        const password = decodeURIComponent(rawPassword || '');
+        if (!name || !server || !port || !uuid) return null;
+
+        const auth = password ? `${encodeURIComponent(uuid.trim())}:${encodeURIComponent(password.trim())}` : encodeURIComponent(uuid.trim());
+        const urlParams = [];
+        extra.forEach(param => {
+            const [key, value] = param.split('=').map(p => p.trim());
+            if (!key || !value) return;
+            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer') urlParams.push(`sni=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'congestion-controller') urlParams.push(`congestion_control=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'udp-relay') urlParams.push(`udp_relay_mode=${encodeURIComponent(value)}`);
+        });
+
+        const query = urlParams.length ? `?${urlParams.join('&')}` : '';
+        return {
+            id: generateNodeId(),
+            name: name.trim().replace(/"/g, ''),
+            url: `tuic://${auth}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
+            enabled: true,
+            protocol: 'tuic',
+            source: 'quantumultx'
+        };
+    } catch {
         return null;
     }
 }
@@ -166,7 +338,13 @@ function parseQuantumultXHTTP(line) {
 
         if (params.length < 3) return null;
 
-        const [name, server, port, username, password] = params;
+        const [rawName, rawServer, rawPort, rawUsername, rawPassword] = params;
+
+        const name = decodeURIComponent(rawName || '');
+        const server = decodeURIComponent(rawServer || '');
+        const port = decodeURIComponent(rawPort || '');
+        const username = rawUsername ? decodeURIComponent(rawUsername) : '';
+        const password = rawPassword ? decodeURIComponent(rawPassword) : '';
 
         if (!name || !server || !port) return null;
 
@@ -175,12 +353,14 @@ function parseQuantumultXHTTP(line) {
             userinfo = `${encodeURIComponent(username.trim())}:${encodeURIComponent(password.trim())}@`;
         }
 
+        const scheme = line.trim().toLowerCase().startsWith('https') ? 'https' : 'http';
+
         return {
             id: generateNodeId(),
             name: name.trim().replace(/"/g, ''),
-            url: `http://${userinfo}${server.trim()}:${port.trim()}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
+            url: `${scheme}://${userinfo}${server.trim()}:${port.trim()}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
-            protocol: 'http',
+            protocol: scheme,
             source: 'quantumultx'
         };
     } catch (e) {

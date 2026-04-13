@@ -3,7 +3,7 @@ import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
 import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
 import { applyNodeTransformPipeline } from '../../utils/node-transformer.js';
-import { KV_KEY_SUBS, KV_KEY_PROFILES } from '../config.js';
+import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
 import { applyManualNodeName } from '../utils/node-cleaner.js';
 
@@ -19,19 +19,23 @@ import { applyManualNodeName } from '../utils/node-cleaner.js';
 export async function handleProfileMode(request, env, profileId, userAgent, applyTransform = false, skipCertVerify = false) {
     const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
 
-    // 获取订阅组和所有数据
-    const allProfiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-    const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
-
-    // 查找匹配的订阅组
-    const profile = allProfiles.find(p => (p.customId && p.customId === profileId) || p.id === profileId);
+    const profile = typeof storageAdapter.getProfileById === 'function'
+        ? await storageAdapter.getProfileById(profileId)
+        : (await storageAdapter.get(KV_KEY_PROFILES) || []).find(p => (p.customId && p.customId === profileId) || p.id === profileId);
+    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || DEFAULT_SETTINGS;
 
     if (!profile || !profile.enabled) {
         return createJsonResponse({ error: '订阅组不存在或已禁用' }, 404);
     }
 
-    // Create a map for quick lookup
-    const misubMap = new Map(allSubscriptions.map(item => [item.id, item]));
+    const relatedIds = [
+        ...(Array.isArray(profile.subscriptions) ? profile.subscriptions.map(item => typeof item === 'object' ? item.id : item) : []),
+        ...(Array.isArray(profile.manualNodes) ? profile.manualNodes : [])
+    ].filter(Boolean);
+    const relatedSubs = typeof storageAdapter.getSubscriptionsByIds === 'function'
+        ? await storageAdapter.getSubscriptionsByIds(Array.from(new Set(relatedIds)))
+        : await storageAdapter.get(KV_KEY_SUBS) || [];
+    const misubMap = new Map(relatedSubs.map(item => [item.id, item]));
 
     const targetMisubs = [];
 
@@ -101,16 +105,21 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
 
     // 如果需要应用转换规则，则处理节点名称
     let processedNodes = allNodes;
-    if (applyTransform && profile.nodeTransform?.enabled) {
+    const presetNodeTransform = profile.nodeTransformPresetId
+        ? (Array.isArray(settings.nodeTransformPresets) ? settings.nodeTransformPresets.find(item => item?.id === profile.nodeTransformPresetId)?.config : null)
+        : null;
+    const effectiveNodeTransform = profile.nodeTransform?.enabled ? profile.nodeTransform : presetNodeTransform;
+
+    if (applyTransform && effectiveNodeTransform?.enabled) {
         // 提取节点 URL 列表
         const nodeUrls = allNodes.map(node => node.url);
 
         // 应用节点转换管道
         // 使用默认模板 '{emoji}{region}-{protocol}-{index}'，如果用户未自定义模板
         const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
-        const effectiveTemplate = profile.nodeTransform.rename?.template?.template || defaultTemplate;
+        const effectiveTemplate = effectiveNodeTransform.rename?.template?.template || defaultTemplate;
         const transformedUrls = applyNodeTransformPipeline(nodeUrls, {
-            ...profile.nodeTransform,
+            ...effectiveNodeTransform,
             enableEmoji: effectiveTemplate.includes('{emoji}')
         });
 

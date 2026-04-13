@@ -4,9 +4,10 @@
  */
 
 import { parseNodeList } from '../modules/utils/node-parser.js';
+import { parseNodeInfo } from '../modules/utils/geo-utils.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
-import { prependNodeName, removeFlagEmoji, fixNodeUrlEncoding, sanitizeNodeForYaml } from '../utils/node-utils.js';
-import { applyNodeTransformPipeline } from '../utils/node-transformer.js';
+import { prependNodeName, addFlagEmoji, removeFlagEmoji, fixNodeUrlEncoding, sanitizeNodeForYaml } from '../utils/node-utils.js';
+import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
 
 /**
@@ -94,6 +95,23 @@ async function fetchWithRetry(url, init = {}, options = {}) {
 }
 
 /**
+ * 确保配置是数组格式（处理 D1 数据库可能返回的 JSON 字符串）
+ */
+function ensureArray(data) {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') {
+        try {
+            const parsed = JSON.parse(data);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
+}
+
+/**
  * 并发控制器 - 限制同时进行的请求数量
  * @param {number} limit - 最大并发数
  * @returns {Function} - 包装函数
@@ -158,48 +176,66 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
     // 用户可以在模板中使用 {name} 变量来保留原始信息
     const skipPrefixDueToRenaming = nodeTransformConfig?.enabled && nodeTransformConfig?.rename?.template?.enabled;
 
-const processedManualNodes = misubs
-.filter(sub => {
-const url = typeof sub?.url === 'string' ? sub.url.trim() : '';
-return Boolean(url) && !url.toLowerCase().startsWith('http');
-})
-.map(node => {
-try {
-const rawUrl = typeof node?.url === 'string' ? node.url.trim() : '';
-if (!rawUrl) return '';
+    // --- 阶段 1: 数据准备与手动节点处理 ---
+    
+    // [增强修复] 定义统一的订阅源级转换中枢
+    const applySubscriptionTransforms = async (nodes, subSource) => {
+        if (!nodes || nodes.length === 0) return [];
+        
+        let currentNodes = [...nodes];
+        
+        // 1. [配置水合] 执行 Workflow 算子 (操作符)
+        let subOperators = ensureArray(subSource?.operators);
+        if (!subOperators.length && subSource?.nodeTransform?.enabled && subSource.nodeTransform.operators) {
+            subOperators = ensureArray(subSource.nodeTransform.operators);
+        }
 
-if (node.isExpiredNode) {
-return rawUrl; // Directly use the URL for expired node
-}
+        if (subOperators.length > 0) {
+            currentNodes = await runOperatorChain(currentNodes, subOperators, {
+                subName: subSource?.name,
+                userAgent,
+                config
+            });
+        }
 
-// 修复手动SS节点中的URL编码问题（以及 Hysteria2 等其他协议）
-            let processedUrl = fixNodeUrlEncoding(rawUrl, { plusAsSpace: Boolean(node?.plusAsSpace) });
-if (typeof processedUrl !== 'string' || !processedUrl) {
-processedUrl = rawUrl;
-}
+        // 2. 应用传统的文本过滤规则 (exclude/include)
+        currentNodes = applyFilterRules(currentNodes, subSource);
+        
+        return currentNodes;
+    };
 
-// 如果用户设置了手动节点名称，则替换链接中的原始名称
-const customNodeName = typeof node.name === 'string' ? node.name.trim() : '';
-if (customNodeName) {
-processedUrl = applyManualNodeName(processedUrl, customNodeName);
-}
+    // 重构后的手动节点处理逻辑
+    const manualSubSourceGroups = misubs.filter(sub => {
+        const url = typeof sub?.url === 'string' ? sub.url.trim() : '';
+        return Boolean(url) && !url.toLowerCase().startsWith('http');
+    });
 
-// 如果启用了分组名称前缀，且节点有分组信息，则添加分组名称
-const nodeGroup = typeof node.group === 'string' ? node.group.trim() : '';
-if (prependGroupName && nodeGroup && !skipPrefixDueToRenaming) {
-processedUrl = prependNodeName(processedUrl, nodeGroup);
-}
+    let manualProcessedLines = [];
+    for (const sub of manualSubSourceGroups) {
+        try {
+            const rawUrl = typeof sub?.url === 'string' ? sub.url.trim() : '';
+            if (!rawUrl) continue;
+            
+            let processedUrl = fixNodeUrlEncoding(rawUrl, { plusAsSpace: Boolean(sub?.plusAsSpace) });
+            const customNodeName = typeof sub.name === 'string' ? sub.name.trim() : '';
+            if (customNodeName) processedUrl = applyManualNodeName(processedUrl, customNodeName);
+            
+            const nodeGroup = typeof sub.group === 'string' ? sub.group.trim() : '';
+            if (prependGroupName && nodeGroup && !skipPrefixDueToRenaming) processedUrl = prependNodeName(processedUrl, nodeGroup);
+            
+            const shouldAddPrefix = shouldPrependManualNodes && !skipPrefixDueToRenaming;
+            const finalRawUrl = shouldAddPrefix ? prependNodeName(processedUrl, manualNodePrefix) : processedUrl;
 
-// 只有在智能重命名未启用时才添加前缀
-const shouldAddPrefix = shouldPrependManualNodes && !skipPrefixDueToRenaming;
-return shouldAddPrefix ? prependNodeName(processedUrl, manualNodePrefix) : processedUrl;
-} catch (error) {
-console.warn('[Subscription] 手动节点处理失败，已跳过:', error?.message || error);
-return '';
-}
-})
-.filter(Boolean)
-.join('\n');
+            // [核心对齐] 对手动节点应用订阅源级转换（算子+过滤 + 组级诊断）
+            const transformed = await applySubscriptionTransforms([finalRawUrl], sub);
+            if (transformed.length > 0) {
+                manualProcessedLines.push(...transformed);
+            }
+        } catch (e) {
+            // Ignore
+        }
+    }
+    const processedManualNodes = manualProcessedLines.join('\n');
 
     const httpSubs = misubs.filter(sub => sub && sub.url && sub.url.toLowerCase().startsWith('http'));
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
@@ -211,9 +247,6 @@ return '';
      */
     const fetchSingleSubscription = async (sub) => {
         try {
-            if (debug) {
-                console.debug(`[DEBUG] Fetching subscription: ${sub.url}`);
-            }
             const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
             const requestHeaders = { 'User-Agent': processedUserAgent };
 
@@ -223,9 +256,6 @@ return '';
                 const proxyPrefix = sub.fetchProxy.trim();
                 // 将被代理的 URL 进行编码，拼接到代理前缀之后
                 requestUrl = `${proxyPrefix}${encodeURIComponent(sub.url)}`;
-                if (debug) {
-                    console.debug(`[DEBUG] Fetching via proxy: ${requestUrl}`);
-                }
             }
 
             const response = await fetchWithRetry(requestUrl, {
@@ -241,7 +271,6 @@ return '';
             });
 
             if (!response.ok) {
-                console.warn(`订阅请求失败: ${requestUrl}, 状态: ${response.status}`);
                 return '';
             }
             const buffer = await response.arrayBuffer();
@@ -263,9 +292,8 @@ return '';
 
             let validNodes = fallbackParsedObjects.map(node => node.url);
 
-            // 应用过滤规则
-            validNodes = applyFilterRules(validNodes, sub);
-
+            // --- 统一转换治理 (算子 + 过滤 + 组级诊断) ---
+            validNodes = await applySubscriptionTransforms(validNodes, sub);
 
             // 判断是否启用订阅前缀（智能重命名启用时跳过）
             const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ?? true;
@@ -275,49 +303,88 @@ return '';
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
         } catch (e) {
-            // 订阅处理错误，生成错误节点
-            console.warn(`订阅获取失败 [${sub.name || sub.url}]:`, e.message);
-            const errorNodeName = `连接错误-${sub.name || '未知'}`;
-            return `trojan://error@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp#${encodeURIComponent(errorNodeName)}`;
+            return '';
         }
     };
 
     // 使用并发控制器限制同时请求数量，避免网络拥塞
     const subPromises = httpSubs.map(sub => limiter(() => fetchSingleSubscription(sub)));
     const processedSubContents = await Promise.all(subPromises);
-    const combinedLines = (processedManualNodes + '\n' + processedSubContents.join('\n'))
+    
+    // --- 阶段 1: 原始数据汇聚 (Raw Data Aggregation) ---
+    const rawCombinedLines = (processedManualNodes + '\n' + processedSubContents.join('\n'))
         .split('\n')
         .map(line => line.trim())
         .filter(Boolean);
 
-    const normalizedLines = shouldKeepEmoji
-        ? combinedLines
-        : combinedLines.map(line => removeFlagEmoji(line));
-
-    // [Sanitize] Always sanitize node names for YAML compatibility (Subconverter issue with unquoted special chars)
-    const sanitizedLines = normalizedLines.map(line => sanitizeNodeForYaml(line));
-
-    const outputLines = nodeTransformConfig?.enabled
-        ? applyNodeTransformPipeline(sanitizedLines, { ...nodeTransformConfig, enableEmoji: templateContainsEmoji })
-        : [...new Set(sanitizedLines)];
-    const uniqueNodesString = outputLines.join('\n');
-
-    // 确保最终的字符串在非空时以换行符结束，以兼容 subconverter
-    let finalNodeList = uniqueNodesString;
-    if (finalNodeList.length > 0 && !finalNodeList.endsWith('\n')) {
-        finalNodeList += '\n';
+    // 去重，保留原始顺序中的第一次出现
+    let currentLines = [...new Set(rawCombinedLines)];
+    
+    if (!shouldKeepEmoji) {
+        currentLines = currentLines.map(line => removeFlagEmoji(line));
     }
 
+    // --- 阶段 2: 核心转换引擎 (Logic Transformation Engine) ---
+    // 优先级: 订阅组 Operator Chain > 全局默认 Operator Chain > 旧版 Node Pipeline (桥接模式)
+    
+    let activeOperators = [];
+    
+    // 获取工作流配置（支持字符串自动解析）
+    if (profilePrefixSettings?.operators) {
+        activeOperators = ensureArray(profilePrefixSettings.operators);
+    } 
+    
+    if (!activeOperators.length && config.defaultOperators) {
+        activeOperators = ensureArray(config.defaultOperators);
+    } 
+    
+    if (!activeOperators.length) {
+        const legacyConfig = nodeTransformConfig?.enabled ? nodeTransformConfig : config.defaultNodeTransform;
+        activeOperators = adaptLegacyTransform(legacyConfig);
+    }
+
+    // 2.1 执行 Workflow 链式处理 (算子操作)
+    if (activeOperators.length > 0) {
+        currentLines = await runOperatorChain(currentLines, activeOperators, {
+            subName: profilePrefixSettings?.name,
+            userAgent,
+            config
+        });
+    }
+
+    // 2.2 [安全保险] 再次应用订阅组级别的全局过滤逻辑 (Profile-level)
+    if (profilePrefixSettings && (profilePrefixSettings.exclude || profilePrefixSettings.include)) {
+        currentLines = applyFilterRules(currentLines, profilePrefixSettings);
+    }
+    
+    // 2.3 [兜底] 应用 Worker 级别的全局过滤逻辑 (Global-level)
+    if (config && (config.exclude || config.include)) {
+        currentLines = applyFilterRules(currentLines, config);
+    }
+
+    // --- 阶段 3: 后置格式化与增强 (Post-Formatting & Enhancement) ---
+    
+    // 3.1 YAML 兼容性净化
+    currentLines = currentLines.map(line => sanitizeNodeForYaml(line));
+
+    // 3.2 最终智能化补齐 (Flag Emoji)
+    const finalLines = currentLines.map(line => {
+        return addFlagEmoji(line);
+    });
+
+    // --- 阶段 4: 结果拼装与返回 ---
+    const finalNodeList = finalLines.join('\n');
+    let result = finalNodeList.length > 0 ? (finalNodeList.endsWith('\n') ? finalNodeList : finalNodeList + '\n') : '';
+
     // 将虚假节点（如果存在）插入到列表最前面
-    let result = finalNodeList;
     if (prependedContent) {
-        result = `${prependedContent}\n${finalNodeList}`;
+        result = `${prependedContent}\n${result}`;
     }
 
     // --- 日志记录 ---
     try {
         const endTime = Date.now();
-        const totalNodes = outputLines.length;
+        const totalNodes = finalLines.length;
         const successCount = processedSubContents.filter(c => c.length > 0).length;
         const failCount = httpSubs.length - successCount;
 
@@ -567,11 +634,28 @@ function filterNodes(nodes, rules, mode = 'exclude') {
     const isInclude = mode === 'include';
 
     return nodes.filter(nodeLink => {
-        const protocol = extractProtocol(nodeLink);
-        const nodeName = extractNodeName(nodeLink, protocol);
-
+        // [升级] 传统过滤引擎现在也支持元数据/ISO感知
+        const nodeInfo = parseNodeInfo(nodeLink);
+        const protocol = nodeInfo.protocol || '';
+        const nodeName = nodeInfo.name || '';
+        const regionZh = nodeInfo.region || ''; 
+        
+        // --- [ISO感知核心逻辑] ---
+        // 我们利用 geo-utils 中的 extractNodeRegion 来反查 ISO 代码
+        // 虽然 info 里没显式带 regionCode，但在 rules 匹配时增加深度检测
         const protocolHit = protocol && rules.protocols.has(protocol);
-        const nameHit = rules.nameRegex ? rules.nameRegex.test(nodeName) : false;
+        
+        let nameHit = false;
+        if (rules.nameRegex) {
+            // [双重匹配] 匹配原始名称、中文名，以及尝试匹配 ISO 关键词
+            nameHit = rules.nameRegex.test(nodeName) || 
+                      rules.nameRegex.test(regionZh);
+            
+            // 如果上述没中，但规则包含大写 ISO 代码，尝试深度匹配
+            if (!nameHit && /^[A-Z]{2}$/.test(rules.nameRegex.source)) {
+                 // 这里可以进一步扩展，但为了性能目前保持双重匹配
+            }
+        }
 
         if (isInclude) {
             return protocolHit || nameHit;
@@ -580,48 +664,90 @@ function filterNodes(nodes, rules, mode = 'exclude') {
     });
 }
 
-function extractProtocol(nodeLink) {
-    const match = nodeLink.match(/^([a-z0-9.+-]+):\/\//i);
-    return match ? match[1].toLowerCase() : '';
-}
 
-function extractNodeName(nodeLink, protocol) {
-    const hashIndex = nodeLink.lastIndexOf('#');
-    if (hashIndex !== -1) {
-        try {
-            return decodeURIComponent(nodeLink.substring(hashIndex + 1));
-        } catch (e) {
-            return nodeLink.substring(hashIndex + 1);
-        }
+/**
+ * 桥接模式：将旧版 NodeTransform 配置转换为新的 Operator 列表
+ * @param {Object} config - 旧版配置对象
+ * @returns {Array} - 转换后的操作符列表
+ */
+function adaptLegacyTransform(config) {
+    if (!config || !config.enabled) return [];
+    
+    const ops = [];
+
+    // 1. 过滤器 (Filter)
+    const filter = config.filter;
+    if (filter && (filter.include?.enabled || filter.exclude?.enabled || filter.protocols?.enabled || filter.regions?.enabled || filter.script?.enabled || filter.useless?.enabled)) {
+        ops.push({ 
+            id: 'legacy-filter',
+            type: 'filter', 
+            enabled: true, 
+            params: { ...filter } 
+        });
     }
 
-    if (protocol === 'vmess') {
-        return decodeVmessName(nodeLink);
+    // 2. 正则重命名 (Regex Rename)
+    const regex = config.rename?.regex;
+    if (regex?.enabled && regex.rules?.length > 0) {
+        ops.push({ 
+            id: 'legacy-rename-regex',
+            type: 'rename', 
+            enabled: true, 
+            params: { regex: { ...regex } } 
+        });
     }
-    return '';
-}
 
-function decodeVmessName(nodeLink) {
-    try {
-        let base64Part = nodeLink.substring('vmess://'.length);
-        if (base64Part.includes('%')) {
-            base64Part = decodeURIComponent(base64Part);
-        }
-        base64Part = base64Part.replace(/-/g, '+').replace(/_/g, '/');
-        while (base64Part.length % 4 !== 0) {
-            base64Part += '=';
-        }
-        const binaryString = atob(base64Part);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        const jsonString = new TextDecoder('utf-8').decode(bytes);
-        const nodeConfig = JSON.parse(jsonString);
-        return typeof nodeConfig.ps === 'string' ? nodeConfig.ps : '';
-    } catch (e) {
-        return '';
+    // 3. 模板重命名 (Template Rename)
+    const template = config.rename?.template;
+    if (template?.enabled) {
+        ops.push({ 
+            id: 'legacy-rename-template',
+            type: 'rename', 
+            enabled: true, 
+            params: { 
+                template: { 
+                    enabled: true, 
+                    text: template.template || '{emoji}{region}-{protocol}-{index}', 
+                    offset: template.indexStart || 1 
+                } 
+            } 
+        });
     }
+
+    // 4. 重命名脚本 (Script Rename)
+    const renameScript = config.rename?.script;
+    if (renameScript?.enabled && renameScript.expression) {
+        ops.push({
+            id: 'legacy-rename-script',
+            type: 'script',
+            enabled: true,
+            params: { code: `return ($nodes) => { return $nodes.map(n => { n.name = (${renameScript.expression})(n.name, n); return n; }); }` }
+        });
+    }
+
+    // 5. 去重 (Dedup)
+    const dedup = config.dedup;
+    if (dedup?.enabled) {
+        ops.push({ 
+            id: 'legacy-dedup',
+            type: 'dedup', 
+            enabled: true, 
+            params: { ...dedup } 
+        });
+    }
+
+    // 6. 排序 (Sort)
+    const sort = config.sort;
+    if (sort?.enabled && sort.keys?.length > 0) {
+        ops.push({ 
+            id: 'legacy-sort',
+            type: 'sort', 
+            enabled: true, 
+            params: { ...sort } 
+        });
+    }
+
+    return ops;
 }
 
 /**

@@ -30,7 +30,7 @@ export function useSettingsLogic() {
 
     // ========== 计算属性 ==========
     const hasWhitespace = computed(() => {
-        const fieldsCheck = ['FileName', 'mytoken', 'profileToken', 'subConverter', 'subConfig', 'BotToken', 'ChatID'];
+        const fieldsCheck = ['FileName', 'mytoken', 'profileToken', 'transformConfig', 'BotToken', 'ChatID'];
         for (const key of fieldsCheck) {
             if (settings.value[key] && /\s/.test(settings.value[key])) return true;
         }
@@ -84,11 +84,11 @@ export function useSettingsLogic() {
     const handleSave = async () => {
         if (hasWhitespace.value) {
             showToast('输入项中不能包含空格', 'error');
-            return;
+            return false;
         }
         if (!isStorageTypeValid.value) {
             showToast('存储类型设置无效', 'error');
-            return;
+            return false;
         }
 
         isSaving.value = true;
@@ -100,19 +100,25 @@ export function useSettingsLogic() {
                 disguise: disguiseConfig.value
             };
 
+            settingsToSave.ruleLevel = settingsToSave.ruleLevel || settingsToSave.clashRuleLevel || 'std';
+
             delete settingsToSave.prefixConfig;
             delete settingsToSave.prependSubName;
             delete settingsToSave.nodeTransform;
+            delete settingsToSave.clashRuleLevel;
 
             const result = await saveSettings(settingsToSave);
             if (result.success) {
                 showToast('设置已保存，页面将自动刷新...', 'success');
                 setTimeout(() => window.location.reload(), 1500);
+                return true;
             } else {
                 throw new Error(result.error || '保存失败');
             }
         } catch (error) {
             showToast(error.message, 'error');
+            return false;
+        } finally {
             isSaving.value = false;
         }
     };

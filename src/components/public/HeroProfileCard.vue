@@ -1,6 +1,5 @@
 <script setup>
-import { ref, nextTick } from 'vue';
-import QRCode from 'qrcode';
+import QRCodeOverlay from './QRCodeOverlay.vue';
 import BaseIcon from '../ui/BaseIcon.vue';
 
 const props = defineProps({
@@ -8,9 +7,9 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    profileToken: {
-        type: String,
-        default: 'profiles'
+    isQrExpanded: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -18,7 +17,9 @@ const emit = defineEmits([
     'quick-import',
     'preview',
     'copy-link',
-    'toggle-qr'
+    'toggle-qr',
+    'download-qr',
+    'register-canvas'
 ]);
 
 const ICONS = {
@@ -41,8 +42,8 @@ const ICONS = {
                 
                 <!-- 1. Brand / Header Column -->
                 <div class="flex-shrink-0 flex flex-col items-center lg:items-start text-center lg:text-left space-y-4">
-                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 rounded-full text-xs font-bold tracking-wide uppercase">
-                        <span>✨ Featured</span>
+                    <div class="inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-700 dark:bg-primary-500/20 dark:text-primary-300">
+                        <span>精选推荐</span>
                     </div>
                     
                     <div class="flex items-center gap-4">
@@ -53,10 +54,6 @@ const ICONS = {
                              <h3 class="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
                                 {{ profile.name }}
                             </h3>
-                             <div class="flex items-center gap-1 mt-1">
-                                <span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Online & Stable</span>
-                             </div>
                         </div>
                     </div>
                 </div>
@@ -64,31 +61,26 @@ const ICONS = {
                 <!-- 2. Description Column (Middle) -->
                 <div class="flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-white/5 pt-6 lg:pt-0 lg:pl-12 w-full lg:w-auto text-center lg:text-left">
                     <p class="text-gray-600 dark:text-gray-400 text-base leading-relaxed max-w-2xl mx-auto lg:mx-0">
-                        {{ profile.description || 'This subscription group provides high-speed, stable nodes optimized for various network environments. Ideal for streaming, gaming, and secure browsing.' }}
+                        {{ profile.description || '该订阅组由管理员维护，可用于快速预览节点并一键导入到客户端。' }}
                     </p>
-                    <div class="mt-4 flex flex-wrap justify-center lg:justify-start gap-2">
-                         <span class="px-2 py-1 bg-gray-100 dark:bg-white/5 rounded text-xs text-gray-500 dark:text-gray-400">#HighSpeed</span>
-                         <span class="px-2 py-1 bg-gray-100 dark:bg-white/5 rounded text-xs text-gray-500 dark:text-gray-400">#LowLatency</span>
-                         <span class="px-2 py-1 bg-gray-100 dark:bg-white/5 rounded text-xs text-gray-500 dark:text-gray-400">#Secure</span>
-                    </div>
                 </div>
 
                 <!-- 3. Action Column (Right) -->
                 <div class="flex-shrink-0 w-full lg:w-auto flex flex-col gap-3 min-w-[200px]">
                     <button @click="emit('quick-import', profile)"
-                        class="w-full flex items-center justify-center px-6 py-3.5 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 font-bold misub-radius-lg shadow-xl transition-transform active:scale-95 group">
-                        <BaseIcon :path="ICONS.import" className="w-5 h-5 mr-2 group-hover:animate-bounce" />
+                        class="group flex w-full items-center justify-center rounded-lg bg-primary-600 px-6 py-3.5 font-semibold text-white transition-colors hover:bg-primary-700">
+                        <BaseIcon :path="ICONS.import" className="mr-2 w-5 h-5" />
                         一键导入
                     </button>
                     
                     <div class="grid grid-cols-2 gap-3">
                         <button @click="emit('preview', profile)"
-                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium misub-radius-lg transition-colors text-sm">
+                            class="flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10">
                             <BaseIcon :path="ICONS.preview" className="w-4 h-4 mr-1" />
                             预览
                         </button>
                          <button @click="emit('copy-link', profile)"
-                            class="flex items-center justify-center px-4 py-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 font-medium misub-radius-lg transition-colors text-sm">
+                            class="flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10">
                             <BaseIcon :path="ICONS.link" className="w-4 h-4 mr-1" />
                             复制
                         </button>
@@ -96,11 +88,19 @@ const ICONS = {
 
                     <button @click="emit('toggle-qr', profile)" class="mt-1 flex items-center justify-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-primary-500 transition-colors w-full bg-transparent border-0">
                         <BaseIcon :path="ICONS.qr" className="w-4 h-4" />
-                        <span>显示二维码</span>
+                        <span>{{ isQrExpanded ? '隐藏二维码' : '显示二维码' }}</span>
                     </button>
                 </div>
 
             </div>
+
+            <QRCodeOverlay
+                :profile="profile"
+                :is-expanded="isQrExpanded"
+                @close="emit('toggle-qr', profile)"
+                @download="emit('download-qr', profile)"
+                @register-canvas="(id, el) => emit('register-canvas', id, el)"
+            />
         </div>
     </div>
 </template>

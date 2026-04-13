@@ -27,6 +27,7 @@ const LEGACY_CLIENT_ICONS = {
     'nekobox': '🐱',
     'stash': '📦',
     'loon': '🎈',
+    'egern': '🪺',
     'surge': '⚡️',
     'flclash': '🦋',
     'clashmi': 'Ⓜ️',
@@ -46,6 +47,7 @@ const LEGACY_ICON_ALIASES = {
     '/icons/clients/nekobox.png': '/icons/clients/nekobox.svg',
     '/icons/clients/stash.jpg': '/icons/clients/stash.svg',
     '/icons/clients/loon.jpg': '/icons/clients/loon.svg',
+    '/icons/clients/egern.png': '/icons/clients/egern.svg',
     '/icons/clients/surge.jpg': '/icons/clients/surge.svg',
     '/icons/clients/flclash.png': '/icons/clients/flclash.svg',
     '/icons/clients/clashmi.png': '/icons/clients/clashmi.svg',
@@ -143,6 +145,16 @@ const DEFAULT_CLIENTS = [
         description: 'iOS 平台功能强大的网络工具，界面简洁优雅，支持插件扩展。',
         platforms: ['ios', 'macos'],
         url: 'https://apps.apple.com/us/app/loon/id1373567447',
+        repo: null,
+        version: null
+    },
+    {
+        id: 'egern',
+        name: 'Egern',
+        icon: '/icons/clients/egern.svg',
+        description: 'iOS 平台的规则代理客户端，支持通过订阅链接快速导入配置。',
+        platforms: ['ios'],
+        url: 'https://apps.apple.com/us/app/egern/id1616105820',
         repo: null,
         version: null
     },

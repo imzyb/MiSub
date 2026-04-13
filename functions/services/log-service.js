@@ -4,6 +4,8 @@
  */
 
 const LOG_KV_KEY = 'misub_system_logs';
+const LOG_INDEX_KV_KEY = 'misub_system_logs:index';
+const LOG_BUCKET_PREFIX = 'misub_system_logs:';
 const MAX_LOG_ENTRIES = 200;
 const MAX_LOG_AGE_DAYS = 30;
 const MAX_LOG_AGE_MS = MAX_LOG_AGE_DAYS * 24 * 60 * 60 * 1000;
@@ -13,6 +15,25 @@ const MAX_PERSISTED_LOGS_PER_MINUTE = 12;
 
 function getKV(env) {
     return env?.MISUB_KV || null;
+}
+
+function getLogBucketKey(timestamp) {
+    const date = new Date(timestamp);
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    return `${LOG_BUCKET_PREFIX}${yyyy}-${mm}-${dd}`;
+}
+
+async function getLogBucketIndex(kv) {
+    const raw = await kv.get(LOG_INDEX_KV_KEY);
+    const index = raw ? JSON.parse(raw) : null;
+    return Array.isArray(index) ? index : [];
+}
+
+async function saveLogBucketIndex(kv, keys) {
+    const unique = Array.from(new Set(keys)).sort().reverse();
+    await kv.put(LOG_INDEX_KV_KEY, JSON.stringify(unique.slice(0, MAX_LOG_AGE_DAYS + 2)));
 }
 // 全局内存队列，用于削峰填谷和防写竞争
 let logBatch = [];
@@ -111,25 +132,38 @@ export const LogService = {
         logBatch = [];
 
         try {
-            // 获取现有日志
             const kv = getKV(env);
-            let logs = await kv.get(LOG_KV_KEY).then(r => r ? JSON.parse(r) : null) || [];
+            const now = Date.now();
+            const bucketKey = getLogBucketKey(now);
+            let logs = await kv.get(bucketKey).then(r => r ? JSON.parse(r) : null) || [];
             if (!Array.isArray(logs)) logs = [];
 
             // 把新收集到的一批日志插入到头部 (倒序输入保证时间线不乱)
             logs.unshift(...batchToFlush.reverse());
 
             // 1. 过滤过期日志 (30天)
-            const now = Date.now();
             logs = logs.filter(log => (now - log.timestamp) <= MAX_LOG_AGE_MS);
 
-            // 2. 限制数量 (500条)
-            if (logs.length > MAX_LOG_ENTRIES) {
-                logs = logs.slice(0, MAX_LOG_ENTRIES);
+            // 2. 单桶限制数量，避免单 key 无限增长
+            const perBucketLimit = Math.max(MAX_LOG_ENTRIES, 100);
+            if (logs.length > perBucketLimit) {
+                logs = logs.slice(0, perBucketLimit);
             }
 
-            // 保存回 KV
-            await kv.put(LOG_KV_KEY, JSON.stringify(logs));
+            await kv.put(bucketKey, JSON.stringify(logs));
+
+            const bucketIndex = await getLogBucketIndex(kv);
+            if (!bucketIndex.includes(bucketKey)) {
+                bucketIndex.push(bucketKey);
+            }
+
+            const validBucketKeys = bucketIndex.filter(key => {
+                const suffix = key.replace(LOG_BUCKET_PREFIX, '');
+                const bucketTime = Date.parse(`${suffix}T00:00:00Z`);
+                return !Number.isNaN(bucketTime) && (now - bucketTime) <= (MAX_LOG_AGE_MS + 24 * 60 * 60 * 1000);
+            });
+
+            await saveLogBucketIndex(kv, validBucketKeys);
         } catch (error) {
             console.error('[LogService] Failed to flush batch logs:', error);
             // 写入失败时尝试把日志塞回队列前部
@@ -153,9 +187,22 @@ export const LogService = {
         const kv = getKV(env);
         if (!kv) return [];
         try {
-            const raw = await kv.get(LOG_KV_KEY);
-            const logs = raw ? JSON.parse(raw) : null;
-            return Array.isArray(logs) ? logs : [];
+            const [bucketIndex, legacyRaw] = await Promise.all([
+                getLogBucketIndex(kv),
+                kv.get(LOG_KV_KEY)
+            ]);
+
+            const bucketEntries = await Promise.all(
+                bucketIndex.map(key => kv.get(key).then(raw => raw ? JSON.parse(raw) : []).catch(() => []))
+            );
+
+            const legacyLogs = legacyRaw ? JSON.parse(legacyRaw) : null;
+            const logs = [...bucketEntries.flat(), ...(Array.isArray(legacyLogs) ? legacyLogs : [])]
+                .filter(log => (Date.now() - log.timestamp) <= MAX_LOG_AGE_MS)
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, MAX_LOG_ENTRIES);
+
+            return logs;
         } catch (error) {
             console.error('[LogService] Failed to get logs:', error);
             return [];
@@ -170,7 +217,12 @@ export const LogService = {
         const kv = getKV(env);
         if (!kv) return;
         try {
-            await kv.delete(LOG_KV_KEY);
+            const bucketIndex = await getLogBucketIndex(kv);
+            await Promise.all([
+                kv.delete(LOG_KV_KEY),
+                kv.delete(LOG_INDEX_KV_KEY),
+                ...bucketIndex.map(key => kv.delete(key))
+            ]);
             return true;
         } catch (error) {
             console.error('[LogService] Failed to clear logs:', error);

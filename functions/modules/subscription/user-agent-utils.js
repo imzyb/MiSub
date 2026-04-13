@@ -15,7 +15,7 @@ export function isBrowserAgent(userAgent) {
     // [Updated] Explicitly added: Firefox, Via, UCBrowser, Quark, MQQBrowser (QQ), Konqueror
     const isBrowser = /Mozilla|Chrome|Safari|Edge|Opera|Firefox|Via|UCBrowser|Quark|MQQBrowser|Konqueror/i.test(userAgent);
     // Common proxy client keywords to exclude
-    const isProxyClient = /clash|v2ray|surge|loon|shadowrocket|quantumult|stash|shadowsocks|mihomo|meta|nekobox|nekoray|sfi|sfa|sfra/i.test(userAgent);
+    const isProxyClient = /clash|v2ray|surge|loon|shadowrocket|quantumult|stash|shadowsocks|mihomo|meta|nekobox|nekoray|sfi|sfa|sfra|sing-box|surfboard|hiddify|egern/i.test(userAgent);
 
     return isBrowser && !isProxyClient;
 }
@@ -30,7 +30,7 @@ export function determineTargetFormat(userAgent, searchParams) {
     // 1. Check URL parameters first
     let targetFormat = searchParams.get('target');
     if (!targetFormat) {
-        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan', 'quanx'];
+        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan', 'quanx', 'egern'];
         for (const format of supportedFormats) {
             if (searchParams.has(format)) {
                 // Normalize v2ray/trojan to base64 as they share the output format
@@ -43,7 +43,7 @@ export function determineTargetFormat(userAgent, searchParams) {
     if (targetFormat) {
         const normalizedTarget = targetFormat.toLowerCase();
         if (normalizedTarget === 'singbox' || normalizedTarget === 'sing-box') {
-            return 'base64';
+            return 'singbox';
         }
         if (normalizedTarget === 'surge') {
             const ver = searchParams.get('ver');
@@ -88,8 +88,14 @@ export function determineTargetFormat(userAgent, searchParams) {
         // Other Clients
         ['stash', 'clash'],
         ['nekoray', 'clash'],
-        ['sing-box', 'base64'],
-        ['singbox', 'base64'],
+        ['nekobox', 'clash'],
+        ['surfboard', 'clash'],
+        ['cfw', 'clash'],
+        ['clashforwindows', 'clash'],
+        ['egern', 'egern'],
+        ['sing-box', 'singbox'],
+        ['singbox', 'singbox'],
+        ['hiddify', 'singbox'],
         ['shadowrocket', 'base64'],
         ['v2rayn', 'base64'],
         ['v2rayng', 'base64'],

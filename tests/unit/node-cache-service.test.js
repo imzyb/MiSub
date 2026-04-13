@@ -29,11 +29,11 @@ describe('node-cache-service', () => {
     });
 
     it('returns stale/expired based on age', async () => {
-        const { STALE_TTL, MAX_AGE } = getCacheConfig();
+        const { FRESH_TTL, STALE_TTL, MAX_AGE } = getCacheConfig();
         const now = Date.now();
 
         const storage = createStorage({
-            stale: { nodes: 'a', timestamp: now - 1000, nodeCount: 1, sources: [] },
+            stale: { nodes: 'a', timestamp: now - (FRESH_TTL + 1000), nodeCount: 1, sources: [] },
             expired: { nodes: 'b', timestamp: now - (STALE_TTL + 1000), nodeCount: 2, sources: [] },
             miss: { nodes: 'c', timestamp: now - (MAX_AGE + 1000), nodeCount: 3, sources: [] }
         });

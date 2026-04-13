@@ -8,9 +8,6 @@ export const KV_KEY_SUBS = 'misub_subscriptions_v1';
 export const KV_KEY_PROFILES = 'misub_profiles_v1';
 export const KV_KEY_GUESTBOOK = 'misub_guestbook_v1';
 export const KV_KEY_SETTINGS = 'worker_settings_v1';
-export const KV_KEY_VPS_NODES = 'misub_vps_nodes_v1';
-export const KV_KEY_VPS_REPORTS = 'misub_vps_reports_v1';
-export const KV_KEY_VPS_ALERTS = 'misub_vps_alerts_v1';
 
 // Auth
 export const COOKIE_NAME = 'auth_session';
@@ -21,10 +18,11 @@ export const DEFAULT_SETTINGS = {
     FileName: 'MiSub',
     mytoken: 'auto',
     profileToken: 'profiles',
-    subConverter: 'url.v1.mk',
-    subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
-    subConverterScv: false,
-    subConverterUdp: false,
+    transformConfigMode: 'builtin',
+    transformConfig: '',
+    ruleLevel: 'std',
+    builtinSkipCertVerify: false,
+    builtinEnableUdp: false,
     builtinLoonSkipCertVerify: false,
     enableAccessLog: false,
     accessLogPersistenceMode: 'light',
@@ -39,18 +37,28 @@ export const DEFAULT_SETTINGS = {
     enableTrafficMonitor: true,        // 启用流量监控
     enableTemplateEngine: true,        // 启用模板引擎
     enableEnhancedLogging: true,       // 启用增强日志
-    ignoreFailedSubscriptions: false,  // 忽略失败的订阅（Sub-Store特性）
     maxSubscriptionConcurrency: 3,     // 最大订阅并发数
-    defaultUserAgent: 'clash-meta/2.4.0', // 默认User-Agent
+    defaultUserAgent: 'clash-meta/2.5.0', // 默认User-Agent
     defaultPrefixSettings: {
         enableManualNodes: true,
         enableSubscriptions: true,
         manualNodePrefix: '手动节点'
     },
+    defaultOperators: [], // 新版操作符链式处理 (New Unified Pipeline)
+    // @deprecated 使用 defaultOperators 代替
     defaultNodeTransform: {
         enabled: false,
+        filter: {
+            include: { enabled: false, rules: [] },
+            exclude: { enabled: false, rules: [] },
+            protocols: { enabled: false, values: [] },
+            regions: { enabled: false, values: [] },
+            script: { enabled: false, expression: '' },
+            useless: { enabled: false }
+        },
         rename: {
             regex: { enabled: false, rules: [] },
+            script: { enabled: false, expression: '' },
             template: {
                 enabled: false,
                 template: '{emoji}{region}-{protocol}-{index}',
@@ -77,6 +85,7 @@ export const DEFAULT_SETTINGS = {
             ]
         }
     },
+    nodeTransformPresets: [],
     // 公告设置
     announcement: {
         enabled: false,
@@ -90,50 +99,12 @@ export const DEFAULT_SETTINGS = {
     guestbook: {
         enabled: false,           // 总开关
         allowAnonymous: true      // 是否允许匿名
-    },
-    vpsMonitor: {
-        enabled: true,
-        requireSecret: true,
-        requireSignature: false,
-        signatureClockSkewMinutes: 5,
-        offlineThresholdMinutes: 10,
-        cpuWarnPercent: 90,
-        memWarnPercent: 90,
-        diskWarnPercent: 90,
-        overloadConfirmCount: 2,
-        alertCooldownMinutes: 15,
-        networkSampleIntervalMinutes: 10,
-        reportIntervalMinutes: 5,
-        reportStoreIntervalMinutes: 15,
-        networkTargetsLimit: 2,
-        publicPageEnabled: false,
-        publicPageToken: '',
-        publicThemePreset: 'default',
-        publicThemeTitle: 'VPS 探针公开视图',
-        publicThemeSubtitle: '对外展示节点健康、资源负载与在线率。所有关键指标以清晰、可信的方式汇总呈现。',
-        publicThemeLogo: '',
-        publicThemeBackgroundImage: '',
-        publicThemeShowStats: true,
-        publicThemeShowAnomalies: true,
-        publicThemeShowFeatured: true,
-        publicThemeShowDetailTable: true,
-        publicThemeFooterText: '由 MiSub VPS 监控引擎提供实时数据驱动',
-        publicPageShowHeader: true,
-        publicPageShowFooter: true,
-        publicThemeSectionOrder: ['anomalies', 'nodes', 'featured', 'details'],
-        publicThemeCustomCss: '',
-        alertsEnabled: true,
-        notifyOffline: true,
-        notifyRecovery: true,
-        notifyOverload: true,
-        reportRetentionDays: 30,
-        cooldownIgnoreRecovery: true
     }
 };
 
 // System constants
 export const SYSTEM_CONSTANTS = {
-    VERSION: '2.0.0-modular-v2',
+    VERSION: '2.5.0',
     // Use v2rayN UA to fetch subscriptions reliably.
     FETCHER_USER_AGENT: 'v2rayN/7.23'
 };
