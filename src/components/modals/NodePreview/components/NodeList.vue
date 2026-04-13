@@ -18,10 +18,19 @@ const props = defineProps({
   getProtocolStyle: {
     type: Function,
     required: true
+  },
+  // [New] Selection Mode Props
+  selectionMode: {
+    type: Boolean,
+    default: false
+  },
+  selectedUrls: {
+    type: Set,
+    default: () => new Set()
   }
 });
 
-const emit = defineEmits(['copy']);
+const emit = defineEmits(['copy', 'toggle-select']);
 
 const nodesRef = computed(() => props.nodes);
 const containerHeight = 500;
@@ -33,17 +42,24 @@ const { containerRef, visibleItems, totalHeight, offsetY } = useVirtualScroll({
   containerHeight,
   overscan: 10
 });
+
+const handleRowClick = (node) => {
+  if (props.selectionMode) {
+    emit('toggle-select', node.url);
+  }
+};
 </script>
 
 <template>
-  <div class="hidden lg:flex flex-1 overflow-hidden">
-    <div ref="containerRef" class="h-full overflow-y-auto">
-      <div class="w-full flex justify-center px-6">
-        <div style="width: 950px;">
+  <div class="hidden lg:flex flex-1 overflow-hidden rounded-xl border border-gray-200/70 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+    <div ref="containerRef" class="h-full overflow-y-auto w-full">
+      <div class="w-full px-4 py-3">
+        <div class="w-full overflow-hidden rounded-xl border border-gray-200/70 dark:border-white/10">
           <!-- 表头 -->
-          <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <div class="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-gray-600 dark:text-gray-400 min-h-[3rem] flex items-center" style="width: 950px;">
-              <div class="col-span-4">节点名称</div>
+          <div class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+            <div class="grid min-h-[3rem] grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-gray-600 dark:text-gray-400">
+              <div v-if="selectionMode" class="col-span-1 flex justify-center">选中</div>
+              <div :class="selectionMode ? 'col-span-3' : 'col-span-4'">节点名称</div>
               <div class="col-span-3 hidden sm:block">服务器</div>
               <div class="col-span-2 hidden md:block text-center">端口</div>
               <div class="col-span-1 hidden sm:block">类型</div>
@@ -53,16 +69,28 @@ const { containerRef, visibleItems, totalHeight, offsetY } = useVirtualScroll({
           </div>
 
           <!-- 数据行 - 虚拟滚动 -->
-          <div class="bg-white dark:bg-gray-800" :style="{ height: totalHeight + 'px', width: '950px', position: 'relative' }">
+          <div class="bg-white dark:bg-gray-800" :style="{ height: totalHeight + 'px', position: 'relative' }">
             <div :style="{ transform: `translateY(${offsetY}px)` }">
               <div
                 v-for="node in visibleItems.items"
                 :key="`${node.url}_${node._virtualIndex}`"
+                @click="handleRowClick(node)"
                 class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                :class="{ 'bg-indigo-50/50 dark:bg-indigo-900/10': selectionMode && selectedUrls.has(node.url), 'cursor-pointer': selectionMode }"
               >
-                <div class="grid grid-cols-12 gap-2 px-4 py-3 items-center min-h-[3rem]" style="width: 950px;">
+                <div class="grid min-h-[3rem] grid-cols-12 gap-2 px-4 py-3 items-center">
+                  <!-- Checkbox (Selection Mode Only) -->
+                  <div v-if="selectionMode" class="col-span-1 flex justify-center">
+                    <div class="w-4 h-4 rounded border flex items-center justify-center transition-all"
+                      :class="selectedUrls.has(node.url) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-600'">
+                      <svg v-if="selectedUrls.has(node.url)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+
                   <!-- 节点名称 -->
-                  <div class="col-span-4">
+                  <div :class="selectionMode ? 'col-span-3' : 'col-span-4'">
                     <span class="text-sm text-gray-900 dark:text-white block overflow-hidden" :title="parseNodeInfo(node).name" style="text-overflow: ellipsis; white-space: nowrap;">
                       {{ parseNodeInfo(node).name }}
                     </span>
@@ -103,26 +131,15 @@ const { containerRef, visibleItems, totalHeight, offsetY } = useVirtualScroll({
                   <!-- 操作 (所有设备) -->
                   <div class="col-span-1 flex justify-center">
                     <button
-                      @click="emit('copy', node, node.url)"
+                      v-if="!selectionMode"
+                      @click.stop="emit('copy', node, node.url)"
                       class="inline-flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-all duration-150"
                       :class="{ 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20': copiedNodeId === node.url }"
                     >
-                      <svg
-                        v-if="copiedNodeId !== node.url"
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                      <svg v-if="copiedNodeId !== node.url" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
-                      <svg
-                        v-else
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                      <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                       </svg>
                     </button>

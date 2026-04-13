@@ -36,21 +36,21 @@ const handleConfirm = () => {
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-          批量导入
-        </h3>
+        <div>
+          <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+            批量导入
+          </h3>
+          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">支持一次导入订阅链接或分享节点，并可统一分配到指定分组。</p>
+        </div>
       </div>
     </template>
     
     <template #body>
-      <div class="space-y-5">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-           每行一个订阅链接或分享节点。将自动识别节点名称。
-        </p>
+      <div class="space-y-6">
       
         <!-- Group Selector -->
         <div class="relative">
-          <div class="flex flex-col">
+          <div class="flex flex-col gap-1.5">
             <label for="import-group" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
               自动分配分组 (可选)
             </label>
@@ -89,6 +89,7 @@ const handleConfirm = () => {
             <!-- Focus Glow -->
             <div class="absolute inset-0 misub-radius-lg pointer-events-none transition-opacity duration-300 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
           </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400">每行一个链接。系统会自动识别协议类型，并尽量提取节点名称。</p>
         </div>
       </div>
     </template>

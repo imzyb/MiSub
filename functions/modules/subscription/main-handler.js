@@ -1,19 +1,87 @@
 import { StorageFactory } from '../../storage-adapter.js';
-import { migrateConfigSettings, formatBytes, getCallbackToken, getPublicBaseUrl, migrateProfileIds } from '../utils.js';
+import { migrateConfigSettings, formatBytes, migrateProfileIds } from '../utils.js';
 import { generateCombinedNodeList } from '../../services/subscription-service.js';
 import { sendEnhancedTgNotification } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
 import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
 import { resolveRequestContext } from './request-context.js';
-import { buildSubconverterUrlVariants, getSubconverterCandidates, fetchFromSubconverter } from './subconverter-client.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
-import { logAccessError, logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
+import { ProcessorService } from '../../services/processor-service.js';
+import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
 import { isBrowserAgent, determineTargetFormat } from './user-agent-utils.js'; // [Added] Import centralized util
 import { authMiddleware } from '../auth-middleware.js';
-import { generateBuiltinClashConfig } from './builtin-clash-generator.js'; // [Added] 内置 Clash 生成器
-import { generateBuiltinSurgeConfig } from './builtin-surge-generator.js'; // [Added] 内置 Surge 生成器
-import { generateBuiltinLoonConfig } from './builtin-loon-generator.js'; // [Added] 内置 Loon 生成器
+import { transformBuiltinSubscription } from './transformer-factory.js';
+import { fetchTransformTemplate } from './transform-template-cache.js';
+import { buildTransformTemplateContext, renderTransformTemplate } from './transform-template-renderer.js';
+import { groupNodeLinesByRegion } from './region-groups.js';
+import { groupNodeLinesByProtocol } from './protocol-groups.js';
+import { shouldApplyExternalTemplateForTarget } from './template-compatibility.js';
+import { renderClashFromIniTemplate, renderLoonFromIniTemplate, renderQuanxFromIniTemplate, renderSingboxFromIniTemplate, renderSurgeFromIniTemplate } from './template-pipeline.js';
+import { getBuiltinTemplate } from './builtin-template-registry.js';
+
+const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
+
+function getProfileDownloadCountKey(profile) {
+    return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
+}
+
+function buildTemplateProxyBlock(nodeList) {
+    return nodeList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'))
+        .join('\n');
+}
+
+function extractProxySectionFromBuiltin(content, targetFormat) {
+    if (typeof content !== 'string' || content.trim() === '') return '';
+
+    if (targetFormat === 'clash') {
+        const match = content.match(/proxies:\s*\n([\s\S]*?)\n\nproxy-groups:/i);
+        return match ? match[1].trim() : '';
+    }
+
+    if (targetFormat.startsWith('surge') || targetFormat === 'loon' || targetFormat === 'quanx') {
+        const match = content.match(/\[Proxy\]\s*\n([\s\S]*?)(?:\n\n\[|$)/i);
+        if (!match) return '';
+        return match[1]
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !/^DIRECT\s*=\s*direct$/i.test(line))
+            .join('\n');
+    }
+
+    return '';
+}
+
+export function buildManagedConfigUrl(requestUrl) {
+    const managedUrl = new URL(requestUrl);
+    managedUrl.searchParams.delete('refresh');
+    managedUrl.searchParams.delete('nocache');
+    return managedUrl.toString();
+}
+
+export function resolveTemplateUrl(mode, value, fallbackUrl = '') {
+    const normalizedMode = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+    const normalizedValue = typeof value === 'string' ? value.trim() : '';
+    const normalizedFallback = typeof fallbackUrl === 'string' ? fallbackUrl.trim() : '';
+
+    if (normalizedMode === 'builtin') return '';
+    if (normalizedMode === 'global') return normalizedFallback;
+    if (normalizedMode === 'preset' || normalizedMode === 'custom') return normalizedValue;
+
+    return normalizedValue;
+}
+
+export function resolveTemplateSource(value) {
+    const normalizedValue = typeof value === 'string' ? value.trim() : '';
+    if (!normalizedValue) return { kind: 'none', value: '' };
+    if (normalizedValue.startsWith('builtin:')) {
+        return { kind: 'builtin', value: normalizedValue.slice('builtin:'.length) };
+    }
+    return { kind: 'remote', value: normalizedValue };
+}
 
 /**
  * 处理MiSub订阅请求
@@ -63,6 +131,7 @@ export async function handleMisubRequest(context) {
         return createDisguiseResponse(config.disguise, request.url);
     }
 
+    context.url = url; // [核心修复] 将 url 挂载到 context，确保后续服务能获取到 debug 参数
     const { token, profileIdentifier } = resolveRequestContext(url, config, allProfiles);
 
     console.log(`[MiSub Parse] Token: ${token}, Profile: ${profileIdentifier}`);
@@ -70,10 +139,7 @@ export async function handleMisubRequest(context) {
 
     let targetMisubs;
     let subName = config.FileName;
-    let effectiveSubConverter;
-    let effectiveSubConfig;
     let isProfileExpired = false; // Moved declaration here
-    let shouldUseEmoji = false;   // 是否在 subconverter 请求中启用 emoji
 
     const DEFAULT_EXPIRED_NODE = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('您的订阅已失效')}`;
 
@@ -99,15 +165,27 @@ export async function handleMisubRequest(context) {
             } else {
                 subName = profile.name;
                 targetMisubs = [];
-                // Create a map for quick lookup
-                const misubMap = new Map(allMisubs.map(item => [item.id, item]));
+                const relatedIds = [
+                    ...(Array.isArray(profile.subscriptions) ? profile.subscriptions.map(item => typeof item === 'object' ? item.id : item) : []),
+                    ...(Array.isArray(profile.manualNodes) ? profile.manualNodes : [])
+                ].filter(Boolean);
+                const relatedSubs = typeof storageAdapter.getSubscriptionsByIds === 'function'
+                    ? await storageAdapter.getSubscriptionsByIds(Array.from(new Set(relatedIds)))
+                    : allMisubs;
+                const misubMap = new Map(relatedSubs.map(item => [item.id, item]));
 
                 // 1. Add subscriptions in order defined by profile
                 const profileSubIds = profile.subscriptions || [];
                 if (Array.isArray(profileSubIds)) {
-                    profileSubIds.forEach(id => {
-                        const sub = misubMap.get(id);
-                        if (sub && sub.enabled && typeof sub.url === 'string' && sub.url.startsWith('http')) {
+                    profileSubIds.forEach(item => {
+                        // 支持两种格式：纯字符串 ID 或 带有覆盖配置的对象 { id, exclude, operators, ... }
+                        const isObject = item && typeof item === 'object';
+                        const id = isObject ? item.id : item;
+                        
+                        const baseSub = misubMap.get(id);
+                        if (baseSub && baseSub.enabled && typeof baseSub.url === 'string' && baseSub.url.startsWith('http')) {
+                            // 如果是对象，则合并覆盖配置（Profile 级别的设置优先级更高）
+                            const sub = isObject ? { ...baseSub, ...item } : baseSub;
                             targetMisubs.push(sub);
                         }
                     });
@@ -124,47 +202,15 @@ export async function handleMisubRequest(context) {
                     });
                 }
             }
-            effectiveSubConverter = profile.subConverter && profile.subConverter.trim() !== '' ? profile.subConverter : config.subConverter;
-            effectiveSubConfig = profile.subConfig && profile.subConfig.trim() !== '' ? profile.subConfig : config.subConfig;
-
-            // 判断是否需要在 subconverter 中启用 emoji：使用回退逻辑（订阅组 > 全局 > 默认）
-            const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
-            const globalNodeTransform = config.defaultNodeTransform || {};
-            const profileNodeTransform = profile.nodeTransform ?? null;
-            const hasProfileNodeTransform =
-                profileNodeTransform && Object.keys(profileNodeTransform).length > 0;
-
-            // 确定有效的 nodeTransform 配置（全局 vs 订阅组完整覆盖）
-            const effectiveTransform = hasProfileNodeTransform
-                ? profileNodeTransform
-                : globalNodeTransform;
-
-            const userTemplate = effectiveTransform?.rename?.template?.template || defaultTemplate;
-            const templateEnabled = effectiveTransform?.enabled && effectiveTransform?.rename?.template?.enabled;
-            shouldUseEmoji = templateEnabled && userTemplate.includes('{emoji}');
-
             // [新增] 增加订阅组下载计数
             // 仅在非回调请求时及非内部请求时增加计数(避免重复计数)
             // 且仅当开启访问日志时才计数
             if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
                 try {
-                    // 初始化下载计数(如果不存在)
-                    if (typeof profile.downloadCount !== 'number') {
-                        profile.downloadCount = 0;
-                    }
-                    // 增加计数
-                    profile.downloadCount += 1;
-
-                    // 更新存储中的订阅组数据
-                    const updatedProfiles = allProfiles.map(p =>
-                        ((p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier)
-                            ? profile
-                            : p
-                    );
-
-                    // 异步保存,不阻塞响应
+                    const downloadCountKey = getProfileDownloadCountKey(profile);
+                    const currentCount = Number(await storageAdapter.get(downloadCountKey)) || 0;
                     context.waitUntil(
-                        storageAdapter.put(KV_KEY_PROFILES, updatedProfiles)
+                        storageAdapter.put(downloadCountKey, currentCount + 1)
                             .catch(err => console.error('[Download Count] Failed to update:', err))
                     );
 
@@ -182,18 +228,10 @@ export async function handleMisubRequest(context) {
             return new Response('Invalid Token', { status: 403 });
         }
         targetMisubs = allMisubs.filter(s => s.enabled);
-        // [修正] 使用 config 變量
-        effectiveSubConverter = config.subConverter;
-        effectiveSubConfig = config.subConfig;
     }
 
-    if (!effectiveSubConverter || effectiveSubConverter.trim() === '') {
-        return new Response('Subconverter backend is not configured.', { status: 500 });
-    }
-
-    const shouldSkipCertificateVerify = Boolean(config.subConverterScv);
-    const shouldSkipCertificateVerifyLoon = config.builtinLoonSkipCertVerify === true;
-    const shouldEnableUdp = Boolean(config.subConverterUdp);
+    const shouldSkipCertificateVerify = Boolean(config.builtinSkipCertVerify);
+    const shouldEnableUdp = Boolean(config.builtinEnableUdp);
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
     let targetFormat = determineTargetFormat(userAgentHeader, url.searchParams);
@@ -234,7 +272,7 @@ export async function handleMisubRequest(context) {
     );
 
     // 检查是否强制刷新（通过 URL 参数）
-    const forceRefresh = url.searchParams.has('refresh') || url.searchParams.has('nocache');
+    const forceRefresh = url.searchParams.has('refresh') || url.searchParams.has('nocache') || url.searchParams.has('debug');
 
     // 定义刷新函数（用于后台刷新）
     const refreshNodes = async (isBackground = false) => {
@@ -260,12 +298,12 @@ export async function handleMisubRequest(context) {
             domain
         };
 
-        const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
+        const activeProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
 
         // 设置优先级：订阅组设置 > 全局设置 > 内置默认值
         // prefixSettings 回退逻辑
         const globalPrefixSettings = config.defaultPrefixSettings || {};
-        const profilePrefixSettings = currentProfile?.prefixSettings || null;
+        const profilePrefixSettings = activeProfile?.prefixSettings || null;
         const effectivePrefixSettings = { ...globalPrefixSettings };
 
         if (profilePrefixSettings && typeof profilePrefixSettings === 'object') {
@@ -282,19 +320,29 @@ export async function handleMisubRequest(context) {
 
         // nodeTransform 回退逻辑
         const globalNodeTransform = config.defaultNodeTransform || {};
-        const profileNodeTransform = currentProfile?.nodeTransform ?? null;
+        const globalNodeTransformPresets = Array.isArray(config.nodeTransformPresets) ? config.nodeTransformPresets : [];
+        const profileNodeTransform = activeProfile?.nodeTransform ?? null;
+        const profileNodeTransformPresetId = activeProfile?.nodeTransformPresetId || '';
+        const profilePresetNodeTransform = profileNodeTransformPresetId
+            ? (globalNodeTransformPresets.find(item => item?.id === profileNodeTransformPresetId)?.config || null)
+            : null;
         const hasProfileNodeTransform =
             profileNodeTransform && Object.keys(profileNodeTransform).length > 0;
 
         // nodeTransform 使用整体覆盖逻辑
         const effectiveNodeTransform = hasProfileNodeTransform
             ? profileNodeTransform
-            : globalNodeTransform;
+            : profilePresetNodeTransform
+            || globalNodeTransform;
 
         const generationSettings = {
             ...effectivePrefixSettings,
             nodeTransform: effectiveNodeTransform,
-            name: subName
+            name: subName,
+            // [修复] 显式传递订阅组级别的操作符和过滤规则
+            operators: activeProfile?.operators,
+            exclude: activeProfile?.exclude,
+            include: activeProfile?.include
         };
 
         const freshNodes = await generateCombinedNodeList(
@@ -303,9 +351,7 @@ export async function handleMisubRequest(context) {
             userAgentHeader,
             targetMisubs,
             prependedContentForSubconverter,
-            generationSettings,
-            isDebugToken,
-            shouldSkipCertificateVerify
+            generationSettings
         );
         const sourceNames = targetMisubs
             .filter(s => typeof s?.url === 'string' && s.url.startsWith('http'))
@@ -374,47 +420,88 @@ export async function handleMisubRequest(context) {
         return new Response(btoa(unescape(encodeURIComponent(contentToEncode))), { headers });
     }
 
-    const base64Content = btoa(unescape(encodeURIComponent(combinedNodeList)));
+    const builtinMode = (url.searchParams.get('builtin') || '').toLowerCase();
+    const useBuiltin = builtinMode !== 'external';
+    const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
+    
+    // [逻辑统一] 规则等级：URL 参数 > 订阅组设置 > 全局设置 > 默认值 (std)
+    const resolvedProfileLevel = currentProfile?.ruleLevel || currentProfile?.clashRuleLevel || '';
+    const resolvedGlobalLevel = config.ruleLevel || config.clashRuleLevel || 'std';
+    const ruleLevel = url.searchParams.get('level') || url.searchParams.get('ruleLevel') || resolvedProfileLevel || resolvedGlobalLevel;
 
-    const callbackToken = await getCallbackToken(env);
-    const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-    const publicBaseUrl = getPublicBaseUrl(env, url);
-    const callbackUrl = `${publicBaseUrl.origin}${callbackPath}?target=base64&callback_token=${callbackToken}`;
+    const builtinOptions = {
+        fileName: subName,
+        managedConfigUrl: '',
+        interval: config.UpdateInterval || 86400,
+        skipCertVerify: shouldSkipCertificateVerify,
+        enableUdp: shouldEnableUdp,
+        ruleLevel: ruleLevel // 统一后的规则等级
+    };
 
-    console.log(`[MiSub Debug] Profile: ${profileIdentifier}, Token: ${token}`);
-    console.log(`[MiSub Debug] Callback URL: ${callbackUrl}`);
-    if (url.searchParams.get('callback_token') === callbackToken) {
-        const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
-        return new Response(base64Content, { headers });
-    }
+    const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
+    const templateUrl = currentProfile
+        ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
+        : globalTemplateUrl;
+    const templateSource = resolveTemplateSource(templateUrl);
+    const managedConfigUrl = buildManagedConfigUrl(request.url);
 
-    // [新增] 内置 Clash 生成器 - 当 builtin=1 或 builtin=clash 时使用
-    // 优势：完整保留 dialer-proxy、reality-opts 等特殊参数
-    const useBuiltinClash = url.searchParams.get('builtin') === '1' ||
-        url.searchParams.get('builtin') === 'clash' ||
-        url.searchParams.get('native') === '1';
+    const shouldUseBuiltin = useBuiltin && (
+        targetFormat === 'clash' ||
+        targetFormat === 'egern' ||
+        targetFormat.startsWith('surge') ||
+        targetFormat === 'loon' ||
+        targetFormat === 'quanx' ||
+        targetFormat === 'singbox' ||
+        targetFormat === 'sing-box'
+    );
 
-    if (useBuiltinClash && targetFormat === 'clash') {
+    if (shouldUseBuiltin) {
         try {
-            const clashConfig = generateBuiltinClashConfig(combinedNodeList, {
-                fileName: subName,
-                enableUdp: shouldEnableUdp,
-                skipCertVerify: shouldSkipCertificateVerify
+            const totalUserInfo = targetMisubs.reduce((acc, sub) => {
+                if (sub.enabled && sub.userInfo) {
+                    return {
+                        upload: (acc.upload || 0) + (sub.userInfo.upload || 0),
+                        download: (acc.download || 0) + (sub.userInfo.download || 0),
+                        total: (acc.total || 0) + (sub.userInfo.total || 0),
+                        expire: Math.max(acc.expire || 0, sub.userInfo.expire || 0)
+                    };
+                }
+                return acc;
+            }, { upload: 0, download: 0, total: 0, expire: 0 });
+
+            const userInfoHeader = totalUserInfo.total > 0 
+                ? `upload=${totalUserInfo.upload}; download=${totalUserInfo.download}; total=${totalUserInfo.total}; expire=${totalUserInfo.expire}`
+                : null;
+
+            const { content: finalContent, contentType, headers: resultHeaders } = await ProcessorService.renderOutput({
+                targetFormat,
+                combinedNodeList,
+                subName,
+                config,
+                builtinOptions,
+                templateSource,
+                managedConfigUrl,
+                storageAdapter,
+                userInfoHeader
             });
 
+            const isJson = targetFormat === 'singbox' || targetFormat === 'sing-box';
             const responseHeaders = new Headers({
-                "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
-                'Content-Type': 'text/yaml; charset=utf-8',
+                "Content-Disposition": `attachment; filename="${encodeURIComponent(subName)}"; filename*=utf-8''${encodeURIComponent(subName)}`,
+                'Content-Type': contentType,
                 'Cache-Control': 'no-store, no-cache',
-                'X-MiSub-Mode': 'builtin-clash'
+                'X-MiSub-Mode': `builtin-${targetFormat}`,
+                'Access-Control-Allow-Origin': '*'
             });
 
-            // 添加缓存状态头
-            Object.entries(cacheHeaders).forEach(([key, value]) => {
-                responseHeaders.set(key, value);
-            });
+            if (userInfoHeader) {
+                responseHeaders.set('Subscription-Userinfo', userInfoHeader);
+                responseHeaders.set('Profile-Update-Interval', String(config.UpdateInterval || 24));
+            }
 
-            // 发送通知和日志
+            Object.entries(resultHeaders).forEach(([k, v]) => responseHeaders.set(k, v));
+            Object.entries(cacheHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
+
             if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
                 const clientIp = request.headers.get('CF-Connecting-IP')
                     || request.headers.get('X-Real-IP')
@@ -435,7 +522,7 @@ export async function handleMisubRequest(context) {
                         env,
                         request,
                         userAgentHeader,
-                        targetFormat: 'clash (builtin)',
+                        targetFormat: `builtin-${targetFormat}`,
                         token,
                         profileIdentifier,
                         subName,
@@ -444,336 +531,17 @@ export async function handleMisubRequest(context) {
                 }
             }
 
-            return new Response(clashConfig, { headers: responseHeaders });
+            return new Response(finalContent, { headers: responseHeaders });
+
         } catch (e) {
-            console.error('[BuiltinClash] Generation failed:', e);
-            // 回退到 subconverter
+            console.error(`[Builtin${targetFormat}] Generation failed:`, e);
         }
     }
 
-    // [修改] 内置 Surge 生成器 - 仅在显式请求时使用，默认走 subconverter
-    const useBuiltinSurge = url.searchParams.get('builtin') === '1' ||
-        url.searchParams.get('builtin') === 'surge' ||
-        url.searchParams.get('native') === '1';
+    const base64Headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
+    Object.entries(cacheHeaders).forEach(([key, value]) => {
+        base64Headers[key] = value;
+    });
 
-
-    const buildBuiltinSurgeResponse = () => {
-        const publicBaseUrl = getPublicBaseUrl(env, url);
-        const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-        const managedUrl = `${publicBaseUrl.origin}${callbackPath}?surge`;
-
-        const surgeConfig = generateBuiltinSurgeConfig(combinedNodeList, {
-            fileName: subName,
-            managedConfigUrl: managedUrl,
-            skipCertVerify: shouldSkipCertificateVerify,
-            enableUdp: shouldEnableUdp
-        });
-
-        const responseHeaders = new Headers({
-            "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-store, no-cache',
-            'X-MiSub-Mode': 'builtin-surge'
-        });
-
-        Object.entries(cacheHeaders).forEach(([key, value]) => {
-            responseHeaders.set(key, value);
-        });
-
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-            const clientIp = request.headers.get('CF-Connecting-IP')
-                || request.headers.get('X-Real-IP')
-                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-                || 'N/A';
-            context.waitUntil(
-                sendEnhancedTgNotification(
-                    config,
-                    '🛰️ *订阅被访问* (内置Surge转换)',
-                    clientIp,
-                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
-                )
-            );
-
-            if (config.enableAccessLog) {
-                logAccessSuccess({
-                    context,
-                    env,
-                    request,
-                    userAgentHeader,
-                    targetFormat: 'surge (builtin)',
-                    token,
-                    profileIdentifier,
-                    subName,
-                    domain
-                });
-            }
-        }
-
-        return new Response(surgeConfig, { headers: responseHeaders });
-    };
-
-    if (useBuiltinSurge && targetFormat.startsWith('surge')) {
-        try {
-            return buildBuiltinSurgeResponse();
-        } catch (e) {
-            console.error('[BuiltinSurge] Generation failed, falling back to subconverter:', e);
-            // 回退到 subconverter
-        }
-    }
-
-    const useBuiltinLoon = url.searchParams.get('builtin') === '1' ||
-        url.searchParams.get('builtin') === 'loon' ||
-        url.searchParams.get('native') === '1';
-
-    const buildBuiltinLoonResponse = () => {
-        const publicBaseUrl = getPublicBaseUrl(env, url);
-        const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-        const managedUrl = `${publicBaseUrl.origin}${callbackPath}?loon`;
-
-        const loonConfig = generateBuiltinLoonConfig(combinedNodeList, {
-            fileName: subName,
-            managedConfigUrl: managedUrl,
-            interval: config.UpdateInterval || 86400,
-            skipCertVerify: shouldSkipCertificateVerifyLoon
-        });
-
-        const responseHeaders = new Headers({
-            "Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(subName)}`,
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-store, no-cache',
-            'X-MiSub-Mode': 'builtin-loon'
-        });
-
-        Object.entries(cacheHeaders).forEach(([key, value]) => {
-            responseHeaders.set(key, value);
-        });
-
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-            const clientIp = request.headers.get('CF-Connecting-IP')
-                || request.headers.get('X-Real-IP')
-                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-                || 'N/A';
-            context.waitUntil(
-                sendEnhancedTgNotification(
-                    config,
-                    '🛰️ *订阅被访问* (内置Loon转换)',
-                    clientIp,
-                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
-                )
-            );
-
-            if (config.enableAccessLog) {
-                logAccessSuccess({
-                    context,
-                    env,
-                    request,
-                    userAgentHeader,
-                    targetFormat: 'loon (builtin)',
-                    token,
-                    profileIdentifier,
-                    subName,
-                    domain
-                });
-            }
-        }
-
-        return new Response(loonConfig, { headers: responseHeaders });
-    };
-
-    // [新增] 内置 Loon 生成器 - 仅在显式请求时使用，默认走 subconverter
-    if (useBuiltinLoon && targetFormat === 'loon') {
-        try {
-            return buildBuiltinLoonResponse();
-        } catch (e) {
-            console.error('[BuiltinLoon] Generation failed, falling back to subconverter:', e);
-            // 回退到 subconverter
-        }
-    }
-
-    const candidates = getSubconverterCandidates(effectiveSubConverter);
-    let lastError = null;
-
-    try {
-        // [New Implementation] Use centralized client
-        const result = await fetchFromSubconverter(candidates, {
-            targetFormat,
-            callbackUrl,
-            subConfig: effectiveSubConfig,
-            subName,
-            cacheHeaders,
-            enableScv: shouldSkipCertificateVerify,
-            enableUdp: shouldEnableUdp,
-            enableEmoji: shouldUseEmoji,
-            timeout: 30000 // 30s timeout
-        });
-
-        // [Success Logic]
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-            const clientIp = request.headers.get('CF-Connecting-IP')
-                || request.headers.get('X-Real-IP')
-                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-                || 'N/A';
-            context.waitUntil(
-                sendEnhancedTgNotification(
-                    config,
-                    '🛰️ *订阅被访问*',
-                    clientIp,
-                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
-                )
-            );
-
-            if (config.enableAccessLog) {
-                logAccessSuccess({
-                    context,
-                    env,
-                    request,
-                    userAgentHeader,
-                    targetFormat,
-                    token,
-                    profileIdentifier,
-                    subName,
-                    domain
-                });
-            }
-        }
-
-        return result.response;
-
-    } catch (e) {
-        lastError = e;
-        console.error('[MiSub] Subconverter call failed:', e);
-        // Surge 内置兜底
-        if (targetFormat.startsWith('surge') && !useBuiltinSurge) {
-            try {
-                return buildBuiltinSurgeResponse();
-            } catch (fallbackError) {
-                console.error('[BuiltinSurge] Fallback generation failed:', fallbackError);
-            }
-        }
-        // Loon 内置兜底
-        if (targetFormat === 'loon' && !useBuiltinLoon) {
-            try {
-                return buildBuiltinLoonResponse();
-            } catch (fallbackError) {
-                console.error('[BuiltinLoon] Fallback generation failed:', fallbackError);
-            }
-        }
-    }
-
-    // 净化错误信息（移除换行符和双引号），防止 header 异常和 YAML 语法错误
-    const safeErrorMessage = (lastError ? lastError.message : 'Unknown subconverter error')
-        .replace(/[\r\n]+/g, ' ')
-        .replace(/"/g, "'")
-        .trim();
-    console.error(`[MiSub Final Error] ${safeErrorMessage}`);
-
-    // [Deferred Logging] Log Error for Subconverter Failures (Timeout/Error)
-    if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
-        logAccessError({
-            context,
-            env,
-            request,
-            userAgentHeader,
-            targetFormat,
-            token,
-            profileIdentifier,
-            subName,
-            domain,
-            errorMessage: safeErrorMessage
-        });
-    }
-
-    // 提供回退的 Base64 输出，避免客户端直接收到 502
-    if (combinedNodeList) {
-        const fallbackHeaders = new Headers({
-            "Content-Type": "text/plain; charset=utf-8",
-            'Cache-Control': 'no-store, no-cache',
-            'X-MiSub-Fallback': 'base64'
-        });
-
-        // 保留缓存状态提示，便于客户端诊断
-        Object.entries(cacheHeaders).forEach(([key, value]) => {
-            fallbackHeaders.set(key, value);
-        });
-
-        // 附带简短错误信息，防止 header 过长
-        fallbackHeaders.set('X-MiSub-Error', safeErrorMessage.slice(0, 200));
-
-        // [Fallback Success] 也发送 Telegram 通知，因为用户仍获取了订阅内容
-        if (!url.searchParams.has('callback_token') && !shouldSkipLogging) {
-            const clientIp = request.headers.get('CF-Connecting-IP')
-                || request.headers.get('X-Real-IP')
-                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-                || 'N/A';
-            context.waitUntil(
-                sendEnhancedTgNotification(
-                    config,
-                    '🛰️ *订阅被访问* (Fallback)',
-                    clientIp,
-                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`base64\`\n*订阅组:* \`${subName}\`\n*错误:* \`${safeErrorMessage}\``
-                )
-            );
-        }
-
-        // [Improved Fallback] 为不同客户端提供更友好的错误展示
-        // [Improved Fallback] 为不同客户端提供更友好的错误展示
-        if (targetFormat === 'clash') {
-            const fallbackYaml = `
-proxies:
-  - name: "❌ 生成失败: ${safeErrorMessage.slice(0, 50).replace(/:/g, ' ')}"
-    type: trojan
-    server: 127.0.0.1
-    port: 443
-    password: error
-    sni: error.com
-    skip-cert-verify: true
-    udp: false
-
-proxy-groups:
-  - name: "⚠️ 错误节点"
-    type: select
-    proxies:
-      - "❌ 生成失败: ${safeErrorMessage.slice(0, 50).replace(/:/g, ' ')}"
-
-rules:
-  - MATCH,DIRECT
-`;
-            return new Response(fallbackYaml, {
-                headers: {
-                    "Content-Type": "text/yaml; charset=utf-8",
-                    'Cache-Control': 'no-store, no-cache',
-                    'X-MiSub-Fallback': 'yaml',
-                    'X-MiSub-Error': safeErrorMessage.slice(0, 200)
-                },
-                status: 200
-            });
-        }
-
-        if (targetFormat.startsWith('surge') || targetFormat === 'loon') {
-            const fallbackIni = `
-[Proxy]
-❌ 生成失败 = trojan, 127.0.0.1, 443, password=error, skip-cert-verify=true
-
-[Proxy Group]
-⚠️ 错误节点 = select, ❌ 生成失败
-
-[Rule]
-MATCH,DIRECT
-`;
-            return new Response(fallbackIni.trim() + '\n', {
-                headers: {
-                    "Content-Type": "text/plain; charset=utf-8",
-                    'Cache-Control': 'no-store, no-cache',
-                    'X-MiSub-Fallback': 'ini',
-                    'X-MiSub-Error': safeErrorMessage.slice(0, 200)
-                },
-                status: 200
-            });
-        }
-
-        const fallbackContent = btoa(unescape(encodeURIComponent(combinedNodeList)));
-        return new Response(fallbackContent, { headers: fallbackHeaders, status: 200 });
-    }
-
-    return new Response(`Error connecting to subconverter: ${safeErrorMessage}`, { status: 502 });
+    return new Response(btoa(unescape(encodeURIComponent(combinedNodeList))), { headers: base64Headers });
 }

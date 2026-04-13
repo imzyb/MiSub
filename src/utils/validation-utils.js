@@ -214,10 +214,10 @@ export function validateProfile(profile) {
         customId: {
             maxLength: 50
         },
-        subConverter: {
+        transformConfig: {
             validator: (value) => {
                 if (value && !isValidUrl(value)) {
-                    return '请输入有效的订阅转换器URL';
+                    return '请输入有效的外部规则模板URL，或留空使用内置模板';
                 }
                 return null;
             }

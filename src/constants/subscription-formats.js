@@ -8,7 +8,8 @@ export const SUBSCRIPTION_FORMATS = {
     CLASH: 'clash',
     SURGE: 'surge',
     LOON: 'loon',
-    QUANX: 'quanx'
+    QUANX: 'quanx',
+    SINGBOX: 'singbox'
 };
 
 export const NODE_PROTOCOLS = {
@@ -36,7 +37,7 @@ export const USER_AGENT_MAPPING = [
     // 其他客户端
     ['stash', SUBSCRIPTION_FORMATS.CLASH],
     ['nekoray', SUBSCRIPTION_FORMATS.CLASH],
-    ['sing-box', SUBSCRIPTION_FORMATS.BASE64],
+    ['sing-box', SUBSCRIPTION_FORMATS.SINGBOX],
     ['shadowrocket', SUBSCRIPTION_FORMATS.BASE64],
     ['v2rayn', SUBSCRIPTION_FORMATS.BASE64],
     ['v2rayng', SUBSCRIPTION_FORMATS.BASE64],

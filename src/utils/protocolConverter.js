@@ -1,6 +1,8 @@
 export {
     convertClashProxyToUrl,
     batchConvertClashProxies,
+    parseClientConfig,
+    parseLoonConfig,
     validateGeneratedUrl,
     parseSurgeConfig,
     parseQuantumultXConfig

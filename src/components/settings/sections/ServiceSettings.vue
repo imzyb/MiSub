@@ -1,5 +1,5 @@
 <script setup>
-import SubConverterCard from './ServiceSettings/SubConverterCard.vue';
+import TransformCard from './ServiceSettings/TransformCard.vue';
 import TelegramCard from './ServiceSettings/TelegramCard.vue';
 import CronCard from './ServiceSettings/CronCard.vue';
 
@@ -13,7 +13,7 @@ defineProps({
 
 <template>
   <div class="space-y-8">
-    <SubConverterCard :settings="settings" />
+    <TransformCard :settings="settings" />
     <TelegramCard :settings="settings" />
     <CronCard :settings="settings" />
   </div>

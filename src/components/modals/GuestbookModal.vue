@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { api } from '../../lib/http.js';
+import Modal from '../forms/Modal.vue';
 
 const props = defineProps({
     show: {
@@ -67,6 +68,10 @@ watch(() => props.show, (newVal) => {
     }
 });
 
+const closeModal = () => {
+    emit('close');
+};
+
 const submitMessage = async () => {
     errorMsg.value = '';
 
@@ -105,125 +110,90 @@ const submitMessage = async () => {
 </script>
 
 <template>
-    <!-- Root container with high z-index -->
-    <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog"
-        aria-modal="true">
+    <Modal :show="show" size="lg" @update:show="value => !value && closeModal()">
+        <template #title>
+            <div class="pr-10">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                    {{ showSuccess ? '提交成功' : '提交反馈' }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ showSuccess ? '感谢您的反馈，管理员已收到您的留言。' : '所有的反馈都会被认真阅读' }}
+                </p>
+            </div>
+        </template>
 
-        <!-- Backdrop -->
-        <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" @click="emit('close')"></div>
-
-        <!-- Modal Panel -->
-        <div
-            class="relative w-full max-w-lg bg-white dark:bg-gray-800 misub-radius-lg shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[90vh] transition-all p-6">
-
-            <!-- Close Button (Absolute) -->
-            <button @click="emit('close')"
-                class="absolute top-4 right-4 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors z-10">
-                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-
-            <!-- Success State -->
+        <template #body>
             <div v-if="showSuccess" class="flex flex-col items-center justify-center py-8 text-center animate-fade-in">
-                <div
-                    class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-                    <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
+                <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                    <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">提交成功</h3>
-                <p class="text-gray-500 dark:text-gray-400 max-w-xs">
-                    感谢您的反馈！管理员已收到您的留言。
-                </p>
-                <button @click="emit('close')"
-                    class="mt-8 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white misub-radius-md font-medium transition-colors">
-                    关闭
+                <p class="max-w-xs text-gray-500 dark:text-gray-400">感谢您的反馈！管理员已收到您的留言。</p>
+            </div>
+
+            <div v-else class="space-y-4">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">反馈类型</label>
+                    <select v-model="form.type"
+                        class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
+                        <option value="general">💬 普通留言</option>
+                        <option value="feature">✨ 功能建议</option>
+                        <option value="bug">🐛 问题反馈</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">昵称 (可选)</label>
+                    <input type="text" v-model="form.nickname" placeholder="您怎么称呼？"
+                        class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">内容</label>
+                    <textarea v-model="form.content" rows="4" placeholder="请详细描述您的建议或遇到的问题..."
+                        class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">人机验证</label>
+                    <div class="flex items-center gap-3">
+                        <div class="min-w-[80px] select-none rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center font-mono font-bold text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                            {{ captcha.num1 }} {{ captcha.operator }} {{ captcha.num2 }} = ?
+                        </div>
+                        <input type="number" v-model="form.captcha" placeholder="答案"
+                            class="block w-24 misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm"
+                            @keydown.enter="submitMessage">
+                        <button type="button" @click="generateCaptcha" class="p-1 text-gray-400 transition-colors hover:text-indigo-500" title="刷新验证码">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="errorMsg" class="flex items-center gap-1 text-sm text-red-500">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {{ errorMsg }}
+                </div>
+            </div>
+        </template>
+
+        <template #footer>
+            <div class="flex w-full justify-end gap-3">
+                <button @click="closeModal"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 misub-radius-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors">
+                    {{ showSuccess ? '关闭' : '取消' }}
+                </button>
+                <button v-if="!showSuccess" @click="submitMessage" :disabled="submitting || !form.content"
+                    class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent misub-radius-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95">
+                    {{ submitting ? '提交中...' : '提交反馈' }}
                 </button>
             </div>
-
-            <!-- Form State -->
-            <div v-else class="flex flex-col h-full">
-                <!-- Header -->
-                <div class="mb-6">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">
-                        提交反馈
-                    </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        所有的反馈都会被认真阅读
-                    </p>
-                </div>
-
-                <!-- Body -->
-                <div class="space-y-4 overflow-y-auto custom-scrollbar flex-1 px-1">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">反馈类型</label>
-                        <select v-model="form.type"
-                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
-                            <option value="general">💬 普通留言</option>
-                            <option value="feature">✨ 功能建议</option>
-                            <option value="bug">🐛 问题反馈</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">昵称 (可选)</label>
-                        <input type="text" v-model="form.nickname" placeholder="您怎么称呼？"
-                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">内容</label>
-                        <textarea v-model="form.content" rows="4" placeholder="请详细描述您的建议或遇到的问题..."
-                            class="block w-full misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm resize-none"></textarea>
-                    </div>
-
-                    <!-- Captcha -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">人机验证</label>
-                        <div class="flex items-center gap-3">
-                            <div
-                                class="bg-gray-100 dark:bg-gray-700 px-3 py-2 misub-radius-md text-gray-700 dark:text-gray-300 font-mono font-bold select-none border border-gray-200 dark:border-gray-600 min-w-[80px] text-center">
-                                {{ captcha.num1 }} {{ captcha.operator }} {{ captcha.num2 }} = ?
-                            </div>
-                            <input type="number" v-model="form.captcha" placeholder="答案"
-                                class="block w-24 misub-radius-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white py-2 px-3 text-sm"
-                                @keydown.enter="submitMessage">
-                            <button type="button" @click="generateCaptcha"
-                                class="text-gray-400 hover:text-indigo-500 transition-colors p-1" title="刷新验证码">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Error Message -->
-                    <div v-if="errorMsg" class="text-red-500 text-sm animate-pulse flex items-center gap-1">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {{ errorMsg }}
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="mt-6 flex justify-end gap-3 pt-2">
-                    <button @click="emit('close')"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 misub-radius-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors">
-                        取消
-                    </button>
-                    <button @click="submitMessage" :disabled="submitting || !form.content"
-                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent misub-radius-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95">
-                        {{ submitting ? '提交中...' : '提交反馈' }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+        </template>
+    </Modal>
 </template>
 
 <style scoped>

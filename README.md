@@ -2,13 +2,13 @@
 
 <div align="center">
 
-**一个功能强大、界面精美的订阅管理与转换工具**
+**一个聚焦订阅节点管理、多客户端订阅生成与统一模板输出的工具**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-orange.svg)](https://pages.cloudflare.com/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-green.svg)](https://vuejs.org/)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [部署指南](#-部署指南) • [使用说明](#-使用说明) • [更新日志](#-更新日志)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [部署指南](#-部署指南) • [使用说明](#-使用说明) • [Wiki 文档](docs/OPERATOR_CHAIN_GUIDE.md) • [v2.5.0 升级指南](docs/UPGRADE_V2.5.md) • [更新日志](#-更新日志)
 
 </div>
 
@@ -42,6 +42,12 @@
   - 支持拖拽排序
   - 一键按地区自动排序
 
+- **🧩 统一模板与链式处理**
+  - **操作符链 (Operator Chain)**：支持过滤、重命名、脚本、排序与去重的流式管道
+  - 统一模板模型输出 Clash、Sing-Box、Surge、Loon、QX
+  - 支持按客户端自动适配模板策略
+  - 内置 ACL4SSR 风格完整分流模板预设
+
 - **🎨 精致的 UI/UX**
   - 明亮/暗黑模式自动切换
   - 磨砂玻璃质感现代化设计
@@ -71,17 +77,15 @@
   - 完整的参数支持 (reuse/tfo)
   - Surge 配置导入支持
 
+- **📐 模板输出增强**
+  - Clash / Sing-Box / iOS 客户端统一走模板主线
+  - 支持远程规则集、策略组与地区分组映射
+  - 支持内置模板预设与客户端能力兼容表
+
 - **📊 流量与到期时间显示**
   - 订阅卡片显示已用/总流量
   - 到期时间提醒,颜色高亮
   - 自动更新节点数和流量信息
-
-- **🛰️ VPS 探针**
-  - 支持节点在线 / 离线 / 恢复 / 过载一体化监控
-  - 实时查看 CPU、内存、磁盘、流量与负载曲线
-  - 支持 ICMP / TCP / HTTP 网络监测与 Telegram 告警联动
-  - 提供一键安装命令、上报地址、节点密钥与公开页 `/vps`
-  - 需绑定 D1 数据库 (`MISUB_DB`) 并在设置中切换存储模式为 D1
 
 ### 💾 双重存储支持
 
@@ -98,7 +102,7 @@
 ### 🔐 安全与定制
 
 - **密码保护**: 管理界面由自定义密码保护
-- **高度可定制**: 自定义输出文件名、Subconverter 地址等
+- **高度可定制**: 自定义输出文件名、模板来源、规则级别等
 - **数据备份**: 支持导出/导入备份
 - **TG 推送**: 支持 Telegram 通知
 
@@ -109,7 +113,7 @@
 | 客户端 | 格式支持 | 自动识别 |
 |--------|---------|---------|
 | Clash / Clash Meta | ✅ | ✅ |
-| Sing-Box | ✅ (Base64) | ✅ |
+| Sing-Box | ✅ | ✅ |
 | Surge | ✅ | ✅ |
 | Shadowrocket | ✅ | ✅ |
 | V2rayN / V2rayNG | ✅ | ✅ |
@@ -118,16 +122,26 @@
 
 ### 📡 支持的协议
 
-- Shadowsocks (SS/SS2022) - 包含自动修复功能
-- ShadowsocksR (SSR)
+- Shadowsocks (SS/SS2022)
 - VMess
 - VLESS
 - Trojan
-- Hysteria / Hysteria2
+- Hysteria2 / HY2
 - TUIC
-- **Snell** - 完整支持 v1-v5
-- NaiveProxy
-- SOCKS5 / HTTP
+- Snell
+- WireGuard
+- AnyTLS
+- HTTPS
+- SOCKS5 / SOCKS5-TLS
+
+### 📦 内置格式说明
+
+- `clash`：兼容性最好，适合主力导出
+- `surge`：支持规则模板与地区分组
+- `loon`：支持规则模板与地区分组
+- `quanx`：支持统一模板输出与基础策略组、规则映射
+- `singbox`：JSON 输出，支持统一模板模型与路由规则映射
+- `base64`：兜底格式
 
 ---
 
@@ -183,17 +197,7 @@ wrangler d1 execute misub --file=schema.sql --remote
 
 > 💡 若无法初始化,可在 Cloudflare 控制台手动执行 `schema.sql`
 
-> ⚠️ VPS 探针功能必须绑定 D1 数据库 (MISUB_DB)，并在设置中切换存储模式为 D1，未满足将无法使用探针相关功能。
-> ⚠️ 若启用网络监测（ICMP/TCP/HTTP），需执行最新的 `schema.sql` 创建 vps_network_targets / vps_network_samples 表。
-> ⚠️ 已在使用 D1 的用户升级后也需要在 D1 控制台执行最新 `schema.sql`（新增 vps_network_targets / vps_network_samples 字段和表）。
-> ⚠️ VPS 探针新增了 `overload_state_json` 字段，升级后请执行最新 `schema.sql`。
-
-若已绑定 D1 并出现如下错误：
-`D1_ERROR: table vps_network_targets has no column named scheme`
 说明 D1 表结构未更新，请在 D1 控制台执行最新 `schema.sql`。
-
-> 💡 现在支持上报签名校验（HMAC），可在设置中开启，探针脚本会自动携带签名。
-> 💡 新增上报间隔与记录间隔配置，用于控制上报频率与历史写入密度。
 
 ### 3. 设置环境变量
 
@@ -243,7 +247,7 @@ wrangler d1 execute misub --file=schema.sql --remote
 2. 填写订阅名称和链接
 3. (可选) 设置自定义 UA
 4. (可选) 添加备注信息
-5. (可选) 设置过滤规则
+5. (可选) 设置操作符链（详情请参考 [操作符指南](docs/OPERATOR_CHAIN_GUIDE.md)）
 6. 保存订阅
 
 ### 创建订阅组
@@ -253,27 +257,65 @@ wrangler d1 execute misub --file=schema.sql --remote
 3. 设置分组名称
 4. 保存并获取订阅链接
 
-### SubConverter 后端对齐说明
+### 内置转换说明
 
-MiSub 通过 SubConverter 后端进行订阅格式转换，核心调用路径为 `/sub`，并基于客户端 User-Agent 或 URL 参数决定输出格式。
+MiSub 现在仅使用内置转换器将订阅内容转换为目标格式，不再依赖第三方转换后端。
 
-支持的常见参数（与 SubConverter 文档一致，使用时需要 URLEncode 的参数会由后端处理）：
+支持的目标格式：
 
-- `target`：目标格式（`clash` / `surge&ver=4` / `loon` / `quanx` / `base64`）
-- `url`：订阅链接或节点分享链接（可合并多链接）
-- `config`：远程规则配置（仅对 Clash/Surge/Loon 生效）
-- `scv`：跳过 TLS 证书校验（默认关闭）
-- `udp`：开启 UDP（默认关闭）
-- `emoji`：节点名称 Emoji（按重命名模板自动启用）
+- `clash`
+- `surge`
+- `loon`
+- `quanx`
+- `singbox`
+- `base64`
 
-MiSub 的几个适配细节：
+说明：
 
-- `surge` 目标会自动补齐版本为 `surge&ver=4`（可用 `?target=surge&ver=3` 指定版本）。
-- Surge 客户端不识别 `snell://` 订阅链接，建议确保 SubConverter 能输出原生 `snell, server, port, psk=..., version=...` 格式的 Surge 配置。
-- `sing-box` 与 `singbox` 会自动落到 Base64 输出（SubConverter 目前无 sing-box 目标）。
-- `quanx` 需要显式参数（`?quanx` 或 `?target=quanx`）或对应的 User-Agent。
+- `surge` 会根据客户端或 URL 参数保留版本感知。
+- `singbox` 会输出 JSON 配置。
+- 不支持的目标格式会回退为 `base64`。
+- 若需要强制跳过内置转换，可使用 `?backend=external`，这会返回 `base64`。
 
-如需检查后端可用性，可在设置页使用“测试可用性”按钮访问 `/api/test_subconverter`。
+### 远端模板占位符
+
+如果你在 `transformConfig` 中使用远端模板，可以在模板里放入以下占位符：
+
+- `<%proxies%>`: 已渲染的代理块
+- `<%rules%>`: 规则块
+- `<%fileName%>`: 输出文件名
+- `<%interval%>`: 刷新间隔
+- `<%managedConfigUrl%>`: 模板地址
+- `<%targetFormat%>`: 目标格式
+- `<%nodeCount%>`: 节点数量
+- `<%regionGroups%>`: 地区分组 JSON
+- `<%regionGroupNames%>`: 地区分组名称列表
+- `<%regionGroupCounts%>`: 地区分组及数量
+- `<%regionGroupList%>`: 地区分组清单
+
+#### 示例
+
+```yaml
+proxies:
+<%proxies%>
+
+proxy-groups:
+  - name: 节点选择
+    type: select
+    proxies:
+      - 自动选择
+      - <%regionGroupNames%>
+
+  - name: 自动选择
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: <%interval%>
+    proxies:
+      - <%regionGroupNames%>
+
+rules:
+<%rules%>
+```
 
 ### 数据迁移 (KV → D1)
 
@@ -283,45 +325,6 @@ MiSub 的几个适配细节：
 2. 登录管理界面,进入 `设置`
 3. 点击 `迁移数据到 D1 数据库`
 4. 确认迁移,等待完成
-
-### 🛰️ VPS 探针使用指南
-
-#### 使用步骤
-
-1. **准备环境**
-   - 绑定 `MISUB_DB`，并在后台将存储模式切换为 `D1`
-   - 在 D1 控制台执行最新 `schema.sql`
-   - 如需接收告警，建议先完成 Telegram 通知配置
-
-2. **新增监控节点**
-   - 进入后台的 `VPS 探针`
-   - 填写节点名称、标签、分组、地区、月流量限额等信息
-   - 按需开启“应用全局监测目标”，复用统一的网络监测配置
-
-3. **部署探针脚本**
-   - 点击节点右侧的 `安装`
-   - 复制一键安装命令，或使用页面提供的 `reportUrl`、`nodeId`、`nodeSecret`
-   - 在被监控 VPS 上执行并保持定时上报，**推荐上报频率为 `60 秒`**
-
-4. **查看与分享**
-   - 后台可查看在线状态、资源曲线、流量统计与告警动态
-   - 若开启公开页，可通过 `/vps` 访问；如配置了公开页 Token，则使用 `/vps?token=xxx`
-
-#### 功能特点
-
-- **状态监控**：自动识别节点在线、离线、恢复与过载状态
-- **资源统计**：支持 CPU、内存、磁盘、负载、累计上下行流量与月流量限额展示
-- **网络监测**：支持 `ICMP` / `TCP` / `HTTP` 目标检测，适合排查线路波动
-- **告警联动**：复用 Telegram 通知设置，推送离线、恢复、负载异常消息
-- **公开展示**：支持 VPS 探针公开页、自定义标题文案与节点展示布局
-
-#### 注意事项
-
-- VPS 探针 **仅支持 `D1` 存储模式**，`KV` 模式下不可用
-- 升级后若遇到表结构报错，请在 D1 中重新执行最新 `schema.sql`
-- 如果启用了 **HMAC 上报签名校验**，请确保探针脚本与后台密钥一致
-- `nodeSecret` 和公开页 `token` 都属于敏感信息，请勿泄露给他人
-- 不建议把上报间隔设置得过低，通常 `60 秒` 已足够稳定
 
 ### 🛰️ 代理抓取 (Vercel)
 
@@ -359,13 +362,21 @@ MiSub 的几个适配细节：
 
 ## 📝 更新日志
 
+### v2.5.0 (2026-04-10)
+
+**✨ 重大更新：节点处理引擎大统一与性能优化**
+- **操作符链 (Operator Chain)** - 实现节点处理的流式管道化，彻底替代旧版“净化管道”。
+- **架构剥离** - 移除了 VPS 监控探针等冗余功能，回归订阅管理核心定位。
+- **去中心化转换** - 完善内置转换引擎，减少对外部后端接口的依赖。
+- **兼容性桥接 (Legacy Bridge)** - 无缝兼容旧版规则并提供一键迁移工具。
+- **Wiki 同步** - 全新编写了操作符指南与升级手册。
+
 ### v2.4.0 (2026-01-14)
 
-**✨ 重点更新：VPS 探针功能上线**
-- **新增 VPS 探针** - 项目正式加入 VPS 节点监控能力，可统一管理在线状态与资源上报
-- **资源与流量可视化** - 支持 CPU、内存、磁盘、负载、上下行流量的集中展示
-- **网络监测与告警** - 支持 `ICMP` / `TCP` / `HTTP` 检测，并联动 Telegram 推送离线、恢复、过载提醒
-- **公开页分享** - 支持通过 `/vps` 对外展示探针数据，便于公开状态页或自用巡检
+**✨ 重点更新：统一模板与订阅生成增强**
+- **统一模板主线扩展** - 多客户端逐步接入统一模板模型与内置模板预设
+- **多端渲染能力增强** - iOS 客户端与 Sing-Box 的模板输出持续补强
+- **项目定位收敛** - 聚焦订阅节点管理与多客户端订阅生成
 
 
 ### v2.3.0 (2026-01-03)

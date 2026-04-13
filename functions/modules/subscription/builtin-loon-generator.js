@@ -12,6 +12,7 @@
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
+import { POLICY_GROUPS, getBuiltinRules, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
 
 /**
  * 清理控制字符
@@ -225,15 +226,18 @@ function appendTlsParams(parts, proxy) {
     }
 }
 
+
 /**
  * 生成内置 Loon 配置
  */
+
 export function generateBuiltinLoonConfig(nodeList, options = {}) {
     const {
-        fileName = 'MiSub',
         managedConfigUrl = '',
         interval = 86400,
-        skipCertVerify = null
+        skipCertVerify = false,
+        enableUdp = false,
+        ruleLevel = 'std'
     } = options;
 
     const cleanedNodeList = cleanControlChars(nodeList);
@@ -244,27 +248,15 @@ export function generateBuiltinLoonConfig(nodeList, options = {}) {
 
     const proxyLines = [];
     const proxyNames = [];
+    const proxiesWithMetadata = [];
     const usedNames = new Map();
-
-    // 分区域容器
-    const regionGroups = {
-        '🇭🇰 香港节点': /港|HK|Hong Kong/i,
-        '🇹🇼 台湾节点': /台|TW|Taiwan/i,
-        '🇯🇵 日本节点': /日|JP|Japan/i,
-        '🇸🇬 狮城节点': /狮城|新|SG|Singapore/i,
-        '🇺🇸 美国节点': /美|US|America/i,
-        '🇰🇷 韩国节点': /韩|KR|Korea/i,
-        '🇬🇧 英国节点': /英|UK|England/i,
-    };
-    const activeRegionGroups = {};
 
     for (const url of nodeUrls) {
         const clashProxy = urlToClashProxy(url);
         if (!clashProxy) continue;
 
-        if (skipCertVerify === true) {
-            clashProxy['skip-cert-verify'] = true;
-        }
+        if (skipCertVerify) clashProxy['skip-cert-verify'] = true;
+        if (enableUdp) clashProxy.udp = true;
 
         const baseName = sanitizeNodeName(clashProxy.name);
         const uniqueName = getUniqueName(baseName, usedNames);
@@ -274,16 +266,7 @@ export function generateBuiltinLoonConfig(nodeList, options = {}) {
         if (line) {
             proxyLines.push(line);
             proxyNames.push(uniqueName);
-
-            // 归类
-            for (const [groupName, regex] of Object.entries(regionGroups)) {
-                if (regex.test(uniqueName)) {
-                    if (!activeRegionGroups[groupName]) {
-                        activeRegionGroups[groupName] = [];
-                    }
-                    activeRegionGroups[groupName].push(uniqueName);
-                }
-            }
+            proxiesWithMetadata.push(clashProxy);
         }
     }
 
@@ -292,13 +275,10 @@ export function generateBuiltinLoonConfig(nodeList, options = {}) {
     }
 
     const sections = [];
-
-    // #!MANAGED-CONFIG
     if (managedConfigUrl) {
         sections.push(`#!MANAGED-CONFIG ${managedConfigUrl} interval=${interval} strict=false`);
     }
 
-    // [General]
     sections.push(`[General]
 ipv6 = false
 dns-server = system, 223.5.5.5, 119.29.29.29
@@ -306,23 +286,24 @@ skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10
 proxy-test-url = http://www.gstatic.com/generate_204
 resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/master/scripts/sub-store-parser.js`);
 
-    // [Proxy]
     sections.push(`[Proxy]\nDIRECT = direct\n${proxyLines.join('\n')}`);
 
-    // [Proxy Group]
-    const proxyNamesStr = proxyNames.join(', ');
-    const activeRegionNames = Object.keys(activeRegionGroups);
-    const regionGroupRefs = activeRegionNames.length > 0 ? `, ${activeRegionNames.join(', ')}` : '';
-    
-    const iconRepo = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
-    const proxyGroupLines = [];
-    
-    // 主分组
-    proxyGroupLines.push(`📶 节点选择 = select, ♻️ 自动选择${regionGroupRefs}, ${proxyNamesStr}, DIRECT, icon=${iconRepo}/Proxy.png`);
-    proxyGroupLines.push(`♻️ 自动选择 = url-test, ${proxyNamesStr}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50, icon=${iconRepo}/Speedtest.png`);
+    const levelKey = (ruleLevel || 'std').toUpperCase();
+    const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
+    const abstractGroups = policyFactory(proxiesWithMetadata);
 
-    // 区域分组
-    const regionIcons = {
+    const iconRepo = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
+    const groupIcons = {
+        [DEFAULT_SELECT_GROUP]: `${iconRepo}/Proxy.png`,
+        [DEFAULT_RELAY_GROUP]: `${iconRepo}/Proxy.png`,
+        '♻️ 自动选择': `${iconRepo}/Speedtest.png`,
+        '🔯 故障转移': `${iconRepo}/Relay.png`,
+        '🎬 视频广告': `${iconRepo}/Reject.png`,
+        '🎥 流媒体': `${iconRepo}/Video.png`,
+        '🍎 Apple': `${iconRepo}/Apple.png`,
+        'Ⓜ️ Microsoft': `${iconRepo}/Microsoft.png`,
+        '📲 Telegram': `${iconRepo}/Telegram.png`,
+        '🎧 Spotify': `${iconRepo}/Spotify.png`,
         '🇭🇰 香港节点': `${iconRepo}/Hong_Kong.png`,
         '🇹🇼 台湾节点': `${iconRepo}/Taiwan.png`,
         '🇯🇵 日本节点': `${iconRepo}/Japan.png`,
@@ -332,33 +313,30 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
         '🇬🇧 英国节点': `${iconRepo}/United_Kingdom.png`,
     };
 
-    for (const groupName of activeRegionNames) {
-        const nodesInGroup = activeRegionGroups[groupName].join(', ');
-        const icon = regionIcons[groupName] ? `, icon=${regionIcons[groupName]}` : '';
-        proxyGroupLines.push(`${groupName} = url-test, ${nodesInGroup}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50${icon}`);
-    }
+    const proxyGroupLines = abstractGroups.map(group => {
+        let type = group.type === 'url-test' ? 'url-test' : 'select';
+        if (group.type === 'fallback') type = 'fallback';
+        if (group.type === 'relay') type = 'relay';
+
+        const proxies = group.proxies.join(', ');
+        const icon = groupIcons[group.name] ? `, icon=${groupIcons[group.name]}` : '';
+        const extra = type === 'url-test' || type === 'fallback' ? `, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50` : '';
+        return `${group.name} = ${type}, ${proxies}${extra}${icon}`;
+    });
 
     sections.push(`[Proxy Group]\n${proxyGroupLines.join('\n')}`);
 
-    // [Rule]
-    sections.push(`[Rule]
-# Apple
-RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Apple/Apple.list,DIRECT
-# Global Media
-RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/GlobalMedia/GlobalMedia_No_Resolve.list,📶 节点选择
-# Telegram
-RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Telegram/Telegram.list,📶 节点选择
-# China
-RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/China/China.list,DIRECT
-# Local Area Network
-IP-CIDR,192.168.0.0/16,DIRECT
-IP-CIDR,10.0.0.0/8,DIRECT
-IP-CIDR,172.16.0.0/12,DIRECT
-IP-CIDR,127.0.0.0/8,DIRECT
-# GeoIP
-GEOIP,CN,DIRECT
-# Final
-FINAL,📶 节点选择`);
+    const builtinRuleLines = getBuiltinRules(levelKey, 'loon');
+    const ruleLines = [
+        '# 基础分流',
+        'IP-CIDR,127.0.0.0/8,DIRECT',
+        'IP-CIDR,10.0.0.0/8,DIRECT',
+        'IP-CIDR,172.16.0.0/12,DIRECT',
+        'IP-CIDR,192.168.0.0/16,DIRECT',
+        ...builtinRuleLines,
+        `FINAL,${levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP}`
+    ];
+    sections.push(`[Rule]\n${ruleLines.filter(Boolean).join('\n')}`);
 
     return sections.join('\n\n') + '\n';
 }

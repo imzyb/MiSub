@@ -16,6 +16,10 @@ const props = defineProps({
     type: String,
     default: '确认'
   },
+  closeOnConfirm: {
+    type: Boolean,
+    default: true,
+  },
   confirmText: {
     type: String,
     default: '确认'
@@ -101,9 +105,11 @@ watch(() => props.show, async (val) => {
 
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
 
-const handleConfirm = () => {
-  emit('confirm');
-  emit('update:show', false);
+const handleConfirm = async () => {
+  await emit('confirm');
+  if (props.closeOnConfirm) {
+    emit('update:show', false);
+  }
 };
 </script>
 

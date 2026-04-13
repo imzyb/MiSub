@@ -5,11 +5,12 @@
 
 // [修复] 使用正确的相对路径引用 modules/utils 下的 geo-utils
 import { extractNodeRegion, getRegionEmoji } from '../modules/utils/geo-utils.js';
+import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 
 /**
  * 节点协议正则表达式
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard):\/\//g;
+export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard|naive\+https?|naive\+quic):\/\//i;
 
 /**
  * 为节点名称添加前缀
@@ -73,31 +74,29 @@ export function extractRegionFromNodeName(nodeName) {
  * 为节点链接添加国旗 Emoji
  */
 export function addFlagEmoji(link) {
-    if (!link) return link;
-
     const appendEmoji = (name) => {
-        // [修复] 先将台湾旗帜替换为中国国旗
-        let processedName = name.replace(/🇹🇼/g, '🇨🇳');
+        if (!name) return name;
+        
+        // 更全面的 Emoji 检测正则 (涵盖国旗、地区符号等)
+        const HAS_EMOJI_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]{2,}\u{E007F}/u;
+        if (HAS_EMOJI_REGEX.test(name)) return name;
 
-        const region = extractNodeRegion(processedName);
-        const emoji = getRegionEmoji(region);
-        if (!emoji) return processedName;
-        if (processedName.includes(emoji)) return processedName;
-        return `${emoji} ${processedName}`;
+        const metadata = extractNodeMetadata(name);
+        if (!metadata.flag) return name;
+        
+        return `${metadata.flag} ${name}`;
     };
 
     if (link.startsWith('vmess://')) {
         try {
             const base64Part = link.substring('vmess://'.length);
-            const binaryString = atob(base64Part);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            const jsonString = new TextDecoder('utf-8').decode(bytes);
-            const nodeConfig = JSON.parse(jsonString);
+            const binaryString = atob(normalizeBase64(base64Part));
+            const decodedStr = new TextDecoder('utf-8').decode(new Uint8Array(Array.from(binaryString, c => c.charCodeAt(0))));
+            const nodeConfig = JSON.parse(decodedStr);
             if (nodeConfig.ps) {
-                nodeConfig.ps = appendEmoji(nodeConfig.ps);
+                const updatedPs = appendEmoji(nodeConfig.ps);
+                if (updatedPs === nodeConfig.ps) return link;
+                nodeConfig.ps = updatedPs;
                 const newJsonString = JSON.stringify(nodeConfig);
                 const newBase64Part = btoa(unescape(encodeURIComponent(newJsonString)));
                 return 'vmess://' + newBase64Part;
@@ -108,14 +107,38 @@ export function addFlagEmoji(link) {
         }
     } else {
         const hashIndex = link.lastIndexOf('#');
-        if (hashIndex === -1) return link;
-        try {
-            const originalName = decodeURIComponent(link.substring(hashIndex + 1));
-            const newName = appendEmoji(originalName);
-            return link.substring(0, hashIndex + 1) + encodeURIComponent(newName);
-        } catch (e) {
-            return link;
+        let originalName = '';
+        let basePart = link;
+        
+        if (hashIndex !== -1) {
+            basePart = link.substring(0, hashIndex);
+            const rawName = link.substring(hashIndex + 1);
+            try {
+                // [关键修复] VLESS/Trojan 节点名通常被层层编码，这里需要确保解码透彻
+                originalName = decodeURIComponent(rawName);
+                if (originalName.includes('%')) {
+                     originalName = decodeURIComponent(originalName);
+                }
+            } catch (e) {
+                originalName = rawName;
+            }
+        } else {
+            // 没有 # 片段，根据 URL 结构提取一个逻辑名称以便注入国旗
+            const protocolMatch = link.match(/^(.*?):\/\//);
+            if (protocolMatch) {
+                const protocol = protocolMatch[1];
+                const rest = link.substring(protocol.length + 3);
+                const atIdx = rest.lastIndexOf('@');
+                const hostPortPart = (atIdx !== -1 ? rest.substring(atIdx + 1) : rest).split(/[?#]/)[0];
+                originalName = hostPortPart.split(':')[0] || 'Node';
+            }
         }
+
+        if (!originalName) return link;
+        const newName = appendEmoji(originalName);
+        if (newName === originalName && hashIndex === -1) return link;
+        
+        return `${basePart}#${encodeURIComponent(newName)}`;
     }
 }
 

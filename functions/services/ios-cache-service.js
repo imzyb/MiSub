@@ -5,7 +5,7 @@
 
 const IOS_CACHE_CONFIG = {
     CACHE_TTL: 300000, // 5分钟缓存
-    IOS_CLIENTS: ['surge', 'loon'],
+    IOS_CLIENTS: ['surge', 'loon', 'egern'],
     CACHE_KEY_PREFIX: 'ios_sub_'
 };
 

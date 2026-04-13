@@ -3,8 +3,6 @@
  * 使用 Cloudflare Pages Functions 的 Cron Triggers 功能
  */
 
-import { StorageFactory } from './storage-adapter.js';
-
 export async function onRequest(context) {
     // 只有在 Cron 触发时才执行
     if (context.request.headers.get('CF-Cron') !== 'true') {
@@ -13,8 +11,7 @@ export async function onRequest(context) {
 
     const results = {
         timestamp: new Date().toISOString(),
-        subscriptionSync: null,
-        vpsMaintenance: null
+        subscriptionSync: null
     };
 
     try {
@@ -23,13 +20,6 @@ export async function onRequest(context) {
     } catch (error) {
         console.error('Cron subscription sync failed:', error);
         results.subscriptionSync = { error: error.message };
-    }
-
-    try {
-        results.vpsMaintenance = await performVpsMaintenance(context.env);
-    } catch (error) {
-        console.error('Cron VPS maintenance failed:', error);
-        results.vpsMaintenance = { error: error.message };
     }
 
     return new Response(JSON.stringify(results), {
@@ -136,7 +126,7 @@ async function getSubscriptionsToSync(env) {
  * 同步单个订阅
  */
 async function syncSingleSubscription(subscription, env) {
-    const { url, userAgent = 'clash-meta/2.4.0', timeout = 30000 } = subscription;
+    const { url, userAgent = 'clash-meta/2.5.0', timeout = 30000 } = subscription;
 
     console.log(`[Cron Sync] Syncing subscription: ${subscription.name}`);
 
@@ -164,71 +154,6 @@ async function syncSingleSubscription(subscription, env) {
         nodeCount: nodes.length,
         contentLength: content.length
     };
-}
-
-function clampPositiveInt(value, min, max, fallback) {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return fallback;
-    return Math.min(max, Math.max(min, Math.floor(num)));
-}
-
-async function loadVpsMonitorRetentionDays(env) {
-    let raw = null;
-    const kv = StorageFactory.resolveKV(env);
-    if (kv) {
-        try {
-            raw = await kv.get('worker_settings_v1');
-        } catch (error) {
-            console.warn('[VPS Maintenance] Failed to read retention settings from KV:', error?.message || error);
-        }
-    }
-
-    if (!raw && env?.MISUB_DB) {
-        try {
-            const d1Adapter = new (await import('./storage-adapter.js')).D1StorageAdapter(env.MISUB_DB);
-            raw = await d1Adapter.get('worker_settings_v1', 'text');
-        } catch (error) {
-            console.warn('[VPS Maintenance] Failed to read retention settings from D1:', error?.message || error);
-        }
-    }
-
-    if (raw) {
-        try {
-            const settings = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            const days = settings?.vpsMonitor?.reportRetentionDays;
-            return clampPositiveInt(days, 1, 180, 30);
-        } catch (error) {
-            console.warn('[VPS Maintenance] Failed to parse retention settings:', error?.message || error);
-        }
-    }
-
-    return 30;
-}
-
-async function performVpsMaintenance(env) {
-    const db = env?.MISUB_DB;
-    if (!db) {
-        return { success: false, reason: 'MISUB_DB binding unavailable' };
-    }
-
-    const retentionDays = await loadVpsMonitorRetentionDays(env);
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
-
-    try {
-        await db.prepare('DELETE FROM vps_reports WHERE reported_at < ?').bind(cutoff).run();
-        await db.prepare('DELETE FROM vps_network_samples WHERE reported_at < ?').bind(cutoff).run();
-        return {
-            success: true,
-            retentionDays,
-            cutoff,
-            prunedAt: new Date().toISOString()
-        };
-    } catch (error) {
-        return {
-            success: false,
-            error: error?.message || 'Failed to prune old VPS report data'
-        };
-    }
 }
 
 /**

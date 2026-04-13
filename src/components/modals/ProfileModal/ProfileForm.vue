@@ -1,49 +1,47 @@
 <script setup>
-import { computed } from 'vue';
-import SubConverterSelector from '../../forms/SubConverterSelector.vue';
-import NodeTransformSettings from '../../settings/NodeTransformSettings.vue';
+import { computed, ref } from 'vue';
+import TransformSelector from '../../forms/TransformSelector.vue';
 import Input from '../../ui/Input.vue';
+import OperatorChain from '../../features/Operators/OperatorChain.vue';
 
 const props = defineProps({
-localProfile: {
-type: Object,
-required: true
-},
-showAdvanced: {
-type: Boolean,
-default: false
-},
-uiText: {
-type: Object,
-required: true
-},
-prefixToggleOptions: {
-type: Array,
-default: () => []
-},
-groupPrefixToggleOptions: {
-type: Array,
-default: () => []
-},
-createDefaultNodeTransform: {
-type: Function,
-required: true
-}
+  localProfile: {
+    type: Object,
+    required: true
+  },
+  showAdvanced: {
+    type: Boolean,
+    default: false
+  },
+  uiText: {
+    type: Object,
+    required: true
+  },
+  prefixToggleOptions: {
+    type: Array,
+    default: () => []
+  },
+  groupPrefixToggleOptions: {
+    type: Array,
+    default: () => []
+  }
 });
+
+const transformModeOptions = [
+  { value: 'global', label: '跟随全局设置' },
+  { value: 'preset', label: '引用全局方案' },
+  { value: 'custom', label: '自定义规则模板' }
+];
+
+const selectedTransformAsset = ref(null);
 
 const emit = defineEmits(['toggle-advanced']);
 
-const nodeTransformMode = computed({
-  get: () => (props.localProfile.nodeTransform ? 'custom' : 'global'),
-  set: (value) => {
-    if (value === 'custom') {
-      if (!props.localProfile.nodeTransform) {
-        props.localProfile.nodeTransform = props.createDefaultNodeTransform();
-      }
-    } else {
-      props.localProfile.nodeTransform = null;
-    }
-  }
+const transformModeHint = computed(() => {
+  if (props.localProfile.transformConfigMode === 'global') return '继承全局规则来源，适合绝大多数订阅组。';
+  if (props.localProfile.transformConfigMode === 'builtin') return '当前订阅组强制使用内置模板与统一渲染逻辑。';
+  if (props.localProfile.transformConfigMode === 'preset') return '系统会按客户端自动适配，预设模板将通过统一模板主线输出。';
+  return '系统会按客户端自动适配，自定义 URL 会在兼容的目标客户端上走统一模板渲染。';
 });
 </script>
 
@@ -120,30 +118,41 @@ const nodeTransformMode = computed({
     <div v-show="showAdvanced" class="mt-4 space-y-4 animate-fade-in-down">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label for="profile-subconverter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            自定义后端 (可选)
+          <label for="profile-transform-config" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            规则来源
           </label>
-          <SubConverterSelector
-            id="profile-subconverter"
-            v-model="localProfile.subConverter"
-            type="backend"
-            placeholder="留空则使用全局设置"
-            :allowEmpty="true"
-          />
-          <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 SubConverter 后端地址。</p>
+          <select
+            id="profile-transform-config-mode"
+            v-model="localProfile.transformConfigMode"
+            class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+          >
+            <option v-for="option in transformModeOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
         </div>
-        <div>
-          <label for="profile-subconfig" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            自定义远程配置 (可选)
+        <div v-if="localProfile.transformConfigMode !== 'global' && localProfile.transformConfigMode !== 'builtin'">
+          <label for="profile-transform-config-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            外部规则模板 / 配置
           </label>
-          <SubConverterSelector
-            id="profile-subconfig"
-            v-model="localProfile.subConfig"
+          <TransformSelector
+            id="profile-transform-config-url"
+            v-model="localProfile.transformConfig"
+            @select-asset="selectedTransformAsset = $event"
             type="config"
-            placeholder="留空则使用全局设置"
-            :allowEmpty="true"
+            placeholder="选择预设模板"
+            custom-placeholder="输入外部规则模板 URL"
+            :force-custom="localProfile.transformConfigMode === 'custom'"
+            :allowEmpty="localProfile.transformConfigMode !== 'custom'"
           />
-          <p class="text-xs text-gray-400 mt-1">为此订阅组指定一个独立的 Subconverter 配置文件。</p>
+          <p class="text-xs text-gray-400 mt-1">可为该订阅组单独指定预设模板或外部 URL；留空时按当前来源模式回退。</p>
+          <p class="text-xs text-gray-400 mt-1">{{ transformModeHint }}</p>
+          <div v-if="selectedTransformAsset" class="mt-2 rounded-lg border border-indigo-200/70 dark:border-indigo-500/20 bg-indigo-50/60 dark:bg-indigo-500/5 px-3 py-2 text-xs text-indigo-700 dark:text-indigo-300">
+            <p class="font-medium">{{ selectedTransformAsset.name }}</p>
+            <p class="mt-1">来源类型：{{ selectedTransformAsset.sourceType === 'builtin-preset' ? '内置预设' : '远程预设' }}</p>
+            <p class="mt-1">{{ selectedTransformAsset.description }}</p>
+            <p class="mt-1">适用客户端：{{ selectedTransformAsset.compatibleClients.join(' / ') }}</p>
+          </div>
         </div>
         <div>
           <label for="profile-expires-at" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -156,6 +165,23 @@ const nodeTransformMode = computed({
             class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
           >
           <p class="text-xs text-gray-400 mt-1">设置此订阅组的到期时间，到期后将返回默认节点。</p>
+        </div>
+        <div>
+          <label for="profile-rule-level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            规则等级
+          </label>
+          <select
+            id="profile-rule-level"
+            v-model="localProfile.ruleLevel"
+            class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+          >
+            <option value="">跟随全局设置</option>
+            <option value="base">精简版 Base</option>
+            <option value="std">标准版 Standard</option>
+            <option value="full">完整版 Full</option>
+            <option value="relay">链式版 Relay</option>
+          </select>
+          <p class="text-xs text-gray-400 mt-1">为此订阅组指定独立的统一规则等级。</p>
         </div>
       </div>
 
@@ -209,25 +235,23 @@ class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300
 </div>
       </div>
 
-      <!-- Node Transform Settings -->
-      <div class="bg-gray-50 dark:bg-gray-800/50 misub-radius-md p-3 border border-gray-100 dark:border-gray-700">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ uiText.nodeTransformTitle }}</label>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">净化配置来源</label>
-            <select
-              v-model="nodeTransformMode"
-              class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
-            >
-              <option value="global">使用全局设置</option>
-              <option value="custom">自定义</option>
-            </select>
-          </div>
+      <!-- Operator Chain -->
+      <div class="bg-indigo-50/20 dark:bg-indigo-900/10 misub-radius-lg p-5 border border-indigo-100 dark:border-indigo-500/10 shadow-sm mt-4">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+             <div class="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+             </div>
+             <div>
+                 <h3 class="text-sm font-bold text-gray-900 dark:text-white">节点处理工作流</h3>
+                 <p class="text-[10px] text-gray-400 mt-0.5">链式处理流水线，留空则自动跟随全局操作符链。</p>
+              </div>
+           </div>
         </div>
-        <NodeTransformSettings
-          v-if="nodeTransformMode === 'custom'"
-          :model-value="localProfile.nodeTransform"
-          @update:model-value="val => localProfile.nodeTransform = val"
+        
+        <OperatorChain 
+          v-model="localProfile.operators"
+          :legacy-data="localProfile.nodeTransform"
         />
       </div>
     </div>

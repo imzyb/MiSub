@@ -115,7 +115,12 @@ export const useDataStore = defineStore('data', () => {
 
             const payload = {
                 misubs: sanitizedSubs,
-                profiles: profiles.value
+                profiles: profiles.value.map(profile => {
+                    const normalizedProfile = { ...profile };
+                    normalizedProfile.ruleLevel = normalizedProfile.ruleLevel || normalizedProfile.clashRuleLevel || '';
+                    delete normalizedProfile.clashRuleLevel;
+                    return normalizedProfile;
+                })
             };
 
             const result = await api.post('/api/misubs', payload);
@@ -317,4 +322,3 @@ export const useDataStore = defineStore('data', () => {
         clearDirty
     };
 });
-

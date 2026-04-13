@@ -13,13 +13,13 @@ const emit = defineEmits(['update:show']);
 
 const settingsPanelRef = ref(null);
 
-const handleConfirm = () => {
-    if (settingsPanelRef.value) {
-        settingsPanelRef.value.handleSave();
+const handleConfirm = async () => {
+    if (!settingsPanelRef.value) return;
+
+    const didSave = await settingsPanelRef.value.handleSave();
+    if (didSave) {
+      emit('update:show', false);
     }
-    // Note: Modal automatically emits update:show false, causing close.
-    // Since handleSave triggers a reload after success, this behavior is acceptable.
-    // If we wanted to keep it open during save, we would need to modify Modal.vue to prevent close.
 };
 </script>
 
@@ -28,6 +28,7 @@ const handleConfirm = () => {
     :show="show" 
     @update:show="emit('update:show', $event)" 
     @confirm="handleConfirm"
+    :close-on-confirm="false"
     size="6xl"
   >
     <template #title>

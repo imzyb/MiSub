@@ -7,296 +7,15 @@ import yaml from 'js-yaml';
 import { parseNodeInfo, extractNodeRegion } from './geo-utils.js';
 // [注意] node-parser.js 在 functions/modules/utils/，而 node-utils.js 在 functions/utils/
 // 所以需要向上两级找到 functions/utils/
-import { fixNodeUrlEncoding, addFlagEmoji } from '../../utils/node-utils.js';
+import { fixNodeUrlEncoding } from '../../utils/node-utils.js';
+import { convertClashProxyToUrl } from '../../utils/clash-to-url.js';
 import { validateSS2022Node, fixSS2022Node } from './ss2022-validator.js';
+import { extractNodeMetadata } from './metadata-extractor.js';
 
 /**
  * 支持的节点协议正则表达式
  */
 export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2|hy2|hysteria|tuic|snell|naive\+https?|naive\+quic|socks5|socks|http|anytls|wireguard):\/\//i;
-
-/**
- * Base64编码辅助函数
- */
-function base64Encode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-}
-
-/**
- * URL-safe Base64 编码（SSR 标准格式）
- * 将 + 替换为 -，/ 替换为 _，去除尾部 = padding
- */
-function base64UrlSafeEncode(str) {
-    return base64Encode(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-/**
- * 将 Clash 代理对象转换为标准 URL
- */
-function convertClashProxyToUrl(proxy) {
-    try {
-        const type = (proxy.type || '').toLowerCase();
-        const name = proxy.name || 'Untitled';
-        const server = proxy.server;
-        const port = proxy.port;
-
-        if (!server || !port) return null;
-
-        if (type === 'ss' || type === 'shadowsocks') {
-            const userInfo = base64Encode(`${proxy.cipher}:${proxy.password}`);
-            let url = `ss://${userInfo}@${server}:${port}`;
-
-            // 支持 AnyTLS 插件
-            if (proxy.plugin === 'anytls' || proxy.plugin === 'obfs-local') {
-                const params = [];
-                if (proxy.plugin) params.push(`plugin=${proxy.plugin}`);
-
-                const pluginOpts = proxy['plugin-opts'];
-                if (pluginOpts) {
-                    if (pluginOpts.enabled !== undefined) params.push(`enabled=${pluginOpts.enabled}`);
-                    if (pluginOpts.padding !== undefined) params.push(`padding=${pluginOpts.padding}`);
-                    if (pluginOpts.mode) params.push(`obfs=${pluginOpts.mode}`);
-                    if (pluginOpts.host) params.push(`obfs-host=${encodeURIComponent(pluginOpts.host)}`);
-                }
-
-                if (params.length > 0) {
-                    url += `?${params.join('&')}`;
-                }
-            }
-
-            url += `#${encodeURIComponent(name)}`;
-            return url;
-        }
-
-        if (type === 'ssr' || type === 'shadowsocksr') {
-            const password = base64UrlSafeEncode(proxy.password);
-            const params = `obfs=${proxy.obfs || 'plain'}&obfsparam=${base64UrlSafeEncode(proxy['obfs-param'] || '')}&protocol=${proxy.protocol || 'origin'}&protoparam=${base64UrlSafeEncode(proxy['protocol-param'] || '')}&remarks=${base64UrlSafeEncode(name)}`;
-            const ssrBody = `${server}:${port}:${proxy.protocol || 'origin'}:${proxy.cipher || 'none'}:${proxy.obfs || 'plain'}:${password}/?${params}`;
-            return `ssr://${base64UrlSafeEncode(ssrBody)}`;
-        }
-
-        if (type === 'vmess') {
-            // 兼容 uuid 和 UUID 两种写法
-            const uuid = proxy.uuid || proxy.UUID || '';
-            const vmessConfig = {
-                v: "2",
-                ps: name,
-                add: server,
-                port: port,
-                id: uuid,
-                aid: proxy.alterId || 0,
-                net: proxy.network || 'tcp',
-                type: 'none',
-                host: proxy.servername || proxy.wsOpts?.headers?.Host || proxy['ws-opts']?.headers?.Host || '',
-                path: proxy.wsOpts?.path || proxy['ws-opts']?.path || '',
-                tls: proxy.tls ? 'tls' : ''
-            };
-            return `vmess://${base64Encode(JSON.stringify(vmessConfig))}`;
-        }
-
-        if (type === 'trojan') {
-            const params = [];
-            const network = proxy.network || 'tcp';
-            if (network === 'ws') params.push('type=ws');
-
-            const wsOpts = proxy.wsOpts || proxy['ws-opts'];
-            if (wsOpts) {
-                if (wsOpts.path) params.push(`path=${encodeURIComponent(wsOpts.path)}`);
-                if (wsOpts.headers?.Host) params.push(`host=${encodeURIComponent(wsOpts.headers.Host)}`);
-            }
-
-if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
-      if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('allowInsecure=1');
-
-            const query = params.length > 0 ? `?${params.join('&')}` : '';
-            return `trojan://${encodeURIComponent(proxy.password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'vless') {
-            // 兼容 uuid 和 UUID 两种写法
-            const uuid = proxy.uuid || proxy.UUID;
-            if (!uuid) return null; // UUID 是必需的
-
-            const params = ['encryption=none'];
-            if (proxy.network) params.push(`type=${proxy.network}`);
-
-            const wsOpts = proxy.wsOpts || proxy['ws-opts'];
-            if (wsOpts) {
-                if (wsOpts.path) params.push(`path=${encodeURIComponent(wsOpts.path)}`);
-                if (wsOpts.headers?.Host) params.push(`host=${encodeURIComponent(wsOpts.headers.Host)}`);
-            }
-
-            // Reality 协议支持
-            const realityOpts = proxy['reality-opts'];
-            if (realityOpts) {
-                params.push('security=reality');
-                if (realityOpts['public-key']) params.push(`pbk=${encodeURIComponent(realityOpts['public-key'])}`);
-                if (realityOpts['short-id']) params.push(`sid=${encodeURIComponent(realityOpts['short-id'])}`);
-            } else if (proxy.tls) {
-                params.push('security=tls');
-            }
-
-            if (proxy.flow) params.push(`flow=${proxy.flow}`);
-            // 兼容 servername 和 sni
-            if (proxy.servername || proxy.sni) params.push(`sni=${encodeURIComponent(proxy.servername || proxy.sni)}`);
-            // 兼容 client-fingerprint
-            if (proxy['client-fingerprint']) params.push(`fp=${encodeURIComponent(proxy['client-fingerprint'])}`);
-
-            // dialer-proxy 链式代理支持 (使用自定义参数 dp)
-            if (proxy['dialer-proxy']) params.push(`dp=${encodeURIComponent(proxy['dialer-proxy'])}`);
-
-            return `vless://${uuid}@${server}:${port}?${params.join('&')}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'hysteria2' || type === 'hy2' || type === 'hy') {
-            const params = [];
-            const password = proxy.password || proxy.auth || '';
-
-            // 混淆参数：仅在配置了 obfs 时传递（与认证密码无关）
-            if (proxy.obfs) params.push(`obfs=${encodeURIComponent(proxy.obfs)}`);
-            if (proxy['obfs-password']) params.push(`obfs-password=${encodeURIComponent(proxy['obfs-password'])}`);
-
-            if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
-            if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('insecure=1');
-
-            const query = params.length > 0 ? `?${params.join('&')}` : '';
-            return `hysteria2://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'hysteria') {
-            const params = [];
-            const password = proxy.password || proxy.auth || '';
-
-            if (proxy.protocol === 'udp') params.push('protocol=udp');
-            if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
-            if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('insecure=1');
-            if (proxy.up || proxy['up-mbps']) params.push(`up=${proxy.up || proxy['up-mbps']}`);
-            if (proxy.down || proxy['down-mbps']) params.push(`down=${proxy.down || proxy['down-mbps']}`);
-
-            const query = params.length > 0 ? `?${params.join('&')}` : '';
-            return `hysteria://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'socks5') {
-            let auth = '';
-            if (proxy.username && proxy.password) {
-                auth = `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
-            }
-            return `socks5://${auth}${server}:${port}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'http') {
-            let auth = '';
-            if (proxy.username && proxy.password) {
-                auth = `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
-            }
-            return `http://${auth}${server}:${port}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'snell') {
-            const params = [];
-            if (proxy.version) params.push(`version=${proxy.version}`);
-
-            // [增强] 支持 reuse 和 tfo 参数
-            if (proxy.reuse !== undefined) params.push(`reuse=${proxy.reuse}`);
-            if (proxy.tfo !== undefined) params.push(`tfo=${proxy.tfo}`);
-
-            const obfsOpts = proxy['obfs-opts'] || proxy.pluginOpts;
-            if (obfsOpts) {
-                if (obfsOpts.mode) params.push(`obfs=${obfsOpts.mode}`);
-                if (obfsOpts.host) params.push(`obfs-host=${encodeURIComponent(obfsOpts.host)}`);
-            }
-
-            const psk = proxy.psk || proxy.password || '';
-            const query = params.length > 0 ? `?${params.join('&')}` : '';
-            return `snell://${encodeURIComponent(psk)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
-        }
-
-        if (type === 'naive' || proxy.protocol === 'naive') {
-            const username = proxy.username || '';
-            const password = proxy.password || '';
-            const auth = username && password ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@` : '';
-
-            const params = [];
-            if (proxy.padding !== undefined) params.push(`padding=${proxy.padding}`);
-            if (proxy['extra-headers']) params.push(`extra-headers=${encodeURIComponent(proxy['extra-headers'])}`);
-
-            const query = params.length > 0 ? `?${params.join('&')}` : '';
-            const scheme = proxy.quic ? 'naive+quic' : 'naive+https';
-            return `${scheme}://${auth}${server}:${port}${query}#${encodeURIComponent(name)}`;
-        }
-
-// [新增] 支持 anytls 类型代理
-if (type === 'anytls') {
-const password = proxy.password || '';
-const params = [];
-
-if (proxy.sni) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
-if (proxy.alpn) {
-const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
-params.push(`alpn=${encodeURIComponent(alpn)}`);
-}
-if (proxy['skip-cert-verify']) params.push('insecure=1');
-if (proxy.padding !== undefined) params.push(`padding=${proxy.padding}`);
-
-const query = params.length > 0 ? `?${params.join('&')}` : '';
-return `anytls://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
-}
-
-// [新增] 支持 WireGuard 协议
-if (type === 'wireguard') {
-if (!proxy['private-key'] || !proxy.server || !proxy.port) return null;
-const params = new URLSearchParams();
-
-// 公钥 (必需)
-if (proxy['public-key'] || proxy.publicKey) {
-params.set('publickey', proxy['public-key'] || proxy.publicKey);
-}
-
-// 本地地址
-if (proxy.ip || proxy['local-address']) {
-const addr = Array.isArray(proxy.ip || proxy['local-address']) 
-? (proxy.ip || proxy['local-address']).join(',') 
-: (proxy.ip || proxy['local-address']);
-params.set('address', addr);
-}
-
-// Allowed IPs
-if (proxy['allowed-ips'] || proxy.allowedIPs) {
-const ips = Array.isArray(proxy['allowed-ips'] || proxy.allowedIPs) 
-? (proxy['allowed-ips'] || proxy.allowedIPs).join(',') 
-: (proxy['allowed-ips'] || proxy.allowedIPs);
-params.set('allowedips', ips);
-}
-
-// Reserved (Cloudflare WARP)
-if (proxy.reserved) {
-params.set('reserved', Array.isArray(proxy.reserved) ? proxy.reserved.join(',') : String(proxy.reserved));
-}
-
-// 可选参数
-if (proxy.mtu) params.set('mtu', String(proxy.mtu));
-if (proxy.dns) params.set('dns', Array.isArray(proxy.dns) ? proxy.dns.join(',') : proxy.dns);
-if (proxy['persistent-keepalive']) params.set('keepalive', String(proxy['persistent-keepalive']));
-if (proxy['preshared-key'] || proxy.presharedKey) {
-params.set('presharedkey', proxy['preshared-key'] || proxy.presharedKey);
-}
-
-// IPv6 服务器地址处理
-let serverAddr = proxy.server;
-if (serverAddr.includes(':') && !serverAddr.startsWith('[')) {
-serverAddr = `[${serverAddr}]`;
-}
-
-return `wireguard://${encodeURIComponent(proxy['private-key'])}@${serverAddr}:${proxy.port}?${params.toString()}#${encodeURIComponent(name)}`;
-}
-
-return null;
-    } catch (e) {
-        console.error('Error converting proxy:', e);
-        return null;
-    }
-}
 
 /**
  * 尝试解析 Surge 或 Quantumult X 格式的节点字符串
@@ -306,7 +25,7 @@ function parseSurgeOrQxLine(line) {
     if (!line || line.startsWith('#') || line.startsWith(';')) return null;
 
     // Surge 格式: "name = protocol, server, port, key=value, ..."
-    let match = line.match(/^([^=]+?)\s*=\s*(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https)\s*,\s*([^,]+?)\s*,\s*(\d+)(.*)$/i);
+    let match = line.match(/^([^=]+?)\s*=\s*(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*,\s*([^,]+?)\s*,\s*(\d+)(.*)$/i);
     if (match) {
         const proxy = {
             name: match[1].trim(),
@@ -331,6 +50,10 @@ function parseSurgeOrQxLine(line) {
                         else if (proxy.type === 'snell') proxy.psk = v;
                         else proxy.password = v;
                     }
+                    if (k === 'private-key') proxy['private-key'] = v;
+                    if (k === 'peer-public-key' || k === 'public-key') proxy['public-key'] = v;
+                    if (k === 'self-ip') proxy.ip = v;
+                    if (k === 'client-id') proxy.reserved = v.replace(/\//g, ',');
                     if (k === 'token') {
                         if (proxy.type === 'tuic') proxy.token = proxy.password = v;
                     }
@@ -366,7 +89,7 @@ function parseSurgeOrQxLine(line) {
     }
 
     // QX 格式: "protocol=server:port, key=value, ..., tag=name"
-    match = line.match(/^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https)\s*=\s*([^,:]+?)\s*:\s*(\d+)(.*)$/i);
+    match = line.match(/^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*=\s*([^,:]+?)\s*:\s*(\d+)(.*)$/i);
     if (match) {
         const proxy = {
             name: 'Untitled',
@@ -720,10 +443,13 @@ export function parseNodeList(content, options = {}) {
             return null;
         }
 
-        // 6. 添加 SS 2022 警告信息
+        // 6. 添加元数据提取 (Intelligence)
+        const metadata = extractNodeMetadata(nodeInfo.name);
+
         const result = {
             url: fixedUrl,
-            ...nodeInfo
+            ...nodeInfo,
+            metadata: metadata
         };
 
         if (ss2022Warning) {

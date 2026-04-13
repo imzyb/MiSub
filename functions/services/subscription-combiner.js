@@ -95,7 +95,7 @@ class SubscriptionCombiner {
      * @returns {Promise<Array>}
      */
     async fetchSubscription(subscription, index) {
-        const { url, userAgent = 'clash-meta/2.4.0', timeout = 15000 } = subscription;
+        const { url, userAgent = 'clash-meta/2.5.0', timeout = 15000 } = subscription;
 
         console.log(`[SubscriptionCombiner] 获取订阅 ${index + 1}: ${subscription.name || url}`);
 

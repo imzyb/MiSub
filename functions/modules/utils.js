@@ -509,11 +509,19 @@ export function migrateConfigSettings(config) {
     if (migratedConfig.hasOwnProperty('enableTrafficNode')) {
         migratedConfig.enableTrafficNode = toBoolean(migratedConfig.enableTrafficNode);
     }
-    if (migratedConfig.hasOwnProperty('subConverterScv')) {
-        migratedConfig.subConverterScv = toBoolean(migratedConfig.subConverterScv);
+    // [Migration] 映射旧名到新名（如果新名不存在且旧名存在）
+    if (!migratedConfig.hasOwnProperty('builtinSkipCertVerify') && migratedConfig.hasOwnProperty('transformBackendScv')) {
+        migratedConfig.builtinSkipCertVerify = toBoolean(migratedConfig.transformBackendScv);
     }
-    if (migratedConfig.hasOwnProperty('subConverterUdp')) {
-        migratedConfig.subConverterUdp = toBoolean(migratedConfig.subConverterUdp);
+    if (!migratedConfig.hasOwnProperty('builtinEnableUdp') && migratedConfig.hasOwnProperty('transformBackendUdp')) {
+        migratedConfig.builtinEnableUdp = toBoolean(migratedConfig.transformBackendUdp);
+    }
+
+    if (migratedConfig.hasOwnProperty('builtinSkipCertVerify')) {
+        migratedConfig.builtinSkipCertVerify = toBoolean(migratedConfig.builtinSkipCertVerify);
+    }
+    if (migratedConfig.hasOwnProperty('builtinEnableUdp')) {
+        migratedConfig.builtinEnableUdp = toBoolean(migratedConfig.builtinEnableUdp);
     }
     if (migratedConfig.hasOwnProperty('builtinLoonSkipCertVerify')) {
         migratedConfig.builtinLoonSkipCertVerify = toBoolean(migratedConfig.builtinLoonSkipCertVerify);
