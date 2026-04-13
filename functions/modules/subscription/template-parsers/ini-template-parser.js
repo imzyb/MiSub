@@ -3,7 +3,7 @@ import { createUnifiedTemplateModel } from '../template-model.js';
 function parseIniSections(templateText) {
     const lines = String(templateText || '').split(/\r?\n/);
     const sections = new Map();
-    let currentSection = '';
+    let currentSection = 'custom'; // Default to custom if no section headers are found
 
     for (const rawLine of lines) {
         const line = rawLine.trim();
@@ -65,7 +65,11 @@ function parseAclRuleSetLine(line) {
     if (parts.length < 2) return null;
 
     const policy = parts[0];
-    const source = parts.slice(1).join(',');
+    let source = parts.slice(1).join(',');
+    
+    // Clean up protocol prefixes like clash-classic:, surge:, etc.
+    source = source.replace(/^(clash-classic|surge|quanx|loon|sing-box|singbox):/i, '');
+    
     if (source.startsWith('[]')) {
         const inlineValue = source.slice(2);
         const inlineParts = inlineValue.split(',').map(part => part.trim()).filter(Boolean);

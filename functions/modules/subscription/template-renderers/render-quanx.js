@@ -16,7 +16,8 @@ function buildProxyLine(proxy) {
             if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
         }
-        if (proxy.sni || proxy.servername) extras.push(`tls-host=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
         return `trojan=${name}, ${server}, ${port}, ${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}`;
     }
@@ -29,15 +30,17 @@ function buildProxyLine(proxy) {
             if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
         }
-        if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
-        if (proxy.sni || proxy.servername) extras.push(`tls-host=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (proxy.tls || sni !== undefined) extras.push('tls=true');
+        if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
         return `vmess=${name}, ${server}, ${port}, ${proxy.cipher || 'auto'}, ${proxy.uuid || ''}, 0${extras.length ? `, ${extras.join(', ')}` : ''}`;
     }
     if (type === 'http' || type === 'https') {
         const extras = [];
+        const sni = proxy.servername ?? proxy.sni;
         if (type === 'https') extras.push('tls=true');
-        if (proxy.sni || proxy.servername) extras.push(`tls-host=${proxy.sni || proxy.servername}`);
+        if (sni !== undefined) extras.push(`tls-host=${sni}`);
         return `http=${name}, ${server}, ${port}, ${proxy.username || ''}, ${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}`;
     }
     return null;
