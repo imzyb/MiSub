@@ -44,53 +44,51 @@ const handleCardClick = (node) => {
         v-for="(node, index) in nodes" 
         :key="`${node.url}_${index}`"
         @click="handleCardClick(node)"
-        class="flex items-center justify-between rounded-xl border border-gray-200/70 bg-white p-4 shadow-sm transition-colors dark:border-white/10 dark:bg-white/5"
+        class="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all active:scale-[0.98] dark:border-white/5 dark:bg-white/5"
         :class="{ 
-          'bg-indigo-50/50 dark:bg-indigo-900/20': selectionMode && selectedUrls.has(node.url),
-          'cursor-pointer active:bg-gray-50 dark:active:bg-gray-700': selectionMode
+          'bg-indigo-50/50 ring-2 ring-indigo-500/20 dark:bg-indigo-500/10': selectionMode && selectedUrls.has(node.url),
+          'cursor-pointer': selectionMode
         }"
       >
         <!-- 左侧：图标与信息 -->
-        <div class="flex items-center gap-3 flex-1 min-w-0 pr-2">
-          <!-- Selection Checkbox (Visible only in selection mode) -->
+        <div class="flex items-center gap-4 flex-1 min-w-0">
+          <!-- Selection Checkbox -->
           <div v-if="selectionMode" class="flex-shrink-0">
-            <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
-              :class="selectedUrls.has(node.url) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-600'">
-              <svg v-if="selectedUrls.has(node.url)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300"
+              :class="selectedUrls.has(node.url) ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-500/30' : 'border-gray-200 dark:border-gray-700'">
+              <svg v-if="selectedUrls.has(node.url)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
               </svg>
             </div>
           </div>
           
           <div class="flex flex-col min-w-0">
+            <h4 class="truncate text-sm font-black text-gray-900 dark:text-white mb-1">
+              {{ parseNodeInfo(node).name }}
+            </h4>
             <div class="flex items-center gap-2">
-              <span class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                {{ parseNodeInfo(node).name }}
-              </span>
-            </div>
-            <div class="flex items-center gap-2 mt-1">
               <span
-                class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold"
+                class="text-[9px] px-1.5 py-0.5 rounded-full uppercase font-black"
                 :class="getProtocolStyle(parseNodeInfo(node).protocol)"
               >
                 {{ parseNodeInfo(node).protocol }}
               </span>
-               <span class="truncate text-[10px] text-gray-400 dark:text-gray-500">
-                 {{ parseNodeInfo(node).server }}:{{ parseNodeInfo(node).port }}
+               <span class="truncate text-[10px] text-gray-400 dark:text-gray-500 font-mono tracking-tighter uppercase">
+                 {{ parseNodeInfo(node).server.split('.').slice(-2).join('.') }} : {{ parseNodeInfo(node).port }}
                </span>
             </div>
           </div>
         </div>
-
-        <!-- 右侧：操作按钮 (Hide in selection mode to avoid confusion) -->
+ 
+        <!-- 右侧：操作按钮 -->
         <button
           v-if="!selectionMode"
           @click.stop="emit('copy', node, node.url)"
-          class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors active:bg-indigo-50 active:text-indigo-600 dark:bg-gray-700/50"
-          :class="{ 'text-green-600 bg-green-50': copiedNodeId === node.url }"
+          class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-400 transition-all active:bg-indigo-600 active:text-white dark:bg-white/5"
+          :class="{ 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10': copiedNodeId === node.url }"
         >
           <svg v-if="copiedNodeId !== node.url" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 01-2-2V5a2 2 0 012-2h4.586"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
           <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -105,12 +103,12 @@ const handleCardClick = (node) => {
         v-for="(node, index) in nodes"
         :key="`${node.url}_${index}`"
         @click="handleCardClick(node)"
-        class="relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 group transition-all duration-300"
+        class="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-white/5 p-6 group transition-all duration-500"
         :class="[
           selectionMode ? 'cursor-pointer' : '',
           selectionMode && selectedUrls.has(node.url) 
-            ? 'ring-2 ring-indigo-500 border-transparent bg-indigo-50/30 dark:bg-indigo-900/10' 
-            : 'hover:shadow-xl hover:translate-y-[-2px] hover:border-indigo-200 dark:hover:border-indigo-500/50'
+            ? 'ring-2 ring-indigo-500 border-transparent bg-indigo-50/30 dark:bg-indigo-500/10' 
+            : 'hover:shadow-2xl hover:translate-y-[-4px] hover:border-indigo-100 dark:hover:border-indigo-500/30 shadow-sm'
         ]"
       >
         <!-- Selection Badge -->
@@ -132,15 +130,15 @@ const handleCardClick = (node) => {
               </h4>
               <div class="flex flex-wrap gap-2 mt-2">
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-[0.1em] uppercase shadow-sm"
                   :class="getProtocolStyle(parseNodeInfo(node).protocol)"
                 >
                   {{ parseNodeInfo(node).protocol }}
                 </span>
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-gray-50 text-gray-500 dark:bg-white/5 dark:text-gray-400"
                 >
-                  {{ parseNodeInfo(node).region || '未知地区' }}
+                  {{ parseNodeInfo(node).region || 'UNKNOWN' }}
                 </span>
               </div>
             </div>

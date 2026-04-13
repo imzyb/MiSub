@@ -56,15 +56,15 @@ const handleRowClick = (node) => {
       <div class="w-full px-4 py-3">
         <div class="w-full overflow-hidden rounded-xl border border-gray-200/70 dark:border-white/10">
           <!-- 表头 -->
-          <div class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-            <div class="grid min-h-[3rem] grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-gray-600 dark:text-gray-400">
-              <div v-if="selectionMode" class="col-span-1 flex justify-center">选中</div>
-              <div :class="selectionMode ? 'col-span-3' : 'col-span-4'">节点名称</div>
-              <div class="col-span-3 hidden sm:block">服务器</div>
-              <div class="col-span-2 hidden md:block text-center">端口</div>
-              <div class="col-span-1 hidden sm:block">类型</div>
-              <div class="col-span-1 hidden sm:block">地区</div>
-              <div class="col-span-1">操作</div>
+          <div class="sticky top-0 z-10 border-b border-gray-100 bg-gray-50/50 backdrop-blur-md dark:border-white/5 dark:bg-gray-800/80">
+            <div class="grid min-h-[3.5rem] grid-cols-12 gap-2 px-6 py-3 items-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+              <div v-if="selectionMode" class="col-span-1 flex justify-center text-indigo-500">Pick</div>
+              <div :class="selectionMode ? 'col-span-3' : 'col-span-4'">Node Name</div>
+              <div class="col-span-3 hidden sm:block">Server Address</div>
+              <div class="col-span-2 hidden md:block text-center">Port</div>
+              <div class="col-span-1 hidden sm:block text-center">Type</div>
+              <div class="col-span-1 hidden sm:block text-center">Region</div>
+              <div class="col-span-1 text-center">Action</div>
             </div>
           </div>
 
@@ -75,15 +75,15 @@ const handleRowClick = (node) => {
                 v-for="node in visibleItems.items"
                 :key="`${node.url}_${node._virtualIndex}`"
                 @click="handleRowClick(node)"
-                class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                :class="{ 'bg-indigo-50/50 dark:bg-indigo-900/10': selectionMode && selectedUrls.has(node.url), 'cursor-pointer': selectionMode }"
+                class="group border-b border-gray-50 dark:border-white/5 hover:bg-gray-50/80 dark:hover:bg-indigo-500/5 transition-all"
+                :class="{ 'bg-indigo-50/30 dark:bg-indigo-500/10': selectionMode && selectedUrls.has(node.url), 'cursor-pointer': selectionMode }"
               >
-                <div class="grid min-h-[3rem] grid-cols-12 gap-2 px-4 py-3 items-center">
+                <div class="grid min-h-[3.5rem] grid-cols-12 gap-2 px-6 py-3 items-center">
                   <!-- Checkbox (Selection Mode Only) -->
                   <div v-if="selectionMode" class="col-span-1 flex justify-center">
-                    <div class="w-4 h-4 rounded border flex items-center justify-center transition-all"
-                      :class="selectedUrls.has(node.url) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-600'">
-                      <svg v-if="selectedUrls.has(node.url)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-300"
+                      :class="selectedUrls.has(node.url) ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-500/30 scale-110' : 'border-gray-200 dark:border-gray-700 group-hover:border-indigo-400'">
+                      <svg v-if="selectedUrls.has(node.url)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
@@ -91,39 +91,39 @@ const handleRowClick = (node) => {
 
                   <!-- 节点名称 -->
                   <div :class="selectionMode ? 'col-span-3' : 'col-span-4'">
-                    <span class="text-sm text-gray-900 dark:text-white block overflow-hidden" :title="parseNodeInfo(node).name" style="text-overflow: ellipsis; white-space: nowrap;">
+                    <span class="text-sm font-bold text-gray-900 dark:text-white block overflow-hidden group-hover:text-indigo-600 transition-colors" :title="parseNodeInfo(node).name" style="text-overflow: ellipsis; white-space: nowrap;">
                       {{ parseNodeInfo(node).name }}
                     </span>
                   </div>
 
                   <!-- 服务器 (桌面端) -->
                   <div class="col-span-3 hidden sm:block">
-                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono block overflow-hidden" :title="parseNodeInfo(node).server" style="text-overflow: ellipsis; white-space: nowrap;">
+                    <span class="text-[11px] text-gray-500 dark:text-gray-400 font-mono block overflow-hidden opacity-70 group-hover:opacity-100 transition-opacity" :title="parseNodeInfo(node).server" style="text-overflow: ellipsis; white-space: nowrap;">
                       {{ parseNodeInfo(node).server }}
                     </span>
                   </div>
 
                   <!-- 端口 (桌面端) -->
                   <div class="col-span-2 hidden md:block text-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono block" style="min-width: 50px;">
+                    <span class="text-xs font-bold text-gray-500 dark:text-gray-400 font-mono block opacity-70" style="min-width: 50px;">
                       {{ parseNodeInfo(node).port }}
                     </span>
                   </div>
 
                   <!-- 类型 (桌面端) -->
-                  <div class="col-span-1 hidden sm:block">
+                  <div class="col-span-1 hidden sm:block flex justify-center">
                     <span
-                      class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium"
+                      class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-sm"
                       :class="getProtocolStyle(parseNodeInfo(node).protocol)"
-                      style="min-width: 60px;"
+                      style="min-width: 64px;"
                     >
-                      {{ parseNodeInfo(node).protocol.toUpperCase() }}
+                      {{ parseNodeInfo(node).protocol }}
                     </span>
                   </div>
 
                   <!-- 地区 (桌面端) -->
-                  <div class="col-span-1 hidden sm:block">
-                    <span class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200" style="min-width: 60px;">
+                  <div class="col-span-1 hidden sm:block flex justify-center">
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-400" style="min-width: 60px;">
                       {{ parseNodeInfo(node).region }}
                     </span>
                   </div>
