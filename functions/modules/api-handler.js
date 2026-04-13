@@ -252,7 +252,31 @@ export async function handleMisubsSave(request, env) {
         }
 
         if (Array.isArray(finalProfiles)) {
-            finalProfiles = finalProfiles.map(normalizeProfile);
+            finalProfiles = finalProfiles.map((p, index) => ({
+                ...normalizeProfile(p),
+                sortIndex: index
+            }));
+            
+            // [Fix] Sync sortIndex back to diff for correct row-level persistence
+            if (diff?.profiles) {
+                const profileMap = new Map(finalProfiles.map(p => [p.id, p]));
+                if (diff.profiles.added) diff.profiles.added = diff.profiles.added.map(p => ({ ...p, sortIndex: profileMap.get(p.id)?.sortIndex }));
+                if (diff.profiles.updated) diff.profiles.updated = diff.profiles.updated.map(p => ({ ...p, sortIndex: profileMap.get(p.id)?.sortIndex }));
+            }
+        }
+
+        if (Array.isArray(finalMisubs)) {
+            finalMisubs = finalMisubs.map((s, index) => ({
+                ...s,
+                sortIndex: index
+            }));
+
+            // [Fix] Sync sortIndex back to diff for correct row-level persistence
+            if (diff?.subscriptions) {
+                const subMap = new Map(finalMisubs.map(s => [s.id, s]));
+                if (diff.subscriptions.added) diff.subscriptions.added = diff.subscriptions.added.map(s => ({ ...s, sortIndex: subMap.get(s.id)?.sortIndex }));
+                if (diff.subscriptions.updated) diff.subscriptions.updated = diff.subscriptions.updated.map(s => ({ ...s, sortIndex: subMap.get(s.id)?.sortIndex }));
+            }
         }
 
         // 步骤4: 获取设置（带错误处理）

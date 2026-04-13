@@ -12,7 +12,7 @@ function mapTransport(proxy) {
         };
     } else if (network === 'grpc') {
         transport.grpc = {
-            service_name: proxy['grpc-opts']?.['service-name'] || proxy['grpc-opts']?.serviceName || 'grpc'
+            service_name: proxy['grpc-opts']?.['grpc-service-name'] || proxy['grpc-opts']?.['service-name'] || proxy['grpc-opts']?.serviceName || 'grpc'
         };
     } else if (network === 'h2' || network === 'http2') {
         transport.h2 = {

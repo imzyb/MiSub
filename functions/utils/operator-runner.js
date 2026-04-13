@@ -107,7 +107,6 @@ function opRename(nodes, params) {
     }
 
     if (template?.enabled && template.text) {
-        // Simple template rendering
         result = result.map((r, index) => {
             const enriched = NodeUtils.ensureRegionInfo(r, true);
             const vars = {
@@ -116,9 +115,11 @@ function opRename(nodes, params) {
                 region: enriched.region,
                 regionZh: enriched.regionZh,
                 emoji: enriched.emoji,
+                server: r.server,
+                port: r.port,
                 index: index + (template.offset || 1)
             };
-            const newName = template.text.replace(/\{(\w+)\}/g, (match, key) => vars[key] || match);
+            const newName = NodeUtils.renderTemplate(template.text, vars, r);
             
             if (newName !== r.name) {
                 return {

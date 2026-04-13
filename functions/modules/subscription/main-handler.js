@@ -97,14 +97,12 @@ export async function handleMisubRequest(context) {
     console.log(`[MiSub UA] ${userAgentHeader}`);
 
     const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-    const [settingsData, misubsData, profilesData] = await Promise.all([
+    const [settingsData, allMisubs, allProfiles] = await Promise.all([
         storageAdapter.get(KV_KEY_SETTINGS),
-        storageAdapter.get(KV_KEY_SUBS),
-        storageAdapter.get(KV_KEY_PROFILES)
+        storageAdapter.getAllSubscriptions(),
+        storageAdapter.getAllProfiles()
     ]);
     const settings = settingsData || {};
-    const allMisubs = misubsData || [];
-    const allProfiles = profilesData || [];
 
     // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
     if (migrateProfileIds(allProfiles)) {

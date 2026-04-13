@@ -42,6 +42,7 @@ export function convertClashProxyToUrl(proxy) {
 
         if (type === 'vmess') {
             const uuid = proxy.uuid || proxy.UUID || '';
+            const network = proxy.network || 'tcp';
             const vmessConfig = {
                 v: '2',
                 ps: name,
@@ -49,12 +50,40 @@ export function convertClashProxyToUrl(proxy) {
                 port,
                 id: uuid,
                 aid: proxy.alterId || 0,
-                net: proxy.network || 'tcp',
+                net: network,
                 type: 'none',
-                host: proxy.servername || proxy.wsOpts?.headers?.Host || proxy['ws-opts']?.headers?.Host || '',
-                path: proxy.wsOpts?.path || proxy['ws-opts']?.path || '',
-                tls: proxy.tls ? 'tls' : ''
+                host: '',
+                path: '',
+                tls: proxy.tls ? 'tls' : '',
+                sni: proxy.sni || proxy.servername || '',
+                fp: proxy['client-fingerprint'] || ''
             };
+
+            // Mapping network specific options
+            if (network === 'ws') {
+                const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+                if (wsOpts) {
+                    vmessConfig.path = wsOpts.path || '';
+                    if (wsOpts.headers?.Host) vmessConfig.host = wsOpts.headers.Host;
+                }
+            } else if (network === 'grpc') {
+                const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
+                if (grpcOpts) vmessConfig.path = grpcOpts['grpc-service-name'] || '';
+            } else if (network === 'h2' || network === 'http') {
+                const opts = proxy[`${network}-opts`] || proxy[`${network}Opts`];
+                if (opts) {
+                    vmessConfig.path = opts.path || '';
+                    vmessConfig.host = Array.isArray(opts.host) ? opts.host.join(',') : (opts.host || '');
+                }
+            } else if (network === 'quic') {
+                const quicOpts = proxy['quic-opts'] || proxy.quicOpts;
+                if (quicOpts) {
+                    vmessConfig.type = quicOpts.header?.type || 'none';
+                    vmessConfig.host = quicOpts.security || '';
+                    vmessConfig.path = quicOpts.key || '';
+                }
+            }
+
             return `vmess://${base64Encode(JSON.stringify(vmessConfig))}`;
         }
 
@@ -83,11 +112,17 @@ export function convertClashProxyToUrl(proxy) {
                 if (wsOpts.path) params.push(`path=${encodeURIComponent(wsOpts.path)}`);
                 if (wsOpts.headers?.Host) params.push(`host=${encodeURIComponent(wsOpts.headers.Host)}`);
             }
+            const httpupgradeOpts = proxy['httpupgrade-opts'] || proxy.httpupgradeOpts;
+            if (httpupgradeOpts) {
+                if (httpupgradeOpts.path) params.push(`path=${encodeURIComponent(httpupgradeOpts.path)}`);
+                if (httpupgradeOpts.host) params.push(`host=${encodeURIComponent(httpupgradeOpts.host)}`);
+            }
             const realityOpts = proxy['reality-opts'];
             if (realityOpts) {
                 params.push('security=reality');
                 if (realityOpts['public-key']) params.push(`pbk=${encodeURIComponent(realityOpts['public-key'])}`);
                 if (realityOpts['short-id']) params.push(`sid=${encodeURIComponent(realityOpts['short-id'])}`);
+                if (realityOpts['spider-x']) params.push(`spx=${encodeURIComponent(realityOpts['spider-x'])}`);
             } else if (proxy.tls) {
                 params.push('security=tls');
             }
@@ -141,6 +176,7 @@ export function convertClashProxyToUrl(proxy) {
                 if (obfsOpts.mode) params.push(`obfs=${obfsOpts.mode}`);
                 if (obfsOpts.host) params.push(`obfs-host=${encodeURIComponent(obfsOpts.host)}`);
             }
+            if (proxy.ecn) params.push('ecn=true');
             const psk = proxy.psk || proxy.password || '';
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `snell://${encodeURIComponent(psk)}@${server}:${port}${query}#${encodeURIComponent(name)}`;

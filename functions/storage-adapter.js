@@ -335,7 +335,7 @@ class D1StorageAdapter {
             all.forEach(item => {
                 if (item?.id) deduped.set(item.id, item);
             });
-            return Array.from(deduped.values());
+            return Array.from(deduped.values()).sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0));
         } catch (error) {
             console.error('[D1] Failed to get all subscriptions:', error);
             return [];
@@ -375,7 +375,7 @@ class D1StorageAdapter {
             all.forEach(item => {
                 if (item?.id) deduped.set(item.id, item);
             });
-            return Array.from(deduped.values());
+            return Array.from(deduped.values()).sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0));
         } catch (error) {
             console.error('[D1] Failed to get all profiles:', error);
             return [];
@@ -491,6 +491,8 @@ class NoopStorageAdapter {
     async put() { return true; }
     async delete() { return true; }
     async list() { return []; }
+    async getAllSubscriptions() { return []; }
+    async getAllProfiles() { return []; }
 }
 
 

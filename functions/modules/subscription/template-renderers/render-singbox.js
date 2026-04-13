@@ -55,12 +55,37 @@ function buildOutbound(proxy) {
             security: proxy.cipher || 'auto',
             alter_id: Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0
         };
+
+        const network = proxy.network || '';
+        if (network === 'ws') {
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            outbound.transport = {
+                type: 'ws',
+                path: wsOpts?.path || '/',
+                headers: wsOpts?.headers || {}
+            };
+        } else if (network === 'grpc') {
+            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
+            outbound.transport = {
+                type: 'grpc',
+                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc'
+            };
+        } else if (network === 'h2' || network === 'http') {
+            const opts = proxy[`${network}-opts`] || proxy[`${network}Opts`];
+            outbound.transport = {
+                type: network === 'h2' ? 'h2' : 'http',
+                host: opts?.host ? (Array.isArray(opts.host) ? opts.host : [opts.host]) : [],
+                path: opts?.path || '/'
+            };
+        }
+
         if (proxy.tls || proxy.sni || proxy.servername) {
             outbound.tls = {
                 enabled: true,
                 server_name: proxy.sni || proxy.servername || server,
                 insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
             };
+            if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
         }
         return outbound;
     }
@@ -74,12 +99,56 @@ function buildOutbound(proxy) {
             uuid: proxy.uuid || ''
         };
         if (proxy.flow) outbound.flow = proxy.flow;
+
+        const network = proxy.network || '';
+        if (network === 'ws') {
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            outbound.transport = {
+                type: 'ws',
+                path: wsOpts?.path || '/',
+                headers: wsOpts?.headers || {}
+            };
+        } else if (network === 'grpc') {
+            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
+            outbound.transport = {
+                type: 'grpc',
+                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc'
+            };
+        } else if (network === 'httpupgrade') {
+            const httpupgradeOpts = proxy['httpupgrade-opts'] || proxy.httpupgradeOpts;
+            outbound.transport = {
+                type: 'httpupgrade',
+                path: httpupgradeOpts?.path || '/',
+                host: httpupgradeOpts?.host || ''
+            };
+        }
+
         if (proxy.tls || proxy.sni || proxy.servername) {
             outbound.tls = {
                 enabled: true,
                 server_name: proxy.sni || proxy.servername || server,
                 insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
             };
+
+            const fingerprint = proxy['client-fingerprint'] || proxy.clientFingerprint || proxy.fp;
+            if (fingerprint) {
+                outbound.tls.utls = {
+                    enabled: true,
+                    fingerprint: fingerprint
+                };
+            }
+
+            const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
+            if (realityOpts) {
+                outbound.tls.reality = {
+                    enabled: true,
+                    public_key: realityOpts['public-key'] || realityOpts.publicKey || '',
+                    short_id: realityOpts['short-id'] || realityOpts.shortId || ''
+                };
+                if (realityOpts['spider-x'] || realityOpts.spiderX) {
+                    outbound.tls.reality.spider_x = realityOpts['spider-x'] || realityOpts.spiderX;
+                }
+            }
         }
         return outbound;
     }

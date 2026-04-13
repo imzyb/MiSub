@@ -316,9 +316,11 @@ export function setNodeName(url, protocol, newName) {
     }
 }
 
-export function applyRegexRename(name, rules) {
+export function applyRegexRename(name, rules, record = null) {
     let result = String(name || '');
     if (!Array.isArray(rules)) return result;
+
+    const regexGroups = record?.regexGroups || {};
 
     for (const rule of rules) {
         if (!rule) continue;
@@ -332,11 +334,32 @@ export function applyRegexRename(name, rules) {
         
         try {
             const re = new RegExp(pattern, flags);
+            
+            // 提取捕获组：只对第一次匹配到的内容进行组提取
+            const matchMatch = String(result).match(new RegExp(pattern, flags.replace(/g/g, '')));
+            if (matchMatch) {
+                // 索引组
+                matchMatch.forEach((val, i) => {
+                    if (i > 0) regexGroups[i] = val || '';
+                });
+                // 命名组
+                if (matchMatch.groups) {
+                    for (const [gName, gVal] of Object.entries(matchMatch.groups)) {
+                        regexGroups[gName] = gVal || '';
+                    }
+                }
+            }
+
             result = result.replace(re, replacement);
         } catch (error) {
             warnInvalidRegex(typeof rule === 'string' ? { pattern: rule } : rule, error);
         }
     }
+    
+    if (record) {
+        record.regexGroups = regexGroups;
+    }
+    
     return result.trim();
 }
 
@@ -554,14 +577,32 @@ function applyModifier(key, value, modifier, record) {
                 return record.regionZh;
             }
             return key === 'region' ? toRegionZh(val) : val;
-        default: return val;
+        default: 
+            // 如果修饰符是数字且 key 是 index，进行补零
+            if (key === 'index' && /^\d+$/.test(modifier)) {
+                return String(value).padStart(parseInt(modifier), '0');
+            }
+            return val;
     }
 }
 
-function renderTemplate(template, vars, record) {
-    return String(template || '').replace(/\{([a-zA-Z0-9_]+)(?::([a-zA-Z]+))?\}/g, (_, key, modifier) => {
-        if (!Object.prototype.hasOwnProperty.call(vars, key)) return '';
-        let v = vars[key];
+export function renderTemplate(template, vars, record) {
+    return String(template || '').replace(/\{([a-zA-Z0-9_]+)(?::([a-zA-Z0-9]+))?\}/g, (_, key, modifier) => {
+        let v;
+        
+        // 优先处理内置变量
+        if (Object.prototype.hasOwnProperty.call(vars, key)) {
+            v = vars[key];
+        } 
+        // 其次处理正则捕获组变量 {g1}, {g2}, {g_name}
+        else if (key.startsWith('g') && record?.regexGroups) {
+            const gKey = key.slice(1); // 提取 1, 2, 或 _name
+            const gKeyValid = gKey.startsWith('_') ? gKey.slice(1) : gKey;
+            v = record.regexGroups[gKeyValid];
+        }
+
+        if (v === undefined) return '';
+        
         if (modifier) v = applyModifier(key, v, modifier, record);
         return v == null ? '' : String(v);
     }).trim();
@@ -789,10 +830,13 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
 
     // Stage 2: 正则重命名
     if (cfg.rename.regex.enabled && cfg.rename.regex.rules.length > 0) {
-        records = records.map(r => ({
-            ...r,
-            name: applyRegexRename(r.name, cfg.rename.regex.rules)
-        }));
+        records = records.map(r => {
+            const newName = applyRegexRename(r.name, cfg.rename.regex.rules, r);
+            return {
+                ...r,
+                name: newName
+            };
+        });
     }
 
     // Stage 3: 智能去重
