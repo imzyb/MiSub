@@ -16,21 +16,23 @@ function buildProxyLine(proxy) {
             if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
         }
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = trojan, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'ss' || type === 'shadowsocks') return `${name} = Shadowsocks, ${server}, ${port}, ${proxy.cipher || 'aes-128-gcm'}, ${proxy.password || ''}`;
     if (type === 'vmess') {
         const extras = [proxy.uuid || ''];
-        if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
+        const sni = proxy.servername ?? proxy.sni;
+        if (proxy.tls || sni !== undefined) extras.push('tls=true');
         if (proxy.network === 'ws') {
             extras.push('transport=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
         }
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vmess, ${server}, ${port}, ${extras.join(', ')}`;
     }
@@ -42,14 +44,15 @@ function buildProxyLine(proxy) {
             if (grpcOpts?.['grpc-service-name']) extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
         }
         if (proxy.flow) extras.push(`flow=${proxy.flow}`);
-        if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
+        const sni = proxy.servername ?? proxy.sni;
+        if (proxy.tls || sni !== undefined) extras.push('tls=true');
         const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
         if (realityOpts) {
             extras.push('reality=true');
             if (realityOpts['public-key']) extras.push(`public-key=${realityOpts['public-key']}`);
             if (realityOpts['short-id']) extras.push(`short-id=${realityOpts['short-id']}`);
         }
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vless, ${server}, ${port}, ${extras.join(', ')}`;
     }
@@ -57,7 +60,15 @@ function buildProxyLine(proxy) {
     if (type === 'tuic') {
         const extras = [proxy.token || proxy.uuid || ''];
         if (proxy.password) extras.push(`password=${proxy.password}`);
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            extras.push(`alpn=${alpn}`);
+        }
+        if (proxy['congestion-controller']) extras.push(`congestion-controller=${proxy['congestion-controller']}`);
+        if (proxy['udp-relay-mode']) extras.push(`udp-relay-mode=${proxy['udp-relay-mode']}`);
         return `${name} = tuic, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'wireguard') {

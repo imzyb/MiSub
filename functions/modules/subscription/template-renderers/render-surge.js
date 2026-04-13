@@ -10,7 +10,8 @@ function buildProxyLine(proxy) {
 
     if (type === 'trojan') {
         const extras = [`password=${proxy.password || ''}`];
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy.network === 'ws') {
             extras.push('ws=true');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
@@ -47,8 +48,9 @@ function buildProxyLine(proxy) {
         }
 
         if (proxy.alterId === 0 || proxy.alterId === undefined || proxy.alterId === null) extras.push('vmess-aead=true');
-        if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (proxy.tls || sni !== undefined) extras.push('tls=true');
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vmess, ${server}, ${port}, ${extras.join(', ')}`;
     }
@@ -67,19 +69,26 @@ function buildProxyLine(proxy) {
             if (realityOpts['public-key']) extras.push(`public-key=${realityOpts['public-key']}`);
             if (realityOpts['short-id']) extras.push(`short-id=${realityOpts['short-id']}`);
         }
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vless, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'hysteria2' || type === 'hy2') {
         const extras = [`password=${proxy.password || ''}`];
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         return `${name} = hysteria2, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'tuic') {
-        const extras = [`uuid=${proxy.uuid || ''}`];
-        if (proxy.password) extras.push(`password=${proxy.password}`);
-        if (proxy.sni || proxy.servername) extras.push(`sni=${proxy.sni || proxy.servername}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['congestion-controller']) extras.push(`congestion-control=${proxy['congestion-controller']}`);
+        if (proxy['udp-relay-mode'] === 'native') extras.push(`udp-relay=true`);
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            extras.push(`alpn=${alpn}`);
+        }
         return `${name} = tuic, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'wireguard') {
@@ -101,7 +110,8 @@ function buildProxyLine(proxy) {
     }
     if (type === 'anytls') {
         const extras = [`password=${proxy.password || ''}`];
-        if (proxy.sni) extras.push(`sni=${proxy.sni}`);
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
             extras.push(`alpn=${alpn}`);
