@@ -34,10 +34,12 @@ function mapTransport(proxy) {
 
     if (proxy.tls || !!proxy['reality-opts']) {
         transport.tls = {
-            sni: proxy.sni || proxy.servername || proxy.server,
             skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify),
             alpn: proxy.alpn || ['h2', 'http/1.1']
         };
+        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        if (sni) transport.tls.sni = sni;
+
         if (proxy['reality-opts']) {
             transport.tls.reality = {
                 public_key: proxy['reality-opts']?.['public-key'] || proxy['reality-opts']?.publicKey || '',
@@ -63,12 +65,13 @@ function mapProxy(proxy) {
                 server: proxy.server,
                 port: proxy.port,
                 password: proxy.password,
-                sni: proxy.sni || proxy.server,
                 tfo: Boolean(proxy.tfo),
                 udp_relay: proxy.udp !== false,
-                skip_tls_verify: Boolean(proxy['skip-cert-verify'])
+                skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
+        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        if (sni) mapped.trojan.sni = sni;
         const transport = mapTransport(proxy);
         if (transport) mapped.trojan.transport = transport;
         return mapped;
@@ -135,10 +138,11 @@ function mapProxy(proxy) {
                 server: proxy.server,
                 port: proxy.port,
                 auth: proxy.password,
-                sni: proxy.sni || proxy.server,
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
+        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        if (sni) mapped.hysteria2.sni = sni;
         if (proxy.obfs || proxy['obfs-opts']) {
             mapped.hysteria2.obfuscation = {
                 type: proxy.obfs || proxy['obfs-opts']?.type || 'salamander',
@@ -151,21 +155,6 @@ function mapProxy(proxy) {
         return mapped;
     }
 
-    if (type === 'hysteria') {
-        return {
-            hysteria: {
-                name,
-                server: proxy.server,
-                port: proxy.port,
-                auth: proxy.password || proxy.auth_str,
-                up: proxy.up || '100 Mbps',
-                down: proxy.down || '100 Mbps',
-                sni: proxy.sni || proxy.server,
-                skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
-            }
-        };
-    }
-
     if (type === 'tuic') {
         const mapped = {
             tuic: {
@@ -174,87 +163,51 @@ function mapProxy(proxy) {
                 port: proxy.port,
                 uuid: proxy.uuid,
                 password: proxy.password,
-                sni: proxy.sni || proxy.server,
                 alpn: proxy.alpn || ['h3'],
-                udp_relay_mode: proxy.udp_relay_mode || 'native',
-                congestion_control: proxy.congestion_control || 'cubic',
+                udp_relay_mode: proxy['udp-relay-mode'] || 'native',
+                congestion_control: proxy['congestion-control'] || 'cubic',
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
+        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        if (sni) mapped.tuic.sni = sni;
         if (proxy.hop || proxy.portHopping) {
             mapped.tuic.port_hopping = String(proxy.hop || proxy.portHopping);
         }
         return mapped;
     }
 
-    if (type === 'wireguard') {
-        return {
-            wireguard: {
-                name,
-                server: proxy.server,
-                port: proxy.port,
-                private_key: proxy['private-key'] || proxy.privateKey,
-                peer_public_key: proxy['public-key'] || proxy.publicKey,
-                pre_shared_key: proxy['preshared-key'] || proxy.preSharedKey,
-                local_ipv4: Array.isArray(proxy.ip) ? proxy.ip.find(ip => !String(ip).includes(':')) : proxy.ip,
-                local_ipv6: Array.isArray(proxy.ip) ? proxy.ip.find(ip => String(ip).includes(':')) : undefined,
-                reserved: proxy.reserved,
-                mtu: proxy.mtu || 1420
-            }
-        };
-    }
-
-    if (type === 'http' || type === 'https') {
-        return {
-            http: {
-                name,
-                server: proxy.server,
-                port: proxy.port,
-                username: proxy.username || proxy.user,
-                password: proxy.password || proxy.pass,
-                tls: type === 'https' || !!proxy.tls,
-                sni: proxy.sni || proxy.server,
-                skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
-            }
-        };
-    }
-
-    if (type === 'socks5' || type === 'socks') {
-        return {
-            socks5: {
-                name,
-                server: proxy.server,
-                port: proxy.port,
-                username: proxy.username || proxy.user,
-                password: proxy.password || proxy.pass,
-                tls: Boolean(proxy.tls),
-                sni: proxy.sni || proxy.server,
-                skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
-            }
-        };
-    }
-
     if (type === 'anytls') {
-        return {
+        const mapped = {
             anytls: {
                 name,
                 server: proxy.server,
                 port: proxy.port,
                 password: proxy.password,
-                sni: proxy.sni || proxy.server,
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
+        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        if (sni) mapped.anytls.sni = sni;
+        return mapped;
     }
 
-    return null;
+    // Default for simple ones
+    return {
+        [type]: {
+            name,
+            server: proxy.server,
+            port: proxy.port,
+            udp_relay: proxy.udp !== false
+        }
+    };
 }
 
 function mapPolicyGroup(group) {
     const type = String(group.type || 'select').toLowerCase();
     const policies = Array.isArray(group.members) ? group.members.filter(Boolean) : [];
 
-    if (type === 'url-test' || type === 'urltest') {
+    if (type === 'url-test' || type === 'urltest' || type === 'auto-test') {
         return {
             auto_test: {
                 name: group.name,
@@ -273,24 +226,6 @@ function mapPolicyGroup(group) {
                 policies,
                 interval: Number(group.options?.interval) || 600,
                 timeout: Number(group.options?.timeout) || 5
-            }
-        };
-    }
-
-    if (type === 'load-balance' || type === 'loadbalance') {
-        return {
-            load_balance: {
-                name: group.name,
-                policies
-            }
-        };
-    }
-
-    if (type === 'relay') {
-        return {
-            relay: {
-                name: group.name,
-                policies
             }
         };
     }
@@ -322,11 +257,11 @@ function mapRule(rule) {
         };
     }
 
-    const supported = new Set(['domain', 'domain_keyword', 'domain_suffix', 'domain_regex', 'domain_wildcard', 'geoip', 'ip_cidr', 'ip_cidr6', 'asn', 'url_regex', 'dest_port', 'protocol']);
-    if (!supported.has(type)) return null;
-
+    // Convert to underscore format for Egern
+    const targetType = type.replace(/-/g, '_');
+    
     return {
-        [type]: {
+        [targetType]: {
             match: value,
             policy,
             ...(rule.noResolve ? { no_resolve: true } : {})
@@ -350,16 +285,17 @@ export function renderEgernFromTemplateModel(model) {
         .filter(Boolean);
 
     const config = {
-        auto_update: normalizedModel.settings.managedConfigUrl
-            ? {
-                url: normalizedModel.settings.managedConfigUrl,
-                interval: normalizedModel.settings.interval || 86400
-            }
-            : undefined,
         proxies,
         policy_groups: policyGroups,
         rules
     };
+
+    if (normalizedModel.settings.managedConfigUrl) {
+        config.auto_update = {
+            url: normalizedModel.settings.managedConfigUrl,
+            interval: normalizedModel.settings.interval || 86400
+        };
+    }
 
     return yaml.dump(config, {
         indent: 2,
