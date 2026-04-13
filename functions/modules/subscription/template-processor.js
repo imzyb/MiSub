@@ -145,12 +145,13 @@ function dedupeGroupsByName(model) {
  */
 export function applySmartModelOptimizations(model) {
     const { ruleLevel } = model.meta;
+    const normalizedRuleLevel = typeof ruleLevel === 'string' ? ruleLevel.trim().toLowerCase() : '';
     
     // 1. 执行现有的正则过滤器解析
     resolveGroupFilters(model);
 
-    // 2. 如果是精简版 (base)，则执行完正则解析和基础修剪后即可返回
-    if (!ruleLevel || ruleLevel.toLowerCase() === 'base') {
+    // 2. 如果显式禁用了规则等级增强，或选择了精简版 (base)，则只保留模板原始结构
+    if (!normalizedRuleLevel || normalizedRuleLevel === 'base' || normalizedRuleLevel === 'off' || normalizedRuleLevel === 'disabled' || normalizedRuleLevel === 'none') {
         pruneEmptyGroups(model);
         return model;
     }

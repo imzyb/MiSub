@@ -20,6 +20,7 @@ const modeOptions = [
 const selectedAsset = ref(null);
 
 const isBuiltin = computed(() => props.settings.transformConfigMode === 'builtin');
+const showDisableRuleLevelOption = computed(() => !isBuiltin.value || props.settings.ruleLevel === 'off');
 
 const modeHint = computed(() => {
   if (isBuiltin.value) {
@@ -90,6 +91,7 @@ const modeHint = computed(() => {
         </label>
         <select v-model="settings.ruleLevel"
           class="block w-full px-4 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition-colors duration-200">
+          <option v-if="showDisableRuleLevelOption" value="off">完全禁用 Disabled (外部模板原样输出)</option>
           <option value="base">精简版 Base (仅基础分流)</option>
           <option value="std">标准版 Standard (推荐，全能型)</option>
           <option value="full">全量版 Full (细化服务分类)</option>
@@ -101,7 +103,7 @@ const modeHint = computed(() => {
                 <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625l6.28-10.875zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
             </svg>
             <p class="text-[10px] leading-tight text-amber-700 dark:text-amber-500/80">
-                当前使用的是外部模板。大多数外部模板会硬编码自己的规则集，因此此处的“等级”选项可能失效。
+                当前使用的是外部模板。可选择“完全禁用”以避免 MiSub 继续按规则等级注入地区分组；若保留其他等级，模板渲染后仍可能附带轻量增强。
             </p>
         </div>
         <p v-else class="mt-2 text-[11px] text-gray-500 dark:text-gray-500">

@@ -69,6 +69,28 @@ MATCH,节点选择
         expect(autoSelectGroup.proxies).not.toContain('DIRECT');
     });
 
+    it('should skip smart rule-level enhancements when rule level is explicitly disabled', () => {
+        const rendered = renderClashFromIniTemplate(`
+[Proxy Group]
+节点选择 = select, HK-01, JP-01, DIRECT
+
+[Rule]
+MATCH,节点选择
+        `, {
+            proxies: [
+                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' },
+                { name: 'JP-01', type: 'trojan', server: '2.2.2.2', port: 443, password: 'pass' }
+            ],
+            ruleLevel: 'off'
+        });
+
+        const parsed = yaml.load(rendered);
+        const groupNames = parsed['proxy-groups'].map(group => group.name);
+        expect(groupNames).toContain('节点选择');
+        expect(groupNames).not.toContain('🇭🇰 香港节点');
+        expect(groupNames).not.toContain('🇯🇵 日本节点');
+    });
+
     it('should merge duplicate proxy groups with the same name before rendering', () => {
         const rendered = renderClashFromIniTemplate(`
 [Proxy Group]

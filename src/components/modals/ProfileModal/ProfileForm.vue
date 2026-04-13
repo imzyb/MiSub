@@ -34,6 +34,7 @@ const transformModeOptions = [
 ];
 
 const selectedTransformAsset = ref(null);
+const showDisableRuleLevelOption = computed(() => props.localProfile.transformConfigMode !== 'builtin' || props.localProfile.ruleLevel === 'off');
 
 const emit = defineEmits(['toggle-advanced']);
 
@@ -176,12 +177,13 @@ const transformModeHint = computed(() => {
             class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
           >
             <option value="">跟随全局设置</option>
+            <option v-if="showDisableRuleLevelOption" value="off">完全禁用（外部模板原样输出）</option>
             <option value="base">精简版 Base</option>
             <option value="std">标准版 Standard</option>
             <option value="full">完整版 Full</option>
             <option value="relay">链式版 Relay</option>
           </select>
-          <p class="text-xs text-gray-400 mt-1">为此订阅组指定独立的统一规则等级。</p>
+          <p class="text-xs text-gray-400 mt-1">为此订阅组指定独立的统一规则等级；使用外部模板时可选“完全禁用”以跳过附加增强。</p>
         </div>
       </div>
 
