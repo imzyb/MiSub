@@ -120,7 +120,7 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
         const effectiveTemplate = effectiveNodeTransform.rename?.template?.template || defaultTemplate;
         const transformedUrls = applyNodeTransformPipeline(nodeUrls, {
             ...effectiveNodeTransform,
-            enableEmoji: effectiveTemplate.includes('{emoji}')
+            enableEmoji: settings.enableFlagEmoji !== false && effectiveTemplate.includes('{emoji}')
         });
 
         // 重要修复：由于节点转换管道可能会重新排序节点，

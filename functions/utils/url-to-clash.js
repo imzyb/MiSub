@@ -657,6 +657,14 @@ function parseTuicUrl(url) {
             proxy['udp-relay-mode'] = params.get('udp_relay_mode');
         }
 
+        // Reduce RTT & Fast Open
+        if (params.get('reduce_rtt') === '1' || params.get('reduce_rtt') === 'true') {
+            proxy['reduce-rtt'] = true;
+        }
+        if (params.get('fast_open') === '1' || params.get('fast_open') === 'true') {
+            proxy['fast-open'] = true;
+        }
+
         // [重要] dialer-proxy 链式代理
         if (params.get('dp')) {
             proxy['dialer-proxy'] = params.get('dp');

@@ -12,8 +12,8 @@ defineEmits(['save', 'discard']);
 <template>
   <Transition name="slide-fade">
     <div v-if="isDirty || saveState === 'success'"
-      class="fixed top-24 md:top-auto md:bottom-24 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-2xl px-4 py-3 rounded-2xl flex flex-row items-center justify-between transition-all duration-300 gap-4 shadow-2xl backdrop-blur-xl border border-white/20 dark:border-white/10"
-      :class="saveState === 'success' ? 'bg-teal-50 dark:bg-teal-900/30 ring-1 ring-teal-500/20' : 'bg-white/80 dark:bg-gray-900/80 ring-1 ring-gray-200/50 dark:ring-white/10'">
+      class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] w-[95%] max-w-2xl px-4 py-3 rounded-2xl flex flex-row items-center justify-between transition-all duration-300 gap-4 shadow-2xl backdrop-blur-xl border border-white/20 dark:border-white/10"
+      :class="saveState === 'success' ? 'bg-teal-50 dark:bg-teal-900/30 ring-1 ring-teal-500/20' : 'bg-white/95 dark:bg-gray-900/95 ring-1 ring-gray-200/50 dark:ring-white/10 shadow-primary-500/10'">
       
       <div class="flex items-center gap-3">
         <span class="flex h-3 w-3 relative">

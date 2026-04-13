@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
     enableTrafficNode: false,
+    enableFlagEmoji: true,
     enablePublicPage: true,
     storageType: 'kv',
     // 新增：借鉴Sub-Store和miaomiaowu的功能

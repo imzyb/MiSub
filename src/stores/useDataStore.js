@@ -87,6 +87,7 @@ export const useDataStore = defineStore('data', () => {
             }
 
             hydrateFromData(data); // Re-use hydration logic
+            pruneInvalidReferences(); // 数据拉取后执行自愈
             clearDirty();
 
         } catch (error) {
@@ -106,6 +107,9 @@ export const useDataStore = defineStore('data', () => {
 
         isLoading.value = true;
         saveState.value = 'saving';
+        
+        // 保存前执行数据自愈，确保发往后端的数据是干净的
+        pruneInvalidReferences();
 
         try {
             const sanitizedSubs = subscriptions.value.map(sub => {
@@ -149,8 +153,15 @@ export const useDataStore = defineStore('data', () => {
                 }
             }, 2000);
 
-            // Update cache
-            dataCache.set(payload); // Note: ideally we cache the RESULT from backend, but payload is close enough for simple cache
+            // Update cache with the most recent merged data
+            dataCache.set({
+                misubs: subscriptions.value.map(s => {
+                    const { isUpdating, ...rest } = s;
+                    return rest;
+                }),
+                profiles: profiles.value,
+                config: settingsStore.config
+            });
 
         } catch (error) {
             console.error('[Store] Failed to save data:', error);
@@ -199,6 +210,7 @@ export const useDataStore = defineStore('data', () => {
     // --- Proxy Actions (Mutators) ---
     function addSubscription(subscription) {
         subscriptions.value.unshift(subscription);
+        markDirty();
     }
 
     function overwriteSubscriptions(items) {
@@ -216,6 +228,7 @@ export const useDataStore = defineStore('data', () => {
         const index = subscriptions.value.findIndex(s => s.id === id);
         if (index !== -1) {
             subscriptions.value[index] = { ...subscriptions.value[index], ...updates };
+            markDirty();
         }
     }
 
@@ -249,8 +262,11 @@ export const useDataStore = defineStore('data', () => {
             }
         });
 
-        if (modified && isDev) {
-            console.debug('[DataStore] Cleaned up manual node references from profiles');
+        if (modified) {
+            profiles.value = [...profiles.value]; // 强制触发响应式更新
+            if (isDev) {
+                console.debug('[DataStore] Cleaned up manual node references from profiles');
+            }
         }
     }
 
@@ -269,8 +285,65 @@ export const useDataStore = defineStore('data', () => {
             }
         });
 
-        if (modified && isDev) {
-            console.debug('[DataStore] Cleaned up subscription references from profiles');
+        if (modified) {
+            profiles.value = [...profiles.value]; // 强制触发响应式更新
+            if (isDev) {
+                console.debug('[DataStore] Cleaned up subscription references from profiles');
+            }
+        }
+    }
+
+    /**
+     * 数据自愈：清理订阅组中不存在的节点/订阅引用
+     * 同时处理可能存在的重复 ID
+     */
+    function pruneInvalidReferences() {
+        if (!profiles.value || profiles.value.length === 0) return;
+
+        // 收集所有当前存在的订阅和手动节点 ID
+        const validIds = new Set(subscriptions.value.map(item => item.id));
+        
+        let modified = false;
+        profiles.value.forEach(profile => {
+            // 1. 处理手动节点引用
+            if (Array.isArray(profile.manualNodes) && profile.manualNodes.length > 0) {
+                const originalLength = profile.manualNodes.length;
+                const seenIds = new Set();
+                profile.manualNodes = profile.manualNodes.filter(id => {
+                    // ID 必须存在且未被重复记录
+                    if (validIds.has(id) && !seenIds.has(id)) {
+                        seenIds.add(id);
+                        return true;
+                    }
+                    return false;
+                });
+                if (profile.manualNodes.length !== originalLength) {
+                    modified = true;
+                }
+            }
+
+            // 2. 处理机场订阅引用
+            if (Array.isArray(profile.subscriptions) && profile.subscriptions.length > 0) {
+                const originalLength = profile.subscriptions.length;
+                const seenIds = new Set();
+                profile.subscriptions = profile.subscriptions.filter(id => {
+                    if (validIds.has(id) && !seenIds.has(id)) {
+                        seenIds.add(id);
+                        return true;
+                    }
+                    return false;
+                });
+                if (profile.subscriptions.length !== originalLength) {
+                    modified = true;
+                }
+            }
+        });
+
+        if (modified) {
+            profiles.value = [...profiles.value]; // 强制触发响应式
+            if (isDev) {
+                console.info('[DataStore] Cleaned up stale IDs or duplicates in profiles');
+            }
         }
     }
 
