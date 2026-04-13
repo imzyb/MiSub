@@ -40,16 +40,16 @@ const handleImport = () => emit('import');
 
 <template>
   <div>
-    <div class="mb-4 bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg p-4">
+    <div class="mb-4 rounded-xl border border-gray-100/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-gray-900/70">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div class="flex items-center gap-3 shrink-0">
           <h2 class="text-xl font-bold text-gray-900 dark:text-white">机场订阅</h2>
-          <span class="px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700/50 rounded-full">{{ subscriptions.length }}</span>
+          <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">{{ subscriptions.length }}</span>
         </div>
         <div class="flex items-center gap-2 sm:w-auto justify-end sm:justify-start">
           <slot name="actions-prepend"></slot>
-          <button @click="handleImport" class="text-sm font-medium px-3 py-2 misub-radius-md border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 bg-white/70 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-colors shadow-xs shrink-0">批量导入</button>
-          <button @click="handleAdd" class="text-sm font-medium px-4 py-2 misub-radius-md bg-primary-600 hover:bg-primary-700 text-white transition-colors shadow-sm shadow-primary-500/20 shrink-0">新增</button>
+          <button @click="handleImport" class="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10">批量导入</button>
+          <button @click="handleAdd" class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700">新增</button>
           <MoreActionsMenu menu-width-class="w-36">
             <template #menu="{ close }">
               <button @click="handleRefreshAll(); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -114,7 +114,7 @@ const handleImport = () => emit('import');
         @change-page="handleChangePage"
       />
     </div>
-    <div v-else class="py-6 border-2 border-dashed border-gray-300 dark:border-gray-700 bg-white/60 dark:bg-gray-900/50 misub-radius-lg">
+    <div v-else class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-6 dark:border-gray-700 dark:bg-gray-900/50">
       <EmptyState 
         title="没有机场订阅" 
         description="从添加你的第一个订阅开始。" 

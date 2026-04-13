@@ -85,7 +85,7 @@ class TrafficMonitor {
      * @param {string} userAgent - User-Agent
      * @returns {Promise<Object>}
      */
-    async getTrafficInfo(subscriptionUrl, userAgent = 'clash-meta/2.4.0') {
+    async getTrafficInfo(subscriptionUrl, userAgent = 'clash-meta/2.5.0') {
         const cacheKey = `${subscriptionUrl}_${userAgent}`;
 
         // 检查缓存

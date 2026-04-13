@@ -293,9 +293,12 @@ const switchToVisual = () => {
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-          {{ isNew ? '新增订阅' : '编辑订阅' }}
-        </h3>
+        <div>
+          <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+            {{ isNew ? '新增订阅' : '编辑订阅' }}
+          </h3>
+          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">统一管理订阅链接、筛选规则和高级转换选项。</p>
+        </div>
       </div>
     </template>
     <template #body>

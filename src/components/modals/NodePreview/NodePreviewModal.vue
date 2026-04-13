@@ -1,6 +1,9 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { api, APIError } from '../../../lib/http.js';
+import { useToastStore } from '../../../stores/toast.js';
+import { useDataStore } from '../../../stores/useDataStore.js';
+import Modal from '../../forms/Modal.vue';
 import NodeFilters from './components/NodeFilters.vue';
 import NodeList from './components/NodeList.vue';
 import NodeCard from './components/NodeCard.vue';
@@ -23,6 +26,12 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:show']);
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1440);
+
+const handleResize = () => {
+  viewportWidth.value = window.innerWidth;
+};
+
 
 // 响应式数据
 const loading = ref(false);
@@ -35,8 +44,7 @@ const showProcessed = ref(true); // 是否显示处理后的节点名称（默�
 
 // 响应式视图模式 - 移动端强制卡片视图
 const effectiveViewMode = computed(() => {
-  // 检测是否为移动端或中小屏桌面端
-  const isSmallScreen = window.innerWidth < 1024; // lg 断点
+  const isSmallScreen = viewportWidth.value < 1024;
   if (isSmallScreen) {
     return 'card'; // 移动端和中小屏强制使用卡片视图
   }
@@ -56,6 +64,73 @@ const availableRegions = ref([]);
 
 // 复制状态
 const copiedNodeId = ref('');
+
+// [New] Selection Mode State
+const pickingMode = ref(false);
+const selectedUrls = ref(new Set());
+
+const toggleNodeSelection = (url) => {
+  if (selectedUrls.value.has(url)) {
+    selectedUrls.value.delete(url);
+  } else {
+    selectedUrls.value.add(url);
+  }
+};
+
+const selectAll = () => {
+  filteredNodes.value.forEach(node => selectedUrls.value.add(node.url));
+};
+
+const clearSelection = () => {
+  selectedUrls.value.clear();
+};
+
+const { showToast } = useToastStore();
+const dataStore = useDataStore();
+
+const handleSaveSelection = async () => {
+  if (selectedUrls.value.size === 0) {
+    showToast('请先选择至少一个节点', 'warning');
+    return;
+  }
+
+  try {
+    const urls = Array.from(selectedUrls.value);
+    
+    // Add nodes to data store as manual nodes
+    // You can also add logic here to associate them specifically with props.profileId
+    // For now, we'll use bulk import logic to create manual nodes
+    const nodesToAdd = urls.map(url => {
+        // Try to find full node object from allNodes
+        const originalNode = allNodes.value.find(n => n.url === url);
+        return {
+            name: (originalNode?.name || 'Pick').split('#')[0].trim(),
+            url: url,
+            enabled: true
+        };
+    });
+
+    dataStore.addNodes(nodesToAdd);
+    
+    // If we are in profile mode, we might want to also add these new nodes to the profile
+    if (props.profileId) {
+        const profile = dataStore.profiles.find(p => p.id === props.profileId || p.customId === props.profileId);
+        if (profile) {
+            // Wait for nodes to be added to get their IDs (or we generate them)
+            // Since dataStore.addNodes generates IDs, we need to be careful.
+            // Simplified: showToast and guide user to save.
+            showToast(`已成功提取 ${urls.length} 个节点至手动列表，请手动在订阅组中勾选或保存。`, 'success');
+        }
+    } else {
+        showToast(`已成功提取 ${urls.length} 个节点至手动列表，请记得保存更改。`, 'success');
+    }
+    
+    pickingMode.value = false;
+    selectedUrls.value.clear();
+  } catch (err) {
+    showToast('保存选择失败: ' + err.message, 'error');
+  }
+};
 
 // 计算属性
 const title = computed(() => {
@@ -110,27 +185,45 @@ const filteredTotalCount = computed(() => {
   return filteredNodes.value.length;
 });
 
+const resetState = () => {
+  currentPage.value = 1;
+  protocolFilter.value = 'all';
+  regionFilter.value = 'all';
+  searchQuery.value = '';
+  showProcessed.value = false;
+  error.value = '';
+  allNodes.value = [];
+  protocolStats.value = {};
+  regionStats.value = {};
+  availableProtocols.value = [];
+  availableRegions.value = [];
+  copiedNodeId.value = '';
+  pickingMode.value = false;
+  selectedUrls.value.clear();
+};
+
+const closeModal = () => {
+  emit('update:show', false);
+};
+
 // 监听弹窗显示状态
 watch(() => props.show, (newVal) => {
   if (newVal) {
     loadNodes();
   } else {
-    // 重置状态
-    currentPage.value = 1;
-    protocolFilter.value = 'all';
-    regionFilter.value = 'all';
-    searchQuery.value = '';
-    showProcessed.value = false;  // 重置处理开关
-    error.value = '';
-    allNodes.value = [];
+    resetState();
   }
 });
 
 onMounted(() => {
+  window.addEventListener('resize', handleResize);
   if (props.show) {
     loadNodes();
   }
-  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // 监听筛选条件变化，重置页码
@@ -371,32 +464,31 @@ const goToPage = (page) => {
   }
 };
 
-// 键盘事件处理
-const handleKeydown = (e) => {
-  if (e.key === 'Escape') {
-    emit('update:show', false);
-  }
-};
 </script>
 
 <template>
-  <div
-    v-if="show"
-    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-    @click="$emit('update:show', false)"
-  >
-    <div
-      class="bg-white dark:bg-gray-800 misub-radius-lg shadow-2xl w-full text-left ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[95vh] max-w-none mx-4 sm:mx-auto sm:max-w-5xl"
-      @click.stop
-    >
-      <!-- 标题栏 -->
-      <div class="p-6 pb-4 shrink-0 border-b border-gray-200 dark:border-gray-700">
-        <div class="flex items-center justify-between">
-          <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+  <Modal :show="show" size="6xl" @update:show="value => !value && closeModal()">
+    <template #title>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0 space-y-1">
+          <h3 class="truncate text-lg font-bold text-gray-900 dark:text-white sm:text-xl">
             {{ title }}
           </h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            {{ profileId ? '按协议、地区和关键字筛选节点，可直接挑选并提取到手动节点列表。' : '预览当前订阅返回的节点结果，快速检查协议、地区和数量分布。' }}
+          </p>
+        </div>
+        <div class="flex items-center gap-2 self-end sm:self-auto">
           <button
-            @click="$emit('update:show', false)"
+            v-if="profileId"
+            @click="pickingMode = !pickingMode"
+            class="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+            :class="pickingMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'"
+          >
+            {{ pickingMode ? '退出选择' : '挑选节点' }}
+          </button>
+          <button
+            @click="closeModal"
             class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,47 +497,50 @@ const handleKeydown = (e) => {
           </button>
         </div>
       </div>
+    </template>
+
+    <template #body>
 
       <!-- 统计信息 -->
-      <div v-if="!loading && !error && Object.keys(protocolStats).length > 0" class="px-4 sm:px-6 py-2 sm:py-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+      <div v-if="!loading && !error && Object.keys(protocolStats).length > 0" class="border-b border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/50 sm:px-6 sm:py-4">
         <!-- 桌面端统计布局 -->
         <div class="hidden lg:grid grid-cols-4 gap-4">
-          <div class="text-center">
+          <div class="rounded-xl border border-gray-200/70 bg-white px-4 py-3 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
             <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ allNodes.length }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">总节点数</div>
           </div>
-          <div class="text-center">
+          <div class="rounded-xl border border-gray-200/70 bg-white px-4 py-3 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
             <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ Object.keys(protocolStats).length }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">协议类型</div>
           </div>
-          <div class="text-center">
+          <div class="rounded-xl border border-gray-200/70 bg-white px-4 py-3 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
             <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ Object.keys(regionStats).length }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">地区数量</div>
           </div>
-          <div class="text-center">
+          <div class="rounded-xl border border-gray-200/70 bg-white px-4 py-3 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
             <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ totalPages }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">总页数</div>
           </div>
         </div>
 
         <!-- 移动端统计布局 (彩色标签) -->
-        <div class="lg:hidden grid grid-cols-4 gap-2 text-xs">
-          <div class="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded px-2 py-1 text-center">
+        <div class="grid grid-cols-2 gap-2 text-xs lg:hidden">
+          <div class="rounded-lg border border-blue-200/70 bg-blue-50 px-2 py-2 text-center text-blue-700 dark:border-blue-500/20 dark:bg-blue-900/20 dark:text-blue-300">
             <div class="font-bold">{{ allNodes.length }}</div>
             <div class="scale-90 opacity-80">节点</div>
           </div>
-          <div class="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded px-2 py-1 text-center">
+          <div class="rounded-lg border border-purple-200/70 bg-purple-50 px-2 py-2 text-center text-purple-700 dark:border-purple-500/20 dark:bg-purple-900/20 dark:text-purple-300">
              <div class="font-bold">{{ Object.keys(protocolStats).length }}</div>
              <div class="scale-90 opacity-80">协议</div>
-          </div>
-          <div class="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 rounded px-2 py-1 text-center">
+           </div>
+          <div class="rounded-lg border border-orange-200/70 bg-orange-50 px-2 py-2 text-center text-orange-700 dark:border-orange-500/20 dark:bg-orange-900/20 dark:text-orange-300">
              <div class="font-bold">{{ Object.keys(regionStats).length }}</div>
              <div class="scale-90 opacity-80">地区</div>
-          </div>
-          <div class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded px-2 py-1 text-center">
+           </div>
+          <div class="rounded-lg border border-gray-200/70 bg-white px-2 py-2 text-center text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
              <div class="font-bold">{{ totalPages }}</div>
              <div class="scale-90 opacity-80">页数</div>
-          </div>
+           </div>
         </div>
       </div>
 
@@ -470,26 +565,26 @@ const handleKeydown = (e) => {
       />
 
       <!-- 节点列表 -->
-      <div class="flex-1 overflow-hidden" style="min-height: 0;">
-        <div class="h-full overflow-y-auto px-4 sm:px-6 py-4" style="max-height: calc(95vh - 320px);">
+      <div class="flex-1 overflow-hidden bg-white dark:bg-gray-800" :class="{ 'pb-24 sm:pb-28': pickingMode }" style="min-height: 0;">
+        <div class="h-full overflow-y-auto px-4 py-4 sm:px-6">
           <!-- 加载状态 -->
-          <div v-if="loading" class="flex items-center justify-center h-64">
-            <div class="text-center">
+          <div v-if="loading" class="flex h-64 items-center justify-center">
+            <div class="rounded-xl border border-gray-200/70 bg-white px-8 py-8 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
               <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">正在加载节点信息...</p>
             </div>
           </div>
 
           <!-- 错误状态 -->
-          <div v-else-if="error" class="flex items-center justify-center h-64">
-            <div class="text-center">
+          <div v-else-if="error" class="flex h-64 items-center justify-center">
+            <div class="rounded-xl border border-red-200/70 bg-red-50/80 px-8 py-8 text-center shadow-sm dark:border-red-500/20 dark:bg-red-500/10">
               <svg class="mx-auto h-12 w-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
               <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
               <button
                 @click="loadNodes"
-                class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm misub-radius-md transition-colors"
+                class="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
               >
                 重试
               </button>
@@ -497,8 +592,8 @@ const handleKeydown = (e) => {
           </div>
 
           <!-- 无数据状态 -->
-          <div v-else-if="paginatedNodes.length === 0" class="flex items-center justify-center h-64">
-            <div class="text-center">
+          <div v-else-if="paginatedNodes.length === 0" class="flex h-64 items-center justify-center">
+            <div class="rounded-xl border border-dashed border-gray-300 bg-white/70 px-8 py-8 text-center dark:border-gray-700 dark:bg-gray-900/50">
               <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
@@ -507,7 +602,7 @@ const handleKeydown = (e) => {
           </div>
 
           <!-- 节点列表/卡片视图 -->
-          <div v-else class="h-full flex flex-col">
+          <div v-else class="flex h-full flex-col">
             <!-- 简洁列表视图 (仅大屏桌面端) -->
             <NodeList
               v-if="effectiveViewMode === 'list'"
@@ -515,7 +610,10 @@ const handleKeydown = (e) => {
               :copied-node-id="copiedNodeId"
               :parse-node-info="parseNodeInfo"
               :get-protocol-style="getProtocolStyle"
+              :selection-mode="pickingMode"
+              :selected-urls="selectedUrls"
               @copy="copyNodeUrl"
+              @toggle-select="toggleNodeSelection"
             />
 
             <!-- 卡片视图 container -->
@@ -525,7 +623,10 @@ const handleKeydown = (e) => {
               :copied-node-id="copiedNodeId"
               :parse-node-info="parseNodeInfo"
               :get-protocol-style="getProtocolStyle"
+              :selection-mode="pickingMode"
+              :selected-urls="selectedUrls"
               @copy="copyNodeUrl"
+              @toggle-select="toggleNodeSelection"
             />
           </div>
         </div>
@@ -539,6 +640,39 @@ const handleKeydown = (e) => {
         :total-items="filteredTotalCount"
         @go-to-page="goToPage"
       />
+    </template>
+  </Modal>
+
+  <!-- [New] Floating Selection Bar -->
+  <Transition name="slide-up">
+    <div v-if="show && pickingMode" class="fixed bottom-4 left-1/2 z-50 w-[94%] max-w-2xl -translate-x-1/2 sm:bottom-6">
+      <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/20 bg-indigo-600 p-4 text-white shadow-2xl backdrop-blur-md">
+        <div class="flex flex-col">
+          <span class="text-xs opacity-80 tracking-widest font-bold">挑选模式</span>
+          <span class="text-sm font-medium">已选择 <span class="text-lg font-black">{{ selectedUrls.size }}</span> 个节点</span>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button @click="selectAll" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">全选</button>
+          <button @click="clearSelection" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">清空</button>
+          <button @click="handleSaveSelection" class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-indigo-600 shadow-lg transition-all hover:bg-indigo-50 active:scale-95">
+            保存选择
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
+  </Transition>
 </template>
+
+<style scoped>
+.slide-up-enter-active, .slide-up-leave-active {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.slide-up-enter-from {
+  transform: translate(-50%, 100%);
+  opacity: 0;
+}
+.slide-up-leave-to {
+  transform: translate(-50%, 100%);
+  opacity: 0;
+}
+</style>

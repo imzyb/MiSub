@@ -17,7 +17,8 @@ const props = defineProps({
   activeGroupFilter: { type: String, default: null }, // New
   itemsPerPage: { type: Number, default: 24 }, // Added
   pingResults: { type: Object, default: () => ({}) },
-  pingingNodes: { type: Object, default: () => new Set() }
+  pingingNodes: { type: Object, default: () => new Set() },
+  compactGrid: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -200,6 +201,7 @@ const handleDeleteAll = () => {
       @set-group-filter="emit('set-group-filter', $event)"
       :ping-results="pingResults"
       :pinging-nodes="pingingNodes"
+      :compact-grid="compactGrid"
       @ping="emit('ping', $event)"
     />
   </div>

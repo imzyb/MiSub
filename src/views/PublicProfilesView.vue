@@ -129,6 +129,12 @@ const getPlatformLabel = (p) => {
     return map[p] || p;
 };
 
+const getClientVersionLabel = (client) => {
+    if (client.version) return client.version;
+    if (!client.repo && client.platforms?.includes('ios')) return 'App Store 版';
+    return '稳定版';
+};
+
 const showPreviewModal = ref(false);
 const previewProfileId = ref(null);
 const previewProfileName = ref('');
@@ -368,10 +374,9 @@ onUnmounted(() => {
                             </div>
 
                             <div class="mt-6 flex items-center justify-between pt-4 border-t border-gray-50 dark:border-white/5">
-                                <span v-if="client.version" class="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 misub-radius-md">
-                                    {{ client.version }}
+                                <span class="text-xs text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 misub-radius-md">
+                                    {{ getClientVersionLabel(client) }}
                                 </span>
-                                <span v-else class="text-xs text-gray-400">稳定版</span>
 
                                 <a :href="client.url" target="_blank"
                                     class="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 group/link">

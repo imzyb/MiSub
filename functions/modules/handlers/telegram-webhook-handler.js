@@ -36,12 +36,67 @@ async function getStorageAdapter(env) {
     return StorageFactory.createAdapter(env, storageType);
 }
 
+function createRequestCache() {
+    return {
+        storageAdapter: null,
+        settings: undefined,
+        subscriptions: undefined,
+        profiles: undefined,
+        telegramPushConfig: undefined,
+    };
+}
+
+async function getCachedStorageAdapter(env, cache) {
+    if (!cache.storageAdapter) {
+        cache.storageAdapter = await getStorageAdapter(env);
+    }
+    return cache.storageAdapter;
+}
+
+async function getCachedSettings(env, cache) {
+    if (cache.settings !== undefined) return cache.settings;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    cache.settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    return cache.settings;
+}
+
+async function getCachedSubscriptions(env, cache) {
+    if (cache.subscriptions !== undefined) return cache.subscriptions;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    cache.subscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+    return cache.subscriptions;
+}
+
+async function getCachedProfiles(env, cache) {
+    if (cache.profiles !== undefined) return cache.profiles;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    cache.profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+    return cache.profiles;
+}
+
+async function persistCachedSubscriptions(env, cache) {
+    if (cache.subscriptions === undefined) return;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    await storageAdapter.put(KV_KEY_SUBS, cache.subscriptions);
+}
+
+async function persistCachedProfiles(env, cache) {
+    if (cache.profiles === undefined) return;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    await storageAdapter.put(KV_KEY_PROFILES, cache.profiles);
+}
+
+async function persistCachedSettings(env, cache) {
+    if (cache.settings === undefined) return;
+    const storageAdapter = await getCachedStorageAdapter(env, cache);
+    await storageAdapter.put(KV_KEY_SETTINGS, cache.settings);
+}
+
 /**
  * 获取 Telegram Bot 推送配置
  */
-async function getTelegramPushConfig(env) {
-    const storageAdapter = await getStorageAdapter(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+async function getTelegramPushConfig(env, cache = null) {
+    const settings = cache ? await getCachedSettings(env, cache) : ((await getStorageAdapter(env)).get(KV_KEY_SETTINGS).then(res => res || {}));
     const config = settings.telegram_push_config || {};
 
     return {
@@ -162,7 +217,7 @@ function parseTargetArgs(args) {
  */
 async function sendTelegramMessage(chatId, text, env, options = {}) {
     try {
-        const config = await getTelegramPushConfig(env);
+        const config = await getTelegramPushConfig(env, options.requestCache || null);
         if (!config.bot_token) {
             console.error('[Telegram Push] Bot token not configured');
             return;
@@ -196,7 +251,7 @@ async function sendTelegramMessage(chatId, text, env, options = {}) {
  */
 async function editTelegramMessage(chatId, messageId, text, env, options = {}) {
     try {
-        const config = await getTelegramPushConfig(env);
+        const config = await getTelegramPushConfig(env, options.requestCache || null);
         if (!config.bot_token) return;
 
         const body = {
@@ -396,7 +451,7 @@ async function handleHelpCommand(chatId, env) {
 /**
  * 处理 /menu 命令 - 快捷菜单
  */
-async function handleMenuCommand(chatId, env, messageId = null) {
+async function handleMenuCommand(chatId, env, messageId = null, requestCache = null) {
     const keyboard = {
         inline_keyboard: [
             [
@@ -421,10 +476,12 @@ async function handleMenuCommand(chatId, env, messageId = null) {
 
     if (messageId) {
         await editTelegramMessage(chatId, messageId, '📱 <b>快捷菜单</b>', env, {
+            requestCache,
             reply_markup: keyboard
         });
     } else {
         await sendTelegramMessage(chatId, '📱 <b>快捷菜单</b>', env, {
+            requestCache,
             reply_markup: keyboard
         });
     }
@@ -433,12 +490,12 @@ async function handleMenuCommand(chatId, env, messageId = null) {
 /**
  * 处理 /list 命令 - 节点列表（带分页和操作按钮）
  */
-async function handleListCommand(chatId, userId, env, page = 0, type = 'all', messageId = null) {
+async function handleListCommand(chatId, userId, env, page = 0, type = 'all', messageId = null, requestCache = null) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
+        const cache = requestCache || createRequestCache();
         const allNodes = await getUserNodes(userId, env);
-        const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const profiles = await getCachedProfiles(env, cache);
+        const settings = await getCachedSettings(env, cache);
         const config = settings.telegram_push_config || {};
 
         // 过滤节点
@@ -576,7 +633,7 @@ async function handleListCommand(chatId, userId, env, page = 0, type = 'all', me
 /**
  * 处理 /stats 命令
  */
-async function handleStatsCommand(chatId, userId, env) {
+async function handleStatsCommand(chatId, userId, env, requestCache = null) {
     try {
         const userNodes = await getUserNodes(userId, env);
 
@@ -619,10 +676,10 @@ async function handleStatsCommand(chatId, userId, env) {
                 });
         }
 
-        await sendTelegramMessage(chatId, message, env);
+        await sendTelegramMessage(chatId, message, env, { requestCache });
     } catch (error) {
         console.error('[Telegram Push] Stats command failed:', error);
-        await sendTelegramMessage(chatId, `\u274C 获取统计失败: ${error.message}`, env); // ❌
+        await sendTelegramMessage(chatId, `\u274C 获取统计失败: ${error.message}`, env, { requestCache }); // ❌
     }
 }
 
@@ -881,11 +938,11 @@ async function handleSearchCommand(chatId, userId, args, env) {
 /**
  * 处理 /sub 命令 - 获取订阅链接
  */
-async function handleSubCommand(chatId, args, env, request) {
+async function handleSubCommand(chatId, args, env, request, requestCache = null) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
-        const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const cache = requestCache || createRequestCache();
+        const profiles = await getCachedProfiles(env, cache);
+        const settings = await getCachedSettings(env, cache);
 
         // 获取公开的订阅组
         const publicProfiles = profiles.filter(p => p.isPublic);
@@ -965,11 +1022,11 @@ async function handleSubCommand(chatId, args, env, request) {
 /**
  * 处理订阅获取 - 简化版（用于快捷菜单，不需要 request）
  */
-async function handleSubCommandSimple(chatId, env) {
+async function handleSubCommandSimple(chatId, env, requestCache = null) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
-        const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const cache = requestCache || createRequestCache();
+        const profiles = await getCachedProfiles(env, cache);
+        const settings = await getCachedSettings(env, cache);
 
         // 获取公开的订阅组
         const publicProfiles = profiles.filter(p => p.isPublic);
@@ -1531,17 +1588,17 @@ async function handleDupCommand(chatId, userId, args, env) {
 /**
  * 处理 /bind 命令 - 绑定默认订阅组
  */
-async function handleBindCommand(chatId, userId, args, env) {
+async function handleBindCommand(chatId, userId, args, env, requestCache = null) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
-        const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const cache = requestCache || createRequestCache();
+        const profiles = await getCachedProfiles(env, cache);
+        const settings = await getCachedSettings(env, cache);
         const config = settings.telegram_push_config || {};
 
         // 没有参数时列出订阅组
         if (args.length === 0) {
             if (profiles.length === 0) {
-                await sendTelegramMessage(chatId, '📋 暂无订阅组\n\n请在 Web 界面创建', env);
+                await sendTelegramMessage(chatId, '📋 暂无订阅组\n\n请在 Web 界面创建', env, { requestCache });
                 return;
             }
 
@@ -1576,14 +1633,14 @@ async function handleBindCommand(chatId, userId, args, env) {
                 ].filter(row => row.length > 0)
             };
 
-            await sendTelegramMessage(chatId, message, env, { reply_markup: keyboard });
+            await sendTelegramMessage(chatId, message, env, { reply_markup: keyboard, requestCache });
             return;
         }
 
         // 绑定指定订阅组
         const idx = parseInt(args[0]) - 1;
         if (isNaN(idx) || idx < 0 || idx >= profiles.length) {
-            await sendTelegramMessage(chatId, '❌ 无效的序号', env);
+            await sendTelegramMessage(chatId, '❌ 无效的序号', env, { requestCache });
             return;
         }
 
@@ -1593,28 +1650,30 @@ async function handleBindCommand(chatId, userId, args, env) {
         config.default_profile_id = targetProfile.id;
         config.auto_bind = true;
         settings.telegram_push_config = config;
-        await storageAdapter.put(KV_KEY_SETTINGS, settings);
+        cache.settings = settings;
+        await persistCachedSettings(env, cache);
 
         await sendTelegramMessage(chatId,
             `✅ <b>绑定成功</b>\n\n` +
             `已绑定到: <b>${targetProfile.name}</b>\n\n` +
             `之后添加的节点将自动关联到此订阅组`,
-            env
+            env,
+            { requestCache }
         );
 
     } catch (error) {
         console.error('[Telegram Push] Bind command failed:', error);
-        await sendTelegramMessage(chatId, `❌ 绑定失败: ${escapeHtml(error.message)}`, env);
+        await sendTelegramMessage(chatId, `❌ 绑定失败: ${escapeHtml(error.message)}`, env, { requestCache });
     }
 }
 
 /**
  * 处理 /unbind 命令 - 解除绑定
  */
-async function handleUnbindCommand(chatId, env) {
+async function handleUnbindCommand(chatId, env, requestCache = null) {
     try {
-        const storageAdapter = await getStorageAdapter(env);
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const cache = requestCache || createRequestCache();
+        const settings = await getCachedSettings(env, cache);
         const config = settings.telegram_push_config || {};
 
         if (!config.default_profile_id) {
@@ -1625,7 +1684,8 @@ async function handleUnbindCommand(chatId, env) {
         config.default_profile_id = '';
         config.auto_bind = false;
         settings.telegram_push_config = config;
-        await storageAdapter.put(KV_KEY_SETTINGS, settings);
+        cache.settings = settings;
+        await persistCachedSettings(env, cache);
 
         await sendTelegramMessage(chatId,
             '✅ <b>解除绑定成功</b>\n\n' +
@@ -1642,9 +1702,10 @@ async function handleUnbindCommand(chatId, env) {
 /**
  * 处理节点输入（核心逻辑）
  */
-async function handleNodeInput(chatId, text, userId, env) {
+async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
     try {
-        const config = await getTelegramPushConfig(env);
+        const cache = requestCache || createRequestCache();
+        const config = await getTelegramPushConfig(env, cache);
 
         // 检查频率限制
         const rateLimitCheck = await checkRateLimit(userId, env, config);
@@ -1684,8 +1745,8 @@ async function handleNodeInput(chatId, text, userId, env) {
             return createJsonResponse({ ok: true });
         }
 
-        const storageAdapter = await getStorageAdapter(env);
-        const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+        const storageAdapter = await getCachedStorageAdapter(env, cache);
+        const allSubscriptions = await getCachedSubscriptions(env, cache);
 
         // 3. 批量处理与去重
         const addedNodes = [];
@@ -1830,7 +1891,7 @@ async function handleNodeInput(chatId, text, userId, env) {
 /**
  * 处理命令
  */
-async function handleCommand(chatId, text, userId, env, request) {
+async function handleCommand(chatId, text, userId, env, request, requestCache = null) {
     const parts = text.split(/\s+/);
     const command = parts[0].toLowerCase().split('@')[0]; // 移除 @botname
     const args = parts.slice(1);
@@ -1845,15 +1906,15 @@ async function handleCommand(chatId, text, userId, env, request) {
             break;
 
         case '/menu':
-            await handleMenuCommand(chatId, env);
+            await handleMenuCommand(chatId, env, null, requestCache);
             break;
 
         case '/list':
-            await handleListCommand(chatId, userId, env, 0);
+            await handleListCommand(chatId, userId, env, 0, 'all', null, requestCache);
             break;
 
         case '/stats':
-            await handleStatsCommand(chatId, userId, env);
+            await handleStatsCommand(chatId, userId, env, requestCache);
             break;
 
         case '/delete':
@@ -1879,7 +1940,7 @@ async function handleCommand(chatId, text, userId, env, request) {
 
         case '/sub':
         case '/subscription':
-            await handleSubCommand(chatId, args, env, request);
+            await handleSubCommand(chatId, args, env, request, requestCache);
             break;
 
         case '/rename':
@@ -1915,11 +1976,11 @@ async function handleCommand(chatId, text, userId, env, request) {
             break;
 
         case '/bind':
-            await handleBindCommand(chatId, userId, args, env);
+            await handleBindCommand(chatId, userId, args, env, requestCache);
             break;
 
         case '/unbind':
-            await handleUnbindCommand(chatId, env);
+            await handleUnbindCommand(chatId, env, requestCache);
             break;
 
         default:
@@ -1937,7 +1998,7 @@ async function handleCommand(chatId, text, userId, env, request) {
 /**
  * 处理 Callback Query（按钮回调）
  */
-async function handleCallbackQuery(callbackQuery, env, request) {
+async function handleCallbackQuery(callbackQuery, env, request, requestCache = null) {
     const chatId = callbackQuery.message.chat.id;
     const messageId = callbackQuery.message.message_id;
     const userId = callbackQuery.from.id;
@@ -1959,7 +2020,7 @@ async function handleCallbackQuery(callbackQuery, env, request) {
             }
 
             await answerCallbackQuery(callbackQuery.id, '', env);
-            await handleListCommand(chatId, userId, env, page, type, messageId);
+            await handleListCommand(chatId, userId, env, page, type, messageId, requestCache);
             return createJsonResponse({ ok: true });
         }
 
@@ -1967,28 +2028,28 @@ async function handleCallbackQuery(callbackQuery, env, request) {
         switch (data) {
             case 'cmd_menu':
                 await answerCallbackQuery(callbackQuery.id, '', env);
-                await handleMenuCommand(chatId, env, messageId);
+                await handleMenuCommand(chatId, env, messageId, requestCache);
                 break;
 
             case 'cmd_list_node':
                 await answerCallbackQuery(callbackQuery.id, '', env);
-                await handleListCommand(chatId, userId, env, 0, 'node', messageId);
+                await handleListCommand(chatId, userId, env, 0, 'node', messageId, requestCache);
                 break;
 
             case 'cmd_list_sub':
                 await answerCallbackQuery(callbackQuery.id, '', env);
-                await handleListCommand(chatId, userId, env, 0, 'sub', messageId);
+                await handleListCommand(chatId, userId, env, 0, 'sub', messageId, requestCache);
                 break;
 
             case 'cmd_stats':
                 await answerCallbackQuery(callbackQuery.id, '', env);
-                await handleStatsCommand(chatId, userId, env);
+                await handleStatsCommand(chatId, userId, env, requestCache);
                 break;
 
             case 'cmd_sub':
                 await answerCallbackQuery(callbackQuery.id, '', env);
                 // 获取订阅 - 不需要 request，直接列出订阅组
-                await handleSubCommandSimple(chatId, env);
+                await handleSubCommandSimple(chatId, env, requestCache);
                 break;
 
             case 'cmd_help':
@@ -2008,7 +2069,7 @@ async function handleCallbackQuery(callbackQuery, env, request) {
 
             case 'cmd_bind':
                 await answerCallbackQuery(callbackQuery.id, '', env);
-                await handleBindCommand(chatId, userId, [], env);
+                await handleBindCommand(chatId, userId, [], env, requestCache);
                 break;
 
             case 'prompt_import':
@@ -2496,9 +2557,9 @@ async function handleCallbackQuery(callbackQuery, env, request) {
                 } else if (data.startsWith('bind_profile_')) {
                     // 绑定订阅组
                     const profileId = data.replace('bind_profile_', '');
-                    const storageAdapter = await getStorageAdapter(env);
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
-                    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+                    const cache = requestCache || createRequestCache();
+                    const profiles = await getCachedProfiles(env, cache);
+                    const settings = await getCachedSettings(env, cache);
                     const config = settings.telegram_push_config || {};
 
                     const targetProfile = profiles.find(p => p.id === profileId);
@@ -2506,12 +2567,14 @@ async function handleCallbackQuery(callbackQuery, env, request) {
                         config.default_profile_id = profileId;
                         config.auto_bind = true;
                         settings.telegram_push_config = config;
-                        await storageAdapter.put(KV_KEY_SETTINGS, settings);
+                        cache.settings = settings;
+                        await persistCachedSettings(env, cache);
 
                         await answerCallbackQuery(callbackQuery.id, `已绑定: ${targetProfile.name}`, env);
                         await editTelegramMessage(chatId, messageId,
                             `✅ <b>绑定成功</b>\n\n已绑定到: <b>${targetProfile.name}</b>`,
-                            env
+                            env,
+                            { requestCache }
                         );
                     } else {
                         await answerCallbackQuery(callbackQuery.id, '订阅组不存在', env, true);
@@ -2519,17 +2582,18 @@ async function handleCallbackQuery(callbackQuery, env, request) {
 
                 } else if (data === 'unbind_profile') {
                     // 解除绑定
-                    const storageAdapter = await getStorageAdapter(env);
-                    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+                    const cache = requestCache || createRequestCache();
+                    const settings = await getCachedSettings(env, cache);
                     const config = settings.telegram_push_config || {};
 
                     config.default_profile_id = '';
                     config.auto_bind = false;
                     settings.telegram_push_config = config;
-                    await storageAdapter.put(KV_KEY_SETTINGS, settings);
+                    cache.settings = settings;
+                    await persistCachedSettings(env, cache);
 
                     await answerCallbackQuery(callbackQuery.id, '已解除绑定', env);
-                    await editTelegramMessage(chatId, messageId, '✅ 已解除绑定', env);
+                    await editTelegramMessage(chatId, messageId, '✅ 已解除绑定', env, { requestCache });
 
                 } else {
                     await answerCallbackQuery(callbackQuery.id, '未知操作', env);
@@ -2551,8 +2615,9 @@ async function handleCallbackQuery(callbackQuery, env, request) {
  */
 export async function handleTelegramWebhook(request, env) {
     try {
+        const requestCache = createRequestCache();
         // 获取配置
-        const config = await getTelegramPushConfig(env);
+        const config = await getTelegramPushConfig(env, requestCache);
 
         if (!config.enabled) {
             return createJsonResponse({ error: 'Bot disabled' }, 403);
@@ -2575,7 +2640,7 @@ export async function handleTelegramWebhook(request, env) {
                 await answerCallbackQuery(update.callback_query.id, permissionCheck.reason, env, true);
                 return createJsonResponse({ ok: true });
             }
-            return await handleCallbackQuery(update.callback_query, env, request);
+            return await handleCallbackQuery(update.callback_query, env, request, requestCache);
         }
 
         // 处理普通消息
@@ -2598,9 +2663,9 @@ export async function handleTelegramWebhook(request, env) {
 
             // 处理命令或节点输入
             if (text.startsWith('/')) {
-                return await handleCommand(chatId, text, userId, env, request);
+                return await handleCommand(chatId, text, userId, env, request, requestCache);
             } else {
-                return await handleNodeInput(chatId, text, userId, env);
+                return await handleNodeInput(chatId, text, userId, env, requestCache);
             }
         }
 

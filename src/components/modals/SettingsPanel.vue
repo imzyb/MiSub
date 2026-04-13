@@ -50,8 +50,12 @@ onMounted(() => {
   loadSettings();
 });
 
+const handleSaveAndReturnStatus = async () => {
+  return handleSave();
+};
+
 // 暴露 handleSave 给父组件
-defineExpose({ handleSave });
+defineExpose({ handleSave: handleSaveAndReturnStatus });
 </script>
 
 <template>
@@ -109,6 +113,5 @@ defineExpose({ handleSave });
 <style scoped>
 
 </style>
-
 
 

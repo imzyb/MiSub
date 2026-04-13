@@ -81,7 +81,8 @@ export async function handleGithubReleaseRequest(request, env) {
             tag_name: data.tag_name,
             html_url: data.html_url,
             published_at: data.published_at,
-            name: data.name
+            name: data.name,
+            body: data.body || ''
         };
 
         const cachePayload = {

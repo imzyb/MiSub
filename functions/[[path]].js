@@ -20,16 +20,15 @@
 
 import { handleMisubRequest } from './modules/subscription-handler.js';
 import { handleApiRequest } from './modules/api-router.js';
-import { createJsonResponse } from './modules/utils.js';
+import { createJsonResponse, migrateConfigSettings } from './modules/utils.js';
 import { corsMiddleware, securityHeadersMiddleware } from './middleware/cors.js';
 import { handleDisguiseRequest } from './modules/handlers/disguise-handler.js';
 import { createDisguiseResponse } from './modules/disguise-page.js';
 
 // 静态导入核心依赖以优化冷加载
 import { StorageFactory, SettingsCache } from './storage-adapter.js';
-import { KV_KEY_SETTINGS } from './modules/config.js';
+import { KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings } from './modules/config.js';
 import { handleCronTrigger } from './modules/notifications.js';
-import { handleVpsCleanup } from './modules/handlers/vps-monitor-handler.js';
 import { authMiddleware } from './modules/auth-middleware.js';
 
 function parseCorsOrigins(env, requestUrl) {
@@ -149,23 +148,32 @@ export async function onRequest(context) {
 
     try {
         const handleRequest = async () => {
+            const settings = await SettingsCache.get(env) || {};
+            const config = migrateConfigSettings({ ...defaultSettings, ...settings });
+
             if (request.headers.get(INTERNAL_SPA_FETCH_HEADER) === '1') {
                 return applyNoStoreToHtmlResponse(await fetchStaticAsset(request, env, next));
             }
+
+            // [新增] 动态识别订阅路由
+            // 只要路径以 /sub/, /s/, /sam/ 开头，或者是用户自定义的 mytoken/profileToken，就转交给 handleMisubRequest
+            const isExplicitSubRoute = url.pathname.startsWith('/sub/') || 
+                                     url.pathname.startsWith('/s/') || 
+                                     url.pathname.startsWith('/sam/');
+            
+            const firstSeg = url.pathname.split('/').filter(Boolean)[0];
+            const isCustomTokenRoute = firstSeg && (firstSeg === config.mytoken || firstSeg === config.profileToken);
 
             // 路由分发
             if (url.pathname.startsWith('/api/')) {
                 // API 路由
                 return await handleApiRequest(request, env);
-            } else if (url.pathname.startsWith('/sub/')) {
+            } else if (isExplicitSubRoute || isCustomTokenRoute) {
                 // MiSub 订阅路由
                 return await handleMisubRequest(context);
             } else if (url.pathname === '/cron') {
                 // 定时任务路由 (需要认证)
                 // 使用设置中的 cronSecret 进行验证
-                const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-                const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
-
                 const expectedSecret = settings.cronSecret;
 
                 if (!expectedSecret) {
@@ -186,25 +194,6 @@ export async function onRequest(context) {
                 }
 
                 return await handleCronTrigger(env);
-            } else if (url.pathname === '/cron/vps-cleanup') {
-                const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-                const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
-                const expectedSecret = settings.cronSecret;
-                if (!expectedSecret) {
-                    return createJsonResponse({
-                        error: 'Cron Secret 未配置',
-                        hint: '请在设置页面的「自动任务配置」中设置 Cron Secret'
-                    }, 500);
-                }
-                const cronAuthHeader = request.headers.get('Authorization');
-                const cronSecretParam = url.searchParams.get('secret');
-                const isAuthorized =
-                    cronAuthHeader === `Bearer ${expectedSecret}` ||
-                    cronSecretParam === expectedSecret;
-                if (!isAuthorized) {
-                    return createJsonResponse({ error: 'Unauthorized' }, 401);
-                }
-                return await handleVpsCleanup(request, env);
             } else {
                 const isLocalhost = ['localhost', '127.0.0.1'].includes(url.hostname);
 
@@ -213,7 +202,8 @@ export async function onRequest(context) {
                     let localResponse = await fetchStaticAsset(request, env, next);
                     const isLikelySpaPath = !/\.\w+$/.test(url.pathname)
                         && !url.pathname.startsWith('/api/')
-                        && !url.pathname.startsWith('/sub/')
+                        && !isExplicitSubRoute
+                        && !isCustomTokenRoute
                         && url.pathname !== '/cron';
 
                     if (localResponse.status === 404 && isLikelySpaPath) {
@@ -228,11 +218,8 @@ export async function onRequest(context) {
                 // 静态文件处理
                 const isStaticAsset = /^\/(assets|@vite|src)\/./.test(url.pathname) || /\.\w+$/.test(url.pathname);
 
-                // 需要提前读取 Settings 来获取 customLoginPath
-                // 为了性能，只有在非静态资源且可能是 SPA 路由时才读取
-                let settings = {};
                 if (!isStaticAsset) {
-                    settings = await SettingsCache.get(env) || {};
+                    // 已提前读取过 settings
                 }
 
                 const customLoginPath = normalizeLoginPath(settings?.customLoginPath);
@@ -244,8 +231,6 @@ export async function onRequest(context) {
                 const isSpaRoute = [
                     '/groups',
                     '/nodes',
-                    '/monitor',
-                    '/vps',
                     '/subscriptions',
                     '/settings',
                     '/login', // 默认 login 仍然需要保留，以便前端处理 "入口" 逻辑
@@ -258,8 +243,7 @@ export async function onRequest(context) {
                 const isProtectedSpaRoute = isSpaRoute
                     && url.pathname !== '/login'
                     && url.pathname !== customLoginPath
-                    && !url.pathname.startsWith('/explore')
-                    && !url.pathname.startsWith('/vps');
+                    && !url.pathname.startsWith('/explore');
 
                 // Route protection for SPA pages
                 // If accessing a protected route without auth, redirect to login
@@ -282,11 +266,6 @@ export async function onRequest(context) {
                 // [Smart Disguise] Check if we need to disguise the SPA/Root
                 // Only applies to non-static assets
                 if ((url.pathname === '/' || isSpaRoute) && !isStaticAsset) {
-                    if (url.pathname === '/vps') {
-                        // public page should never be disguised
-                        const indexResponse = await fetchSpaEntry(request, env, next);
-                        return applyNoStoreToHtmlResponse(indexResponse);
-                    }
                     // Pass settings to avoid double fetch
                     const disguiseResponse = await handleDisguiseRequest(context, settings);
                     if (disguiseResponse) {

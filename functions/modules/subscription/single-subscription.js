@@ -17,8 +17,9 @@ export async function handleSingleSubscriptionMode(request, env, subscriptionId,
     const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
 
     // 查找订阅
-    const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
-    const subscription = allSubscriptions.find(sub => sub.id === subscriptionId);
+    const subscription = typeof storageAdapter.getSubscriptionById === 'function'
+        ? await storageAdapter.getSubscriptionById(subscriptionId)
+        : (await storageAdapter.get(KV_KEY_SUBS) || []).find(sub => sub.id === subscriptionId);
 
     if (!subscription || !subscription.enabled) {
         return createJsonResponse({ error: '订阅不存在或已禁用' }, 404);

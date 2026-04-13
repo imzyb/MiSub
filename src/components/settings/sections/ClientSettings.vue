@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useToastStore } from '../../../stores/toast';
 import Modal from '../../forms/Modal.vue';
 import { api } from '../../../lib/http.js';
+import SectionHeader from '../SectionHeader.vue';
 
 const clients = ref([]);
 const loading = ref(false);
@@ -230,8 +231,15 @@ onMounted(fetchClients);
 
 <template>
     <div class="space-y-6">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">客户端管理</h3>
+        <div class="rounded-xl border border-gray-100/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-gray-900/70">
+            <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <SectionHeader title="客户端管理" description="统一管理公开页一键导入客户端的图标、平台和下载地址。" tone="blue">
+                    <template #icon>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1-3m1.75 0h3.5M12 3v14m0 0l3-3m-3 3l-3-3" />
+                        </svg>
+                    </template>
+                </SectionHeader>
             <div class="flex gap-2 w-full md:w-auto">
                 <button @click="handleInit"
                     class="flex-1 md:flex-none px-3 py-1.5 text-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 misub-radius-lg border border-gray-300 dark:border-gray-600">重置默认</button>
@@ -239,12 +247,13 @@ onMounted(fetchClients);
                     class="flex-1 md:flex-none px-4 py-2 text-center text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg shadow-sm shadow-primary-500/20">新增客户端</button>
             </div>
         </div>
+        </div>
 
         <div v-if="loading" class="text-center py-8 text-gray-500">加载中...</div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-for="(client, index) in clients" :key="client.id"
-                class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 misub-radius-lg p-4 pb-10 md:pb-4 hover:shadow-md transition-shadow group">
+                class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 misub-radius-lg p-4 hover:shadow-md transition-shadow group">
 
                 <div class="flex items-start gap-3 min-w-0">
                     <div
@@ -265,39 +274,42 @@ onMounted(fetchClients);
                     </div>
                 </div>
 
-                <!-- Mobile Actions (Bottom Right, Smaller) -->
-                <div class="absolute bottom-3 right-3 flex gap-1">
+                <div class="mt-4 grid grid-cols-2 sm:flex sm:flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
                     <button @click.stop="moveClient(index, -1)"
                         :disabled="ordering || index === 0"
-                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                             stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
                         </svg>
+                        <span>上移</span>
                     </button>
                     <button @click.stop="moveClient(index, 1)"
                         :disabled="ordering || index === clients.length - 1"
-                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                             stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
+                        <span>下移</span>
                     </button>
                     <button @click.stop="handleEdit(client)"
-                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                             stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
+                        <span>编辑</span>
                     </button>
                     <button @click.stop="handleDelete(client.id)"
-                        class="!min-w-0 !min-h-0 w-7 h-7 flex items-center justify-center bg-red-50 dark:bg-red-900/30 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-red-50 dark:bg-red-900/30 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                             stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
+                        <span>删除</span>
                     </button>
                 </div>
             </div>

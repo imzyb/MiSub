@@ -43,7 +43,18 @@ export function useProfiles(markDirty) {
 
   const handleAddProfile = () => {
     isNewProfile.value = true;
-    editingProfile.value = { name: '', enabled: true, subscriptions: [], manualNodes: [], customId: '', subConverter: '', subConfig: '', expiresAt: '' };
+    editingProfile.value = { 
+      name: '', 
+      enabled: true, 
+      subscriptions: [], 
+      manualNodes: [], 
+      customId: '', 
+      transformConfigMode: 'global', 
+      transformConfig: '', 
+      ruleLevel: '', 
+      expiresAt: '',
+      operators: [] // [New] Initialize operator chain
+    };
     showProfileModal.value = true;
   };
 
@@ -52,7 +63,16 @@ export function useProfiles(markDirty) {
     if (profile) {
       isNewProfile.value = false;
       editingProfile.value = JSON.parse(JSON.stringify(profile));
+      if (!editingProfile.value.transformConfigMode) {
+        editingProfile.value.transformConfigMode = editingProfile.value.transformConfig ? 'preset' : 'global';
+      }
+      if (!editingProfile.value.ruleLevel && editingProfile.value.clashRuleLevel) {
+        editingProfile.value.ruleLevel = editingProfile.value.clashRuleLevel;
+      }
       editingProfile.value.expiresAt = profile.expiresAt || '';
+      if (!Array.isArray(editingProfile.value.operators)) {
+        editingProfile.value.operators = [];
+      }
       showProfileModal.value = true;
     }
   };

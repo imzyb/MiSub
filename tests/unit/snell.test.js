@@ -238,5 +238,17 @@ Trojan-Node = trojan, trojan.example.com, 443, trojanpass`;
             expect(nodes[1].protocol).toBe('snell');
             expect(nodes[2].protocol).toBe('trojan');
         });
+
+        it('应在后端节点解析中正确提取 Surge WireGuard 配置', () => {
+            const config = `[Proxy]
+WG-Test = wireguard, 1.2.3.4, 51820, private-key=test-private, peer-public-key=test-peer, client-id=1/2/3, self-ip=172.16.0.2/32`;
+
+            const nodes = extractValidNodes(config);
+
+            expect(nodes).toHaveLength(1);
+            expect(nodes[0]).toContain('wireguard://test-private@1.2.3.4:51820');
+            expect(nodes[0]).toContain('publickey=test-peer');
+            expect(nodes[0]).toContain('reserved=1%2C2%2C3');
+        });
     });
 });

@@ -7,10 +7,11 @@ export const DEFAULT_SETTINGS = {
     FileName: 'MiSub',
     mytoken: 'auto',
     profileToken: 'profiles',
-    subConverter: 'url.v1.mk',
-    subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
-    subConverterScv: false,
-    subConverterUdp: false,
+    transformConfigMode: 'builtin',
+    transformConfig: '',
+    ruleLevel: 'std',
+    builtinSkipCertVerify: false,
+    builtinEnableUdp: false,
     builtinLoonSkipCertVerify: false,
     enableAccessLog: false,
     accessLogPersistenceMode: 'light',
@@ -28,8 +29,17 @@ prependGroupName: false
 },
     defaultNodeTransform: {
         enabled: false,
+        filter: {
+            include: { enabled: false, rules: [] },
+            exclude: { enabled: false, rules: [] },
+            protocols: { enabled: false, values: [] },
+            regions: { enabled: false, values: [] },
+            script: { enabled: false, expression: '' },
+            useless: { enabled: false }
+        },
         rename: {
             regex: { enabled: false, rules: [] },
+            script: { enabled: false, expression: '' },
             template: {
                 enabled: false,
                 template: '{emoji}{region}-{protocol}-{index}',
@@ -56,57 +66,20 @@ prependGroupName: false
             ]
         }
     },
+    nodeTransformPresets: [],
     // 公告设置
     announcement: {
-        enabled: false,           // 是否启用公告
-        title: '',                // 公告标题
-        content: '',              // 公告内容（支持富文本/Markdown）
+        enabled: true,            // 是否启用公告
+        title: '2.5 版本更新说明', // 公告标题
+        content: '为降低 Cloudflare D1 / KV 免费额度超限的风险，本版本已进行一系列优化：<br><br>• 移除 VPS 探针功能<br>• 内置订阅转换能力，不再依赖第三方转换服务<br>• 优化数据结构与读写逻辑<br>• 降低高频请求场景下的存储与缓存压力<br><br>本次更新主要聚焦于项目的长期稳定运行与免费额度控制。', // 公告内容（支持富文本/Markdown）
         type: 'info',             // 类型: 'info' | 'warning' | 'success'
         dismissible: true,        // 是否可关闭
-        updatedAt: null           // 更新时间
+        updatedAt: '2026-04-13T00:00:00.000Z' // 更新时间
     },
     // 留言板设置
     guestbook: {
         enabled: false,
         allowAnonymous: true
-    },
-    vpsMonitor: {
-        enabled: true,
-        requireSecret: true,
-        requireSignature: false,
-        signatureClockSkewMinutes: 5,
-        offlineThresholdMinutes: 10,
-        cpuWarnPercent: 90,
-        memWarnPercent: 90,
-        diskWarnPercent: 90,
-        overloadConfirmCount: 2,
-        alertCooldownMinutes: 15,
-        networkSampleIntervalMinutes: 10,
-        reportIntervalMinutes: 5,
-        reportStoreIntervalMinutes: 15,
-        networkTargetsLimit: 2,
-        publicPageEnabled: false,
-        publicPageToken: '',
-        publicThemePreset: 'default',
-        publicThemeTitle: 'VPS 探针公开视图',
-        publicThemeSubtitle: '对外展示节点健康、资源负载与在线率。所有关键指标以清晰、可信的方式汇总呈现。',
-        publicThemeLogo: '',
-        publicThemeBackgroundImage: '',
-        publicThemeShowStats: true,
-        publicThemeShowAnomalies: true,
-        publicThemeShowFeatured: true,
-        publicThemeShowDetailTable: true,
-        publicThemeFooterText: '由 MiSub VPS 监控引擎提供实时数据驱动',
-        publicPageShowHeader: true,
-        publicPageShowFooter: true,
-        publicThemeSectionOrder: ['anomalies', 'nodes', 'featured', 'details'],
-        publicThemeCustomCss: '',
-        alertsEnabled: true,
-        notifyOffline: true,
-        notifyRecovery: true,
-        notifyOverload: true,
-        reportRetentionDays: 30,
-        cooldownIgnoreRecovery: true
     }
 };
 
@@ -120,8 +93,9 @@ export const DEFAULT_NODE_FORM = {
 export const DEFAULT_PROFILE_FORM = {
     name: '',
     customId: '',
-    subConverter: '',
-    subConfig: '',
+    transformConfigMode: 'global',
+    transformConfig: '',
+    ruleLevel: '', // 为空表示跟随全局配置
     subscriptions: [],
     manualNodes: [],
     enabled: true,
@@ -130,5 +104,7 @@ enableManualNodes: true,
 enableSubscriptions: true,
 manualNodePrefix: '\u624b\u52a8\u8282\u70b9',
 prependGroupName: null
-}
+},
+nodeTransform: null,
+nodeTransformPresetId: ''
 };

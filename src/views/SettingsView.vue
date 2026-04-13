@@ -93,7 +93,7 @@ watch(() => route.path, (path) => {
       </div>
 
       <div v-else class="space-y-6 max-w-6xl w-full mx-auto">
-        <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-white/70 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg shadow-sm">
+        <div class="hidden md:flex flex-wrap items-center justify-between gap-3 p-4 bg-white/70 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg shadow-sm">
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">当前模块</p>
             <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ currentTabLabel }}</p>

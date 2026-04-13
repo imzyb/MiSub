@@ -287,14 +287,24 @@ export async function handleNodeCountRequest(request, env) {
             if (result.userInfo || result.count > 0) {
                 const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
                 const originalSubs = await storageAdapter.get('misub_subscriptions_v1') || [];
-                const allSubs = JSON.parse(JSON.stringify(originalSubs)); // 深拷贝
-                const subToUpdate = allSubs.find(s => s.url === subUrl);
+                const subToUpdate = originalSubs.find(s => s.url === subUrl);
 
                 if (subToUpdate) {
-                    subToUpdate.nodeCount = result.count;
-                    subToUpdate.userInfo = result.userInfo;
-
-                    await storageAdapter.put('misub_subscriptions_v1', allSubs);
+                    if (typeof storageAdapter.updateSubscriptionById === 'function') {
+                        await storageAdapter.updateSubscriptionById(subToUpdate.id, current => ({
+                            ...current,
+                            nodeCount: result.count,
+                            userInfo: result.userInfo
+                        }));
+                    } else {
+                        const allSubs = JSON.parse(JSON.stringify(originalSubs));
+                        const target = allSubs.find(s => s.url === subUrl);
+                        if (target) {
+                            target.nodeCount = result.count;
+                            target.userInfo = result.userInfo;
+                            await storageAdapter.put('misub_subscriptions_v1', allSubs);
+                        }
+                    }
                 }
             }
 

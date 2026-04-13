@@ -65,7 +65,7 @@ const goToPage = (page) => {
 </script>
 
 <template>
-  <div v-if="totalPages > 1" class="p-4 sm:p-6 pt-2 sm:pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+  <div v-if="totalPages > 1" class="shrink-0 border-t border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40 sm:p-5">
     <!-- 桌面端完整分页 -->
     <div v-if="currentPage > 0" class="hidden sm:flex items-center justify-between">
       <div class="text-sm text-gray-700 dark:text-gray-300">
@@ -76,7 +76,7 @@ const goToPage = (page) => {
         <button
           @click="goToPage(currentPage - 1)"
           :disabled="currentPage <= 1"
-          class="px-3 py-1 misub-radius-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
         >
           上一页
         </button>
@@ -88,7 +88,7 @@ const goToPage = (page) => {
             :key="page"
             @click="page !== '...' && goToPage(page)"
             :class="{
-              'px-3 py-1 misub-radius-md border text-sm font-medium transition-colors': true,
+              'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors': true,
               'bg-indigo-600 border-indigo-600 text-white': page === currentPage,
               'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600': page !== currentPage && page !== '...',
               'opacity-50 cursor-not-allowed': page === '...'
@@ -103,7 +103,7 @@ const goToPage = (page) => {
         <button
           @click="goToPage(currentPage + 1)"
           :disabled="currentPage >= totalPages"
-          class="px-3 py-1 misub-radius-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
         >
           下一页
         </button>
@@ -112,7 +112,7 @@ const goToPage = (page) => {
 
     <!-- 移动端简化分页 -->
     <div class="sm:hidden">
-      <div class="flex items-center justify-between mb-3">
+      <div class="mb-3 flex items-center justify-between">
         <div class="text-sm text-gray-700 dark:text-gray-300">
           {{ currentPage }} / {{ totalPages }} 页
         </div>
@@ -124,7 +124,7 @@ const goToPage = (page) => {
         <button
           @click="goToPage(currentPage - 1)"
           :disabled="currentPage <= 1"
-          class="flex-1 max-w-[100px] px-4 py-2 misub-radius-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          class="max-w-[100px] flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
         >
           上一页
         </button>
@@ -134,7 +134,7 @@ const goToPage = (page) => {
         <button
           @click="goToPage(currentPage + 1)"
           :disabled="currentPage >= totalPages"
-          class="flex-1 max-w-[100px] px-4 py-2 misub-radius-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          class="max-w-[100px] flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
         >
           下一页
         </button>

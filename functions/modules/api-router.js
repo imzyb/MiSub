@@ -19,8 +19,7 @@ import {
     handleStorageTestRequest,
     handleExportDataRequest,
     handlePreviewContentRequest,
-    handleTestNotificationRequest,
-    handleTestSubconverterRequest
+    handleTestNotificationRequest
 } from './handlers/debug-handler.js';
 import {
     handleNodeCountRequest as handleLegacyNodeCountRequest,
@@ -38,19 +37,6 @@ import {
 } from './handlers/guestbook-handler.js';
 import { handleGithubReleaseRequest } from './handlers/github-proxy-handler.js'; // [NEW] Import handler
 import { handleParseSubscription } from './parse-subscription-handler.js';
-import {
-    handleVpsReport,
-    handleVpsNodesRequest,
-    handleVpsNodeDetailRequest,
-    handleVpsAlertsRequest,
-    handleVpsInstallScript,
-    handleVpsUninstallScript,
-    handleVpsNetworkTargetsRequest,
-    handleVpsNetworkCheck,
-    handleVpsConfig,
-    handleVpsPublicNodeDetailRequest,
-    handleVpsCleanup
-} from './handlers/vps-monitor-handler.js';
 
 // 常量定义
 const OLD_KV_KEY = 'misub_data_v1';
@@ -95,6 +81,44 @@ export async function handleApiRequest(request, env) {
 
         } catch (error) {
             console.error('[API Error /migrate_to_d1]', error);
+            return createErrorResponse(error, 500);
+        }
+    }
+
+    if (path === '/detect_legacy_d1') {
+        if (!await authMiddleware(request, env)) {
+            return createJsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        try {
+            const result = await DataMigrator.detectLegacyD1MainRows(env);
+            return createJsonResponse({ success: true, data: result });
+        } catch (error) {
+            console.error('[API Error /detect_legacy_d1]', error);
+            return createErrorResponse(error, 500);
+        }
+    }
+
+    if (path === '/migrate_legacy_d1') {
+        if (!await authMiddleware(request, env)) {
+            return createJsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        try {
+            const migrationResult = await DataMigrator.migrateLegacyD1MainRows(env);
+            if (migrationResult.errors.length > 0) {
+                return createJsonResponse({
+                    success: false,
+                    message: '旧 D1 结构迁移过程中出现错误',
+                    details: migrationResult.errors,
+                    partialSuccess: migrationResult
+                }, 500);
+            }
+            return createJsonResponse({
+                success: true,
+                message: '旧 D1 结构已成功迁移为行级存储',
+                details: migrationResult
+            });
+        } catch (error) {
+            console.error('[API Error /migrate_legacy_d1]', error);
             return createErrorResponse(error, 500);
         }
     }
@@ -170,32 +194,6 @@ export async function handleApiRequest(request, env) {
         return await handleErrorReportRequest(request, env);
     }
 
-    // VPS monitor public report endpoint
-    if (path === '/vps/report') {
-        return await handleVpsReport(request, env);
-    }
-
-    // VPS monitor install/uninstall script endpoint (public)
-    if (path === '/vps/install') {
-        return await handleVpsInstallScript(request, env);
-    }
-    if (path === '/vps/uninstall') {
-        return await handleVpsUninstallScript(request, env);
-    }
-
-    if (path === '/vps/config') {
-        return await handleVpsConfig(request, env);
-    }
-
-    if (path === '/vps/public') {
-        const { handleVpsPublicSnapshotRequest } = await import('./handlers/vps-monitor-handler.js');
-        return await handleVpsPublicSnapshotRequest(request, env);
-    }
-    
-    if (path.startsWith('/vps/public/nodes/')) {
-        return await handleVpsPublicNodeDetailRequest(request, env);
-    }
-
     // Public GET access for clients
     if (path.startsWith('/clients') && request.method === 'GET') {
         return await handleClientRequest(request, env);
@@ -254,34 +252,11 @@ export async function handleApiRequest(request, env) {
         return await handleClientRequest(request, env);
     }
 
-    if (path === '/vps/nodes') {
-        return await handleVpsNodesRequest(request, env);
-    }
-
-    if (path.startsWith('/vps/nodes/')) {
-        return await handleVpsNodeDetailRequest(request, env);
-    }
-
-    if (path === '/vps/network_targets') {
-        return await handleVpsNetworkTargetsRequest(request, env);
-    }
-
-    if (path === '/vps/network_check') {
-        return await handleVpsNetworkCheck(request, env);
-    }
-
     if (path === '/test_notification') {
         if (!await authMiddleware(request, env)) {
             return createJsonResponse({ error: 'Unauthorized' }, 401);
         }
         return await handleTestNotificationRequest(request, env);
-    }
-
-    if (path === '/test_subconverter') {
-        if (!await authMiddleware(request, env)) {
-            return createJsonResponse({ error: 'Unauthorized' }, 401);
-        }
-        return await handleTestSubconverterRequest(request, env);
     }
 
     // KV 诊断端点：测试 KV 读写是否正常（需登录）
@@ -410,12 +385,6 @@ export async function handleApiRequest(request, env) {
                 return createJsonResponse({ success: true });
             }
             return createErrorResponse('Method Not Allowed', 405);
-
-        case '/vps/alerts':
-            return await handleVpsAlertsRequest(request, env);
-
-        case '/vps/cleanup':
-            return await handleVpsCleanup(request, env);
 
         case '/settings':
             if (request.method === 'GET') {

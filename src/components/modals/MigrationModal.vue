@@ -58,7 +58,7 @@ const handleMigrate = async () => {
     } catch (err) {
         step.value = 'error';
         addLog(`❌ 发生异常: ${err.message}`, 'error');
-        addLog('请检查 D1 数据库是否已初始化，表结构是否完整（含 vps_* 表）。', 'warning');
+        addLog('请检查 D1 数据库是否已初始化，表结构是否完整。', 'warning');
         addLog('若未执行 SQL 脚本，先点击“复制 SQL 脚本内容”并在 D1 Console 执行。', 'warning');
         addLog('提示：若仍失败，请确认 MISUB_DB 绑定与 D1 表创建权限。', 'warning');
         showToast(`迁移失败: ${err.message}`, 'error');
@@ -124,42 +124,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_updated_at ON subscriptions(updated_at);
 CREATE INDEX IF NOT EXISTS idx_profiles_updated_at ON profiles(updated_at);
-CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);
-
-CREATE TABLE IF NOT EXISTS vps_nodes (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    tag TEXT,
-    region TEXT,
-    description TEXT,
-    secret TEXT NOT NULL,
-    status TEXT NOT NULL,
-    enabled INTEGER DEFAULT 1,
-    last_seen_at DATETIME,
-    last_report_json TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS vps_reports (
-    id TEXT PRIMARY KEY,
-    node_id TEXT NOT NULL,
-    reported_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    data TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS vps_alerts (
-    id TEXT PRIMARY KEY,
-    node_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    message TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_vps_nodes_updated_at ON vps_nodes(updated_at);
-CREATE INDEX IF NOT EXISTS idx_vps_reports_node_time ON vps_reports(node_id, reported_at);
-CREATE INDEX IF NOT EXISTS idx_vps_alerts_node_time ON vps_alerts(node_id, created_at);`;
+CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`;
 
 const copySchema = async () => {
     try {
@@ -199,7 +164,7 @@ const copySchema = async () => {
                    <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-2">准备工作检查</h4>
                    <p class="text-sm text-blue-600 dark:text-blue-400 mb-4 leading-relaxed">
                         即将把所有 KV 存储的数据迁移到 D1 数据库。此操作不可逆，迁移成功后系统将自动切换到 D1 模式。<br/>
-                        请务必确认您已完成以下操作（含 VPS 探针表结构）：
+                        请务必确认您已完成以下操作：
                    </p>
                    <ul class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
                        <li class="flex items-start gap-2">
@@ -213,7 +178,7 @@ const copySchema = async () => {
                        <li class="flex items-start gap-2">
                            <input type="checkbox" class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
                            <div class="flex flex-col gap-1">
-                                <span class="font-medium text-orange-600 dark:text-orange-400">重要：已在 D1 Console 中执行 SQL 建表脚本（含 vps_* 表）</span>
+                                 <span class="font-medium text-orange-600 dark:text-orange-400">重要：已在 D1 Console 中执行 SQL 建表脚本</span>
                                <button @click="copySchema" class="text-xs flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline underline-offset-2 transition-colors w-fit">
                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                                    复制 SQL 脚本内容

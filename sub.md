@@ -1,10 +1,4 @@
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (1, 'system-user-001', 'CM负载均衡后端【vless reality+hy1+hy2】', 'https://subapi.cmliussss.net', 'backend', 1);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (2, 'system-user-001', 'CM应急备用后端【vless reality+hy1+hy2】', 'https://subapi.fxxk.dedyn.io', 'backend', 0);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (3, 'system-user-001', '肥羊增强型后端【vless reality+hy1+hy2】', 'https://url.v1.mk', 'backend', 0);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (4, 'system-user-001', '肥羊备用后端【vless reality+hy1+hy2】', 'https://sub.d1.mk', 'backend', 0);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (5, 'system-user-001', 'nameless13提供', 'https://www.nameless13.com', 'backend', 0);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (6, 'system-user-001', 'subconverter作者提供', 'https://sub.xeton.dev', 'backend', 0);
-INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (7, 'system-user-001', 'sub-web作者提供', 'https://api.wcc.best', 'backend', 0);
+
 INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (101, 'system-user-001', 'CM_Online 默认版 识别港美地区(与Github同步)', 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online.ini', 'config', 1);
 INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (102, 'system-user-001', 'CM_Online_MultiCountry 识别港美地区 负载均衡(与Github同步)', 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini', 'config', 0);
 INSERT OR IGNORE INTO subconverter_assets (id, user_id, name, url, type, is_default) VALUES (103, 'system-user-001', 'CM_Online_MultiCountry_CF 识别港美地区、CloudFlareCDN 负载均衡 Worker节点专用(与Github同步)', 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry_CF.ini', 'config', 0);
