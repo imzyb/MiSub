@@ -1,76 +1,81 @@
 import yaml from 'js-yaml';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
 
+/**
+ * Sanitize string: trim and remove carriage returns/newlines which break YAML indentation
+ * @param {any} val 
+ * @returns {string}
+ */
+function s(val) {
+    if (val === undefined || val === null) return '';
+    return String(val).replace(/[\r\n]/g, '').trim();
+}
+
 function mapTransport(proxy) {
     const network = String(proxy.network || 'tcp').toLowerCase();
     const transport = {};
 
+    const tls = (proxy.tls || !!proxy['reality-opts']) ? {
+        skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify),
+        sni: s(proxy.servername ?? proxy.sni ?? proxy.server)
+    } : null;
+
     if (network === 'ws' || network === 'websocket') {
-        transport.ws = {
-            path: proxy['ws-opts']?.path || '/',
-            headers: proxy['ws-opts']?.headers || {}
-        };
-    } else if (network === 'grpc') {
-        transport.grpc = {
-            service_name: proxy['grpc-opts']?.['grpc-service-name'] || proxy['grpc-opts']?.['service-name'] || proxy['grpc-opts']?.serviceName || 'grpc'
-        };
-    } else if (network === 'h2' || network === 'http2') {
-        transport.h2 = {
-            path: proxy['h2-opts']?.path || '/',
-            host: Array.isArray(proxy['h2-opts']?.host) ? proxy['h2-opts'].host : [proxy['h2-opts']?.host || proxy.server]
-        };
-    } else if (network === 'http') {
-        transport.http = {
-            path: proxy['http-opts']?.path || '/',
-            headers: proxy['http-opts']?.headers || {}
-        };
-    } else if (network === 'quic') {
-        transport.quic = {
-            security: proxy['quic-opts']?.security || 'none',
-            key: proxy['quic-opts']?.key || '',
-            header: proxy['quic-opts']?.header || { type: 'none' }
-        };
-    }
-
-    if (proxy.tls || !!proxy['reality-opts']) {
-        transport.tls = {
-            skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify),
-            alpn: proxy.alpn || ['h2', 'http/1.1']
-        };
-        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
-        if (sni) transport.tls.sni = sni;
-
-        if (proxy['reality-opts']) {
-            transport.tls.reality = {
-                public_key: proxy['reality-opts']?.['public-key'] || proxy['reality-opts']?.publicKey || '',
-                short_id: proxy['reality-opts']?.['short-id'] || proxy['reality-opts']?.shortId || ''
+        if (tls) {
+            transport.wss = {
+                path: s(proxy['ws-opts']?.path || '/'),
+                headers: proxy['ws-opts']?.headers || {},
+                ...tls
+            };
+        } else {
+            transport.ws = {
+                path: s(proxy['ws-opts']?.path || '/'),
+                headers: proxy['ws-opts']?.headers || {}
             };
         }
-        if (proxy.fingerprint) {
-            transport.tls.fingerprint = proxy.fingerprint;
-        }
+    } else if (network === 'grpc') {
+        transport.grpc = {
+            service_name: s(proxy['grpc-opts']?.['grpc-service-name'] || proxy['grpc-opts']?.['service-name'] || proxy['grpc-opts']?.serviceName || 'grpc')
+        };
+        if (tls) transport.tls = tls;
+    } else if (network === 'h2' || network === 'http2') {
+        transport.h2 = {
+            path: s(proxy['h2-opts']?.path || '/'),
+            host: Array.isArray(proxy['h2-opts']?.host) ? proxy['h2-opts'].host.map(h => s(h)) : [s(proxy['h2-opts']?.host || proxy.server)]
+        };
+        if (tls) transport.tls = tls;
+    } else {
+        if (tls) transport.tls = tls;
+    }
+
+    if (transport.tls && proxy['reality-opts']) {
+        transport.tls.reality = {
+            public_key: s(proxy['reality-opts']?.['public-key'] || proxy['reality-opts']?.publicKey),
+            short_id: s(proxy['reality-opts']?.['short-id'] || proxy['reality-opts']?.shortId)
+        };
     }
 
     return Object.keys(transport).length > 0 ? transport : undefined;
 }
 
 function mapProxy(proxy) {
-    const type = String(proxy.type || '').toLowerCase();
-    const name = proxy.name;
+    const type = s(proxy.type).toLowerCase();
+    const name = s(proxy.name);
+    const server = s(proxy.server);
+    const password = s(proxy.password);
+    const uuid = s(proxy.uuid);
 
     if (type === 'trojan') {
         const mapped = {
             trojan: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                password: proxy.password,
-                tfo: Boolean(proxy.tfo),
-                udp_relay: proxy.udp !== false,
+                password,
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
-        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
         if (sni) mapped.trojan.sni = sni;
         const transport = mapTransport(proxy);
         if (transport) mapped.trojan.transport = transport;
@@ -81,14 +86,14 @@ function mapProxy(proxy) {
         const mapped = {
             vless: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                user_id: proxy.uuid,
-                tfo: Boolean(proxy.tfo),
-                udp_relay: proxy.udp !== false
+                user_id: uuid
             }
         };
-        if (proxy.flow) mapped.vless.flow = proxy.flow;
+        if (proxy.flow) {
+            mapped.vless.flow = proxy.flow.includes('vision') ? 'xtls-rprx-vision' : s(proxy.flow);
+        }
         const transport = mapTransport(proxy);
         if (transport) mapped.vless.transport = transport;
         return mapped;
@@ -98,13 +103,10 @@ function mapProxy(proxy) {
         const mapped = {
             vmess: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                user_id: proxy.uuid,
-                security: proxy.cipher || 'auto',
-                legacy: Number(proxy.alterId || 0) > 0,
-                tfo: Boolean(proxy.tfo),
-                udp_relay: proxy.udp !== false
+                user_id: uuid,
+                security: s(proxy.cipher || 'auto')
             }
         };
         const transport = mapTransport(proxy);
@@ -116,17 +118,15 @@ function mapProxy(proxy) {
         const mapped = {
             shadowsocks: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                method: proxy.cipher || proxy.method,
-                password: proxy.password,
-                udp_relay: proxy.udp !== false,
-                tfo: Boolean(proxy.tfo)
+                method: s(proxy.cipher || proxy.method),
+                password
             }
         };
         if (proxy.plugin === 'obfs') {
-            mapped.shadowsocks.obfs = proxy['plugin-opts']?.mode || 'http';
-            mapped.shadowsocks.obfs_host = proxy['plugin-opts']?.host || proxy.server;
+            mapped.shadowsocks.obfs = s(proxy['plugin-opts']?.mode || 'http');
+            mapped.shadowsocks.obfs_host = s(proxy['plugin-opts']?.host || proxy.server);
         }
         return mapped;
     }
@@ -135,23 +135,14 @@ function mapProxy(proxy) {
         const mapped = {
             hysteria2: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                auth: proxy.password,
+                auth: password,
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
-        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
         if (sni) mapped.hysteria2.sni = sni;
-        if (proxy.obfs || proxy['obfs-opts']) {
-            mapped.hysteria2.obfuscation = {
-                type: proxy.obfs || proxy['obfs-opts']?.type || 'salamander',
-                password: proxy.password || proxy['obfs-opts']?.password || ''
-            };
-        }
-        if (proxy.hop || proxy.portHopping) {
-            mapped.hysteria2.port_hopping = String(proxy.hop || proxy.portHopping);
-        }
         return mapped;
     }
 
@@ -159,62 +150,39 @@ function mapProxy(proxy) {
         const mapped = {
             tuic: {
                 name,
-                server: proxy.server,
+                server,
                 port: proxy.port,
-                uuid: proxy.uuid,
-                password: proxy.password,
-                alpn: proxy.alpn || ['h3'],
-                udp_relay_mode: proxy['udp-relay-mode'] || 'native',
-                congestion_control: proxy['congestion-control'] || 'cubic',
+                uuid,
+                password,
+                congestion_control: s(proxy['congestion-control'] || 'cubic'),
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
-        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
+        const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
         if (sni) mapped.tuic.sni = sni;
-        if (proxy.hop || proxy.portHopping) {
-            mapped.tuic.port_hopping = String(proxy.hop || proxy.portHopping);
-        }
         return mapped;
     }
 
-    if (type === 'anytls') {
-        const mapped = {
-            anytls: {
-                name,
-                server: proxy.server,
-                port: proxy.port,
-                password: proxy.password,
-                skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
-            }
-        };
-        const sni = proxy.servername ?? proxy.sni ?? proxy.server;
-        if (sni) mapped.anytls.sni = sni;
-        return mapped;
-    }
-
-    // Default for simple ones
     return {
         [type]: {
             name,
-            server: proxy.server,
-            port: proxy.port,
-            udp_relay: proxy.udp !== false
+            server,
+            port: proxy.port
         }
     };
 }
 
 function mapPolicyGroup(group) {
-    const type = String(group.type || 'select').toLowerCase();
-    const policies = Array.isArray(group.members) ? group.members.filter(Boolean) : [];
+    const type = s(group.type || 'select').toLowerCase();
+    const policies = Array.isArray(group.members) ? group.members.filter(Boolean).map(p => s(p)) : [];
 
     if (type === 'url-test' || type === 'urltest' || type === 'auto-test') {
         return {
             auto_test: {
-                name: group.name,
+                name: s(group.name),
                 policies,
                 interval: Number(group.options?.interval) || 600,
-                tolerance: Number(group.options?.tolerance) || 100,
-                timeout: Number(group.options?.timeout) || 5
+                tolerance: Number(group.options?.tolerance) || 100
             }
         };
     }
@@ -222,32 +190,31 @@ function mapPolicyGroup(group) {
     if (type === 'fallback') {
         return {
             fallback: {
-                name: group.name,
+                name: s(group.name),
                 policies,
-                interval: Number(group.options?.interval) || 600,
-                timeout: Number(group.options?.timeout) || 5
+                interval: Number(group.options?.interval) || 600
             }
         };
     }
 
     return {
         select: {
-            name: group.name,
+            name: s(group.name),
             policies
         }
     };
 }
 
 function mapRule(rule) {
-    const type = String(rule.type || '').toLowerCase();
-    const policy = rule.policy || 'DIRECT';
-    const value = rule.value;
+    const type = s(rule.type).toLowerCase();
+    const policy = s(rule.policy || 'DIRECT');
+    const value = s(rule.value);
 
     if (type === 'final' || type === 'match') {
         return { default: { policy } };
     }
 
-    if (type === 'rule-set' && /^https?:\/\//i.test(value || '')) {
+    if (type === 'rule-set' && /^https?:\/\//i.test(value)) {
         return {
             rule_set: {
                 match: value,
@@ -257,14 +224,12 @@ function mapRule(rule) {
         };
     }
 
-    // Convert to underscore format for Egern
     const targetType = type.replace(/-/g, '_');
     
     return {
         [targetType]: {
             match: value,
-            policy,
-            ...(rule.noResolve ? { no_resolve: true } : {})
+            policy
         }
     };
 }
@@ -292,7 +257,7 @@ export function renderEgernFromTemplateModel(model) {
 
     if (normalizedModel.settings.managedConfigUrl) {
         config.auto_update = {
-            url: normalizedModel.settings.managedConfigUrl,
+            url: s(normalizedModel.settings.managedConfigUrl),
             interval: normalizedModel.settings.interval || 86400
         };
     }
@@ -301,6 +266,8 @@ export function renderEgernFromTemplateModel(model) {
         indent: 2,
         lineWidth: -1,
         noRefs: true,
-        sortKeys: false
+        sortKeys: false,
+        quotingType: '"',
+        forceQuotes: true
     });
 }
