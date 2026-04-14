@@ -8,15 +8,16 @@ function buildProxyLine(proxy) {
     const port = proxy.port;
     if (!server || !port) return null;
 
+    const sni = proxy.servername ?? proxy.sni;
+
     if (type === 'trojan') {
-        const extras = [`password=${proxy.password || ''}`];
+        const extras = [proxy.password || ''];
         if (proxy.network === 'ws') {
             extras.push('transport=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
         }
-        const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = trojan, ${server}, ${port}, ${extras.join(', ')}`;
@@ -27,9 +28,8 @@ function buildProxyLine(proxy) {
         const uuid = `"${proxy.uuid || ''}"`;
         const alterId = proxy.alterId || 0;
         const extras = [];
-        
-        const sni = proxy.servername ?? proxy.sni;
-        if (proxy.tls || sni !== undefined) extras.push('tls=true');
+
+        if (proxy.tls || sni !== undefined) extras.push('over-tls=true');
         if (proxy.network === 'ws') {
             extras.push('transport=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
@@ -45,13 +45,17 @@ function buildProxyLine(proxy) {
     if (type === 'vless') {
         const extras = [proxy.uuid || ''];
         if (proxy.network) extras.push(`transport=${proxy.network}`);
+        if (proxy.network === 'ws') {
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
+        }
         if (proxy.network === 'grpc') {
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
             if (grpcOpts?.['grpc-service-name']) extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
         }
         if (proxy.flow) extras.push(`flow=${proxy.flow}`);
-        const sni = proxy.servername ?? proxy.sni;
-        if (proxy.tls || sni !== undefined) extras.push('tls=true');
+        if (proxy.tls || sni !== undefined) extras.push('over-tls=true');
         const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
         if (realityOpts) {
             extras.push('reality=true');
@@ -62,7 +66,16 @@ function buildProxyLine(proxy) {
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vless, ${server}, ${port}, ${extras.join(', ')}`;
     }
-    if (type === 'hysteria2' || type === 'hy2') return `${name} = hysteria2, ${server}, ${port}, ${proxy.password || ''}`;
+    if (type === 'hysteria2' || type === 'hy2') {
+        const extras = [proxy.password || ''];
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            if (alpn) extras.push(`alpn=${alpn}`);
+        }
+        return `${name} = hysteria2, ${server}, ${port}, ${extras.join(', ')}`;
+    }
     if (type === 'tuic') {
         const extras = ['version=5'];
         
@@ -101,6 +114,16 @@ function buildProxyLine(proxy) {
             extras.push(`client-id=${reserved}`);
         }
         return `${name} = wireguard, ${server}, ${port}, ${extras.join(', ')}`;
+    }
+    if (type === 'anytls') {
+        const extras = [proxy.password || ''];
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            if (alpn) extras.push(`alpn=${alpn}`);
+        }
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        return `${name} = anytls, ${server}, ${port}, ${extras.join(', ')}`;
     }
     return null;
 }

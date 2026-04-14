@@ -163,17 +163,97 @@ MATCH,节点选择
         expect(loonRendered).toContain('WG-01 = wireguard');
         expect(loonRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list,🍎 苹果服务');
         expect(loonRendered).toContain('🚀 节点选择 = select');
-        expect(quanxRendered).toContain('[Proxy]');
-        expect(quanxRendered).toContain('[Policy]');
-        expect(quanxRendered).toContain('[Rule]');
-        expect(quanxRendered).toContain('vmess=🇺🇸 US-01');
+        expect(quanxRendered).toContain('[server_local]');
+        expect(quanxRendered).toContain('[policy]');
+        expect(quanxRendered).toContain('[filter_remote]');
+        expect(quanxRendered).toContain('[filter_local]');
+        expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=auto, password=uuid-5678, tag=🇺🇸 US-01');
         expect(quanxRendered).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list, tag=🍎 苹果服务, policy=🍎 苹果服务, enabled=true');
         expect(quanxRendered).toContain('🚀 节点选择 = select');
-        expect(surgeRendered).toContain('SG-01 = vless');
-        expect(surgeRendered).toContain('grpc-service-name=edge');
-        expect(surgeRendered).toContain('reality=true');
+        expect(surgeRendered).not.toContain('SG-01 = vless');
         expect(surgeRendered).toContain('WG-01 = wireguard');
         expect(surgeRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list,🍎 苹果服务');
         expect(surgeRendered).toContain('🚀 节点选择 = select');
+    });
+
+    it('should render Loon vmess and trojan proxies with compatible syntax', () => {
+        const loonRendered = renderLoonFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup` , {
+            nodeList: [
+                'vmess://eyJ2IjoiMiIsInBzIjoiVk1FU1MtV1MiLCJhZGQiOiJzYWFzLnNpbi5mYW4iLCJwb3J0IjoiNDQzIiwiaWQiOiIwYTRhMGJhMS1iZjAyLTQyOTgtYmYxNi0xOWExZjg2MzkzZmEiLCJhaWQiOiIwIiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoia3lqcC5zdG9vLnVzLmNpIiwicGF0aCI6Ii92bWVzcy1hcmdvP2VkPTI1NjAiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJreWpwLnN0b28udXMuY2kiLCJmcCI6ImZpcmVmb3gifQ==',
+                'trojan://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Ftrojan-argo%3Fed%3D2560#Trojan-WS'
+            ].join('\n'),
+            targetFormat: 'loon'
+        });
+
+        expect(loonRendered).toContain('VMESS-WS = vmess, saas.sin.fan, 443, auto, "0a4a0ba1-bf02-4298-bf16-19a1f86393fa", 0, over-tls=true, transport=ws, path=/vmess-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci');
+        expect(loonRendered).toContain('Trojan-WS = trojan, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/trojan-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci');
+        expect(loonRendered).not.toContain(', tls=true');
+        expect(loonRendered).not.toContain('password=0a4a0ba1-bf02-4298-bf16-19a1f86393fa');
+    });
+
+    it('should render Loon vless ws with path host and over-tls syntax', () => {
+        const loonRendered = renderLoonFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: 'vless://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?encryption=none&security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Fvless-argo%3Fed%3D2560#VLESS-WS',
+            targetFormat: 'loon'
+        });
+
+        expect(loonRendered).toContain('VLESS-WS = vless, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/vless-argo?ed=2560, host=kyjp.stoo.us.ci, over-tls=true, sni=kyjp.stoo.us.ci');
+        expect(loonRendered).not.toContain(', tls=true');
+    });
+
+    it('should render Loon anytls syntax', () => {
+        const loonRendered = renderLoonFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: 'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-HK',
+            targetFormat: 'loon'
+        });
+
+        expect(loonRendered).toContain('AnyTLS-HK = anytls, 156.239.232.67, 443, 9d6c62f6-e38d-4146-ab3e-d40568555f89, sni=xkhkfree.99887766.best, alpn=h2,h3, skip-cert-verify=true');
+    });
+
+    it('should render Surge tuic syntax for sample nodes', () => {
+        const surgeRendered = renderSurgeFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: 'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-Surge',
+            targetFormat: 'surge&ver=4'
+        });
+
+        expect(surgeRendered).toContain('TUIC-Surge = tuic, 5.45.102.158, 39689, token=a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-control=bbr, udp-relay=true, alpn=h3, skip-cert-verify=true');
+    });
+
+    it('should skip vless nodes when rendering Surge configs', () => {
+        const surgeRendered = renderSurgeFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: 'vless://uuid-9999@1.2.3.7:443?security=reality&type=grpc&serviceName=edge&pbk=testpublickey&sid=abcd&sni=example.com#SG-01',
+            targetFormat: 'surge&ver=4'
+        });
+
+        expect(surgeRendered).not.toContain('SG-01 = vless');
+        expect(surgeRendered).not.toContain('grpc-service-name=edge');
+        expect(surgeRendered).not.toContain('reality=true');
+    });
+
+    it('should render QuanX hysteria2 tuic and anytls syntax', () => {
+        const quanxRendered = renderQuanxFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: [
+                'hysteria2://a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:11416?security=tls&alpn=h3&insecure=1&mport=&sni=www.bing.com#HY2-QX',
+                'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-QX',
+                'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-QX'
+            ].join('\n'),
+            targetFormat: 'quanx'
+        });
+
+        expect(quanxRendered).toContain('hysteria2=5.45.102.158:11416, password=a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, tls-verification=false, tag=HY2-QX');
+        expect(quanxRendered).toContain('tuic=5.45.102.158:39689, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=TUIC-QX');
+        expect(quanxRendered).toContain('anytls=156.239.232.67:443, password=9d6c62f6-e38d-4146-ab3e-d40568555f89, sni=xkhkfree.99887766.best, alpn=h2,h3, tls-verification=false, tag=AnyTLS-QX');
     });
 });

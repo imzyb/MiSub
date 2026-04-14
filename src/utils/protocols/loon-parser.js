@@ -37,6 +37,9 @@ export function parseLoonConfig(content) {
         } else if (lower.includes(' = snell,')) {
             const node = parseLoonSnell(line);
             if (node) nodes.push(node);
+        } else if (lower.includes(' = anytls,')) {
+            const node = parseLoonAnyTLS(line);
+            if (node) nodes.push(node);
         }
     }
 
@@ -256,6 +259,27 @@ function parseLoonSnell(line) {
         url: `snell://${encodeURIComponent(psk)}@${server}:${port}#${encodeURIComponent(parsed.name)}`,
         enabled: true,
         protocol: 'snell',
+        source: 'loon'
+    };
+}
+
+function parseLoonAnyTLS(line) {
+    const parsed = parseNameAndParams(line);
+    if (!parsed) return null;
+    const [protocol, server, port, password, ...extra] = parsed.params;
+    if (protocol.toLowerCase() !== 'anytls' || !server || !port || !password) return null;
+    const options = parseExtraParams(extra);
+    const urlParams = [];
+    if (options.get('sni')) urlParams.push(`sni=${encodeURIComponent(options.get('sni'))}`);
+    if (options.get('alpn')) urlParams.push(`alpn=${encodeURIComponent(options.get('alpn'))}`);
+    if (options.get('skip-cert-verify') === 'true') urlParams.push('allowInsecure=1');
+    const query = urlParams.length ? `?${urlParams.join('&')}` : '';
+    return {
+        id: generateNodeId(),
+        name: parsed.name,
+        url: `anytls://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(parsed.name)}`,
+        enabled: true,
+        protocol: 'anytls',
         source: 'loon'
     };
 }

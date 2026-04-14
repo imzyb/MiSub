@@ -422,10 +422,23 @@ export async function handleMisubRequest(context) {
     const useBuiltin = builtinMode !== 'external';
     const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
     
+    const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
+    const templateUrl = currentProfile
+        ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
+        : globalTemplateUrl;
+    const templateSource = resolveTemplateSource(templateUrl);
+
     // [逻辑统一] 规则等级：URL 参数 > 订阅组设置 > 全局设置 > 默认值 (std)
+    // [重要变更] 如果使用了远程自定义配置 (templateSource.kind === 'remote')，则完全禁用内置等级 (强制为 none)
     const resolvedProfileLevel = currentProfile?.ruleLevel || currentProfile?.clashRuleLevel || '';
     const resolvedGlobalLevel = config.ruleLevel || config.clashRuleLevel || 'std';
-    const ruleLevel = url.searchParams.get('level') || url.searchParams.get('ruleLevel') || resolvedProfileLevel || resolvedGlobalLevel;
+    
+    let ruleLevel;
+    if (templateSource.kind === 'remote') {
+        ruleLevel = 'none';
+    } else {
+        ruleLevel = url.searchParams.get('level') || url.searchParams.get('ruleLevel') || resolvedProfileLevel || resolvedGlobalLevel;
+    }
 
     const builtinOptions = {
         fileName: subName,
@@ -436,11 +449,6 @@ export async function handleMisubRequest(context) {
         ruleLevel: ruleLevel // 统一后的规则等级
     };
 
-    const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
-    const templateUrl = currentProfile
-        ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
-        : globalTemplateUrl;
-    const templateSource = resolveTemplateSource(templateUrl);
     const managedConfigUrl = buildManagedConfigUrl(request.url);
 
     const shouldUseBuiltin = useBuiltin && (

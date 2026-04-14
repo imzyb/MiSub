@@ -11,8 +11,8 @@ describe('Quantumult X 内置生成器', () => {
 
         expect(result).toContain('#!MANAGED-CONFIG https://example.com/qx');
         expect(result).toContain('[General]');
-        expect(result).toContain('[Proxy]');
-        expect(result).toContain('shadowsocks=HKNode, 1.2.3.4, 443, aes-128-gcm');
+        expect(result).toContain('[server_local]');
+        expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm');
         expect(result).toContain('password');
     });
 
@@ -30,14 +30,14 @@ describe('Quantumult X 内置生成器', () => {
             'trojan://password@1.2.3.4:443#TrojanNode'
         ].join('\n'));
 
-        expect(result).toContain('vmess=VmessNode, 1.2.3.4, 443');
-        expect(result).toContain('trojan=TrojanNode, 1.2.3.4, 443');
+        expect(result).toContain('vmess=1.2.3.4:443, method=auto, password=uuid-1234, tag=VmessNode');
+        expect(result).toContain('trojan=1.2.3.4:443, password=password, over-tls=true, tag=TrojanNode');
     });
 
     it('should emit parser-compatible shadowsocks lines', () => {
         const result = generateBuiltinQuanxConfig('ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:443#SSNode');
 
-        expect(result).toContain('shadowsocks=SSNode, 1.2.3.4, 443, aes-128-gcm');
+        expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=password, udp-relay=true, tag=SSNode');
         expect(result).toContain('password');
     });
 
@@ -70,5 +70,22 @@ describe('Quantumult X 内置生成器', () => {
         expect(vmessDecoded.path).toBe('/ws');
         expect(vmessDecoded.tls).toBe('true');
         expect(ss.name).toBe('SS Node');
+    });
+
+    it('should emit parser-compatible hysteria2 tuic and anytls lines', () => {
+        const generated = generateBuiltinQuanxConfig([
+            'hysteria2://pass-hy2@hy2.example.com:443?sni=hy2.example.com&allowInsecure=1#HY2Node',
+            'tuic://uuid-tuic:pass-tuic@tuic.example.com:443?sni=tuic.example.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allowInsecure=1#TUICNode',
+            'anytls://pass-anytls@anytls.example.com:443/?sni=anytls.example.com&alpn=h2,h3&allowInsecure=1#AnyTLSNode'
+        ].join('\n'));
+
+        expect(generated).toContain('hysteria2=hy2.example.com:443, password=pass-hy2, sni=hy2.example.com, tls-verification=false, tag=HY2Node');
+        expect(generated).toContain('tuic=tuic.example.com:443, uuid-tuic, pass-tuic, sni=tuic.example.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=TUICNode');
+        expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, sni=anytls.example.com, alpn=h2,h3, tls-verification=false, tag=AnyTLSNode');
+
+        const parsed = parseQuantumultXConfig(generated);
+        expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(true);
+        expect(parsed.some(node => node.protocol === 'tuic')).toBe(true);
+        expect(parsed.some(node => node.protocol === 'anytls')).toBe(true);
     });
 });

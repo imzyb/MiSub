@@ -112,6 +112,14 @@ function buildOutbound(proxy) {
             enabled: true,
             server_name: proxy.sni || proxy.servername || server
         };
+        if (proxy.network === 'ws') {
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            outbound.transport = {
+                type: 'ws',
+                path: wsOpts?.path || '/',
+                headers: wsOpts?.headers || {}
+            };
+        }
     } else if (type === 'hysteria2' || type === 'hy2') {
         outbound.type = 'hysteria2';
         outbound.server = server;
@@ -126,6 +134,15 @@ function buildOutbound(proxy) {
         outbound.server = server;
         outbound.server_port = port;
         outbound.uuid = proxy.uuid || '';
+        outbound.password = proxy.password || '';
+        outbound.tls = {
+            enabled: true,
+            server_name: proxy.sni || proxy.servername || server
+        };
+    } else if (type === 'anytls') {
+        outbound.type = 'anytls';
+        outbound.server = server;
+        outbound.server_port = port;
         outbound.password = proxy.password || '';
         outbound.tls = {
             enabled: true,

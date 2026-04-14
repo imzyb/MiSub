@@ -83,9 +83,10 @@ function mapProxy(proxy) {
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             mapped.trojan.websocket = {
                 enabled: true,
-                path: s(wsOpts?.path || '/'),
-                headers: wsOpts?.headers || {}
+                path: s(wsOpts?.path || '/')
             };
+            const host = s(wsOpts?.headers?.Host || wsOpts?.host);
+            if (host) mapped.trojan.websocket.host = host;
         } else {
             const transport = mapTransport(proxy);
             if (transport) mapped.trojan.transport = transport;
@@ -181,6 +182,21 @@ function mapProxy(proxy) {
             mapped.tuic.udp_relay_mode = s(proxy['udp-relay-mode']);
         }
 
+        return mapped;
+    }
+
+    if (type === 'anytls') {
+        const mapped = {
+            anytls: {
+                name,
+                server,
+                port: proxy.port,
+                password,
+                udp_relay: Boolean(proxy.udp)
+            }
+        };
+        const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
+        if (sni) mapped.anytls.sni = sni;
         return mapped;
     }
 

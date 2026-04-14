@@ -175,7 +175,7 @@ export const REGION_EMOJI = {
     '亚美尼亚': '🇦🇲',
     '阿塞拜疆': '🇦🇿',
     '比利时': '🇧🇪',
-    '其他': ''
+    '其他': '🌍'
 };
 
 function normalizeBase64(input) {
@@ -303,7 +303,7 @@ export function getRegionKeywords(region) {
  * @returns {string} 对应的 Emoji，如果未找到则返回空字符串
  */
 export function getRegionEmoji(region) {
-    return REGION_EMOJI[region] || '';
+    return REGION_EMOJI[region] || (region === '其他' || !region ? '🌍' : '');
 }
 
 /**

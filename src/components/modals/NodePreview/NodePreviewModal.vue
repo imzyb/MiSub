@@ -405,7 +405,7 @@ const getRegionEmoji = (region) => {
   const emojiMatch = region.match(/(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u);
   if (emojiMatch) return emojiMatch[0];
 
-  return '🌐';
+  return '🌍';
 };
 
 // 解析节点信息

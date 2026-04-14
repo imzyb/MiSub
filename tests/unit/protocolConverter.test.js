@@ -306,7 +306,7 @@ vmess=Test WS, vmess.example.com, 443, auto, uuid-5678, 0, net=ws, host=example.
             expect(result).toHaveLength(1)
             const decoded = JSON.parse(atob(result[0].url.replace('vmess://', '')))
             expect(decoded.net).toBe('ws')
-            expect(decoded.host).toBe('example.com')
+            expect(decoded.host).toBe('example.org')
             expect(decoded.path).toBe('/ws')
             expect(decoded.tls).toBe('true')
         })
@@ -340,6 +340,20 @@ tuic=Test TUIC, tuic.example.com, 443, uuid-tuic, pass-tuic, sni=tuic.example.co
             expect(result[1].protocol).toBe('tuic')
             expect(result[1].url).toContain('tuic://uuid-tuic:pass-tuic@tuic.example.com:443')
         })
+
+        it('应解析 AnyTLS 配置', () => {
+            const config = `
+[server_local]
+anytls=Test AnyTLS, anytls.example.com, 443, password=anytls-pass, sni=example.com, alpn=h2,h3, tls-verification=false
+`
+            const result = parseQuantumultXConfig(config)
+
+            expect(result).toHaveLength(1)
+            expect(result[0].protocol).toBe('anytls')
+            expect(result[0].url).toContain('anytls://anytls-pass@anytls.example.com:443')
+            expect(result[0].url).toContain('sni=example.com')
+            expect(result[0].url).toContain('allowInsecure=1')
+        })
     })
 
     describe('parseClientConfig', () => {
@@ -357,6 +371,18 @@ tuic=Test TUIC, tuic.example.com, 443, uuid-tuic, pass-tuic, sni=tuic.example.co
             expect(loon.nodes.length).toBeGreaterThan(0)
             expect(quanx.nodes.length).toBeGreaterThan(0)
             expect(surgeWireguard.nodes.length).toBeGreaterThan(0)
+        })
+
+        it('应解析 Loon AnyTLS 配置', () => {
+            const loon = parseClientConfig('[Proxy]\nAnyTLS-HK = anytls, 156.239.232.67, 443, password123, sni=example.com, alpn=h2,h3, skip-cert-verify=true')
+
+            expect(loon.client).toBe('loon')
+            expect(loon.nodes).toHaveLength(1)
+            expect(loon.nodes[0].protocol).toBe('anytls')
+            expect(loon.nodes[0].url).toContain('anytls://password123@156.239.232.67:443')
+            expect(loon.nodes[0].url).toContain('sni=example.com')
+            expect(loon.nodes[0].url).toContain('alpn=h2')
+            expect(loon.nodes[0].url).toContain('allowInsecure=1')
         })
     })
 })

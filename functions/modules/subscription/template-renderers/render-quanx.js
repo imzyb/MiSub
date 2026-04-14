@@ -62,6 +62,39 @@ function buildProxyLine(proxy) {
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
         return `http=${server}:${port}, username=${proxy.username || ''}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
+    if (type === 'hysteria2' || type === 'hy2') {
+        const extras = [];
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        return `hysteria2=${server}:${port}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
+    }
+    if (type === 'tuic') {
+        const extras = [];
+        if (proxy.uuid) extras.push(proxy.uuid || '');
+        if (proxy.password) extras.push(proxy.password || '');
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['congestion-control']) extras.push(`congestion-controller=${proxy['congestion-control']}`);
+        if (proxy['udp-relay-mode']) extras.push(`udp-relay=${proxy['udp-relay-mode']}`);
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            extras.push(`alpn=${alpn}`);
+        }
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        return `tuic=${server}:${port}, ${extras.join(', ')}, tag=${name}`;
+    }
+    if (type === 'anytls') {
+        const extras = [`password=${proxy.password || ''}`];
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy.alpn) {
+            const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+            extras.push(`alpn=${alpn}`);
+        }
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        return `anytls=${server}:${port}, ${extras.join(', ')}, tag=${name}`;
+    }
     return null;
 }
 
@@ -130,4 +163,3 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
         ''
     ].join('\n');
 }
-

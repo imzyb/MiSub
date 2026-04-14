@@ -39,6 +39,10 @@ const {
   pingResults, pingingNodes, pingNodeId, pingAllNodes
 } = useManualNodes(markDirty);
 
+const handleSearchTermUpdate = (val) => {
+  searchTerm.value = val;
+};
+
 const {
   showModal: showNodeModal,
   isNew: isNewNode,
@@ -127,7 +131,7 @@ const confirmBatchDelete = () => {
       @update:items-per-page="val => manualNodesPerPage = val"
       @add="handleAddNode" @delete="handleDeleteNodeWithCleanup"
       @edit="(id) => handleEditNode(manualNodes.find(n => n.id === id))" @change-page="changeManualNodesPage"
-      @update:search-term="newVal => searchTerm.value = newVal" @update:view-mode="setViewMode"
+      @update:search-term="handleSearchTermUpdate" @update:view-mode="setViewMode"
       @toggle-sort="isSortingNodes = !isSortingNodes" @mark-dirty="markDirty" @auto-sort="handleAutoSortNodes"
       @deduplicate="handleDeduplicateNodes" @import="showSubscriptionImportModal = true"
       @delete-all="showDeleteNodesModal = true" @reorder="reorderManualNodes" @rename-group="renameGroup"

@@ -536,7 +536,7 @@ let _globalSettingsCache = {
     data: null,
     timestamp: 0
 };
-const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60秒缓存过时
+const SETTINGS_CACHE_TTL_MS = 10 * 1000; // 10秒缓存过时
 
 export class SettingsCache {
     /**

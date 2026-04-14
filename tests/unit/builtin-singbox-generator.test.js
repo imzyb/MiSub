@@ -31,4 +31,31 @@ describe('Sing-Box 内置生成器', () => {
         expect(httpsNode?.tls?.enabled).toBe(true);
         expect(socksNode?.tls?.enabled).toBe(true);
     });
+
+    it('should map trojan websocket transport', () => {
+        const result = generateBuiltinSingboxConfig('trojan://password@1.2.3.4:443?type=ws&path=%2Fws&host=example.com&sni=example.org#TrojanWS');
+        const parsed = JSON.parse(result);
+        const trojanNode = parsed.outbounds.find(outbound => outbound.tag === 'TrojanWS');
+
+        expect(trojanNode?.type).toBe('trojan');
+        expect(trojanNode?.tls?.enabled).toBe(true);
+        expect(trojanNode?.tls?.server_name).toBe('example.org');
+        expect(trojanNode?.transport?.type).toBe('ws');
+        expect(trojanNode?.transport?.path).toBe('/ws');
+        expect(trojanNode?.transport?.headers?.Host).toBe('example.com');
+    });
+
+    it('should map anytls outbound', () => {
+        const result = generateBuiltinSingboxConfig('anytls://pass-anytls@anytls.example.com:443/?sni=example.com&allowInsecure=1#AnyTLSNode');
+        const parsed = JSON.parse(result);
+        const anytlsNode = parsed.outbounds.find(outbound => outbound.tag === 'AnyTLSNode');
+
+        expect(anytlsNode?.type).toBe('anytls');
+        expect(anytlsNode?.server).toBe('anytls.example.com');
+        expect(anytlsNode?.server_port).toBe(443);
+        expect(anytlsNode?.password).toBe('pass-anytls');
+        expect(anytlsNode?.tls?.enabled).toBe(true);
+        expect(anytlsNode?.tls?.server_name).toBe('example.com');
+        expect(anytlsNode?.tls?.insecure).toBe(true);
+    });
 });

@@ -37,6 +37,8 @@ const selectedTransformAsset = ref(null);
 
 const emit = defineEmits(['toggle-advanced']);
 
+const isRemoteConfig = computed(() => ['preset', 'custom'].includes(props.localProfile.transformConfigMode));
+
 const transformModeHint = computed(() => {
   if (props.localProfile.transformConfigMode === 'global') return '继承全局规则来源，适合绝大多数订阅组。';
   if (props.localProfile.transformConfigMode === 'builtin') return '当前订阅组强制使用内置模板与统一渲染逻辑。';
@@ -173,7 +175,9 @@ const transformModeHint = computed(() => {
           <select
             id="profile-rule-level"
             v-model="localProfile.ruleLevel"
-            class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+            :disabled="isRemoteConfig"
+            :class="{ 'bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed opacity-70': isRemoteConfig }"
+            class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white transition-all"
           >
             <option value="">跟随全局设置</option>
             <option value="base">精简版 Base</option>
@@ -181,7 +185,9 @@ const transformModeHint = computed(() => {
             <option value="full">完整版 Full</option>
             <option value="relay">链式版 Relay</option>
           </select>
-          <p class="text-xs text-gray-400 mt-1">为此订阅组指定独立的统一规则等级。</p>
+          <p class="text-xs mt-1" :class="isRemoteConfig ? 'text-indigo-500 font-medium' : 'text-gray-400'">
+            {{ isRemoteConfig ? '检测到自定义配置，内置规则等级已禁用' : '为此订阅组指定独立的统一规则等级。' }}
+          </p>
         </div>
       </div>
 

@@ -29,6 +29,9 @@ export function parseQuantumultXConfig(content) {
         } else if (trimmedLine.toLowerCase().startsWith('tuic')) {
             const node = parseQuantumultXTuic(trimmedLine);
             if (node) nodes.push(node);
+        } else if (trimmedLine.toLowerCase().startsWith('anytls')) {
+            const node = parseQuantumultXAnyTLS(trimmedLine);
+            if (node) nodes.push(node);
         } else if (trimmedLine.toLowerCase().startsWith('http')) {
             const node = parseQuantumultXHTTP(trimmedLine);
             if (node) nodes.push(node);
@@ -36,6 +39,26 @@ export function parseQuantumultXConfig(content) {
     }
 
     return nodes;
+}
+
+function parseServerPortToken(value) {
+    const token = decodeURIComponent(value || '').trim();
+    const lastColon = token.lastIndexOf(':');
+    if (lastColon === -1) return null;
+    return {
+        server: token.slice(0, lastColon).trim(),
+        port: token.slice(lastColon + 1).trim()
+    };
+}
+
+function parseKeyValueParams(parts) {
+    const map = new Map();
+    parts.forEach(param => {
+        const [key, ...rest] = param.split('=');
+        if (!key || rest.length === 0) return;
+        map.set(key.trim().toLowerCase(), rest.join('=').trim());
+    });
+    return map;
 }
 
 /**
@@ -49,16 +72,36 @@ function parseQuantumultXVmess(line) {
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
 
-        if (params.length < 6) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let method = 'auto';
+        let id = '';
+        let aid = '0';
+        let extra = [];
 
-        const [rawName, rawServer, rawPort, rawMethod, rawId, rawAid, ...extra] = params;
-
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const method = decodeURIComponent(rawMethod || '');
-        const id = decodeURIComponent(rawId || '');
-        const aid = rawAid ? decodeURIComponent(rawAid) : '0';
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            method = decodeURIComponent(kv.get('method') || 'auto');
+            id = decodeURIComponent(kv.get('password') || '');
+            aid = decodeURIComponent(kv.get('alterid') || '0');
+            extra = params.slice(1);
+        } else {
+            if (params.length < 6) return null;
+            const [rawName, rawServer, rawPort, rawMethod, rawId, rawAid, ...rest] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            method = decodeURIComponent(rawMethod || '');
+            id = decodeURIComponent(rawId || '');
+            aid = rawAid ? decodeURIComponent(rawAid) : '0';
+            extra = rest;
+        }
 
         if (!name || !server || !port || !id) return null;
 
@@ -79,20 +122,33 @@ function parseQuantumultXVmess(line) {
 
         // 解析额外参数
         extra.forEach(param => {
-                const [key, value] = param.split('=').map(p => p.trim());
-                if (key && value) {
-                    switch (key.toLowerCase()) {
+            const [key, ...rest] = param.split('=');
+            const value = rest.join('=').trim();
+            if (key && value) {
+                switch (key.toLowerCase()) {
                     case 'net':
                     case 'type':
+                        vmessConfig.net = decodeURIComponent(value);
+                        break;
                     case 'host':
+                        vmessConfig.host = decodeURIComponent(value);
+                        break;
                     case 'path':
+                        vmessConfig.path = decodeURIComponent(value);
+                        break;
                     case 'tls':
-                    case 'cipher':
+                    case 'over-tls':
+                        vmessConfig.tls = value === 'true' ? 'true' : '';
+                        break;
                     case 'obfs':
+                        if (value.toLowerCase() === 'ws') vmessConfig.net = 'ws';
+                        break;
                     case 'obfs-host':
                     case 'tls-host':
-                    case 'udp-relay':
-                        vmessConfig[key.toLowerCase()] = decodeURIComponent(value);
+                        vmessConfig.host = decodeURIComponent(value);
+                        break;
+                    case 'obfs-uri':
+                        vmessConfig.path = decodeURIComponent(value);
                         break;
                 }
             }
@@ -122,15 +178,30 @@ function parseQuantumultXSS(line) {
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
 
-        if (params.length < 5) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let method = '';
+        let password = '';
 
-        const [rawName, rawServer, rawPort, rawMethod, rawPassword, ...extra] = params;
-
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const method = decodeURIComponent(rawMethod || '');
-        const password = decodeURIComponent(rawPassword || '');
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            method = decodeURIComponent(kv.get('method') || '');
+            password = decodeURIComponent(kv.get('password') || '');
+        } else {
+            if (params.length < 5) return null;
+            const [rawName, rawServer, rawPort, rawMethod, rawPassword] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            method = decodeURIComponent(rawMethod || '');
+            password = decodeURIComponent(rawPassword || '');
+        }
 
         if (!name || !server || !port || !method || !password) return null;
 
@@ -160,14 +231,27 @@ function parseQuantumultXTrojan(line) {
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
 
-        if (params.length < 4) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let password = '';
 
-        const [rawName, rawServer, rawPort, rawPassword, ...extra] = params;
-
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const password = decodeURIComponent(rawPassword || '');
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            password = decodeURIComponent(kv.get('password') || '');
+        } else {
+            if (params.length < 4) return null;
+            const [rawName, rawServer, rawPort, rawPassword] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            password = decodeURIComponent(rawPassword || '');
+        }
 
         if (!name || !server || !port || !password) return null;
 
@@ -191,13 +275,30 @@ function parseQuantumultXVless(line) {
 
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
-        if (params.length < 4) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let uuid = '';
+        let extra = [];
 
-        const [rawName, rawServer, rawPort, rawUuid, ...extra] = params;
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const uuid = decodeURIComponent(rawUuid || '');
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            uuid = decodeURIComponent(kv.get('password') || '');
+            extra = params.slice(1);
+        } else {
+            if (params.length < 4) return null;
+            const [rawName, rawServer, rawPort, rawUuid, ...rest] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            uuid = decodeURIComponent(rawUuid || '');
+            extra = rest;
+        }
         if (!name || !server || !port || !uuid) return null;
 
         const urlParams = [];
@@ -219,6 +320,7 @@ function parseQuantumultXVless(line) {
                     urlParams.push(`sni=${encodeURIComponent(value)}`);
                     break;
                 case 'tls':
+                case 'over-tls':
                     if (value === 'true') urlParams.push('security=tls');
                     break;
                 case 'skip-cert-verify':
@@ -254,13 +356,30 @@ function parseQuantumultXHysteria2(line) {
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
-        if (params.length < 4) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let password = '';
+        let extra = [];
 
-        const [rawName, rawServer, rawPort, rawPassword, ...extra] = params;
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const password = decodeURIComponent(rawPassword || '');
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            password = decodeURIComponent(kv.get('password') || '');
+            extra = params.slice(1);
+        } else {
+            if (params.length < 4) return null;
+            const [rawName, rawServer, rawPort, rawPassword, ...rest] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            password = decodeURIComponent(rawPassword || '');
+            extra = rest;
+        }
         if (!name || !server || !port || !password) return null;
 
         const urlParams = [];
@@ -291,14 +410,33 @@ function parseQuantumultXTuic(line) {
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
         const params = config.split(',').map(p => p.trim());
-        if (params.length < 4) return null;
+        let name = '';
+        let server = '';
+        let port = '';
+        let uuid = '';
+        let password = '';
+        let extra = [];
 
-        const [rawName, rawServer, rawPort, rawUuid, rawPassword, ...extra] = params;
-        const name = decodeURIComponent(rawName || '');
-        const server = decodeURIComponent(rawServer || '');
-        const port = decodeURIComponent(rawPort || '');
-        const uuid = decodeURIComponent(rawUuid || '');
-        const password = decodeURIComponent(rawPassword || '');
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            uuid = decodeURIComponent(params[1] || '');
+            password = decodeURIComponent(params[2] || '');
+            extra = params.slice(3);
+        } else {
+            if (params.length < 4) return null;
+            const [rawName, rawServer, rawPort, rawUuid, rawPassword, ...rest] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            uuid = decodeURIComponent(rawUuid || '');
+            password = decodeURIComponent(rawPassword || '');
+            extra = rest;
+        }
         if (!name || !server || !port || !uuid) return null;
 
         const auth = password ? `${encodeURIComponent(uuid.trim())}:${encodeURIComponent(password.trim())}` : encodeURIComponent(uuid.trim());
@@ -318,6 +456,71 @@ function parseQuantumultXTuic(line) {
             url: `tuic://${auth}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'tuic',
+            source: 'quantumultx'
+        };
+    } catch {
+        return null;
+    }
+}
+
+function parseQuantumultXAnyTLS(line) {
+    try {
+        const equalIndex = line.indexOf('=');
+        if (equalIndex === -1) return null;
+        const config = line.slice(equalIndex + 1);
+        const params = config.split(',').map(p => p.trim());
+        let name = '';
+        let server = '';
+        let port = '';
+        let extra = [];
+
+        if (params[0]?.includes(':')) {
+            const serverPort = parseServerPortToken(params[0]);
+            if (!serverPort) return null;
+            const kv = parseKeyValueParams(params.slice(1));
+            name = decodeURIComponent(kv.get('tag') || '');
+            server = serverPort.server;
+            port = serverPort.port;
+            extra = params.slice(1);
+        } else {
+            if (params.length < 3) return null;
+            const [rawName, rawServer, rawPort, ...rest] = params;
+            name = decodeURIComponent(rawName || '');
+            server = decodeURIComponent(rawServer || '');
+            port = decodeURIComponent(rawPort || '');
+            extra = rest;
+        }
+        if (!name || !server || !port) return null;
+
+        let password = '';
+        const urlParams = [];
+        extra.forEach(param => {
+            const [key, value] = param.split('=').map(p => p.trim());
+            if (!key || !value) return;
+            switch (key.toLowerCase()) {
+                case 'password':
+                    password = decodeURIComponent(value);
+                    break;
+                case 'sni':
+                case 'peer':
+                    urlParams.push(`sni=${encodeURIComponent(value)}`);
+                    break;
+                case 'alpn':
+                    urlParams.push(`alpn=${encodeURIComponent(value)}`);
+                    break;
+                case 'tls-verification':
+                    if (value === 'false') urlParams.push('allowInsecure=1');
+                    break;
+            }
+        });
+
+        const query = urlParams.length ? `?${urlParams.join('&')}` : '';
+        return {
+            id: generateNodeId(),
+            name: name.trim().replace(/"/g, ''),
+            url: `anytls://${encodeURIComponent(password.trim())}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
+            enabled: true,
+            protocol: 'anytls',
             source: 'quantumultx'
         };
     } catch {

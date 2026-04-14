@@ -194,7 +194,7 @@ onUnmounted(() => {
           <NodeManager :manual-nodes="manualNodes" :paginated-manual-nodes="paginatedManualNodes"
             :current-page="manualNodesCurrentPage" :total-pages="manualNodesTotalPages" :search-term="searchTerm"
             @add="addNode" @delete="deleteNode" @edit="updateNode" @change-page="changeManualNodesPage"
-            @update:search-term="newVal => searchTerm = newVal" @mark-dirty="markDirty" @auto-sort="autoSortNodes"
+            @update:search-term="newVal => searchTerm.value = newVal" @mark-dirty="markDirty" @auto-sort="autoSortNodes"
             @deduplicate="deduplicateNodes" @import="showSubscriptionImportModal = true"
             @delete-all="showDeleteNodesModal = true" />
         </div>

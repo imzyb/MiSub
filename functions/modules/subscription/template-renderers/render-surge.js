@@ -54,26 +54,7 @@ function buildProxyLine(proxy) {
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = vmess, ${server}, ${port}, ${extras.join(', ')}`;
     }
-    if (type === 'vless') {
-        const extras = [`username=${proxy.uuid || ''}`];
-        if (proxy.network) extras.push(`transport=${proxy.network}`);
-        if (proxy.network === 'grpc') {
-            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (grpcOpts?.['grpc-service-name']) extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
-        }
-        if (proxy.flow) extras.push(`flow=${proxy.flow}`);
-        if (proxy.tls || proxy.sni || proxy.servername) extras.push('tls=true');
-        const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
-        if (realityOpts) {
-            extras.push('reality=true');
-            if (realityOpts['public-key']) extras.push(`public-key=${realityOpts['public-key']}`);
-            if (realityOpts['short-id']) extras.push(`short-id=${realityOpts['short-id']}`);
-        }
-        const sni = proxy.servername ?? proxy.sni;
-        if (sni !== undefined) extras.push(`sni=${sni}`);
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
-        return `${name} = vless, ${server}, ${port}, ${extras.join(', ')}`;
-    }
+    if (type === 'vless') return null;
     if (type === 'hysteria2' || type === 'hy2') {
         const extras = [`password=${proxy.password || ''}`];
         const sni = proxy.servername ?? proxy.sni;
@@ -81,14 +62,23 @@ function buildProxyLine(proxy) {
         return `${name} = hysteria2, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'tuic') {
+        const extras = [];
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
+        if (proxy['congestion-control']) extras.push(`congestion-control=${proxy['congestion-control']}`);
         if (proxy['congestion-controller']) extras.push(`congestion-control=${proxy['congestion-controller']}`);
         if (proxy['udp-relay-mode'] === 'native') extras.push(`udp-relay=true`);
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
             extras.push(`alpn=${alpn}`);
         }
+        if (proxy.uuid) {
+            const token = proxy.password ? `${proxy.uuid}:${proxy.password}` : proxy.uuid;
+            extras.unshift(`token=${token}`);
+        } else if (proxy.password) {
+            extras.unshift(`token=${proxy.password}`);
+        }
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
         return `${name} = tuic, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'wireguard') {

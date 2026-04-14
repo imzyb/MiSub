@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import yaml from 'js-yaml';
 import { transformBuiltinSubscription } from '../../functions/modules/subscription/transformer-factory.js';
 
 describe('Egern native renderer', () => {
@@ -21,5 +22,44 @@ describe('Egern native renderer', () => {
     expect(rendered).toContain('vless:');
     expect(rendered).toContain('HK-01');
     expect(rendered).toContain('JP-01');
+  });
+
+  it('maps trojan ws, vmess ws tls, and vless ws tls using Egern proxy schema', () => {
+    const nodeList = [
+      'trojan://password@saas.sin.fan:443?security=tls&sni=kyjp.stoo.us.ci&type=ws&host=kyjp.stoo.us.ci&path=%2Ftrojan-argo%3Fed%3D2560#Trojan-WS',
+      'vmess://eyJ2IjoiMiIsInBzIjoiVk1FU1MtV1MiLCJhZGQiOiJzYWFzLnNpbi5mYW4iLCJwb3J0IjoiNDQzIiwiaWQiOiIwYTRhMGJhMS1iZjAyLTQyOTgtYmYxNi0xOWExZjg2MzkzZmEiLCJhaWQiOiIwIiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoia3lqcC5zdG9vLnVzLmNpIiwicGF0aCI6Ii92bWVzcy1hcmdvP2VkPTI1NjAiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJreWpwLnN0b28udXMuY2kiLCJmcCI6ImZpcmVmb3gifQ==',
+      'vless://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?encryption=none&security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Fvless-argo%3Fed%3D2560#VLESS-WS'
+    ].join('\n');
+
+    const rendered = transformBuiltinSubscription(nodeList, 'egern');
+    const parsed = yaml.load(rendered);
+    const trojan = parsed.proxies.find(item => item.trojan)?.trojan;
+    const vmess = parsed.proxies.find(item => item.vmess)?.vmess;
+    const vless = parsed.proxies.find(item => item.vless)?.vless;
+
+    expect(trojan.websocket.path).toBe('/trojan-argo?ed=2560');
+    expect(trojan.websocket.host).toBe('kyjp.stoo.us.ci');
+    expect(trojan.sni).toBe('kyjp.stoo.us.ci');
+
+    expect(vmess.transport.wss.path).toBe('/vmess-argo?ed=2560');
+    expect(vmess.transport.wss.headers.Host).toBe('kyjp.stoo.us.ci');
+    expect(vmess.transport.wss.sni).toBe('kyjp.stoo.us.ci');
+
+    expect(vless.transport.wss.path).toBe('/vless-argo?ed=2560');
+    expect(vless.transport.wss.headers.Host).toBe('kyjp.stoo.us.ci');
+    expect(vless.transport.wss.sni).toBe('kyjp.stoo.us.ci');
+  });
+
+  it('maps anytls using Egern proxy schema', () => {
+    const rendered = transformBuiltinSubscription('anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&allowInsecure=1#AnyTLS-HK', 'egern');
+    const parsed = yaml.load(rendered);
+    const anytls = parsed.proxies.find(item => item.anytls)?.anytls;
+
+    expect(anytls.name).toBe('🇭🇰 AnyTLS-HK');
+    expect(anytls.server).toBe('156.239.232.67');
+    expect(anytls.port).toBe(443);
+    expect(anytls.password).toBe('9d6c62f6-e38d-4146-ab3e-d40568555f89');
+    expect(anytls.sni).toBe('xkhkfree.99887766.best');
+    expect(anytls.udp_relay).toBe(true);
   });
 });

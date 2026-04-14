@@ -57,6 +57,8 @@ function applyNoStoreToHtmlResponse(response) {
     headers.delete('Content-Length');
     headers.delete('content-length');
     headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    headers.set('CDN-Cache-Control', 'no-store, no-cache, must-revalidate');
+    headers.set('Surrogate-Control', 'no-store, no-cache, must-revalidate');
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
     return new Response(response.body, {
@@ -84,7 +86,9 @@ async function fetchHostedAssetViaOrigin(request, assetPath) {
     return fetch(new Request(assetUrl.toString(), {
         method: ['GET', 'HEAD'].includes(request.method) ? request.method : 'GET',
         headers
-    }));
+    }), {
+        cf: { cacheTtl: 0, cacheEverything: false }
+    });
 }
 
 async function fetchStaticAsset(request, env, next) {
@@ -128,10 +132,8 @@ async function fetchSpaEntry(request, env, next) {
             return applyNoStoreToHtmlResponse(await next());
         }
 
-        return fetch(new Request(indexUrl.toString(), {
-            method: 'GET',
-            headers
-        }));
+        const assetsResponse = await fetchStaticAsset(new Request(indexUrl, request), env, next);
+        return applyNoStoreToHtmlResponse(assetsResponse);
     }
 
     return fetchHostedAssetViaOrigin(request, '/index.html');
