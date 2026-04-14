@@ -77,8 +77,19 @@ function mapProxy(proxy) {
         };
         const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
         if (sni) mapped.trojan.sni = sni;
-        const transport = mapTransport(proxy);
-        if (transport) mapped.trojan.transport = transport;
+        
+        // Egern Trojan 特殊处理: 使用 websocket 对象而非 transport
+        if (proxy.network === 'ws' || proxy.network === 'websocket') {
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            mapped.trojan.websocket = {
+                enabled: true,
+                path: s(wsOpts?.path || '/'),
+                headers: wsOpts?.headers || {}
+            };
+        } else {
+            const transport = mapTransport(proxy);
+            if (transport) mapped.trojan.transport = transport;
+        }
         return mapped;
     }
 
@@ -154,12 +165,22 @@ function mapProxy(proxy) {
                 port: proxy.port,
                 uuid,
                 password,
+                version: 5,
                 congestion_control: s(proxy['congestion-control'] || 'cubic'),
                 skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
             }
         };
         const sni = s(proxy.servername ?? proxy.sni ?? proxy.server);
         if (sni) mapped.tuic.sni = sni;
+
+        if (proxy.alpn) {
+            mapped.tuic.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [s(proxy.alpn)];
+        }
+
+        if (proxy['udp-relay-mode']) {
+            mapped.tuic.udp_relay_mode = s(proxy['udp-relay-mode']);
+        }
+
         return mapped;
     }
 
