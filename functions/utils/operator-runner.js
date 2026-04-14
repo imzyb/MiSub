@@ -201,6 +201,7 @@ async function opScript(nodes, params, context) {
 
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
         const runner = new AsyncFunction(wrapper);
+        const result = await runner(enrichedNodes, context, scriptEnv);
         return Array.isArray(result) ? result : nodes;
     } catch (e) {
         console.error('[Operator] Script execution failed:', e);

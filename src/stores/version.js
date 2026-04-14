@@ -11,17 +11,12 @@ export const useVersionStore = defineStore('version', () => {
     const showUpdateNotice = ref(false);
     const upstreamRepo = 'imzyb/MiSub';
 
-    // 本地更新日志 (v2.6.1)
-    const localChangelog = `🚀 **核心重构 - 级联转换引擎**
-- **引擎驱动架构**：引入了全新的“引擎驱动”逻辑模型，支持 **URL 参数 > 订阅组配置 > 全局设置 > 内置默认** 的四级级联逻辑，彻底解决逻辑混淆。
-- **物理总开关**：在全局设置面板新增了“默认引擎主控”卡片，通过显式的物理开关决定主订阅生成的基准，并配备活跃状态视觉反馈。
-- **分步配置交互**：重构了订阅组编辑 UI，将引擎选择提升为“第一步”首要开关，并根据选择动态渲染后续参数面板。
-- **状态感知透传**：在订阅组选择“跟随全局”时，现在会实时提示当前系统默认生效的具体引擎状态，消除配置不确定性。
-
-🔧 **后端与兼容性优化**
-- **默认后端升级**：将默认第三方 Subconverter 接口更新为更稳定的 \`subapi.cmliussss.net\`。
-- **参数透传矩阵**：优化了第三方引擎下的参数拼接算法，支持更精准的 UDP 转发、Emoji 过滤及节点排序等 20+ 项高级参数的级联覆盖。
-- **稳定性修复**：彻底清理了重定向逻辑中的潜在循环引用问题，提升了在 Edge 环境下的响应速度。`;
+    // 本地更新日志 (v2.6.2)
+    const localChangelog = `🚀 **协议兼容性大升级 - 完美支持 VLESS Reality & xHTTP**
+- **Quantumult X 适配修复**：深度重构了 QX 的 VLESS 节点生成逻辑，彻底解决了高阶协议（Reality、xHTTP、gRPC）节点在 QX 中丢失的问题，并支持了自动降级映射（将 xHTTP 平滑降级为可被识别的 HTTP Obfs）。
+- **Surge VLESS 解锁**：解除了 Surge 生成器中对 VLESS 的强制过滤，现在 Surge 订阅也可以完整输出支持 Reality 及标准结构的 VLESS 节点配置（适用于现代版本、代理转发链及第三方插件生态）。
+- **底层解析器增强**：优化了节点 URI 的容错解析逻辑，现在能够完美提取并传递 \`xhttp-opts\` 与 \`reality-public-key\` 等高级边缘参数至各客户端生成器。
+- **全客户端普查**：确认并强化了 Clash(Mihomo)、Loon、Sing-box 等对 xHTTP 及 Reality 协议的兼容性，确保“只要生成，就能连接”。`;
 
     // --- Getters ---
     const hasUpdate = computed(() => {

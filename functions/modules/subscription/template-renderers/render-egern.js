@@ -200,13 +200,20 @@ function mapProxy(proxy) {
         return mapped;
     }
 
-    return {
+    const mapped = {
         [type]: {
             name,
             server,
             port: proxy.port
         }
     };
+
+    // TCP Fast Open
+    if (proxy.tfo) {
+        Object.values(mapped)[0].tcp_fast_open = true;
+    }
+
+    return mapped;
 }
 
 function mapPolicyGroup(group) {

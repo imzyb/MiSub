@@ -52,6 +52,21 @@ function extractProxySectionFromBuiltin(content, targetFormat) {
             .join('\n');
     }
 
+    if (targetFormat === 'singbox' || targetFormat === 'sing-box') {
+        try {
+            const config = JSON.parse(content);
+            if (config.outbounds && Array.isArray(config.outbounds)) {
+                // 过滤掉 direct, block, dns-out 等元 outbound
+                const proxies = config.outbounds.filter(o => 
+                    o.type !== 'direct' && o.type !== 'block' && o.type !== 'dns'
+                );
+                return JSON.stringify(proxies, null, 2);
+            }
+        } catch {
+            return '';
+        }
+    }
+
     return '';
 }
 
@@ -114,7 +129,15 @@ export async function handleMisubRequest(context) {
     const config = migrateConfigSettings({ ...defaultSettings, ...settings });
     context.accessLogPersistenceMode = config.accessLogPersistenceMode || 'light';
 
-
+    // [Subconverter API] 提取 URL 控制参数，用于覆盖默认设置
+    const urlInclude = url.searchParams.get('include');
+    const urlExclude = url.searchParams.get('exclude');
+    const urlRename = url.searchParams.get('rename');
+    const urlEmoji = url.searchParams.get('emoji'); // true/false
+    const urlUdp = url.searchParams.get('udp');     // true/false
+    const urlTfo = url.searchParams.get('tfo');     // true/false
+    const urlScv = url.searchParams.get('scv');     // true/false (skip-cert-verify)
+    const urlList = url.searchParams.get('list') === 'true';
 
     const isBrowser = isBrowserAgent(userAgentHeader);
 
@@ -141,12 +164,15 @@ export async function handleMisubRequest(context) {
 
     const DEFAULT_EXPIRED_NODE = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('您的订阅已失效')}`;
 
+    let currentProfile = null;
+
     if (profileIdentifier) {
         // [修正] 使用 config 變量
         if (!token || token !== config.profileToken) {
             return new Response('Invalid Profile Token', { status: 403 });
         }
-        const profile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
+        currentProfile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
+        const profile = currentProfile;
         if (profile && profile.enabled) {
             // Check if the profile has an expiration date and if it's expired
             if (profile.expiresAt) {
@@ -272,6 +298,7 @@ export async function handleMisubRequest(context) {
     const engineParam = (url.searchParams.get('engine') || '').toLowerCase();
     const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || profileSub.engineMode || globalSub.engineMode || 'builtin';
     const isExternalMode = effectiveEngine === 'external';
+    const useBuiltin = !isExternalMode;
 
     
     const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
@@ -364,13 +391,44 @@ export async function handleMisubRequest(context) {
 
         const generationSettings = {
             ...effectivePrefixSettings,
-            nodeTransform: effectiveNodeTransform,
+            nodeTransform: { ...effectiveNodeTransform },
             name: subName,
-            // [修复] 显式传递订阅组级别的操作符和过滤规则
-            operators: activeProfile?.operators,
-            exclude: activeProfile?.exclude,
-            include: activeProfile?.include
+            operators: Array.isArray(activeProfile?.operators) ? [...activeProfile.operators] : [],
+            exclude: urlExclude || activeProfile?.exclude,
+            include: urlInclude || activeProfile?.include
         };
+
+        // [Subconverter API] 动态注入更名算子 (rename=old@new|A@B)
+        if (urlRename) {
+            const renameGroups = urlRename.split('|');
+            renameGroups.forEach(group => {
+                const [regex, replace] = group.split('@');
+                if (regex) {
+                    generationSettings.operators.push({
+                        type: 'rename',
+                        enabled: true,
+                        params: {
+                            regex: {
+                                enabled: true,
+                                rules: [{
+                                    pattern: regex,
+                                    replacement: replace || '',
+                                    flags: 'gi'
+                                }]
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // [Subconverter API] 控制 Emoji 注入
+        if (urlEmoji === 'false') {
+            generationSettings.nodeTransform.addFlagEmoji = false;
+            generationSettings.nodeTransform.removeFlagEmoji = true;
+        } else if (urlEmoji === 'true') {
+            generationSettings.nodeTransform.addFlagEmoji = true;
+        }
 
         const freshNodes = await generateCombinedNodeList(
             context, // 传入完整 context
@@ -499,12 +557,18 @@ export async function handleMisubRequest(context) {
     }
 
 
+    // [Subconverter API] URL 参数优先级高于全局/Profile 设置
+    const finalSkipCertVerify = urlScv !== null ? (urlScv === 'true' || urlScv === '1') : shouldSkipCertificateVerify;
+    const finalEnableUdp = urlUdp !== null ? (urlUdp === 'true' || urlUdp === '1') : shouldEnableUdp;
+    const finalEnableTfo = urlTfo === 'true' || urlTfo === '1';
+
     const builtinOptions = {
         fileName: subName,
         managedConfigUrl: '',
         interval: config.UpdateInterval || 86400,
-        skipCertVerify: shouldSkipCertificateVerify,
-        enableUdp: shouldEnableUdp,
+        skipCertVerify: finalSkipCertVerify,
+        enableUdp: finalEnableUdp,
+        enableTfo: finalEnableTfo,
         ruleLevel: ruleLevel // 统一后的规则等级
     };
 
@@ -538,7 +602,7 @@ export async function handleMisubRequest(context) {
                 ? `upload=${totalUserInfo.upload}; download=${totalUserInfo.download}; total=${totalUserInfo.total}; expire=${totalUserInfo.expire}`
                 : null;
 
-            const { content: finalContent, contentType, headers: resultHeaders } = await ProcessorService.renderOutput({
+            let { content: finalContent, contentType, headers: resultHeaders } = await ProcessorService.renderOutput({
                 targetFormat,
                 combinedNodeList,
                 subName,
@@ -549,6 +613,15 @@ export async function handleMisubRequest(context) {
                 storageAdapter,
                 userInfoHeader
             });
+
+            // [Subconverter API] 处理 list=true 逻辑：仅输出节点片段
+            if (urlList) {
+                const extracted = extractProxySectionFromBuiltin(finalContent, targetFormat);
+                if (extracted) {
+                    finalContent = extracted;
+                    contentType = 'text/plain; charset=utf-8';
+                }
+            }
 
             const isJson = targetFormat === 'singbox' || targetFormat === 'sing-box';
             const responseHeaders = new Headers({

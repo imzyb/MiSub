@@ -1,9 +1,7 @@
-/**
- * URL 转 Clash 代理配置
- * 将节点 URL 转换为 Clash YAML 格式的代理对象
- * 支持：VLESS、Trojan、VMess、Shadowsocks、Hysteria2 等协议
  * 支持特殊参数：dialer-proxy、reality-opts 等
  */
+
+import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 
 /**
  * 解析 URL 查询参数
@@ -34,6 +32,24 @@ function extractName(url) {
         return decodeURIComponent(url.substring(hashIndex + 1));
     } catch {
         return url.substring(hashIndex + 1);
+    }
+}
+
+/**
+ * Base64 解码支持 (处理 URL Safe)
+ */
+function base64Decode(str) {
+    try {
+        let normalized = str.replace(/-/g, '+').replace(/_/g, '/');
+        while (normalized.length % 4) normalized += '=';
+        return decodeURIComponent(escape(atob(normalized)));
+    } catch {
+        // 回退到纯 atob
+        try {
+            return atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+        } catch {
+            return str;
+        }
     }
 }
 
@@ -120,9 +136,12 @@ function parseVlessUrl(url) {
         if (network === 'xhttp') {
             const xhttpOpts = {};
             const path = params.get('xhttp-path') || params.get('path');
-            const host = params.get('xhttp-host') || params.get('host');
+            const host = params.get('xhttp-host') || params.get('host') || params.get('sni');
             if (path) xhttpOpts.path = path;
-            if (host) xhttpOpts.host = host;
+            if (host) {
+                xhttpOpts.host = host;
+                xhttpOpts.headers = { Host: host };
+            }
             if (params.get('mode')) xhttpOpts.mode = params.get('mode');
             if (Object.keys(xhttpOpts).length > 0) {
                 proxy['xhttp-opts'] = xhttpOpts;
@@ -1029,51 +1048,145 @@ function parseSocks5Url(url) {
 
 
 /**
-* 将节点 URL 转换为 Clash 代理对象
-* @param {string} url - 节点 URL
-* @returns {Object|null} Clash 代理对象
-*/
+ * 将 SSR URL 转换为 Clash 代理对象
+ * @param {string} url - SSR URL
+ * @returns {Object|null} Clash 代理对象
+ */
+function parseSsrUrl(url) {
+    try {
+        const b64 = url.substring(6);
+        const decoded = base64Decode(b64);
+        
+        // server:port:protocol:method:obfs:password_base64/?params
+        const mainParts = decoded.split(':');
+        if (mainParts.length < 6) return null;
+
+        const server = mainParts[0];
+        const port = parseInt(mainParts[1]);
+        const protocol = mainParts[2];
+        const cipher = mainParts[3];
+        const obfs = mainParts[4];
+        
+        const passwordPart = mainParts[5];
+        const passwordEndIndex = passwordPart.indexOf('/');
+        const passwordBase64 = passwordEndIndex !== -1 ? passwordPart.substring(0, passwordEndIndex) : passwordPart;
+        const password = base64Decode(passwordBase64);
+
+        const proxy = {
+            name: `SSR-${server}`,
+            type: 'ssr',
+            server,
+            port,
+            protocol,
+            cipher,
+            obfs,
+            password,
+            udp: true
+        };
+
+        if (passwordEndIndex !== -1) {
+            const paramsStr = passwordPart.substring(passwordEndIndex + 2); // skip /?
+            const params = new URLSearchParams(paramsStr);
+            
+            if (params.get('obfsparam')) proxy['obfs-param'] = base64Decode(params.get('obfsparam'));
+            if (params.get('protoparam')) proxy['protocol-param'] = base64Decode(params.get('protoparam'));
+            if (params.get('remarks')) proxy.name = base64Decode(params.get('remarks'));
+            if (params.get('group')) proxy.group = base64Decode(params.get('group'));
+            if (params.get('udpport')) proxy.udpport = params.get('udpport');
+        }
+
+        return proxy;
+    } catch (e) {
+        console.error('解析 SSR URL 失败:', e);
+        return null;
+    }
+}
+
+/**
+ * 将 SSD URL 转换为 Clash 代理对象
+ * @param {string} url - SSD URL
+ * @returns {Object|null} Clash 代理对象
+ */
+function parseSsdUrl(url) {
+    try {
+        const b64 = url.substring(6);
+        const decoded = base64Decode(b64);
+        const config = JSON.parse(decoded);
+        
+        // SSD 通常包含一个数组。这里为了简化，返回第一个有效的。
+        // 实际上 SSD 应该被展开，但 builtin 流程目前是 1-to-1 映射。
+        // 我们取第一个作为示范。
+        if (!config.servers || !config.servers.length) return null;
+        
+        const s = config.servers[0];
+        const proxy = {
+            name: s.remarks || `SSD-${s.server}`,
+            type: 'ss',
+            server: s.server,
+            port: s.port,
+            cipher: config.encryption || s.encryption || 'aes-256-gcm',
+            password: config.password || s.password,
+            plugin: s.plugin,
+            'plugin-opts': s.plugin_options ? { host: s.plugin_options } : undefined
+        };
+        
+        return proxy;
+    } catch (e) {
+        console.error('解析 SSD URL 失败:', e);
+        return null;
+    }
+}
+
+/**
+ * 将节点 URL 转换为 Clash 代理对象
+ * @param {string} url - 节点 URL
+ * @returns {Object|null} Clash 代理对象
+ */
 export function urlToClashProxy(url) {
-if (!url || typeof url !== 'string') return null;
+    if (!url || typeof url !== 'string') return null;
 
-const lowerUrl = url.toLowerCase();
+    const lowerUrl = url.toLowerCase();
 
-if (lowerUrl.startsWith('vless://')) {
-return parseVlessUrl(url);
-} else if (lowerUrl.startsWith('trojan://')) {
-return parseTrojanUrl(url);
-} else if (lowerUrl.startsWith('vmess://')) {
-return parseVmessUrl(url);
-} else if (lowerUrl.startsWith('ss://')) {
-return parseSsUrl(url);
-} else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
-return parseHysteria2Url(url);
-} else if (lowerUrl.startsWith('tuic://')) {
-return parseTuicUrl(url);
-} else if (lowerUrl.startsWith('snell://')) {
-return parseSnellUrl(url);
-} else if (lowerUrl.startsWith('wireguard://')) {
-return parseWireguardUrl(url);
-} else if (lowerUrl.startsWith('anytls://')) {
-return parseAnytlsUrl(url);
-} else if (lowerUrl.startsWith('https://')) {
-return parseHttpsUrl(url);
-} else if (lowerUrl.startsWith('socks5://')) {
-return parseSocks5Url(url);
+    if (lowerUrl.startsWith('vless://')) {
+        return parseVlessUrl(url);
+    } else if (lowerUrl.startsWith('trojan://')) {
+        return parseTrojanUrl(url);
+    } else if (lowerUrl.startsWith('vmess://')) {
+        return parseVmessUrl(url);
+    } else if (lowerUrl.startsWith('ssr://')) {
+        return parseSsrUrl(url);
+    } else if (lowerUrl.startsWith('ssd://')) {
+        return parseSsdUrl(url);
+    } else if (lowerUrl.startsWith('ss://')) {
+        return parseSsUrl(url);
+    } else if (lowerUrl.startsWith('hysteria2://') || lowerUrl.startsWith('hy2://')) {
+        return parseHysteria2Url(url);
+    } else if (lowerUrl.startsWith('tuic://')) {
+        return parseTuicUrl(url);
+    } else if (lowerUrl.startsWith('snell://')) {
+        return parseSnellUrl(url);
+    } else if (lowerUrl.startsWith('wireguard://')) {
+        return parseWireguardUrl(url);
+    } else if (lowerUrl.startsWith('anytls://')) {
+        return parseAnytlsUrl(url);
+    } else if (lowerUrl.startsWith('https://')) {
+        return parseHttpsUrl(url);
+    } else if (lowerUrl.startsWith('socks5://')) {
+        return parseSocks5Url(url);
+    }
+
+    // 不支持的协议
+    return null;
 }
 
-// 不支持的协议
-return null;
-}
-
-import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 
 /**
  * 批量将节点 URL 转换为 Clash 代理列表
  * @param {string[]} urls - 节点 URL 数组
+ * @param {Object} options - 参数增强选项 (tfo, udp, scv 等)
  * @returns {Object[]} Clash 代理对象数组
  */
-export function urlsToClashProxies(urls) {
+export function urlsToClashProxies(urls, options = {}) {
     if (!Array.isArray(urls)) return [];
 
     return urls
@@ -1081,10 +1194,14 @@ export function urlsToClashProxies(urls) {
             const proxy = urlToClashProxy(url);
             if (!proxy) return null;
             
+            // [URL 参数覆盖] 补全对 TFO/UDP/SCV 的映射
+            if (options.enableTfo !== undefined) proxy.tfo = options.enableTfo;
+            if (options.enableUdp !== undefined) proxy.udp = options.enableUdp;
+            if (options.skipCertVerify !== undefined) proxy['skip-cert-verify'] = options.skipCertVerify;
+
             // [智能增强] 注入元数据
             proxy.metadata = extractNodeMetadata(proxy.name);
             
-            // [自动补全] 仅在名称中完全没有国旗 Emoji 时才尝试补全，避免干扰用户通过正则重命名后的结果
             // [自动补全] 仅在名称中完全没有国旗/地球 Emoji 时才尝试补全，避免重复添加或干扰用户重命名
             const HAS_EMOJI_REGEX = /([\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F30D}-\u{1F30F}])/u;
             if (proxy.metadata.flag && !HAS_EMOJI_REGEX.test(proxy.name)) {
@@ -1103,7 +1220,7 @@ export function urlsToClashProxies(urls) {
  * @returns {string} Clash YAML 配置
  */
 export function generateClashConfig(urls, options = {}) {
-    const proxies = urlsToClashProxies(urls);
+    const proxies = urlsToClashProxies(urls, options);
 
     if (proxies.length === 0) {
         return '';
@@ -1113,7 +1230,9 @@ export function generateClashConfig(urls, options = {}) {
     let yaml = 'proxies:\n';
 
     for (const proxy of proxies) {
-        yaml += `  - ${JSON.stringify(proxy)}\n`;
+        // [元数据清理] 移除内部元数据字段，避免污染 YAML
+        const { metadata, ...rest } = proxy;
+        yaml += `  - ${JSON.stringify(rest)}\n`;
     }
 
     return yaml;

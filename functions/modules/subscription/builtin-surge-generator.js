@@ -7,7 +7,7 @@
  * 注意：Surge 不支持 VLESS 协议，VLESS 节点会被跳过
  */
 
-import { urlToClashProxy } from '../../utils/url-to-clash.js';
+import { urlToClashProxy, urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
 import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
 
@@ -236,9 +236,36 @@ function clashProxyToSurgeResult(proxy) {
         if (proxy.udp) parts.push('udp-relay=true');
         if (type === 'socks5-tls') appendTlsParams(parts, proxy);
     } else if (type === 'vless') {
-        // Surge 不原生支持 VLESS 协议，跳过
-        console.debug(`[BuiltinSurge] 跳过不支持的 VLESS 节点: ${name}`);
-        return null;
+        // 解锁 VLESS 支持，即使原生 Surge 不直接解析，也能通过第三方模块或特定版本使用，且防止节点丢失
+        parts.push(`${name} = vless`);
+        parts.push(server);
+        parts.push(String(port));
+        parts.push(`username=${proxy.uuid || ''}`);
+
+        // TLS / Reality 支持
+        const isReality = proxy.security === 'reality' || !!proxy['reality-opts'];
+        if (proxy.tls || isReality) {
+            parts.push('tls=true');
+            if (isReality) {
+                parts.push('reality=true');
+                const realityOpts = proxy['reality-opts'] || {};
+                if (realityOpts['public-key']) parts.push(`public-key=${surgeQuote(realityOpts['public-key'])}`);
+                if (realityOpts['short-id']) parts.push(`short-id=${surgeQuote(realityOpts['short-id'])}`);
+            }
+        }
+
+        // 传输层支持 (虽然 Surge 原生支持有限，但保留元数据)
+        if (proxy.network === 'ws') {
+            parts.push('ws=true');
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            if (wsOpts?.path) parts.push(`ws-path=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) parts.push(`ws-headers=Host:${wsOpts.headers.Host}`);
+        } else if (proxy.network === 'grpc') {
+            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
+            if (grpcOpts?.['grpc-service-name']) parts.push(`grpc-service-name=${surgeQuote(grpcOpts['grpc-service-name'])}`);
+        }
+
+        appendTlsParams(parts, proxy);
     } else {
         // 不支持的类型
         return null;
@@ -254,6 +281,15 @@ function clashProxyToSurgeResult(proxy) {
         parts.push(`shadow-tls-password=${proxy['shadow-tls-password']}`);
         if (proxy['shadow-tls-sni']) parts.push(`shadow-tls-sni=${proxy['shadow-tls-sni']}`);
         if (proxy['shadow-tls-version']) parts.push(`shadow-tls-version=${proxy['shadow-tls-version']}`);
+    }
+
+    // TCP Fast Open
+    if (proxy.tfo) {
+        // 大多数协议在 Surge 中支持 tfo=true
+        // 注意：Snell 已经在上面单独处理过了，这里加一个判断避免重复
+        if (type !== 'snell' && !parts.some(p => p.startsWith('tfo='))) {
+            parts.push('tfo=true');
+        }
     }
 
     return { proxyLine: parts.join(', ') };
@@ -368,6 +404,7 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
         interval = 86400,
         skipCertVerify = false,
         enableUdp = false,
+        enableTfo = false,
         ruleLevel = 'std'
     } = options;
 
@@ -380,13 +417,10 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
     const results = [];
     const proxyNames = [];
 
-    for (const url of nodeUrls) {
-        const clashProxy = urlToClashProxy(url);
-        if (!clashProxy) continue;
+    // 转换为 Clash 代理对象
+    const proxies = urlsToClashProxies(nodeUrls, options);
 
-        if (skipCertVerify) clashProxy['skip-cert-verify'] = true;
-        if (enableUdp) clashProxy.udp = true;
-
+    for (const clashProxy of proxies) {
         const result = clashProxyToSurgeResult(clashProxy);
         if (result) {
             result.clashProxy = clashProxy; // 存储以保留元数据

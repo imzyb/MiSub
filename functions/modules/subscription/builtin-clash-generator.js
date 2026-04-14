@@ -78,6 +78,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     const {
         fileName = 'MiSub',
         enableUdp = true,
+        enableTfo = false,
         skipCertVerify = false,
         ruleLevel = 'std' // [New] 支持 base, std, full
     } = options;
@@ -90,7 +91,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         .filter(line => line && !line.startsWith('#'));
 
     // 转换为 Clash 代理对象
-    let proxies = urlsToClashProxies(nodeUrls);
+    let proxies = urlsToClashProxies(nodeUrls, options);
 
     // 清理控制字符
     proxies = deepCleanControlChars(proxies);

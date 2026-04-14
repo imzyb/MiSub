@@ -586,6 +586,28 @@ function applyFilterRules(validNodes, sub) {
         : afterExclude;
 }
 
+/**
+ * 应用订阅治理转换：算子链 + 基于文本的过滤
+ * @param {string[]} nodeUrls 
+ * @param {Object} sub 
+ * @returns {Promise<string[]>}
+ */
+async function applySubscriptionTransforms(nodeUrls, sub) {
+    if (!nodeUrls || nodeUrls.length === 0) return [];
+    
+    let processed = [...nodeUrls];
+    
+    // 1. 应用算子链 (如果有算子定义)
+    if (Array.isArray(sub.operators) && sub.operators.length > 0) {
+        processed = await runOperatorChain(processed, sub.operators);
+    }
+    
+    // 2. 应用传统的过滤规则 (exclude/include)
+    processed = applyFilterRules(processed, sub);
+    
+    return processed;
+}
+
 function buildRuleSet(lines, stripKeepPrefix = false) {
     const protocols = new Set();
     const patterns = [];
