@@ -28,25 +28,65 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
 }
 
 export function renderSingboxFromIniTemplate(templateText, options = {}) {
-    let model = parseIniTemplate(templateText, options);
+    const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
+    const proxyUrls = nodeList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+
+    let model = parseIniTemplate(templateText, {
+        ...options,
+        proxies
+    });
     model = applySmartModelOptimizations(model);
     return renderSingboxFromTemplateModel(model, options);
 }
 
 export function renderSurgeFromIniTemplate(templateText, options = {}) {
-    let model = parseIniTemplate(templateText, options);
+    const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
+    const proxyUrls = nodeList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+
+    let model = parseIniTemplate(templateText, {
+        ...options,
+        proxies
+    });
     model = applySmartModelOptimizations(model);
     return renderSurgeFromTemplateModel(model, options);
 }
 
 export function renderLoonFromIniTemplate(templateText, options = {}) {
-    let model = parseIniTemplate(templateText, options);
+    const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
+    const proxyUrls = nodeList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+
+    let model = parseIniTemplate(templateText, {
+        ...options,
+        proxies
+    });
     model = applySmartModelOptimizations(model);
     return renderLoonFromTemplateModel(model, options);
 }
 
 export function renderQuanxFromIniTemplate(templateText, options = {}) {
-    let model = parseIniTemplate(templateText, options);
+    const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
+    const proxyUrls = nodeList
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+
+    let model = parseIniTemplate(templateText, {
+        ...options,
+        proxies
+    });
     model = applySmartModelOptimizations(model);
     return renderQuanxFromTemplateModel(model, options);
 }

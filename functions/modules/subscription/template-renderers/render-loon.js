@@ -23,7 +23,11 @@ function buildProxyLine(proxy) {
     }
     if (type === 'ss' || type === 'shadowsocks') return `${name} = Shadowsocks, ${server}, ${port}, ${proxy.cipher || 'aes-128-gcm'}, ${proxy.password || ''}`;
     if (type === 'vmess') {
-        const extras = [proxy.uuid || ''];
+        const cipher = proxy.cipher || 'auto';
+        const uuid = `"${proxy.uuid || ''}"`;
+        const alterId = proxy.alterId || 0;
+        const extras = [];
+        
         const sni = proxy.servername ?? proxy.sni;
         if (proxy.tls || sni !== undefined) extras.push('tls=true');
         if (proxy.network === 'ws') {
@@ -34,7 +38,9 @@ function buildProxyLine(proxy) {
         }
         if (sni !== undefined) extras.push(`sni=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
-        return `${name} = vmess, ${server}, ${port}, ${extras.join(', ')}`;
+        
+        const extraStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
+        return `${name} = vmess, ${server}, ${port}, ${cipher}, ${uuid}, ${alterId}${extraStr}`;
     }
     if (type === 'vless') {
         const extras = [proxy.uuid || ''];
