@@ -137,11 +137,62 @@ function dedupeGroupsByName(model) {
 }
 
 /**
- * 对模板模型进行智能化增强
- * 核心逻辑：在不破坏模板原有分流规则的前提下，注入自动生成的地区策略组
- * 
- * @param {Object} model - 统一模板模型 (TemplateModel)
- * @returns {Object} 增强后的模型
+ * 展开魔法占位符（如 <%regionStrategyChain%>）
+ * @param {Object} model - 统一模板模型
+ */
+function expandMagicPlaceholders(model) {
+    const regionNames = Array.from(new Set(
+        model.groups
+            .filter(g => g.type === 'url-test' && !g.name.includes('自动'))
+            .map(g => g.name)
+    ));
+    
+    // 获取协议分组（如果存在）
+    const protocolNames = Array.from(new Set(
+        model.groups
+            .filter(g => g.name.includes('节点') && !regionNames.includes(g.name))
+            .map(g => g.name)
+    ));
+
+    model.groups.forEach(group => {
+        if (!Array.isArray(group.members)) return;
+
+        const newMembers = [];
+        group.members.forEach(member => {
+            if (member === '<%regionStrategyChain%>') {
+                newMembers.push(...regionNames);
+            } else if (member === '<%protocolStrategyChain%>') {
+                newMembers.push(...protocolNames);
+            } else {
+                newMembers.push(member);
+            }
+        });
+        group.members = newMembers;
+    });
+}
+
+/**
+ * 清理策略组中指向空组或不存在节点的无效引用
+ * @param {Object} model - 统一模板模型
+ */
+function pruneInvalidMembers(model) {
+    const validTargetNames = new Set([
+        ...model.proxies.map(p => p.name || p.tag),
+        ...model.groups.map(g => g.name),
+        'DIRECT', 'REJECT'
+    ]);
+
+    model.groups.forEach(group => {
+        if (Array.isArray(group.members)) {
+            group.members = group.members.filter(m => validTargetNames.has(m));
+        }
+    });
+}
+
+/**
+ * 模板模型智能优化器（主入口）
+ * 包含：自动解析过滤器、注入地区组、展开占位符、清理无效引用及空组
+ * @param {Object} model - 统一模板模型
  */
 export function applySmartModelOptimizations(model) {
     const { ruleLevel } = model.meta;
@@ -167,11 +218,9 @@ export function applySmartModelOptimizations(model) {
     const nodeEntries = proxyNames.map(name => ({ tag: name }));
     const regions = groupNodeLinesByRegion(nodeEntries);
     
-    const newGroupNames = [];
+    // 注入地区自动选优组
     regions.forEach(region => {
-        // 避免重复注入：不仅看同名，还要看语义相同或成员完全相同的地区分组。
         if (hasEquivalentRegionGroup(model, region)) return;
-
         model.groups.push({
             name: region.name,
             type: 'url-test',
@@ -182,26 +231,27 @@ export function applySmartModelOptimizations(model) {
                 tolerance: '50'
             }
         });
-        newGroupNames.push(region.name);
     });
 
-    // 5. 寻找目标“主选择器”进行注入
-    if (newGroupNames.length > 0) {
-        const mainGroupCandidates = model.groups.filter(g => 
-            /选择|Proxy|Default|Global|Main|select/i.test(g.name)
-        );
-        const targetGroup = mainGroupCandidates.length > 0 ? mainGroupCandidates[0] : model.groups[0];
+    // 5. 展开魔法占位符
+    expandMagicPlaceholders(model);
 
-        if (targetGroup && Array.isArray(targetGroup.members)) {
-            const autoSelectIdx = targetGroup.members.findIndex(m => /自动|优选|Auto|Best/i.test(m));
-            const insertIdx = autoSelectIdx !== -1 ? autoSelectIdx + 1 : 0;
-            targetGroup.members.splice(insertIdx, 0, ...newGroupNames);
+    // 6. 寻找目标“主选择器”进行手动注入兜底（如果模板里一个占位符都没写）
+    const mainGroupCandidates = model.groups.filter(g => 
+        /选择|Proxy|Default|Global|Main|select/i.test(g.name)
+    );
+    if (mainGroupCandidates.length > 0) {
+        const targetGroup = mainGroupCandidates[0];
+        // 如果该组还没有任何成员，注入所有地区作为兜底
+        if (targetGroup.members.length === 0) {
+            targetGroup.members.push(...regions.map(r => r.name));
         }
     }
 
-    // 6. 最后进行一次全局修剪，确保所有空组（包括注入失败的）都被清理
+    // 7. 最后进行全局修剪与去重
     dedupeGroupsByName(model);
-    pruneEmptyGroups(model);
+    pruneInvalidMembers(model); // 清理无效引用
+    pruneEmptyGroups(model);    // 递归清理最终可能产生的新空组
 
     return model;
 }

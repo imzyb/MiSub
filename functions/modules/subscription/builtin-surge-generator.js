@@ -9,7 +9,7 @@
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
+import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
 
 /**
  * 清理字符串中的控制字符（保留换行和制表符）
@@ -445,7 +445,8 @@ dns-server = 119.29.29.29, 223.5.5.5, system`);
         metadata: finalResults[index].clashProxy?.metadata || {}
     }));
     
-    const abstractGroups = policyFactory(proxiesForGrouping);
+    let abstractGroups = policyFactory(proxiesForGrouping);
+    abstractGroups = pruneProxyGroups(abstractGroups, proxiesForGrouping);
 
     // 转换为 Surge [Proxy Group]
     const proxyGroupLines = abstractGroups.map(group => {

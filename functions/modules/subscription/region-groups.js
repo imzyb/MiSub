@@ -10,7 +10,13 @@ const REGION_DISPLAY_CONFIG = {
     '德国': { flag: '🇩🇪', name: '德国节点' },
     '法国': { flag: '🇫🇷', name: '法国节点' },
     '加拿大': { flag: '🇨🇦', name: '加拿大节点' },
-    '澳大利亚': { flag: '🇦🇺', name: '澳洲节点' }
+    '澳大利亚': { flag: '🇦🇺', name: '澳洲节点' },
+    '巴西': { flag: '🇧🇷', name: '巴西节点' },
+    '西班牙': { flag: '🇪🇸', name: '西班牙节点' },
+    '荷兰': { flag: '🇳🇱', name: '荷兰节点' },
+    '俄罗斯': { flag: '🇷🇺', name: '俄国节点' },
+    '印度': { flag: '🇮🇳', name: '印度节点' },
+    '土耳其': { flag: '🇹🇷', name: '土耳其节点' }
 };
 
 export const REGION_GROUP_PATTERNS = [
@@ -20,7 +26,13 @@ export const REGION_GROUP_PATTERNS = [
     { name: '🇸🇬 狮城节点', pattern: /狮城|新|SG|Singapore/i },
     { name: '🇺🇸 美国节点', pattern: /美|US|America/i },
     { name: '🇰🇷 韩国节点', pattern: /韩|KR|Korea/i },
-    { name: '🇬🇧 英国节点', pattern: /英|UK|England/i }
+    { name: '🇬🇧 英国节点', pattern: /英|UK|England/i },
+    { name: '🇩🇪 德国节点', pattern: /德|DE|Germany/i },
+    { name: '🇫🇷 法国节点', pattern: /法|FR|France/i },
+    { name: '🇧🇷 巴西节点', pattern: /巴西|BR|Brazil/i },
+    { name: '🇪🇸 西班牙节点', pattern: /西班牙|ES|Spain/i },
+    { name: '🇳🇱 荷兰节点', pattern: /荷兰|NL|Netherlands/i },
+    { name: '🇦🇺 澳洲节点', pattern: /澳|AU|Australia/i }
 ];
 
 export function groupNodeLinesByRegion(nodes = []) {
@@ -37,13 +49,17 @@ export function groupNodeLinesByRegion(nodes = []) {
             // 2. 回退到正则匹配逻辑
             for (const { name: groupName, pattern } of REGION_GROUP_PATTERNS) {
                 if (pattern.test(tagName)) {
-                    region = groupName.split(' ')[1].replace('节点', '');
+                    // [核心修复] 增强提取能力：直接由预设名称提取中文核心地名，解决 split 导致的问题
+                    const match = groupName.match(/[\u4e00-\u9fa5]+/);
+                    region = match ? match[0].replace('节点', '') : '其他';
                     break;
                 }
             }
         }
 
-        if (region === '其他') return;
+        if (region === '其他') {
+            region = '其他';
+        }
 
         // 3. 构造标准的展示组名
         const config = REGION_DISPLAY_CONFIG[region] || { flag: '🌍', name: `${region}节点` };

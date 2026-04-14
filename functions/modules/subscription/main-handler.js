@@ -263,6 +263,28 @@ export async function handleMisubRequest(context) {
         }
     }
 
+    const builtinMode = (url.searchParams.get('builtin') || '').toLowerCase();
+    const useBuiltin = builtinMode !== 'external';
+    const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
+    
+    const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
+    const templateUrl = currentProfile
+        ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
+        : globalTemplateUrl;
+    const templateSource = resolveTemplateSource(templateUrl);
+
+    // [逻辑统一] 规则等级：URL 参数 > 订阅组设置 > 全局设置 > 默认值 (std)
+    // [重要变更] 如果使用了远程自定义配置 (templateSource.kind === 'remote')，则完全禁用内置等级 (强制为 none)
+    const resolvedProfileLevel = currentProfile?.ruleLevel || currentProfile?.clashRuleLevel || '';
+    const resolvedGlobalLevel = config.ruleLevel || config.clashRuleLevel || 'std';
+    
+    let ruleLevel;
+    if (templateSource.kind === 'remote') {
+        ruleLevel = 'none';
+    } else {
+        ruleLevel = url.searchParams.get('level') || url.searchParams.get('ruleLevel') || resolvedProfileLevel || resolvedGlobalLevel;
+    }
+
     // === 缓存机制：快速响应客户端请求 ===
     const cacheKey = generateCacheKey(
         profileIdentifier ? 'profile' : 'token',
@@ -349,7 +371,11 @@ export async function handleMisubRequest(context) {
             userAgentHeader,
             targetMisubs,
             prependedContentForSubconverter,
-            generationSettings
+            {
+                ...generationSettings,
+                // [强制透传] 确保 ruleLevel 在订阅组内能够生效
+                ruleLevel: ruleLevel || generationSettings.ruleLevel
+            }
         );
         const sourceNames = targetMisubs
             .filter(s => typeof s?.url === 'string' && s.url.startsWith('http'))
@@ -418,27 +444,6 @@ export async function handleMisubRequest(context) {
         return new Response(btoa(unescape(encodeURIComponent(contentToEncode))), { headers });
     }
 
-    const builtinMode = (url.searchParams.get('builtin') || '').toLowerCase();
-    const useBuiltin = builtinMode !== 'external';
-    const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
-    
-    const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
-    const templateUrl = currentProfile
-        ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
-        : globalTemplateUrl;
-    const templateSource = resolveTemplateSource(templateUrl);
-
-    // [逻辑统一] 规则等级：URL 参数 > 订阅组设置 > 全局设置 > 默认值 (std)
-    // [重要变更] 如果使用了远程自定义配置 (templateSource.kind === 'remote')，则完全禁用内置等级 (强制为 none)
-    const resolvedProfileLevel = currentProfile?.ruleLevel || currentProfile?.clashRuleLevel || '';
-    const resolvedGlobalLevel = config.ruleLevel || config.clashRuleLevel || 'std';
-    
-    let ruleLevel;
-    if (templateSource.kind === 'remote') {
-        ruleLevel = 'none';
-    } else {
-        ruleLevel = url.searchParams.get('level') || url.searchParams.get('ruleLevel') || resolvedProfileLevel || resolvedGlobalLevel;
-    }
 
     const builtinOptions = {
         fileName: subName,

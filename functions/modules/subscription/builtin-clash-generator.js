@@ -7,7 +7,15 @@
 import { urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
 import { clashFix } from '../../utils/format-utils.js';
-import { POLICY_GROUPS, RULE_SETS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
+import { 
+    POLICY_GROUPS, 
+    RULE_SETS, 
+    getBuiltinRules, 
+    getRemoteProviderDefinitions, 
+    DEFAULT_SELECT_GROUP, 
+    DEFAULT_RELAY_GROUP, 
+    pruneProxyGroups 
+} from './builtin-rules-provider.js';
 import yaml from 'js-yaml';
 
 /**
@@ -113,9 +121,10 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         const levelKey = (ruleLevel || 'std').toUpperCase();
         const rawRules = getBuiltinRules(levelKey, 'clash');
 
-        // 生成策略组
+        // 生成策略组并执行引用修剪
         const policyGroupsFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
-        const proxyGroups = policyGroupsFactory(proxies);
+        let proxyGroups = policyGroupsFactory(proxies);
+        proxyGroups = pruneProxyGroups(proxyGroups, proxies);
         
         // 提取远程 Provider 定义
         const ruleProviders = getRemoteProviderDefinitions('clash', rawRules);

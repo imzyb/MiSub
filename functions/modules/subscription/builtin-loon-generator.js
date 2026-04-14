@@ -12,7 +12,7 @@
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { POLICY_GROUPS, getBuiltinRules, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
+import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
 
 /**
  * 清理控制字符
@@ -301,7 +301,8 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
-    const abstractGroups = policyFactory(proxiesWithMetadata);
+    let abstractGroups = policyFactory(proxiesWithMetadata);
+    abstractGroups = pruneProxyGroups(abstractGroups, proxiesWithMetadata);
 
     const iconRepo = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
     const groupIcons = {

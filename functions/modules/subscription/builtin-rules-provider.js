@@ -7,6 +7,7 @@ export const DEFAULT_SELECT_GROUP = '🚀 节点选择';
 export const DEFAULT_RELAY_GROUP = '🌍 总出口';
 export const AUTO_SELECT_GROUP = '♻️ 自动选择';
 export const FALLBACK_GROUP = '🔯 故障转移';
+export const MANUAL_SELECT_GROUP = '👋 手动切换';
 
 /**
  * 自动生成地区策略组（通用中间格式）
@@ -19,68 +20,151 @@ function generateRegionData(proxies) {
 }
 
 /**
+ * 清理策略组中不存在的成员引用
+ * @param {Array} proxyGroups - 策略组对象数组
+ * @param {Array} proxies - 可用代理对象数组
+ * @returns {Array} 清理后的策略组数组
+ */
+export function pruneProxyGroups(proxyGroups, proxies) {
+    const validTargetNames = new Set([
+        ...proxies.map(p => p.tag || p.name),
+        ...proxyGroups.map(g => g.name),
+        DEFAULT_SELECT_GROUP,
+        DEFAULT_RELAY_GROUP,
+        AUTO_SELECT_GROUP,
+        FALLBACK_GROUP,
+        MANUAL_SELECT_GROUP,
+        ...['DIRECT', 'REJECT', 'REJECT-DROP', 'ANY'] // 各平台通用保留字
+    ]);
+
+    return proxyGroups.map(group => {
+        if (!Array.isArray(group.proxies)) return group;
+        
+        const newProxies = group.proxies.filter(p => {
+            // regex 过滤器的内容不应在此时剔除
+            if (typeof p === 'string' && (p.startsWith('(') || p.includes('.*') || p.includes('+') || p.includes('$'))) {
+                return true;
+            }
+            return validTargetNames.has(p);
+        });
+
+        // 如果该组原本由工厂生成，但剔除后变为空，不应直接删除（避免破坏上一级引用），
+        // 而是至少保留 DIRECT 作为一个兜底，除非该组本身就是子成员。
+        return {
+            ...group,
+            proxies: newProxies.length > 0 ? newProxies : ['DIRECT']
+        };
+    });
+}
+
+/**
+ * 内部辅助：生成地区相关的策略组定义
+ */
+function _generateRegionGroups(proxies) {
+    const regions = groupNodeLinesByRegion(proxies);
+    const regionSelectGroups = [];   // 地区选择组（顶级按钮）
+    const regionSupportGroups = []; // 地区辅助组（隐藏/末尾）
+    const regionNames = [];
+
+    regions.forEach(r => {
+        // 为每个地区生成一个更简洁的辅助测速组名
+        const autoGroupName = `⚡️ ${r.name.replace('节点', '')} - 自动测速`;
+        regionNames.push(r.name);
+
+        // [地区选择组] 内部包含测速组和具体节点
+        regionSelectGroups.push({ 
+            name: r.name, 
+            type: 'select', 
+            proxies: [autoGroupName, ...r.tags] 
+        });
+
+        // [地区辅助测速组]
+        regionSupportGroups.push({ 
+            name: autoGroupName, 
+            type: 'url-test', 
+            proxies: r.tags,
+            options: { url: 'http://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
+        });
+    });
+
+    return { regionSelectGroups, regionSupportGroups, regionNames };
+}
+
+/**
  * 策略组工厂
  */
 export const POLICY_GROUPS = {
-    // 基础配置
+    // 基础配置：精简版
     BASE: (proxies) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
         return [
-            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [...proxyNames, AUTO_SELECT_GROUP, FALLBACK_GROUP, 'DIRECT'] },
+            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
-            { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames }
+            { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
+            { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames }
         ];
     },
-    // 标准配置
+    // 标准配置：全能型
     STD: (proxies) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const regions = generateRegionData(proxies);
-        const regionNames = regions.map(r => r.name);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        
         return [
-            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [...regionNames, AUTO_SELECT_GROUP, ...proxyNames, 'DIRECT'] },
-            ...regions.map(r => ({ name: r.name, type: 'url-test', proxies: r.tags })),
+            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', DEFAULT_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP, 'DIRECT'] },
-            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP] }
+            { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
+            { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
+            ...regionSelectGroups,
+            { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            ...regionSupportGroups
         ];
     },
-    // 完整配置
+    // 完整配置：细化分类
     FULL: (proxies) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const regions = generateRegionData(proxies);
-        const regionNames = regions.map(r => r.name);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        
         return [
-            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [...regionNames, AUTO_SELECT_GROUP, ...proxyNames, 'DIRECT'] },
-            ...regions.map(r => ({ name: r.name, type: 'url-test', proxies: r.tags })),
+            { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', DEFAULT_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP, 'DIRECT'] },
-            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP] },
-            { name: '📲 Telegram', type: 'select', proxies: [DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎧 Spotify', type: 'select', proxies: [DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎮 游戏平台', type: 'select', proxies: ['DIRECT', DEFAULT_SELECT_GROUP, AUTO_SELECT_GROUP] }
+            { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
+            { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
+            ...regionSelectGroups,
+            { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎧 Spotify', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎮 游戏平台', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            ...regionSupportGroups
         ];
     },
-    // 链式代理
+    // 链式代理：中转优化
     RELAY: (proxies) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const regions = generateRegionData(proxies);
-        const regionNames = regions.map(r => r.name);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        
         return [
             { name: DEFAULT_RELAY_GROUP, type: 'select', proxies: ['🔗 链式代理', '🚀 常用节点', ...regionNames, 'DIRECT'] },
             { name: '🔗 链式代理', type: 'relay', proxies: ['入口节点', '落地节点'] },
-            { name: '入口节点', type: 'select', proxies: [...proxyNames, 'DIRECT'] },
-            { name: '落地节点', type: 'select', proxies: [...proxyNames, 'DIRECT'] },
-            ...regions.map(r => ({ name: r.name, type: 'url-test', proxies: r.tags })),
-            { name: '🚀 常用节点', type: 'select', proxies: [...regionNames, AUTO_SELECT_GROUP, ...proxyNames, 'DIRECT'] },
+            { name: '入口节点', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '落地节点', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            ...regionSelectGroups,
+            { name: '🚀 常用节点', type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
+            { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
+            { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', DEFAULT_RELAY_GROUP] },
             { name: '🎥 流媒体', type: 'select', proxies: [DEFAULT_RELAY_GROUP, '🚀 常用节点', 'DIRECT'] },
             { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', DEFAULT_RELAY_GROUP, '🚀 常用节点'] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', DEFAULT_RELAY_GROUP, '🚀 常用节点'] }
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', DEFAULT_RELAY_GROUP, '🚀 常用节点'] },
+            ...regionSupportGroups
         ];
     }
 };
@@ -118,7 +202,15 @@ export const REMOTE_SOURCES = {
         name: '微软服务',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Microsoft.yaml',
         singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-microsoft.json',
-        surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list'
+        surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list',
+        quanx: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list'
+    },
+    AI: {
+        name: '智能 AI',
+        clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/OpenAi.yaml',
+        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-openai.json',
+        surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list',
+        quanx: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list'
     }
 };
 
@@ -135,6 +227,7 @@ export const RULE_SETS = {
     ],
     STD: [
         'RULE-SET,ADS,🎬 视频广告',
+        'RULE-SET,AI,🤖 智能 AI',
         'RULE-SET,STREAM,🎥 流媒体',
         'RULE-SET,APPLE,🍎 Apple',
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',
@@ -146,6 +239,7 @@ export const RULE_SETS = {
     FULL: [
         'RULE-SET,ADS,🎬 视频广告',
         'RULE-SET,SOCIAL,📲 Telegram',
+        'RULE-SET,AI,🤖 智能 AI',
         'RULE-SET,STREAM,🎥 流媒体',
         'RULE-SET,APPLE,🍎 Apple',
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',
@@ -156,6 +250,7 @@ export const RULE_SETS = {
     ],
     RELAY: [
         'RULE-SET,ADS,🎬 视频广告',
+        'RULE-SET,AI,🤖 智能 AI',
         'RULE-SET,STREAM,🎥 流媒体',
         'RULE-SET,APPLE,🍎 Apple',
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',

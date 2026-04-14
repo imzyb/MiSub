@@ -5,7 +5,7 @@
 
 import { urlToClashProxy } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { POLICY_GROUPS, getBuiltinRules, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP } from './builtin-rules-provider.js';
+import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
 
 const ICON_REPO = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
 
@@ -213,7 +213,8 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
-    const abstractGroups = policyFactory(proxiesWithMetadata);
+    let abstractGroups = policyFactory(proxiesWithMetadata);
+    abstractGroups = pruneProxyGroups(abstractGroups, proxiesWithMetadata);
 
     const groupIcons = {
         [DEFAULT_SELECT_GROUP]: `${ICON_REPO}/Proxy.png`,
