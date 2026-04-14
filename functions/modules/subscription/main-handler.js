@@ -263,9 +263,16 @@ export async function handleMisubRequest(context) {
         }
     }
 
-    const builtinMode = (url.searchParams.get('builtin') || '').toLowerCase();
-    const useBuiltin = builtinMode !== 'external';
-    const currentProfile = profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier) : null;
+    // [Subconverter Engine Selection] Priority: URL Parameter > Profile Settings > Global Settings
+    const profileSub = currentProfile?.subconverter || {};
+    const globalSub = config.subconverter || {};
+    
+    // Determine the effective engine mode
+    const builtinParam = (url.searchParams.get('builtin') || '').toLowerCase();
+    const engineParam = (url.searchParams.get('engine') || '').toLowerCase();
+    const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || profileSub.engineMode || globalSub.engineMode || 'builtin';
+    const isExternalMode = effectiveEngine === 'external';
+
     
     const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
     const templateUrl = currentProfile
@@ -396,6 +403,53 @@ export async function handleMisubRequest(context) {
     console.log(`[MiSub Nodes] Count/Length: ${combinedNodeList ? combinedNodeList.length : 0}`);
 
     const domain = url.hostname;
+
+    // [Support] External Subconverter Logic
+    // 1. If 'nodes' format requested, return Base64 nodes directly (DataSource for external converters)
+    if (targetFormat === 'nodes') {
+        const contentToEncode = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
+        return new Response(btoa(unescape(encodeURIComponent(contentToEncode))), { 
+            headers: { 
+                "Content-Type": "text/plain; charset=utf-8", 
+                'Cache-Control': 'no-store, no-cache',
+                'X-MiSub-Mode': 'node-export'
+            } 
+        });
+    }
+
+    // 2. If external mode active, build the redirect URL and return 302
+    if (isExternalMode && targetFormat !== 'base64') {
+        const backend = url.searchParams.get('backend') || profileSub.backend || globalSub.defaultBackend || "https://sub.id9.cc/sub?";
+        const externalUrl = new URL(backend);
+        externalUrl.searchParams.set('target', targetFormat.includes('&') ? targetFormat.split('&')[0] : targetFormat);
+        
+        // Data source is THIS worker, but forcing builtin and nodes format
+        const dataSourceUrl = new URL(request.url);
+        dataSourceUrl.searchParams.set('target', 'nodes');
+        dataSourceUrl.searchParams.set('engine', 'builtin');
+        externalUrl.searchParams.set('url', dataSourceUrl.toString());
+        
+        // Map Boolean Flags
+        const effectiveOptions = { ...globalSub.defaultOptions, ...profileSub.options };
+        const flagMap = { udp: 'udp', emoji: 'emoji', scv: 'scv', sort: 'sort', tfo: 'tfo', list: 'list' };
+        
+        Object.entries(flagMap).forEach(([key, paramName]) => {
+            const val = url.searchParams.has(paramName) 
+                ? url.searchParams.get(paramName) === 'true' 
+                : effectiveOptions[key];
+            externalUrl.searchParams.set(paramName, val ? 'true' : 'false');
+        });
+
+        // Pass Remote Config if applicable
+        if (templateUrl && templateSource.kind === 'remote') {
+            externalUrl.searchParams.set('config', templateSource.value);
+        }
+
+        // Add File Name
+        externalUrl.searchParams.set('filename', subName);
+
+        return Response.redirect(externalUrl.toString(), 302);
+    }
 
     if (targetFormat === 'base64') {
         let contentToEncode;

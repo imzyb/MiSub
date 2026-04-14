@@ -40,16 +40,25 @@ export function pruneProxyGroups(proxyGroups, proxies) {
     return proxyGroups.map(group => {
         if (!Array.isArray(group.proxies)) return group;
         
-        const newProxies = group.proxies.filter(p => {
+        const newProxies = group.proxies.filter(member => {
+            // 核心修复 1：禁止策略组引用自身
+            if (member === group.name) return false;
+            
+            // 核心修复 2：禁止任何非顶级组通过正则表达式包含顶级入口组名，防止回环（解决 .* 匹配问题）
+            // 如果成员名是顶级组名，且当前组不是顶级组自身，且该成员是通过正则匹配推断出的（或显式声明的）
+            if (member === DEFAULT_SELECT_GROUP || member === DEFAULT_RELAY_GROUP) {
+                // 顶级组绝不允许作为其他非顶级组的成员，尤其是手动切换/业务分流组
+                return false;
+            }
+
             // regex 过滤器的内容不应在此时剔除
-            if (typeof p === 'string' && (p.startsWith('(') || p.includes('.*') || p.includes('+') || p.includes('$'))) {
+            if (typeof member === 'string' && (member.startsWith('(') || member.includes('.*') || member.includes('+') || member.includes('$'))) {
                 return true;
             }
-            return validTargetNames.has(p);
+            return validTargetNames.has(member);
         });
 
-        // 如果该组原本由工厂生成，但剔除后变为空，不应直接删除（避免破坏上一级引用），
-        // 而是至少保留 DIRECT 作为一个兜底，除非该组本身就是子成员。
+        // 兜底逻辑
         return {
             ...group,
             proxies: newProxies.length > 0 ? newProxies : ['DIRECT']
@@ -83,6 +92,7 @@ function _generateRegionGroups(proxies) {
             name: autoGroupName, 
             type: 'url-test', 
             proxies: r.tags,
+            hidden: true,
             options: { url: 'http://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
         });
     });
@@ -134,6 +144,7 @@ export const POLICY_GROUPS = {
             { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             ...regionSelectGroups,
+            // 核心修复：业务组直接引用具体地区组或自动选择组，不引用 DEFAULT_SELECT_GROUP 
             { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
             { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
@@ -160,10 +171,11 @@ export const POLICY_GROUPS = {
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
             { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', DEFAULT_RELAY_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [DEFAULT_RELAY_GROUP, '🚀 常用节点', 'DIRECT'] },
-            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', DEFAULT_RELAY_GROUP, '🚀 常用节点'] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', DEFAULT_RELAY_GROUP, '🚀 常用节点'] },
+            // 核心修复：链式版的分流也禁止回引 DEFAULT_RELAY_GROUP，统一使用地区组或常用节点
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🚀 常用节点', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
             ...regionSupportGroups
         ];
     }

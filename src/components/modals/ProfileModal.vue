@@ -192,6 +192,31 @@ watch(() => props.profile, (newProfile) => {
       delete profileCopy.prefixSettings.enableNodeEmoji;
     }
     
+    // 确保 subconverter 对象存在
+    if (!profileCopy.subconverter || typeof profileCopy.subconverter !== 'object') {
+      profileSub: profileCopy.subconverter = {
+        engineMode: '',
+        backend: '',
+        options: {
+          udp: null,
+          emoji: null,
+          scv: null,
+          sort: null,
+          tfo: null,
+          list: null
+        }
+      };
+    } else {
+      // 补充缺失的 options 字段，支持 null (即跟随全局)
+      profileCopy.subconverter.options = profileCopy.subconverter.options || {};
+      const fields = ['udp', 'emoji', 'scv', 'sort', 'tfo', 'list'];
+      fields.forEach(f => {
+        if (profileCopy.subconverter.options[f] === undefined) {
+          profileCopy.subconverter.options[f] = null;
+        }
+      });
+    }
+
     // 确保 operators 数组存在
     profileCopy.operators = Array.isArray(profileCopy.operators) ? profileCopy.operators : [];
     
@@ -285,9 +310,15 @@ const updateSelectedIds = (listName, newIds) => {
     </template>
     <template #body>
       <div v-if="localProfile" class="space-y-6">
-<ProfileForm :local-profile="localProfile" :show-advanced="showAdvanced" :ui-text="uiText"
-:prefix-toggle-options="prefixToggleOptions" :group-prefix-toggle-options="groupPrefixToggleOptions"
-@toggle-advanced="showAdvanced = !showAdvanced" />
+        <ProfileForm 
+          :local-profile="localProfile" 
+          :show-advanced="showAdvanced" 
+          :ui-text="uiText"
+          :prefix-toggle-options="prefixToggleOptions" 
+          :group-prefix-toggle-options="groupPrefixToggleOptions"
+          :global-settings="dataStore.settings"
+          @toggle-advanced="showAdvanced = !showAdvanced" 
+        />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 

@@ -81,6 +81,19 @@ prependGroupName: false
     guestbook: {
         enabled: false,
         allowAnonymous: true
+    },
+    // 订阅转换设置
+    subconverter: {
+        engineMode: 'builtin',
+        defaultBackend: "https://subapi.cmliussss.net/sub?",
+        defaultOptions: {
+            udp: true,
+            emoji: true,
+            scv: true,
+            tfo: false,
+            sort: false,
+            list: false
+        }
     }
 };
 
@@ -106,6 +119,18 @@ enableSubscriptions: true,
 manualNodePrefix: '\u624b\u52a8\u8282\u70b9',
 prependGroupName: null
 },
+    subconverter: {
+        engineMode: '',
+        backend: '',
+        options: {
+            udp: null,
+            emoji: null,
+            scv: null,
+            sort: null,
+            tfo: null,
+            list: null
+        }
+    },
 nodeTransform: null,
 nodeTransformPresetId: ''
 };

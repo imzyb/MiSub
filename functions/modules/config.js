@@ -100,6 +100,19 @@ export const DEFAULT_SETTINGS = {
     guestbook: {
         enabled: false,           // 总开关
         allowAnonymous: true      // 是否允许匿名
+    },
+    // 订阅转换设置
+    subconverter: {
+        engineMode: "builtin",
+        defaultBackend: "https://subapi.cmliussss.net/sub?",
+        defaultOptions: {
+            udp: true,
+            emoji: true,
+            scv: true,
+            tfo: false,
+            sort: false,
+            list: false
+        }
     }
 };
 
