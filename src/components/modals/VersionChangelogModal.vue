@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue';
+import { useVersionStore } from '../../stores/version';
 import Modal from '../forms/Modal.vue';
+
+const versionStore = useVersionStore();
 
 const props = defineProps({
   show: Boolean,
@@ -27,7 +30,7 @@ const isLatest = computed(() => {
   <Modal
     :show="show"
     @update:show="emit('update:show', $event)"
-    size="3xl"
+    size="lg"
     :close-on-confirm="false"
   >
     <template #title>
@@ -59,12 +62,20 @@ const isLatest = computed(() => {
     <template #body>
       <div class="space-y-4">
         <div class="rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300">
-          <div class="font-semibold">{{ release.name || release.tag_name || '版本说明' }}</div>
-          <div v-if="release.published_at" class="mt-1 text-xs opacity-80">发布时间：{{ new Date(release.published_at).toLocaleString() }}</div>
+          <div class="font-semibold">{{ isLatest ? 'v' + currentVersion + ' 版本更新亮点' : (release.name || release.tag_name || '版本说明') }}</div>
+          <div v-if="!isLatest && release.published_at" class="mt-1 text-xs opacity-80">发布时间：{{ new Date(release.published_at).toLocaleString() }}</div>
         </div>
 
         <div class="max-h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/70 p-4 text-sm leading-6 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 whitespace-pre-wrap">
-          {{ release.body || '当前版本未提供详细更新说明。' }}
+          <template v-if="isLatest && versionStore.localChangelog">
+            {{ versionStore.localChangelog }}
+          </template>
+          <template v-else-if="release.body">
+            {{ release.body }}
+          </template>
+          <template v-else>
+            当前版本未提供详细更新说明。
+          </template>
         </div>
 
         <a
