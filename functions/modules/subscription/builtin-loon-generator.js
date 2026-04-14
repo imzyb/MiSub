@@ -83,60 +83,61 @@ function clashProxyToLoonResult(proxy) {
         parts.push(proxy.cipher || 'aes-128-gcm');
         parts.push(loonQuote(proxy.password || ''));
         
-        if (proxy.udp) parts.push('udp-relay=true');
+        if (proxy.udp) parts.push('udp-relay:true');
         if (proxy.obfs) {
-            parts.push(`obfs=${proxy.obfs}`);
-            if (proxy['obfs-host']) parts.push(`obfs-host=${proxy['obfs-host']}`);
+            parts.push(`obfs:${proxy.obfs}`);
+            if (proxy['obfs-host']) parts.push(`obfs-host:${proxy['obfs-host']}`);
         }
     } else if (type === 'vmess') {
         parts.push(`${name} = vmess`);
         parts.push(server);
         parts.push(String(port));
-        parts.push(proxy.uuid || '');
+        parts.push(proxy.cipher || 'auto');
+        parts.push(`"${proxy.uuid || ''}"`);
         
-        if (proxy.tls) parts.push('tls=true');
+        if (proxy.tls) parts.push('over-tls:true');
         if (proxy.network === 'ws') {
-            parts.push('transport=ws');
+            parts.push('transport:ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) parts.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) parts.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) parts.push(`path:${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) parts.push(`host:${wsOpts.headers.Host}`);
         }
         appendTlsParams(parts, proxy);
     } else if (type === 'vless') {
         parts.push(`${name} = vless`);
         parts.push(server);
         parts.push(String(port));
-        parts.push(proxy.uuid || '');
+        parts.push(`"${proxy.uuid || ''}"`);
 
         if (proxy.flow) {
-            parts.push(`flow=${proxy.flow}`);
+            parts.push(`flow:${proxy.flow}`);
         }
 
         if (proxy.network) {
-            parts.push(`transport=${proxy.network}`);
+            parts.push(`transport:${proxy.network}`);
             
             if (proxy.network === 'ws') {
                 const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-                if (wsOpts?.path) parts.push(`path=${wsOpts.path}`);
-                if (wsOpts?.headers?.Host) parts.push(`host=${wsOpts.headers.Host}`);
+                if (wsOpts?.path) parts.push(`path:${wsOpts.path}`);
+                if (wsOpts?.headers?.Host) parts.push(`host:${wsOpts.headers.Host}`);
             } else if (proxy.network === 'grpc') {
                 const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-                if (grpcOpts?.['grpc-service-name']) parts.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
+                if (grpcOpts?.['grpc-service-name']) parts.push(`grpc-service-name:${grpcOpts['grpc-service-name']}`);
             } else if (proxy.network === 'xhttp') {
                 const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
-                if (xhttpOpts?.path) parts.push(`path=${xhttpOpts.path}`);
-                if (xhttpOpts?.host) parts.push(`host=${xhttpOpts.host}`);
-                if (xhttpOpts?.mode) parts.push(`mode=${xhttpOpts.mode}`);
+                if (xhttpOpts?.path) parts.push(`path:${xhttpOpts.path}`);
+                if (xhttpOpts?.host) parts.push(`host:${xhttpOpts.host}`);
+                if (xhttpOpts?.mode) parts.push(`mode:${xhttpOpts.mode}`);
             }
         }
 
         if (proxy.tls || proxy.security === 'reality') {
-            parts.push('tls=true');
+            parts.push('over-tls:true');
             const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
             if (realityOpts) {
-                parts.push('reality=true');
-                if (realityOpts['public-key']) parts.push(`public-key=${realityOpts['public-key']}`);
-                if (realityOpts['short-id']) parts.push(`short-id=${realityOpts['short-id']}`);
+                parts.push('reality:true');
+                if (realityOpts['public-key']) parts.push(`public-key:${realityOpts['public-key']}`);
+                if (realityOpts['short-id']) parts.push(`short-id:${realityOpts['short-id']}`);
             }
         }
         appendTlsParams(parts, proxy);
@@ -147,10 +148,10 @@ function clashProxyToLoonResult(proxy) {
         parts.push(loonQuote(proxy.password || ''));
         
         if (proxy.network === 'ws') {
-            parts.push('transport=ws');
+            parts.push('transport:ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) parts.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) parts.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) parts.push(`path:${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) parts.push(`host:${wsOpts.headers.Host}`);
         }
         appendTlsParams(parts, proxy);
     } else if (type === 'hysteria2' || type === 'hy2') {
@@ -164,7 +165,7 @@ function clashProxyToLoonResult(proxy) {
         parts.push(server);
         parts.push(String(port));
         parts.push(proxy.token || proxy.uuid || '');
-        if (proxy.password) parts.push(`password=${proxy.password}`);
+        if (proxy.password) parts.push(`password:${proxy.password}`);
         appendTlsParams(parts, proxy);
     } else if (type === 'wireguard') {
         parts.push(`${name} = wireguard`);
@@ -172,30 +173,27 @@ function clashProxyToLoonResult(proxy) {
         parts.push(String(port));
         parts.push(proxy['private-key']);
         if (proxy.ip) {
-            const ip = Array.isArray(proxy.ip) ? proxy.ip[0] : proxy.ip;
-            parts.push(`self-ip=${ip}`);
+            const ipAddr = Array.isArray(proxy.ip) ? proxy.ip[0] : proxy.ip;
+            parts.push(`self-ip:${ipAddr}`);
         }
-        if (proxy['public-key']) parts.push(`public-key=${proxy['public-key']}`);
-        if (proxy.mtu) parts.push(`mtu=${proxy.mtu}`);
+        if (proxy['public-key']) parts.push(`public-key:${proxy['public-key']}`);
+        if (proxy.mtu) parts.push(`mtu:${proxy.mtu}`);
         if (proxy.reserved) {
             const reserved = Array.isArray(proxy.reserved) ? proxy.reserved.join('/') : proxy.reserved;
-            parts.push(`client-id=${reserved}`);
+            parts.push(`client-id:${reserved}`);
         }
     } else if (type === 'snell') {
         parts.push(`${name} = snell`);
         parts.push(server);
         parts.push(String(port));
         parts.push(proxy.psk || proxy.password || '');
-        if (proxy.version) parts.push(`version=${proxy.version}`);
-        // 连接复用（Snell V3+ 支持）
-        if (proxy.reuse !== undefined) parts.push(`reuse=${proxy.reuse}`);
-        // TCP Fast Open
-        if (proxy.tfo !== undefined) parts.push(`tfo=${proxy.tfo}`);
-        // 混淆参数
+        if (proxy.version) parts.push(`version:${proxy.version}`);
+        if (proxy.reuse !== undefined) parts.push(`reuse:${proxy.reuse}`);
+        if (proxy.tfo !== undefined) parts.push(`tfo:${proxy.tfo}`);
         const obfsOpts = proxy['obfs-opts'];
         if (obfsOpts) {
-            if (obfsOpts.mode && obfsOpts.mode !== 'none') parts.push(`obfs=${obfsOpts.mode}`);
-            if (obfsOpts.host) parts.push(`obfs-host=${obfsOpts.host}`);
+            if (obfsOpts.mode && obfsOpts.mode !== 'none') parts.push(`obfs:${obfsOpts.mode}`);
+            if (obfsOpts.host) parts.push(`obfs-host:${obfsOpts.host}`);
         }
     } else {
         return null;
@@ -212,17 +210,17 @@ function clashProxyToLoonResult(proxy) {
 
 function appendTlsParams(parts, proxy) {
     if (proxy.sni || proxy.servername) {
-        parts.push(`sni=${proxy.sni || proxy.servername}`);
+        parts.push(`tls-name:${proxy.sni || proxy.servername}`);
     }
     if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) {
-        parts.push('skip-cert-verify=true');
+        parts.push('skip-cert-verify:true');
     }
     if (proxy.alpn) {
         const alpnStr = Array.isArray(proxy.alpn) ? proxy.alpn[0] : proxy.alpn;
-        parts.push(`alpn=${alpnStr}`);
+        parts.push(`alpn:${alpnStr}`);
     }
     if (proxy['client-fingerprint']) {
-        parts.push(`client-fingerprint=${proxy['client-fingerprint']}`);
+        parts.push(`client-fingerprint:${proxy['client-fingerprint']}`);
     }
 }
 

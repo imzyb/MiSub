@@ -55,7 +55,6 @@ function buildQxLine(proxy) {
     const type = (proxy.type || '').toLowerCase();
     const server = proxy.server;
     const port = proxy.port;
-    const extras = [];
 
     if (type === 'ss' || type === 'shadowsocks') {
         const method = proxy.cipher || 'aes-128-gcm';
@@ -66,7 +65,7 @@ function buildQxLine(proxy) {
             if (proxy['obfs-host']) extraParts.push(`obfs-host=${proxy['obfs-host']}`);
         }
         if (proxy.udp) extraParts.push('udp-relay=true');
-        return `shadowsocks=${name}, ${server}, ${port}, ${method}, ${qxQuote(password)}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}`;
+        return `shadowsocks=${server}:${port}, method=${method}, password=${password}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
     }
 
     if (type === 'vmess') {
@@ -75,15 +74,15 @@ function buildQxLine(proxy) {
         const aid = Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0;
         const extraParts = [];
         if (proxy.network === 'ws' || proxy['ws-opts']) {
-            extraParts.push('net=ws');
+            extraParts.push('obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) extraParts.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) extraParts.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) extraParts.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extraParts.push(`obfs-host=${wsOpts.headers.Host}`);
         }
-        if (proxy.tls || proxy.sni || proxy.servername) extraParts.push('tls=true');
-        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${qxQuote(proxy.sni || proxy.servername)}`);
+        if (proxy.tls || proxy.sni || proxy.servername) extraParts.push('over-tls=true');
+        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
         appendQxTlsParams(extraParts, proxy);
-        return `vmess=${name}, ${server}, ${port}, ${method}, ${uuid}, ${aid}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}`;
+        return `vmess=${server}:${port}, method=${method}, password=${uuid}, tag=${name}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}`;
     }
 
     if (type === 'trojan') {
@@ -92,26 +91,45 @@ function buildQxLine(proxy) {
         if (proxy.network === 'ws' || proxy['ws-opts']) {
             extraParts.push('obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) extraParts.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) extraParts.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) extraParts.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extraParts.push(`obfs-host=${wsOpts.headers.Host}`);
+        } else {
+            extraParts.push('over-tls=true');
         }
-        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${qxQuote(proxy.sni || proxy.servername)}`);
+        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
         appendQxTlsParams(extraParts, proxy);
-        return `trojan=${name}, ${server}, ${port}, ${qxQuote(password)}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}`;
+        return `trojan=${server}:${port}, password=${password}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
+    }
+
+    if (type === 'vless') {
+        const uuid = proxy.uuid || '';
+        const extraParts = [];
+        if (proxy.network === 'ws' || proxy['ws-opts']) {
+            extraParts.push('obfs=ws');
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            if (wsOpts?.path) extraParts.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extraParts.push(`obfs-host=${wsOpts.headers.Host}`);
+        } else {
+            extraParts.push('over-tls=true');
+        }
+        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
+        appendQxTlsParams(extraParts, proxy);
+        return `vless=${server}:${port}, password=${uuid}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
     }
 
     if (type === 'http' || type === 'https') {
         const username = proxy.username || '';
         const password = proxy.password || '';
         const extraParts = [];
-        if (type === 'https') extraParts.push('tls=true');
-        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${qxQuote(proxy.sni || proxy.servername)}`);
+        if (type === 'https') extraParts.push('over-tls=true');
+        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
         appendQxTlsParams(extraParts, proxy);
-        return `http=${name}, ${server}, ${port}, ${qxQuote(username)}, ${qxQuote(password)}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}`;
+        return `http=${server}:${port}, username=${username}, password=${password}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
     }
 
     return null;
 }
+
 export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     const {
         managedConfigUrl = '',
@@ -128,7 +146,6 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         .filter(line => line && !line.startsWith('#'));
 
     const proxyLines = [];
-    const proxyNames = [];
     const proxiesWithMetadata = [];
     const usedNames = new Map();
 
@@ -146,12 +163,11 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         if (!line) continue;
 
         proxyLines.push(line);
-        proxyNames.push(clashProxy.name);
         proxiesWithMetadata.push(clashProxy);
     }
 
     if (proxyLines.length === 0) {
-        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[Proxy]\nDIRECT = direct\n';
+        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[server_local]\nDIRECT = direct\n';
     }
 
     const sections = [];
@@ -160,7 +176,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     }
 
     sections.push(`[General]\niv6 = false\ndns-server = system, 223.5.5.5, 119.29.29.29\nskip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local\nproxy-test-url = http://www.gstatic.com/generate_204`);
-    sections.push(`[Proxy]\nDIRECT = direct\n${proxyLines.join('\n')}`);
+    sections.push(`[server_local]\nDIRECT = direct\n${proxyLines.join('\n')}`);
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
@@ -210,8 +226,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         'IP-CIDR, 10.0.0.0/8, DIRECT',
         'IP-CIDR, 172.16.0.0/12, DIRECT',
         'IP-CIDR, 192.168.0.0/16, DIRECT',
-        ...localRules,
-        `FINAL, ${levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP}`
+        ...localRules
     ];
 
     sections.push(`[filter_remote]\n${remoteRules.join('\n')}`);
@@ -219,3 +234,4 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     return sections.join('\n\n') + '\n';
 }
+

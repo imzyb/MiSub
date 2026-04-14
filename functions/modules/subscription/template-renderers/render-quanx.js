@@ -13,35 +13,54 @@ function buildProxyLine(proxy) {
         if (proxy.network === 'ws') {
             extras.push('obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) extras.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extras.push(`obfs-host=${wsOpts.headers.Host}`);
+        } else {
+            extras.push('over-tls=true');
         }
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
-        return `trojan=${name}, ${server}, ${port}, ${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+        return `trojan=${server}:${port}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
-    if (type === 'ss' || type === 'shadowsocks') return `shadowsocks=${name}, ${server}, ${port}, ${proxy.cipher || 'aes-128-gcm'}, ${proxy.password || ''}`;
+    if (type === 'ss' || type === 'shadowsocks') {
+        return `shadowsocks=${server}:${port}, method=${proxy.cipher || 'aes-128-gcm'}, password=${proxy.password || ''}, tag=${name}`;
+    }
     if (type === 'vmess') {
         const extras = [];
         if (proxy.network === 'ws') {
             extras.push('obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) extras.push(`path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) extras.push(`host=${wsOpts.headers.Host}`);
+            if (wsOpts?.path) extras.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extras.push(`obfs-host=${wsOpts.headers.Host}`);
         }
         const sni = proxy.servername ?? proxy.sni;
-        if (proxy.tls || sni !== undefined) extras.push('tls=true');
+        if (proxy.tls || sni !== undefined) extras.push('over-tls=true');
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
-        return `vmess=${name}, ${server}, ${port}, ${proxy.cipher || 'auto'}, ${proxy.uuid || ''}, 0${extras.length ? `, ${extras.join(', ')}` : ''}`;
+        return `vmess=${server}:${port}, method=${proxy.cipher || 'auto'}, password=${proxy.uuid || ''}, tag=${name}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+    }
+    if (type === 'vless') {
+        const extras = [];
+        if (proxy.network === 'ws') {
+            extras.push('obfs=ws');
+            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
+            if (wsOpts?.path) extras.push(`obfs-uri=${wsOpts.path}`);
+            if (wsOpts?.headers?.Host) extras.push(`obfs-host=${wsOpts.headers.Host}`);
+        } else {
+            extras.push('over-tls=true');
+        }
+        const sni = proxy.servername ?? proxy.sni;
+        if (sni !== undefined) extras.push(`tls-host=${sni}`);
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        return `vless=${server}:${port}, password=${proxy.uuid || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'http' || type === 'https') {
         const extras = [];
         const sni = proxy.servername ?? proxy.sni;
-        if (type === 'https') extras.push('tls=true');
+        if (type === 'https') extras.push('over-tls=true');
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
-        return `http=${name}, ${server}, ${port}, ${proxy.username || ''}, ${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+        return `http=${server}:${port}, username=${proxy.username || ''}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     return null;
 }
@@ -94,20 +113,21 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
     const localRules = normalizedModel.rules.filter(r => !remoteRules.includes(r));
 
     return [
-        '[Proxy]',
+        '[server_local]',
         ...proxies.map(buildProxyLine).filter(Boolean),
         '',
-        '[Policy]',
+        '[policy]',
         ...normalizedModel.groups
             .filter(group => Array.isArray(group.members) && group.members.length > 0)
             .map(buildPolicyLine)
             .filter(Boolean),
         '',
-        '[Filter Remote]',
+        '[filter_remote]',
         ...filterRemoteLines,
         '',
-        '[Rule]',
+        '[filter_local]',
         ...localRules.map(buildRuleLine).filter(Boolean),
         ''
     ].join('\n');
 }
+
