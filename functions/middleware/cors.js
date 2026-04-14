@@ -51,20 +51,47 @@ export async function corsMiddleware(request, next, options = {}) {
     }
 
     // 处理实际请求
-    const response = await next();
+    let response = await next();
 
     // 添加CORS头部
     if (allowOriginValue) {
-        response.headers.set('Access-Control-Allow-Origin', allowOriginValue);
-        if (shouldSetVary) {
-            response.headers.append('Vary', 'Origin');
-        }
-        if (allowCredentials && allowOriginValue !== '*') {
-            response.headers.set('Access-Control-Allow-Credentials', 'true');
+        try {
+            response.headers.set('Access-Control-Allow-Origin', allowOriginValue);
+            if (shouldSetVary) {
+                response.headers.append('Vary', 'Origin');
+            }
+            if (allowCredentials && allowOriginValue !== '*') {
+                response.headers.set('Access-Control-Allow-Credentials', 'true');
+            }
+        } catch (e) {
+            // 如果头部不可变（如 Response.redirect 产生的），构造新响应
+            const newHeaders = new Headers(response.headers);
+            newHeaders.set('Access-Control-Allow-Origin', allowOriginValue);
+            if (shouldSetVary) {
+                newHeaders.append('Vary', 'Origin');
+            }
+            if (allowCredentials && allowOriginValue !== '*') {
+                newHeaders.set('Access-Control-Allow-Credentials', 'true');
+            }
+            response = new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: newHeaders
+            });
         }
     }
 
-    response.headers.set('Access-Control-Expose-Headers', headers.join(', '));
+    try {
+        response.headers.set('Access-Control-Expose-Headers', headers.join(', '));
+    } catch (e) {
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('Access-Control-Expose-Headers', headers.join(', '));
+        response = new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders
+        });
+    }
 
     return response;
 }
@@ -76,18 +103,30 @@ export async function corsMiddleware(request, next, options = {}) {
  * @returns {Promise<Response>} - 处理后的响应
  */
 export async function securityHeadersMiddleware(request, next) {
-    const response = await next();
+    let response = await next();
 
     // 设置安全相关的HTTP头部
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('X-Frame-Options', 'DENY');
-    response.headers.set('X-XSS-Protection', '1; mode=block');
-    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    response.headers.set(
-        'Content-Security-Policy',
-        "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https: http:; worker-src 'self' blob:;"
-    );
+    const headersToSet = {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+        'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https: http:; worker-src 'self' blob:;"
+    };
+
+    try {
+        Object.entries(headersToSet).forEach(([k, v]) => response.headers.set(k, v));
+    } catch (e) {
+        // 如果响应头不可变，构造新的 Response
+        const newHeaders = new Headers(response.headers);
+        Object.entries(headersToSet).forEach(([k, v]) => newHeaders.set(k, v));
+        response = new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders
+        });
+    }
 
     return response;
 }

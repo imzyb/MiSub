@@ -648,3 +648,33 @@ export function migrateProfileIds(profiles) {
     }
     return migrated;
 }
+
+/**
+ * 安全的 UTF-8 到 Base64 编码 (替代已弃用的 unescape/encodeURIComponent 方案)
+ */
+export function base64EncodeUtf8(str) {
+    if (!str) return '';
+    try {
+        const bytes = new TextEncoder().encode(str);
+        const binString = Array.from(bytes, b => String.fromCharCode(b)).join('');
+        return btoa(binString);
+    } catch (e) {
+        console.error('[Utils] base64EncodeUtf8 failed:', e);
+        return '';
+    }
+}
+
+/**
+ * 安全的 Base64 到 UTF-8 解码
+ */
+export function base64DecodeUtf8(base64) {
+    if (!base64) return '';
+    try {
+        const binString = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+        const bytes = Uint8Array.from(binString, m => m.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch (e) {
+        console.error('[Utils] base64DecodeUtf8 failed:', e);
+        return '';
+    }
+}

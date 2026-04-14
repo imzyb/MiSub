@@ -8,6 +8,7 @@ import { transformBuiltinSubscription } from '../modules/subscription/transforme
 import { renderClashFromIniTemplate, renderSingboxFromIniTemplate, renderSurgeFromIniTemplate, renderLoonFromIniTemplate, renderQuanxFromIniTemplate, renderEgernFromIniTemplate } from '../modules/subscription/template-pipeline.js';
 import { getBuiltinTemplate } from '../modules/subscription/builtin-template-registry.js';
 import { fetchTransformTemplate } from '../modules/subscription/transform-template-cache.js';
+import { base64EncodeUtf8 } from '../modules/utils.js';
 
 export class ProcessorService {
     /**
@@ -61,7 +62,7 @@ export class ProcessorService {
         // Check for Base64 (simplest case)
         if (targetFormat === 'base64') {
             return {
-                content: btoa(unescape(encodeURIComponent(combinedNodeList))),
+                content: base64EncodeUtf8(combinedNodeList),
                 contentType: 'text/plain; charset=utf-8',
                 headers: userInfoHeader ? { 'Subscription-Userinfo': userInfoHeader } : {}
             };
@@ -76,7 +77,7 @@ export class ProcessorService {
         if (!builtinProxyContent) {
             // Fallback to raw Base64 if generator fails
             return {
-                content: btoa(unescape(encodeURIComponent(combinedNodeList))),
+                content: base64EncodeUtf8(combinedNodeList),
                 contentType: 'text/plain; charset=utf-8',
                 headers: userInfoHeader ? { 'Subscription-Userinfo': userInfoHeader } : {}
             };

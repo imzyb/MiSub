@@ -5,6 +5,7 @@
 
 import { parseNodeInfo, extractNodeRegion, getRegionEmoji, REGION_KEYWORDS, REGION_EMOJI } from '../modules/utils/geo-utils.js';
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
+import { base64EncodeUtf8 } from '../modules/utils.js';
 
 // ============ 默认配置 ============
 
@@ -301,7 +302,7 @@ export function setNodeName(url, protocol, newName) {
             
             // 重新编码为标准 Base64 (非 URL-Safe 以保持最大兼容性)
             const newJson = JSON.stringify(config);
-            const newBase64 = btoa(unescape(encodeURIComponent(newJson)));
+            const newBase64 = base64EncodeUtf8(newJson);
             return 'vmess://' + newBase64;
         } else {
             // VLESS / Trojan / SS / Shadowsocks / Hysteria2 / Snell
