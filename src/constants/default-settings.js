@@ -26,6 +26,7 @@ defaultPrefixSettings: {
 enableManualNodes: true,
 enableSubscriptions: true,
 manualNodePrefix: '\u624b\u52a8\u8282\u70b9',
+subscriptionPrefix: '',
 prependGroupName: false
 },
     defaultNodeTransform: {
@@ -117,6 +118,7 @@ prefixSettings: {
 enableManualNodes: true,
 enableSubscriptions: true,
 manualNodePrefix: '\u624b\u52a8\u8282\u70b9',
+subscriptionPrefix: '',
 prependGroupName: null
 },
     subconverter: {

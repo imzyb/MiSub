@@ -43,7 +43,8 @@ export const DEFAULT_SETTINGS = {
     defaultPrefixSettings: {
         enableManualNodes: true,
         enableSubscriptions: true,
-        manualNodePrefix: '手动节点'
+        manualNodePrefix: '手动节点',
+        prependGroupName: false
     },
     defaultOperators: [], // 新版操作符链式处理 (New Unified Pipeline)
     // @deprecated 使用 defaultOperators 代替
@@ -118,7 +119,7 @@ export const DEFAULT_SETTINGS = {
 
 // System constants
 export const SYSTEM_CONSTANTS = {
-    VERSION: '2.5.0',
+    VERSION: '2.6.3',
     // Use v2rayN UA to fetch subscriptions reliably.
     FETCHER_USER_AGENT: 'v2rayN/7.23'
 };

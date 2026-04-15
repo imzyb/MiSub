@@ -96,7 +96,13 @@ async function persistCachedSettings(env, cache) {
  * 获取 Telegram Bot 推送配置
  */
 async function getTelegramPushConfig(env, cache = null) {
-    const settings = cache ? await getCachedSettings(env, cache) : ((await getStorageAdapter(env)).get(KV_KEY_SETTINGS).then(res => res || {}));
+    let settings;
+    if (cache) {
+        settings = await getCachedSettings(env, cache);
+    } else {
+        const storageAdapter = await getStorageAdapter(env);
+        settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    }
     const config = settings.telegram_push_config || {};
 
     return {

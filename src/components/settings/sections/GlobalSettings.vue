@@ -61,13 +61,14 @@ watch(() => props.settings, ensureDefaults, { immediate: true });
         </template>
       </SectionHeader>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div class="sm:col-span-2">
-          <Input v-model="settings.defaultPrefixSettings.manualNodePrefix" label="手动节点前缀文本" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+        <!-- 第一排：手动节点文本前缀 与 开关 -->
+        <div>
+          <Input v-model="settings.defaultPrefixSettings.manualNodePrefix" label="手动节点默认前缀" />
         </div>
 
         <div>
-          <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">手动节点显示</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">手动节点前缀开关</label>
           <div class="relative">
             <select
               v-model="settings.defaultPrefixSettings.enableManualNodes"
@@ -81,12 +82,13 @@ watch(() => props.settings, ensureDefaults, { immediate: true });
           </div>
         </div>
 
+        <!-- 第二排：机场订阅前缀 与 节点国旗 EMOJI -->
         <div>
-          <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">服务商订阅展示</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">机场订阅前缀开关</label>
           <div class="relative">
             <select
               v-model="settings.defaultPrefixSettings.enableSubscriptions"
-              class="w-full bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 misub-radius-md py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none"
+              class="w-full bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 misub-radius-md py-2 px-4 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none"
             >
               <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
             </select>
@@ -97,11 +99,11 @@ watch(() => props.settings, ensureDefaults, { immediate: true });
         </div>
 
         <div>
-          <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">节点国旗 EMOJI</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">节点国旗 EMOJI 开关</label>
           <div class="relative">
             <select
               v-model="settings.enableFlagEmoji"
-              class="w-full bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 misub-radius-md py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none"
+              class="w-full bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 misub-radius-md py-2 px-4 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none"
             >
               <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
             </select>

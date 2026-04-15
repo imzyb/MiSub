@@ -115,8 +115,14 @@ export async function handleSystemInfoRequest(request, env) {
         const storageAdapter = StorageFactory.createAdapter(env, storageType);
 
         // 获取基本统计信息
-        const allSubscriptions = await storageAdapter.get('misub_subscriptions_v1') || [];
-        const allProfiles = await storageAdapter.get('misub_profiles_v1') || [];
+        const [allSubscriptions, allProfiles] = await Promise.all([
+            typeof storageAdapter.getAllSubscriptions === 'function'
+                ? storageAdapter.getAllSubscriptions()
+                : storageAdapter.get('misub_subscriptions_v1').then(res => res || []),
+            typeof storageAdapter.getAllProfiles === 'function'
+                ? storageAdapter.getAllProfiles()
+                : storageAdapter.get('misub_profiles_v1').then(res => res || [])
+        ]);
 
         const activeSubscriptions = allSubscriptions.filter(sub => sub.enabled).length;
         const activeProfiles = allProfiles.filter(profile => profile.enabled).length;
@@ -394,7 +400,7 @@ export async function handleTestNotificationRequest(request, env) {
         const { botToken, chatId } = await request.json();
         const settings = { BotToken: botToken, ChatID: chatId };
 
-        const result = await debugTgNotification(settings, '🔔 *通知测试* 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。');
+        const result = await debugTgNotification(settings, '🔔 <b>通知测试</b> 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。');
 
         if (result.success) {
             return createJsonResponse({ success: true, detail: result.response });

@@ -80,14 +80,25 @@ function clashProxyToSurgeResult(proxy) {
         parts.push(String(port));
         parts.push(`encrypt-method=${proxy.cipher || 'aes-128-gcm'}`);
         parts.push(`password=${surgeQuote(proxy.password || '')}`);
-        // obfs 支持 - 处理 plugin=obfs-local 和直接 obfs 字段两种格式
-        if (proxy.plugin === 'obfs-local' || proxy.pluginOpts?.mode || proxy.obfs) {
-            const obfsMode = proxy.pluginOpts?.mode || proxy.obfs;
+        // 插件支持 (obfs / v2ray-plugin)
+        const plugin = proxy.plugin || '';
+        const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
+
+        if (plugin === 'obfs-local' || opts.mode === 'http' || opts.mode === 'tls' || proxy.obfs) {
+            const obfsMode = opts.mode || proxy.obfs;
             if (obfsMode) parts.push(`obfs=${obfsMode}`);
-            const obfsHost = proxy.pluginOpts?.host || proxy['obfs-host'];
+            const obfsHost = opts.host || proxy['obfs-host'];
             if (obfsHost) parts.push(`obfs-host=${obfsHost}`);
-            const obfsUri = proxy.pluginOpts?.uri || proxy['obfs-uri'];
+            const obfsUri = opts.uri || proxy['obfs-uri'];
             if (obfsUri) parts.push(`obfs-uri=${obfsUri}`);
+        } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
+            // v2ray-plugin 映射为 Surge 原生 WS 支持
+            if (opts.mode === 'websocket' || opts.mode === 'websocket-tls') {
+                parts.push('ws=true');
+                if (opts.path) parts.push(`ws-path=${surgeQuote(opts.path)}`);
+                if (opts.host) parts.push(`ws-headers=Host:${opts.host}`);
+                if (opts.tls || opts.mode === 'websocket-tls') parts.push('tls=true');
+            }
         }
         // SS UDP 的独立端口（ShadowTLS 场景）
         if (proxy['udp-port']) parts.push(`udp-port=${proxy['udp-port']}`);

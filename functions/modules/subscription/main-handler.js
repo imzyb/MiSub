@@ -1,7 +1,7 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { migrateConfigSettings, formatBytes, migrateProfileIds, base64EncodeUtf8 } from '../utils.js';
 import { generateCombinedNodeList } from '../../services/subscription-service.js';
-import { sendEnhancedTgNotification } from '../notifications.js';
+import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
 import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
@@ -548,9 +548,9 @@ export async function handleMisubRequest(context) {
             context.waitUntil(
                 sendEnhancedTgNotification(
                     config,
-                    '🛰️ *订阅被访问*',
+                    '🛰️ <b>订阅被访问</b>',
                     clientIp,
-                    `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                    `<b>域名:</b> <code>${tgEscape(domain)}</code>\n<b>客户端:</b> <code>${tgEscape(userAgentHeader)}</code>\n<b>请求格式:</b> <code>${tgEscape(targetFormat)}</code>\n<b>订阅组:</b> <code>${tgEscape(subName)}</code>`
                 )
             );
 
@@ -665,9 +665,9 @@ export async function handleMisubRequest(context) {
                 context.waitUntil(
                     sendEnhancedTgNotification(
                         config,
-                        '🛰️ *订阅被访问* (内置转换)',
+                        '🛰️ <b>订阅被访问</b> (内置转换)',
                         clientIp,
-                        `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\`\n*订阅组:* \`${subName}\``
+                        `<b>域名:</b> <code>${tgEscape(domain)}</code>\n<b>客户端:</b> <code>${tgEscape(userAgentHeader)}</code>\n<b>请求格式:</b> <code>${tgEscape(targetFormat)}</code>\n<b>订阅组:</b> <code>${tgEscape(subName)}</code>`
                     )
                 );
 

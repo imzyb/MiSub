@@ -160,14 +160,27 @@ const shouldPrependManualNodes = profilePrefixSettings?.enableManualNodes ?? tru
 // 判断是否在节点名称前添加分组名称
 const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
-    // 判断是否需要添加 Emoji：当模板重命名启用且模板包含 {emoji} 时启用
+    // [修复] 多级 Emoji 开关控制逻辑
     const nodeTransformConfig = profilePrefixSettings?.nodeTransform;
     const templateEnabled = nodeTransformConfig?.enabled && nodeTransformConfig?.rename?.template?.enabled;
-    // 使用默认模板 '{emoji}{region}-{protocol}-{index}'，如果用户未自定义模板
     const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
     const effectiveTemplate = nodeTransformConfig?.rename?.template?.template || defaultTemplate;
     const templateContainsEmoji = templateEnabled && effectiveTemplate.includes('{emoji}');
-    const shouldKeepEmoji = !templateEnabled || templateContainsEmoji;
+
+    // 确定最终是否保留/添加 Emoji
+    // 优先级：nodeTransform.addFlagEmoji (来自 URL 或组件设置) > config.enableFlagEmoji (全局设置)
+    const emojiEnabledByConfig = config.enableFlagEmoji !== false;
+    const emojiExplicitlyDisabled = nodeTransformConfig?.addFlagEmoji === false;
+    const emojiExplicitlyEnabled = nodeTransformConfig?.addFlagEmoji === true;
+
+    let shouldKeepEmoji = emojiEnabledByConfig;
+    if (emojiExplicitlyDisabled) shouldKeepEmoji = false;
+    if (emojiExplicitlyEnabled) shouldKeepEmoji = true;
+
+    // 强制约束：如果启用了模板命名且模板不含 {emoji}，则必须移除
+    if (templateEnabled && !templateContainsEmoji) {
+        shouldKeepEmoji = false;
+    }
 
     // 手动节点前缀文本
     const manualNodePrefix = profilePrefixSettings?.manualNodePrefix ?? '\u624b\u52a8\u8282\u70b9';
@@ -368,9 +381,9 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
     currentLines = currentLines.map(line => sanitizeNodeForYaml(line));
 
     // 3.2 最终智能化补齐 (Flag Emoji)
-    const finalLines = currentLines.map(line => {
-        return addFlagEmoji(line);
-    });
+    const finalLines = shouldKeepEmoji 
+        ? currentLines.map(line => addFlagEmoji(line))
+        : currentLines;
 
     // --- 阶段 4: 结果拼装与返回 ---
     const finalNodeList = finalLines.join('\n');

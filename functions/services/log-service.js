@@ -3,6 +3,8 @@
  * 处理订阅访问日志的存储和检索
  */
 
+import { StorageFactory, STORAGE_TYPES } from '../storage-adapter.js';
+
 const LOG_KV_KEY = 'misub_system_logs';
 const LOG_INDEX_KV_KEY = 'misub_system_logs:index';
 const LOG_BUCKET_PREFIX = 'misub_system_logs:';
@@ -13,8 +15,35 @@ const SUCCESS_LOG_COOLDOWN_MS = 5 * 60 * 1000;
 const ERROR_LOG_COOLDOWN_MS = 60 * 1000;
 const MAX_PERSISTED_LOGS_PER_MINUTE = 12;
 
-function getKV(env) {
-    return env?.MISUB_KV || null;
+async function resolvePrimaryLogStorage(env) {
+    const storageType = await StorageFactory.getStorageType(env);
+    const storage = StorageFactory.createAdapter(env, storageType);
+    if (!storage || typeof storage.get !== 'function' || typeof storage.put !== 'function' || typeof storage.delete !== 'function') {
+        return null;
+    }
+
+    return {
+        storageType: storage.type || storageType,
+        storage
+    };
+}
+
+function resolveLegacyLogStorage(env, primaryStorageType) {
+    if (primaryStorageType !== STORAGE_TYPES.D1) {
+        return null;
+    }
+
+    const kv = StorageFactory.resolveKV(env);
+    if (!kv) {
+        return null;
+    }
+
+    const storage = StorageFactory.createAdapter(env, STORAGE_TYPES.KV);
+    if (!storage || typeof storage.get !== 'function' || typeof storage.put !== 'function' || typeof storage.delete !== 'function') {
+        return null;
+    }
+
+    return storage;
 }
 
 function getLogBucketKey(timestamp) {
@@ -25,15 +54,28 @@ function getLogBucketKey(timestamp) {
     return `${LOG_BUCKET_PREFIX}${yyyy}-${mm}-${dd}`;
 }
 
-async function getLogBucketIndex(kv) {
-    const raw = await kv.get(LOG_INDEX_KV_KEY);
-    const index = raw ? JSON.parse(raw) : null;
+async function getLogBucketIndex(storage) {
+    const index = await storage.get(LOG_INDEX_KV_KEY);
     return Array.isArray(index) ? index : [];
 }
 
-async function saveLogBucketIndex(kv, keys) {
+async function saveLogBucketIndex(storage, keys) {
     const unique = Array.from(new Set(keys)).sort().reverse();
-    await kv.put(LOG_INDEX_KV_KEY, JSON.stringify(unique.slice(0, MAX_LOG_AGE_DAYS + 2)));
+    await storage.put(LOG_INDEX_KV_KEY, unique.slice(0, MAX_LOG_AGE_DAYS + 2));
+}
+
+async function readLogsFromStorage(storage) {
+    const [bucketIndex, legacyLogs] = await Promise.all([
+        getLogBucketIndex(storage),
+        storage.get(LOG_KV_KEY)
+    ]);
+
+    const bucketEntries = await Promise.all(
+        bucketIndex.map(key => storage.get(key).then(raw => Array.isArray(raw) ? raw : []).catch(() => []))
+    );
+
+    return [...bucketEntries.flat(), ...(Array.isArray(legacyLogs) ? legacyLogs : [])]
+        .filter(log => (Date.now() - log.timestamp) <= MAX_LOG_AGE_MS);
 }
 // 全局内存队列，用于削峰填谷和防写竞争
 let logBatch = [];
@@ -94,7 +136,8 @@ export const LogService = {
      * @param {Object} logEntry - 日志内容
      */
     async addLog(env, logEntry) {
-        if (!getKV(env)) return;
+        const primaryStorage = await resolvePrimaryLogStorage(env);
+        if (!primaryStorage) return;
         if (!shouldPersistLog(logEntry)) return null;
 
         const enrichedLog = {
@@ -132,10 +175,15 @@ export const LogService = {
         logBatch = [];
 
         try {
-            const kv = getKV(env);
+            const primaryStorage = await resolvePrimaryLogStorage(env);
+            if (!primaryStorage) {
+                return;
+            }
+
+            const { storage } = primaryStorage;
             const now = Date.now();
             const bucketKey = getLogBucketKey(now);
-            let logs = await kv.get(bucketKey).then(r => r ? JSON.parse(r) : null) || [];
+            let logs = await storage.get(bucketKey);
             if (!Array.isArray(logs)) logs = [];
 
             // 把新收集到的一批日志插入到头部 (倒序输入保证时间线不乱)
@@ -150,9 +198,9 @@ export const LogService = {
                 logs = logs.slice(0, perBucketLimit);
             }
 
-            await kv.put(bucketKey, JSON.stringify(logs));
+            await storage.put(bucketKey, logs);
 
-            const bucketIndex = await getLogBucketIndex(kv);
+            const bucketIndex = await getLogBucketIndex(storage);
             if (!bucketIndex.includes(bucketKey)) {
                 bucketIndex.push(bucketKey);
             }
@@ -163,7 +211,7 @@ export const LogService = {
                 return !Number.isNaN(bucketTime) && (now - bucketTime) <= (MAX_LOG_AGE_MS + 24 * 60 * 60 * 1000);
             });
 
-            await saveLogBucketIndex(kv, validBucketKeys);
+            await saveLogBucketIndex(storage, validBucketKeys);
         } catch (error) {
             console.error('[LogService] Failed to flush batch logs:', error);
             // 写入失败时尝试把日志塞回队列前部
@@ -184,25 +232,17 @@ export const LogService = {
      * @param {Object} env - Cloudflare Environment
      */
     async getLogs(env) {
-        const kv = getKV(env);
-        if (!kv) return [];
         try {
-            const [bucketIndex, legacyRaw] = await Promise.all([
-                getLogBucketIndex(kv),
-                kv.get(LOG_KV_KEY)
-            ]);
+            const primaryStorage = await resolvePrimaryLogStorage(env);
+            if (!primaryStorage) return [];
 
-            const bucketEntries = await Promise.all(
-                bucketIndex.map(key => kv.get(key).then(raw => raw ? JSON.parse(raw) : []).catch(() => []))
-            );
+            const logs = await readLogsFromStorage(primaryStorage.storage);
+            const legacyStorage = resolveLegacyLogStorage(env, primaryStorage.storageType);
+            const legacyLogs = legacyStorage ? await readLogsFromStorage(legacyStorage) : [];
 
-            const legacyLogs = legacyRaw ? JSON.parse(legacyRaw) : null;
-            const logs = [...bucketEntries.flat(), ...(Array.isArray(legacyLogs) ? legacyLogs : [])]
-                .filter(log => (Date.now() - log.timestamp) <= MAX_LOG_AGE_MS)
+            return [...logs, ...legacyLogs]
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .slice(0, MAX_LOG_ENTRIES);
-
-            return logs;
         } catch (error) {
             console.error('[LogService] Failed to get logs:', error);
             return [];
@@ -214,15 +254,24 @@ export const LogService = {
      * @param {Object} env - Cloudflare Environment
      */
     async clearLogs(env) {
-        const kv = getKV(env);
-        if (!kv) return;
         try {
-            const bucketIndex = await getLogBucketIndex(kv);
-            await Promise.all([
-                kv.delete(LOG_KV_KEY),
-                kv.delete(LOG_INDEX_KV_KEY),
-                ...bucketIndex.map(key => kv.delete(key))
-            ]);
+            const primaryStorage = await resolvePrimaryLogStorage(env);
+            if (!primaryStorage) return false;
+
+            const storages = [primaryStorage.storage];
+            const legacyStorage = resolveLegacyLogStorage(env, primaryStorage.storageType);
+            if (legacyStorage && legacyStorage !== primaryStorage.storage) {
+                storages.push(legacyStorage);
+            }
+
+            await Promise.all(storages.map(async storage => {
+                const bucketIndex = await getLogBucketIndex(storage);
+                await Promise.all([
+                    storage.delete(LOG_KV_KEY),
+                    storage.delete(LOG_INDEX_KV_KEY),
+                    ...bucketIndex.map(key => storage.delete(key))
+                ]);
+            }));
             return true;
         } catch (error) {
             console.error('[LogService] Failed to clear logs:', error);

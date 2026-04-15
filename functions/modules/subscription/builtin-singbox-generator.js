@@ -44,6 +44,24 @@ function buildOutbound(proxy) {
         outbound.method = proxy.cipher || 'aes-128-gcm';
         outbound.password = proxy.password || '';
         if (proxy.udp) outbound.udp_over_tcp = false;
+
+        // 插件支持 (v2ray-plugin 映射为 Sing-box transport)
+        const plugin = proxy.plugin || '';
+        const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
+        if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
+            outbound.transport = {
+                type: 'ws',
+                path: opts.path || '/',
+                headers: opts.host ? { Host: opts.host } : {}
+            };
+            if (opts.tls || opts.mode === 'websocket-tls') {
+                outbound.tls = {
+                    enabled: true,
+                    server_name: opts.host || server,
+                    insecure: !!proxy['skip-cert-verify']
+                };
+            }
+        }
     } else if (type === 'vmess') {
         outbound.type = 'vmess';
         outbound.server = server;

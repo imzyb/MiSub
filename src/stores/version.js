@@ -11,12 +11,12 @@ export const useVersionStore = defineStore('version', () => {
     const showUpdateNotice = ref(false);
     const upstreamRepo = 'imzyb/MiSub';
 
-    // 本地更新日志 (v2.6.2)
-    const localChangelog = `🚀 **协议兼容性大升级 - 完美支持 VLESS Reality & xHTTP**
-- **Quantumult X 适配修复**：深度重构了 QX 的 VLESS 节点生成逻辑，彻底解决了高阶协议（Reality、xHTTP、gRPC）节点在 QX 中丢失的问题，并支持了自动降级映射（将 xHTTP 平滑降级为可被识别的 HTTP Obfs）。
-- **Surge VLESS 解锁**：解除了 Surge 生成器中对 VLESS 的强制过滤，现在 Surge 订阅也可以完整输出支持 Reality 及标准结构的 VLESS 节点配置（适用于现代版本、代理转发链及第三方插件生态）。
-- **底层解析器增强**：优化了节点 URI 的容错解析逻辑，现在能够完美提取并传递 \`xhttp-opts\` 与 \`reality-public-key\` 等高级边缘参数至各客户端生成器。
-- **全客户端普查**：确认并强化了 Clash(Mihomo)、Loon、Sing-box 等对 xHTTP 及 Reality 协议的兼容性，确保“只要生成，就能连接”。`;
+    // 本地更新日志 (v2.6.3)
+    const localChangelog = `✨ **转换引擎 UX 重构 & Bot 功能修复**
+- **转换逻辑 UX 重构**：解耦了转换引擎与规则配置，引入区块化设置界面。现在即使使用第三方后端，也能方便地选择预设规则模板（如 ACL4SSR）或自定义远程配置文件。
+- **Telegram 推送 Bot 深度修复**：修复了由于模块导出缺失导致的消息 Webhook 崩溃故障，并优化了配置读取的异步逻辑，使交互式 Bot 更加稳定。
+- **协议兼容性优化**：修复了 Shadowsocks 配合插件（如 v2ray-plugin）时，因转义符问题导致节点无法连接的故障。
+- **底层架构优化**：规范化了通知服务模块，增强了发送失败时的日志排查能力。`;
 
     // --- Getters ---
     const hasUpdate = computed(() => {
