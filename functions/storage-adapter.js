@@ -176,6 +176,14 @@ class KVStorageAdapter {
         const idSet = new Set(ids);
         return all.filter(item => idSet.has(item.id));
     }
+
+    async putAllSubscriptions(items) {
+        return this.put(DATA_KEYS.SUBSCRIPTIONS, items);
+    }
+
+    async putAllProfiles(items) {
+        return this.put(DATA_KEYS.PROFILES, items);
+    }
 }
 
 /**
@@ -444,6 +452,19 @@ class D1StorageAdapter {
             console.error('[D1] Failed to get subscriptions by ids:', error);
             return [];
         }
+    }
+
+    async putAllSubscriptions(items) {
+        if (!Array.isArray(items)) return false;
+        // 使用并行 Promise 提高效率
+        await Promise.all(items.map(item => this.putSubscription(item)));
+        return true;
+    }
+
+    async putAllProfiles(items) {
+        if (!Array.isArray(items)) return false;
+        await Promise.all(items.map(item => this.putProfile(item)));
+        return true;
     }
 
     /**

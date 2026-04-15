@@ -63,27 +63,27 @@ async function getCachedSettings(env, cache) {
 async function getCachedSubscriptions(env, cache) {
     if (cache.subscriptions !== undefined) return cache.subscriptions;
     const storageAdapter = await getCachedStorageAdapter(env, cache);
-    cache.subscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+    cache.subscriptions = await storageAdapter.getAllSubscriptions();
     return cache.subscriptions;
 }
 
 async function getCachedProfiles(env, cache) {
     if (cache.profiles !== undefined) return cache.profiles;
     const storageAdapter = await getCachedStorageAdapter(env, cache);
-    cache.profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+    cache.profiles = await storageAdapter.getAllProfiles();
     return cache.profiles;
 }
 
 async function persistCachedSubscriptions(env, cache) {
     if (cache.subscriptions === undefined) return;
     const storageAdapter = await getCachedStorageAdapter(env, cache);
-    await storageAdapter.put(KV_KEY_SUBS, cache.subscriptions);
+    await storageAdapter.putAllSubscriptions(cache.subscriptions);
 }
 
 async function persistCachedProfiles(env, cache) {
     if (cache.profiles === undefined) return;
     const storageAdapter = await getCachedStorageAdapter(env, cache);
-    await storageAdapter.put(KV_KEY_PROFILES, cache.profiles);
+    await storageAdapter.putAllProfiles(cache.profiles);
 }
 
 async function persistCachedSettings(env, cache) {
@@ -366,7 +366,7 @@ async function checkRateLimit(userId, env, config) {
  */
 async function getUserNodes(userId, env) {
     const storageAdapter = await getStorageAdapter(env);
-    const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+    const allSubscriptions = await storageAdapter.getAllSubscriptions();
 
     // 检查用户是否在白名单中
     const config = await getTelegramPushConfig(env);
@@ -388,7 +388,7 @@ async function getUserNodes(userId, env) {
  */
 async function getNodesWithMapping(userId, env) {
     const storageAdapter = await getStorageAdapter(env);
-    const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+    const allSubscriptions = await storageAdapter.getAllSubscriptions();
 
     const config = await getTelegramPushConfig(env);
     const permission = checkUserPermission(userId, config);
@@ -755,11 +755,11 @@ async function handleDeleteCommand(chatId, userId, args, env) {
             allSubscriptions.splice(idx, 1);
         }
 
-        await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+        await storageAdapter.putAllSubscriptions(allSubscriptions);
 
         // 3. 清理订阅组中的引用
         try {
-            const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+            const profiles = await storageAdapter.getAllProfiles();
             if (profiles.length > 0) {
                 let profilesUpdated = false;
                 const idsToRemove = new Set(deletedIds);
@@ -780,7 +780,7 @@ async function handleDeleteCommand(chatId, userId, args, env) {
                 });
 
                 if (profilesUpdated) {
-                    await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                    await storageAdapter.putAllProfiles(profiles);
                     console.info(`[Telegram Push] Cleaned up ${deletedIds.length} node references from profiles`);
                 }
             }
@@ -869,7 +869,7 @@ async function handleToggleCommand(chatId, userId, args, env, enable) {
             toggledNames.push(allSubscriptions[idx].name);
         }
 
-        await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+        await storageAdapter.putAllSubscriptions(allSubscriptions);
 
         let message = `${icon} <b>已${action} ${toggledNames.length} 个节点</b>\n\n`;
         if (toggledNames.length <= 5) {
@@ -1111,7 +1111,7 @@ async function handleRenameCommand(chatId, userId, args, env) {
         const oldName = allSubscriptions[allIdx].name;
         allSubscriptions[allIdx].name = newName;
 
-        await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+        await storageAdapter.putAllSubscriptions(allSubscriptions);
 
         await sendTelegramMessage(chatId,
             `✅ <b>重命名成功</b>\n\n` +
@@ -1400,7 +1400,7 @@ async function handleImportCommand(chatId, userId, args, env) {
 
         // 添加节点
         const storageAdapter = await getStorageAdapter(env);
-        const allSubscriptions = await storageAdapter.get(KV_KEY_SUBS) || [];
+        const allSubscriptions = await storageAdapter.getAllSubscriptions();
 
         const addedNodes = [];
         for (const url of nodeUrls) {
@@ -1500,7 +1500,7 @@ async function handleSortCommand(chatId, userId, args, env) {
         // 将排序后的节点添加回去
         allSubscriptions.unshift(...sortedNodes);
 
-        await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+        await storageAdapter.putAllSubscriptions(allSubscriptions);
 
         const sortNames = { name: '名称', protocol: '协议', time: '时间', status: '状态' };
         await sendTelegramMessage(chatId,
@@ -1554,7 +1554,7 @@ async function handleDupCommand(chatId, userId, args, env) {
                 allSubscriptions.splice(idx, 1);
             }
 
-            await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+            await storageAdapter.putAllSubscriptions(allSubscriptions);
 
             await sendTelegramMessage(chatId,
                 `✅ <b>去重完成</b>\n\n已删除 ${duplicates.length} 个重复节点`,
@@ -1796,11 +1796,11 @@ async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
             return createJsonResponse({ ok: true });
         }
 
-        await storageAdapter.put(KV_KEY_SUBS, allSubscriptions);
+        await storageAdapter.putAllSubscriptions(allSubscriptions);
 
         // [Verification] Read-Your-Writes Check
         try {
-            const verifySubs = await storageAdapter.get(KV_KEY_SUBS) || [];
+            const verifySubs = await storageAdapter.getAllSubscriptions();
             const isVerified = addedNodes.every(added => verifySubs.some(s => s.id === added.id));
             if (!isVerified) {
                 console.warn('[Telegram Push] KV Verification failed');
@@ -1814,7 +1814,7 @@ async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
         // 4. 自动关联到订阅组 (分类处理)
         let boundProfileName = '';
         if (config.auto_bind && config.default_profile_id) {
-            const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+            const profiles = await storageAdapter.getAllProfiles();
             const targetProfile = profiles.find(p => p.id === config.default_profile_id);
 
             if (targetProfile) {
@@ -1837,7 +1837,7 @@ async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
                 }
 
                 if (updated) {
-                    await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                    await storageAdapter.putAllProfiles(profiles);
                     boundProfileName = targetProfile.name;
                 }
             }
@@ -2179,7 +2179,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         targetList = fullList.filter(n => !/^https?:\/\//i.test(n.url || ''));
                     }
 
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+                    const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
@@ -2265,7 +2265,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const allNodes = await getUserNodes(userId, env);
                     const userNodes = allNodes.filter(n => !/^https?:\/\//i.test(n.url || ''));
 
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+                    const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
@@ -2276,7 +2276,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                             profile.manualNodes = profile.manualNodes || [];
                             if (!profile.manualNodes.includes(node.id)) {
                                 profile.manualNodes.push(node.id);
-                                await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                                await storageAdapter.putAllProfiles(profiles);
                             }
                             await answerCallbackQuery(callbackQuery.id, `已添加到 ${profile.name}`, env);
                             // 刷新操作面板
@@ -2296,7 +2296,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const allNodes = await getUserNodes(userId, env);
                     const userNodes = allNodes.filter(n => !/^https?:\/\//i.test(n.url || ''));
 
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+                    const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
@@ -2305,7 +2305,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         const profile = profiles.find(p => p.id === config.default_profile_id);
                         if (profile && profile.manualNodes) {
                             profile.manualNodes = profile.manualNodes.filter(id => id !== node.id);
-                            await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                            await storageAdapter.putAllProfiles(profiles);
                             await answerCallbackQuery(callbackQuery.id, `已从 ${profile.name} 移除`, env);
                             await editTelegramMessage(chatId, messageId,
                                 `✅ 节点 #${idx + 1} 已从 <b>${profile.name}</b> 移除`, env);
@@ -2323,7 +2323,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const allNodes = await getUserNodes(userId, env);
                     const subs = allNodes.filter(n => /^https?:\/\//i.test(n.url || ''));
 
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+                    const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
@@ -2334,7 +2334,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                             profile.subscriptions = profile.subscriptions || [];
                             if (!profile.subscriptions.includes(sub.id)) {
                                 profile.subscriptions.push(sub.id);
-                                await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                                await storageAdapter.putAllProfiles(profiles);
                             }
                             await answerCallbackQuery(callbackQuery.id, `已添加到 ${profile.name}`, env);
                             await editTelegramMessage(chatId, messageId,
@@ -2353,7 +2353,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const allNodes = await getUserNodes(userId, env);
                     const subs = allNodes.filter(n => /^https?:\/\//i.test(n.url || ''));
 
-                    const profiles = await storageAdapter.get(KV_KEY_PROFILES) || [];
+                    const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
@@ -2362,7 +2362,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         const profile = profiles.find(p => p.id === config.default_profile_id);
                         if (profile && profile.subscriptions) {
                             profile.subscriptions = profile.subscriptions.filter(id => id !== sub.id);
-                            await storageAdapter.put(KV_KEY_PROFILES, profiles);
+                            await storageAdapter.putAllProfiles(profiles);
                             await answerCallbackQuery(callbackQuery.id, `已从 ${profile.name} 移除`, env);
                             await editTelegramMessage(chatId, messageId,
                                 `✅ 订阅 #${idx + 1} 已从 <b>${profile.name}</b> 移除`, env);
@@ -2412,14 +2412,14 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         if (isSub) {
                             // Find original index in KV_KEY_SUBS to update
                             // Since targetList is filtered, we need to find the item in the original storage
-                            const originalSubs = await storageAdapter.get(KV_KEY_SUBS) || [];
+                            const originalSubs = await storageAdapter.getAllSubscriptions();
                             // Match by ID if possible, or some unique property. 
                             // Subscription objects usually have IDs.
                             const subToUpdate = originalSubs.find(s => s.id === targetItem.id);
 
                             if (subToUpdate) {
                                 subToUpdate.enabled = !isEnabled;
-                                await storageAdapter.put(KV_KEY_SUBS, originalSubs);
+                                await storageAdapter.putAllSubscriptions(originalSubs);
                                 await handleListCommand(chatId, userId, env, 0, 'sub');
                             }
                         } else {
@@ -2506,13 +2506,13 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         if (type === 'sub') {
                             // Create separate handleDeleteSub logic or direct DB manipulation safely
                             const storageAdapter = await getStorageAdapter(env);
-                            const originalSubs = await storageAdapter.get(KV_KEY_SUBS) || [];
+                            const originalSubs = await storageAdapter.getAllSubscriptions();
                             const realIdx = originalSubs.findIndex(s => s.id === targetItem.id);
 
                             if (realIdx !== -1) {
                                 const deletedName = originalSubs[realIdx].name;
                                 originalSubs.splice(realIdx, 1);
-                                await storageAdapter.put(KV_KEY_SUBS, originalSubs);
+                                await storageAdapter.putAllSubscriptions(originalSubs);
                                 await answerCallbackQuery(callbackQuery.id, '已删除', env);
                                 await sendTelegramMessage(chatId, `🗑️ 已删除订阅: <b>${escapeHtml(deletedName)}</b>`, env);
                                 await handleListCommand(chatId, userId, env, 0, 'sub');

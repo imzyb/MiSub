@@ -119,7 +119,7 @@ export const DEFAULT_SETTINGS = {
 
 // System constants
 export const SYSTEM_CONSTANTS = {
-    VERSION: '2.6.3',
+    VERSION: '2.6.4',
     // Use v2rayN UA to fetch subscriptions reliably.
     FETCHER_USER_AGENT: 'v2rayN/7.23'
 };

@@ -11,12 +11,12 @@ export const useVersionStore = defineStore('version', () => {
     const showUpdateNotice = ref(false);
     const upstreamRepo = 'imzyb/MiSub';
 
-    // 本地更新日志 (v2.6.3)
-    const localChangelog = `✨ **转换引擎 UX 重构 & Bot 功能修复**
-- **转换逻辑 UX 重构**：解耦了转换引擎与规则配置，引入区块化设置界面。现在即使使用第三方后端，也能方便地选择预设规则模板（如 ACL4SSR）或自定义远程配置文件。
-- **Telegram 推送 Bot 深度修复**：修复了由于模块导出缺失导致的消息 Webhook 崩溃故障，并优化了配置读取的异步逻辑，使交互式 Bot 更加稳定。
-- **协议兼容性优化**：修复了 Shadowsocks 配合插件（如 v2ray-plugin）时，因转义符问题导致节点无法连接的故障。
-- **底层架构优化**：规范化了通知服务模块，增强了发送失败时的日志排查能力。`;
+    // 本地更新日志 (v2.6.4)
+    const localChangelog = `✨ **推送 Bot 深度兼容 & UI 视觉对齐**
+- **Telegram Bot 存储重构**：针对 D1 数据库行级存储模式进行了深度重构。解决了 Bot 无法获取订阅组进行绑定的顽固故障，确保 Bot 与 Web 端数据 100% 同步。
+- **设置面板 UI 视觉对齐**：统一了全局设置页面的所有表单高度、Label 字阶及内容字号。
+- **布局逻辑优化**：将“通用节点设置”重组为 2x2 网格布局，优化了移动端与 PC 端的视觉重心分布。
+- **协议稳定性提升**：改进了手动节点前缀与国旗 EMOJI 的处理逻辑，增强了配置生成的健壮性。`;
 
     // --- Getters ---
     const hasUpdate = computed(() => {
