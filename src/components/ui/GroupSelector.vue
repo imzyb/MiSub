@@ -25,9 +25,9 @@ const dropdownStyle = ref({ top: '0px', left: '0px', width: '0px' });
 
 // Filter groups based on input
 const filteredGroups = computed(() => {
-  const query = props.modelValue.toLowerCase();
+  const query = (props.modelValue || '').toLowerCase();
   if (!query) return props.groups;
-  return props.groups.filter(g => g.toLowerCase().includes(query));
+  return props.groups.filter(g => g && String(g).toLowerCase().includes(query));
 });
 
 const updatePosition = () => {
@@ -151,7 +151,7 @@ onUnmounted(() => {
           :style="dropdownStyle"
         >
           <button
-            v-if="modelValue && !groups.some(g => g.toLowerCase() === modelValue.toLowerCase())" 
+            v-if="modelValue && !groups.some(g => g && String(g).toLowerCase() === String(modelValue).toLowerCase())" 
             class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
             @click="selectGroup(modelValue)"
           >
