@@ -27,7 +27,11 @@ const shouldHideLoginButton = computed(() => {
 });
 
 const props = defineProps({
-  isLoggedIn: Boolean
+  isLoggedIn: Boolean,
+  hideBranding: {
+    type: Boolean,
+    default: false
+  }
 });
 
 const emit = defineEmits(['logout']);
@@ -42,13 +46,15 @@ const emit = defineEmits(['logout']);
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="safe-top-inset">
         <div class="flex justify-between items-center h-16 md:h-20">
-          <BrandLogo text-size-class="text-lg" :icon-size="32" />
+          <BrandLogo v-if="!hideBranding" text-size-class="text-lg" :icon-size="32" />
+          <router-link v-else to="/" class="text-sm font-semibold tracking-[0.24em] uppercase text-gray-500 dark:text-gray-400">Home</router-link>
 
           <NavActionGroup
             :is-logged-in="isLoggedIn"
             :show-explore="false"
             :show-settings="true"
             :show-login-button="!shouldHideLoginButton"
+            :hide-external-repo="hideBranding"
             :with-focus-ring="true"
             rounded-class="misub-radius-md"
             @open-settings="uiStore.show()"

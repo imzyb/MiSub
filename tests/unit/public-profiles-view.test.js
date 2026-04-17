@@ -95,4 +95,57 @@ describe('PublicProfilesView hero loading state', () => {
     expect(wrapper.text()).toContain('自定义订阅');
     expect(wrapper.text()).toContain('自定义描述');
   });
+
+  it('does not flash the default public page before custom page config loads', async () => {
+    let resolveProfiles;
+    api.get.mockImplementation((url) => {
+      if (url === '/api/public/profiles') {
+        return new Promise((resolve) => {
+          resolveProfiles = resolve;
+        });
+      }
+      if (url === '/api/clients') {
+        return Promise.resolve({ success: true, data: [] });
+      }
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    wrapper = mount(PublicProfilesView, {
+      global: {
+        stubs: {
+          ProfileGrid: true,
+          BaseIcon: true,
+          AnnouncementCard: true,
+          GuestbookModal: true,
+          QuickImportModal: true,
+          NodePreviewModal: true,
+          CustomPublicRenderer: {
+            template: '<div class="custom-renderer-stub">自定义公开页</div>'
+          }
+        }
+      }
+    });
+
+    expect(wrapper.text()).not.toContain('Cosmic Selection');
+    expect(wrapper.text()).not.toContain('发现');
+    expect(wrapper.text()).not.toContain('优质订阅');
+
+    resolveProfiles({
+      success: true,
+      data: [{ id: '1', name: 'Demo', enabled: true }],
+      config: {
+        customPage: {
+          enabled: true,
+          content: '<div>{{profiles}}</div>',
+          css: '',
+          useDefaultLayout: true
+        }
+      }
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('自定义公开页');
+    expect(wrapper.text()).not.toContain('Cosmic Selection');
+  });
 });

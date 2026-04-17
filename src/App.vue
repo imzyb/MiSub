@@ -54,14 +54,28 @@ const isPublicRoute = computed(() => route.meta.isPublic);
 const isSessionLoading = computed(() => sessionState.value === 'loading');
 
 const showModernNavBar = computed(() => isLoggedIn.value && layoutMode.value === 'modern');
+const shouldHidePublicBranding = computed(() => {
+  if (isLoggedIn.value || !isPublicRoute.value) return false;
+  return sessionStore.publicConfig?.customPage?.enabled === true && sessionStore.publicConfig?.customPage?.hideBranding === true;
+});
+const shouldHidePublicHeader = computed(() => {
+  if (isLoggedIn.value || !isPublicRoute.value) return false;
+  return sessionStore.publicConfig?.customPage?.enabled === true && sessionStore.publicConfig?.customPage?.hideHeader === true;
+});
+
+const shouldHidePublicFooter = computed(() => {
+  if (isLoggedIn.value || !isPublicRoute.value) return false;
+  return sessionStore.publicConfig?.customPage?.enabled === true && sessionStore.publicConfig?.customPage?.hideFooter === true;
+});
+
 const showLegacyHeader = computed(() => {
   if (showModernNavBar.value) return false;
   if (isLoggedIn.value) return true;
   if (isSessionLoading.value || !isPublicRoute.value) return false;
-  return true;
+  return !shouldHidePublicHeader.value;
 });
 const showPublicFooter = computed(() => {
-  return true;
+  return !shouldHidePublicFooter.value;
 });
 const shouldShowFooter = computed(() => !isSessionLoading.value && (!isPublicRoute.value || showPublicFooter.value));
 
@@ -95,6 +109,18 @@ onMounted(async () => {
   initTheme();
   await checkSession();
 });
+
+watch(
+  () => [route.fullPath, sessionStore.publicConfig?.customPage?.enabled, sessionStore.publicConfig?.customPage?.hideBranding],
+  () => {
+    if (typeof document === 'undefined') return;
+    const rawTitle = route.meta?.title ? String(route.meta.title) : '';
+    document.title = shouldHidePublicBranding.value
+      ? (rawTitle || document.title || '')
+      : (rawTitle ? `${rawTitle} - MISUB` : 'MISUB');
+  },
+  { immediate: true }
+);
 
 watch(sessionState, async (newVal) => {
   if (newVal === 'loggedIn') {
@@ -149,6 +175,12 @@ const handleDiscard = async () => {
   toastStore.showToast('已放弃所有未保存的更改');
 };
 
+const isCustomPageFullWidth = computed(() => {
+  if (isLoggedIn.value || !isPublicRoute.value) return false;
+  const cp = sessionStore.publicConfig?.customPage;
+  return cp?.enabled === true && cp?.useDefaultLayout === false;
+});
+
 </script>
 
 <template>
@@ -156,12 +188,16 @@ const handleDiscard = async () => {
     class="min-h-screen flex flex-col text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-gray-100 dark:bg-[#030712]">
     <!-- Navigation -->
     <NavBar v-if="showModernNavBar" :is-logged-in="true" @logout="logout" />
-    <Header v-else-if="showLegacyHeader" :is-logged-in="isLoggedIn" @logout="logout" />
+    <Header v-else-if="showLegacyHeader" :is-logged-in="isLoggedIn" :hide-branding="shouldHidePublicBranding" @logout="logout" />
 
-<main class="grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6" :class="{
-'flex items-center justify-center': shouldCenterMain,
-'ios-header-padding': showLegacyHeader
-}">
+    <main :class="[
+      'grow w-full py-6 pb-24 md:pb-6',
+      isCustomPageFullWidth ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
+      {
+        'flex items-center justify-center': shouldCenterMain,
+        'ios-header-padding': showLegacyHeader
+      }
+    ]">
 <div
 v-if="sessionState === 'loading'"
 class="flex flex-col items-center justify-center p-8 min-h-[60vh]"
@@ -253,7 +289,7 @@ aria-live="polite"
       @confirm="handleVersionModalConfirm"
       @suppress="handleVersionModalSuppress"
     />
-    <Footer v-if="shouldShowFooter" />
+    <Footer v-if="shouldShowFooter" :hide-branding="shouldHidePublicBranding" />
 <ScrollToTop v-if="isLoggedIn || isPublicRoute" />
 </div>
 </template>

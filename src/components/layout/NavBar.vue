@@ -14,6 +14,7 @@ const uiStore = useUIStore();
 const sessionStore = useSessionStore();
 const { publicConfig } = storeToRefs(sessionStore);
 const isPublicEnabled = computed(() => publicConfig.value?.enablePublicPage === true);
+const hideBranding = computed(() => publicConfig.value?.customPage?.enabled === true && publicConfig.value?.customPage?.hideBranding === true);
 
 const props = defineProps({
   isLoggedIn: Boolean
@@ -41,6 +42,7 @@ function isActive(path) {
     <NavActionGroup
       :is-logged-in="isLoggedIn"
       :show-explore="isPublicEnabled"
+      :hide-external-repo="hideBranding"
       :with-focus-ring="true"
       rounded-class="rounded-full"
       @toggle-layout="uiStore.toggleLayout()"
@@ -84,6 +86,7 @@ function isActive(path) {
         <NavActionGroup
           :is-logged-in="isLoggedIn"
           :show-explore="isPublicEnabled"
+          :hide-external-repo="hideBranding"
           :with-focus-ring="true"
           :show-divider="true"
           rounded-class="rounded-full"

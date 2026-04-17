@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, onUnmounted, defineAsyncComponent, nextTick, computed } from 'vue';
+import { ref, onMounted, onUnmounted, defineAsyncComponent, nextTick, computed, watch } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import QRCode from 'qrcode';
 import { api } from '../lib/http.js';
 import ProfileGrid from '../components/public/ProfileGrid.vue';
 import BaseIcon from '../components/ui/BaseIcon.vue';
+import { parseCustomPageSource } from '../utils/custom-page-source.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -12,6 +13,7 @@ const NodePreviewModal = defineAsyncComponent(() => import('../components/modals
 const AnnouncementCard = defineAsyncComponent(() => import('../components/features/AnnouncementCard.vue'));
 const GuestbookModal = defineAsyncComponent(() => import('../components/modals/GuestbookModal.vue'));
 const QuickImportModal = defineAsyncComponent(() => import('../components/modals/QuickImportModal.vue'));
+const CustomPublicRenderer = defineAsyncComponent(() => import('../components/public/CustomPublicRenderer.vue'));
 
 const publicProfiles = ref([]);
 const loading = ref(true);
@@ -25,7 +27,52 @@ const heroConfig = computed(() => config.value.hero || {
     description: '浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。'
 });
 const guestbookConfig = computed(() => config.value.guestbook || {});
+const customPageConfig = computed(() => config.value.customPage || {});
+const parsedCustomPageSource = computed(() => parseCustomPageSource(customPageConfig.value.content || '', customPageConfig.value.css || ''));
 const isInitialLoading = computed(() => loading.value && !error.value && publicProfiles.value.length === 0 && Object.keys(config.value || {}).length === 0);
+
+const initialDocumentTitle = typeof document !== 'undefined' ? document.title : '';
+const initialDescription = typeof document !== 'undefined'
+    ? (document.querySelector('meta[name="description"]')?.getAttribute('content') || '')
+    : '';
+
+const ensureDescriptionMeta = () => {
+    if (typeof document === 'undefined') return null;
+    let el = document.querySelector('meta[name="description"]');
+    if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute('name', 'description');
+        document.head.appendChild(el);
+    }
+    return el;
+};
+
+const applyCustomPageDocumentMeta = () => {
+    if (typeof document === 'undefined') return;
+    if (customPageConfig.value.enabled !== true) return;
+
+    const parsed = parsedCustomPageSource.value;
+    if (parsed.title) {
+        document.title = parsed.title;
+    }
+
+    if (parsed.description) {
+        const meta = ensureDescriptionMeta();
+        meta?.setAttribute('content', parsed.description);
+    }
+};
+
+const restoreCustomPageDocumentMeta = () => {
+    if (typeof document === 'undefined') return;
+    document.title = initialDocumentTitle;
+    const meta = document.querySelector('meta[name="description"]');
+    if (!meta) return;
+    if (initialDescription) {
+        meta.setAttribute('content', initialDescription);
+    } else {
+        meta.remove();
+    }
+};
 
 const showGuestbookModal = ref(false);
 const showQuickImportModal = ref(false);
@@ -225,171 +272,244 @@ onMounted(async () => {
     }
 });
 
+watch(
+    () => [customPageConfig.value.enabled, parsedCustomPageSource.value.title, parsedCustomPageSource.value.description],
+    () => {
+        if (customPageConfig.value.enabled === true) {
+            applyCustomPageDocumentMeta();
+        } else {
+            restoreCustomPageDocumentMeta();
+        }
+    },
+    { immediate: true }
+);
+
 onUnmounted(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('open-guestbook', handleGuestbookEvent);
     }
+    restoreCustomPageDocumentMeta();
 });
 </script>
 
 <template>
     <div class="min-h-screen bg-transparent transition-colors duration-500 selection:bg-primary-500/30 selection:text-white relative">
+
+        <template v-if="isInitialLoading">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+                <div class="space-y-6 animate-pulse">
+                    <div class="h-12 w-40 rounded-full bg-white/70 dark:bg-white/10"></div>
+                    <div class="space-y-4">
+                        <div class="h-12 w-full max-w-3xl rounded-3xl bg-white/80 dark:bg-white/10"></div>
+                        <div class="h-12 w-full max-w-2xl rounded-3xl bg-white/70 dark:bg-white/10"></div>
+                        <div class="h-4 w-full max-w-4xl rounded-full bg-white/60 dark:bg-white/10"></div>
+                        <div class="h-4 w-full max-w-3xl rounded-full bg-white/50 dark:bg-white/10"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pt-4">
+                        <div v-for="i in 6" :key="i" class="h-[260px] rounded-[28px] bg-white/70 dark:bg-white/5 border border-white/60 dark:border-white/5"></div>
+                    </div>
+                </div>
+            </div>
+        </template>
         
-        <!-- Hero Section (Left Aligned & Open) -->
-        <div class="relative pt-10 pb-10 lg:pt-16 lg:pb-14 z-10 overflow-visible">
-            <div class="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative">
-                <!-- Left Content: Text (Wider column for no-wrap) -->
-                <div class="text-left relative z-20 lg:col-span-12 xl:col-span-12">
-                    <!-- Badge -->
-                    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary-200/50 dark:border-white/10 bg-white/50 dark:bg-white/5 backdrop-blur-md mb-8 shadow-sm animate-fade-in-up">
-                        <span class="relative flex h-2 w-2">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
-                        </span>
-                        <span class="text-xs font-bold text-primary-700 dark:text-primary-300 tracking-widest uppercase">Cosmic Selection</span>
-                    </div>
-
-                    <div v-if="isInitialLoading" class="max-w-5xl space-y-4 animate-pulse">
-                        <div class="h-10 w-44 rounded-2xl bg-white/75 dark:bg-white/10 sm:h-14 sm:w-56 lg:h-16 lg:w-72"></div>
-                        <div class="h-10 w-56 rounded-2xl bg-white/70 dark:bg-white/10 sm:h-14 sm:w-72 lg:h-16 lg:w-96"></div>
-                        <div class="h-4 w-full max-w-3xl rounded-full bg-white/65 dark:bg-white/10"></div>
-                        <div class="h-4 w-5/6 max-w-2xl rounded-full bg-white/55 dark:bg-white/10"></div>
-                    </div>
-
-                    <template v-else>
-                        <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[1.1] mb-8 animate-fade-in-up delay-100 break-words">
-                            <span class="block text-gray-900 dark:text-white drop-shadow-sm">
-                                {{ heroConfig.title1 }}
-                            </span>
+        <!-- 自定义渲染模式 -->
+        <CustomPublicRenderer 
+            v-else-if="config.customPage?.enabled"
+            :class="customPageConfig.useDefaultLayout !== false
+                ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-12'
+                : ''"
+            :content="config.customPage.content"
+            :css="config.customPage.css"
+            :config="config"
+        >
+            <template #hero>
+                <!-- Default Hero for Placeholder -->
+                <div class="relative pt-10 pb-10 lg:pt-16 lg:pb-14 z-10 overflow-visible">
+                    <div class="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+                        <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[1.1] mb-8 break-words">
+                            <span class="block text-gray-900 dark:text-white">{{ heroConfig.title1 }}</span>
                             <span class="block text-3xl sm:text-5xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-r from-primary-600 via-purple-500 to-indigo-500 dark:from-primary-400 dark:via-purple-400 dark:to-indigo-400 bg-[length:200%_auto] animate-gradient pb-2 mt-2">
                                 {{ heroConfig.title2 }}
                             </span>
                         </h1>
-                        
-                        <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed font-medium max-w-5xl mb-10 animate-fade-in-up delay-200 break-words">
-                            {{ heroConfig.description }}
-                        </p>
-                    </template>
+                        <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed font-medium max-w-5xl">{{ heroConfig.description }}</p>
+                    </div>
                 </div>
+            </template>
 
-                <!-- Right Content: Top-Right Concentric Circles (Bottom-Left Quadrant) -->
-                <!-- -mt-20 lg:-mt-32 pulls it up to the very top edge, countering the parent's padding -->
-
-            </div>
-        </div>
-
-
-        <!-- Content Section -->
-        <div class="relative z-20 pb-24">
-            
-            <!-- Subscription Section -->
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <!-- Announcement Section -->
+            <template #announcements>
                 <AnnouncementCard v-if="announcement && announcement.enabled" :announcement="announcement" class="mb-10" />
+            </template>
 
-                <!-- Loading State -->
-                <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <div v-for="i in 6" :key="i"
-                        class="h-[300px] bg-white dark:bg-gray-800 misub-radius-lg p-6 shadow-sm border border-gray-100 dark:border-gray-700 animate-pulse">
-                        <div class="flex items-center gap-4 mb-6">
-                            <div class="h-12 w-12 bg-gray-200 dark:bg-gray-700 misub-radius-lg"></div>
-                            <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <template #profiles>
+                <div v-if="loading">...</div>
+                <div v-else-if="error">{{ error }}</div>
+                <ProfileGrid v-else-if="publicProfiles.length > 0" :profiles="publicProfiles" :is-qr-expanded="isQRExpanded"
+                    :profile-token="config.profileToken || 'profiles'" @quick-import="handleQuickImport"
+                    @toggle-qr="toggleQRCode" @preview="handlePreview" @copy-link="copyLink" @download-qr="downloadQRCode"
+                    @register-canvas="registerQrCanvas" />
+            </template>
+
+            <template #guestbook>
+                <button v-if="guestbookConfig?.enabled !== false" @click="handleGuestbookTrigger" class="px-6 py-2 bg-indigo-500 text-white rounded-lg">留言板</button>
+            </template>
+        </CustomPublicRenderer>
+
+        <!-- 默认布局模式 -->
+        <template v-else>
+            <!-- Hero Section (Left Aligned & Open) -->
+            <div class="relative pt-10 pb-10 lg:pt-16 lg:pb-14 z-10 overflow-visible">
+                <div class="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative">
+                    <!-- Left Content: Text (Wider column for no-wrap) -->
+                    <div class="text-left relative z-20 lg:col-span-12 xl:col-span-12">
+                        <!-- Badge -->
+                        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary-200/50 dark:border-white/10 bg-white/50 dark:bg-white/5 backdrop-blur-md mb-8 shadow-sm animate-fade-in-up">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+                            </span>
+                            <span class="text-xs font-bold text-primary-700 dark:text-primary-300 tracking-widest uppercase">Cosmic Selection</span>
                         </div>
-                        <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-3"></div>
-                        <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-8"></div>
-                        <div class="mt-auto h-12 bg-gray-100 dark:bg-gray-700/50 misub-radius-lg"></div>
-                    </div>
-                </div>
 
-                <!-- Error State -->
-                <div v-else-if="error" class="text-center py-20 bg-white/50 dark:bg-gray-800/50 misub-radius-lg border border-red-100 dark:border-red-900/30 backdrop-blur-sm">
-                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 mb-6">
-                        <BaseIcon :path="ICONS.error" className="w-10 h-10 text-red-500 dark:text-red-400" />
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">加载失败</h3>
-                    <p class="text-gray-500 dark:text-gray-400 mb-6">{{ error }}</p>
-                    <button @click="fetchPublicProfiles"
-                        class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium misub-radius-lg shadow-lg shadow-primary-600/20 transition-all active:scale-95">
-                        重试
-                    </button>
-                </div>
-
-                <!-- Profile Grid -->
-                <div v-else-if="publicProfiles.length > 0" class="animate-fade-in-up delay-300">
-                    <ProfileGrid :profiles="publicProfiles" :is-qr-expanded="isQRExpanded"
-                        :profile-token="config.profileToken || 'profiles'" @quick-import="handleQuickImport"
-                        @toggle-qr="toggleQRCode" @preview="handlePreview" @copy-link="copyLink" @download-qr="downloadQRCode"
-                        @register-canvas="registerQrCanvas" />
-                </div>
-            </div>
-
-            <!-- Clients Section (Visually Separated) -->
-            <div class="mt-16 pt-12 pb-10 border-t border-transparent bg-transparent dark:bg-transparent backdrop-blur-sm">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="text-center mb-16 relative">
-                        <div class="relative inline-flex flex-col items-center">
-                            <span class="text-sm font-bold tracking-widest text-primary-600 dark:text-primary-400 uppercase mb-2">Essential Tools</span>
-                            <h2 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-                                必备客户端
-                            </h2>
-                            <p class="mt-4 text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-                                为了获得最佳体验，请下载我们推荐的客户端软件。覆盖全平台，简单易用。
-                            </p>
+                        <div v-if="isInitialLoading" class="max-w-5xl space-y-4 animate-pulse">
+                            <div class="h-10 w-44 rounded-2xl bg-white/75 dark:bg-white/10 sm:h-14 sm:w-56 lg:h-16 lg:w-72"></div>
+                            <div class="h-10 w-56 rounded-2xl bg-white/70 dark:bg-white/10 sm:h-14 sm:w-72 lg:h-16 lg:w-96"></div>
+                            <div class="h-4 w-full max-w-3xl rounded-full bg-white/65 dark:bg-white/10"></div>
+                            <div class="h-4 w-5/6 max-w-2xl rounded-full bg-white/55 dark:bg-white/10"></div>
                         </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-                        <div v-for="client in clients" :key="client.name"
-                            class="group relative glass-panel dark:bg-white/5 backdrop-blur-2xl rounded-[2rem] p-6 shadow-xl border border-white/40 dark:border-white/5 hover:border-primary-500/30 transition-all duration-300 hover:shadow-primary-500/5">
-                            
-                            <div class="flex items-start gap-5">
-                                <div class="h-12 w-12 misub-radius-lg flex items-center justify-center text-3xl shadow-sm bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden">
-<img v-if="client.icon && (client.icon.includes('/') || client.icon.startsWith('data:'))" :src="client.icon"
-                        :alt="client.name" class="w-full h-full object-cover rounded-lg p-1" />
-                    <span v-else>{{ client.icon }}</span>
-                                </div>
-                                
-                                <div class="flex-1 min-w-0 pt-1">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">
-                                            {{ client.name }}
-                                        </h3>
-                                    </div>
-                                    <div class="flex flex-wrap gap-1 mb-2">
-                                        <span v-for="platform in client.platforms" :key="platform"
-                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border"
-                                            :class="{
-                                                'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/50': platform === 'windows',
-                                                'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600': platform === 'macos' || platform === 'ios',
-                                                'bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/50': platform === 'android',
-                                                'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-900/50': platform === 'linux'
-                                            }">
-                                            {{ getPlatformLabel(platform) }}
-                                        </span>
-                                    </div>
-                                    <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed h-12">
-                                        {{ client.description }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="mt-6 flex items-center justify-between pt-4 border-t border-gray-50 dark:border-white/5">
-                                <span class="text-xs text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 misub-radius-md">
-                                    {{ getClientVersionLabel(client) }}
+                        <template v-else>
+                            <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[1.1] mb-8 animate-fade-in-up delay-100 break-words">
+                                <span class="block text-gray-900 dark:text-white drop-shadow-sm">
+                                    {{ heroConfig.title1 }}
                                 </span>
-
-                                <a :href="client.url" target="_blank"
-                                    class="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 group/link">
-                                    获取下载
-                                    <BaseIcon :path="ICONS.download" className="w-4 h-4 transform group-hover/link:translate-x-0.5 transition-transform" />
-                                </a>
-                            </div>
-                        </div>
+                                <span class="block text-3xl sm:text-5xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-r from-primary-600 via-purple-500 to-indigo-500 dark:from-primary-400 dark:via-purple-400 dark:to-indigo-400 bg-[length:200%_auto] animate-gradient pb-2 mt-2">
+                                    {{ heroConfig.title2 }}
+                                </span>
+                            </h1>
+                            
+                            <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed font-medium max-w-5xl mb-10 animate-fade-in-up delay-200 break-words">
+                                {{ heroConfig.description }}
+                            </p>
+                        </template>
                     </div>
                 </div>
             </div>
 
-        </div>
+
+            <!-- Content Section -->
+            <div class="relative z-20 pb-24">
+                
+                <!-- Subscription Section -->
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <!-- Announcement Section -->
+                    <AnnouncementCard v-if="announcement && announcement.enabled" :announcement="announcement" class="mb-10" />
+
+                    <!-- Loading State -->
+                    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div v-for="i in 6" :key="i"
+                            class="h-[300px] bg-white dark:bg-gray-800 misub-radius-lg p-6 shadow-sm border border-gray-100 dark:border-gray-700 animate-pulse">
+                            <div class="flex items-center gap-4 mb-6">
+                                <div class="h-12 w-12 bg-gray-200 dark:bg-gray-700 misub-radius-lg"></div>
+                                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                            </div>
+                            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-3"></div>
+                            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-8"></div>
+                            <div class="mt-auto h-12 bg-gray-100 dark:bg-gray-700/50 misub-radius-lg"></div>
+                        </div>
+                    </div>
+
+                    <!-- Error State -->
+                    <div v-else-if="error" class="text-center py-20 bg-white/50 dark:bg-gray-800/50 misub-radius-lg border border-red-100 dark:border-red-900/30 backdrop-blur-sm">
+                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 mb-6">
+                            <BaseIcon :path="ICONS.error" className="w-10 h-10 text-red-500 dark:text-red-400" />
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">加载失败</h3>
+                        <p class="text-gray-500 dark:text-gray-400 mb-6">{{ error }}</p>
+                        <button @click="fetchPublicProfiles"
+                            class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium misub-radius-lg shadow-lg shadow-primary-600/20 transition-all active:scale-95">
+                            重试
+                        </button>
+                    </div>
+
+                    <!-- Profile Grid -->
+                    <div v-else-if="publicProfiles.length > 0" class="animate-fade-in-up delay-300">
+                        <ProfileGrid :profiles="publicProfiles" :is-qr-expanded="isQRExpanded"
+                            :profile-token="config.profileToken || 'profiles'" @quick-import="handleQuickImport"
+                            @toggle-qr="toggleQRCode" @preview="handlePreview" @copy-link="copyLink" @download-qr="downloadQRCode"
+                            @register-canvas="registerQrCanvas" />
+                    </div>
+                </div>
+
+                <!-- Clients Section (Visually Separated) -->
+                <div class="mt-16 pt-12 pb-10 border-t border-transparent bg-transparent dark:bg-transparent backdrop-blur-sm">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="text-center mb-16 relative">
+                            <div class="relative inline-flex flex-col items-center">
+                                <span class="text-sm font-bold tracking-widest text-primary-600 dark:text-primary-400 uppercase mb-2">Essential Tools</span>
+                                <h2 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+                                    必备客户端
+                                </h2>
+                                <p class="mt-4 text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
+                                    为了获得最佳体验，请下载我们推荐的客户端软件。覆盖全平台，简单易用。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+                            <div v-for="client in clients" :key="client.name"
+                                class="group relative glass-panel dark:bg-white/5 backdrop-blur-2xl rounded-[2rem] p-6 shadow-xl border border-white/40 dark:border-white/5 hover:border-primary-500/30 transition-all duration-300 hover:shadow-primary-500/5">
+                                
+                                <div class="flex items-start gap-5">
+                                    <div class="h-12 w-12 misub-radius-lg flex items-center justify-center text-3xl shadow-sm bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden">
+    <img v-if="client.icon && (client.icon.includes('/') || client.icon.startsWith('data:'))" :src="client.icon"
+                            :alt="client.name" class="w-full h-full object-cover rounded-lg p-1" />
+                        <span v-else>{{ client.icon }}</span>
+                                    </div>
+                                    
+                                    <div class="flex-1 min-w-0 pt-1">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">
+                                                {{ client.name }}
+                                            </h3>
+                                        </div>
+                                        <div class="flex flex-wrap gap-1 mb-2">
+                                            <span v-for="platform in client.platforms" :key="platform"
+                                                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                                                :class="{
+                                                    'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/50': platform === 'windows',
+                                                    'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600': platform === 'macos' || platform === 'ios',
+                                                    'bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/50': platform === 'android',
+                                                    'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-900/50': platform === 'linux'
+                                                }">
+                                                {{ getPlatformLabel(platform) }}
+                                            </span>
+                                        </div>
+                                        <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed h-12">
+                                            {{ client.description }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6 flex items-center justify-between pt-4 border-t border-gray-50 dark:border-white/5">
+                                    <span class="text-xs text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 misub-radius-md">
+                                        {{ getClientVersionLabel(client) }}
+                                    </span>
+
+                                    <a :href="client.url" target="_blank"
+                                        class="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 group/link">
+                                        获取下载
+                                        <BaseIcon :path="ICONS.download" className="w-4 h-4 transform group-hover/link:translate-x-0.5 transition-transform" />
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </template>
 
         <!-- Modals -->
         <NodePreviewModal v-if="showPreviewModal" :show="showPreviewModal" @update:show="showPreviewModal = $event"

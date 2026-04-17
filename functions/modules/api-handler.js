@@ -574,6 +574,7 @@ export async function handlePublicProfilesRequest(env) {
             description: settings.heroDescription || '浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。'
         };
 
+
         // Guestbook Config (Safe subset)
         const guestbook = {
             enabled: settings.guestbook?.enabled,
@@ -595,6 +596,20 @@ export async function handlePublicProfilesRequest(env) {
                 manualNodeCount: (p.manualNodes || []).length,
             }));
 
+        // Custom Page Config
+        const customPage = {
+            enabled: settings.customPage?.enabled || false,
+            type: settings.customPage?.type || 'html',
+            content: settings.customPage?.content || '',
+            css: settings.customPage?.css || '',
+            useDefaultLayout: settings.customPage?.useDefaultLayout !== false,
+            allowExternalStylesheets: settings.customPage?.allowExternalStylesheets === true,
+            allowScripts: settings.customPage?.allowScripts === true,
+            hideBranding: settings.customPage?.hideBranding === true,
+            hideHeader: settings.customPage?.hideHeader === true,
+            hideFooter: settings.customPage?.hideFooter === true
+        };
+        
         return createJsonResponse({
             success: true,
             data: publicProfiles,
@@ -602,7 +617,8 @@ export async function handlePublicProfilesRequest(env) {
                 profileToken,
                 announcement,
                 hero,
-                guestbook
+                guestbook,
+                customPage
             }
         });
     } catch (e) {
@@ -626,7 +642,16 @@ export async function handlePublicConfig(env) {
 
         return createJsonResponse({
             enablePublicPage: mergedSettings.enablePublicPage,
-            customLoginPath: mergedSettings.customLoginPath
+            customLoginPath: mergedSettings.customLoginPath,
+            customPage: {
+                enabled: mergedSettings.customPage?.enabled || false,
+                useDefaultLayout: mergedSettings.customPage?.useDefaultLayout !== false,
+                allowExternalStylesheets: mergedSettings.customPage?.allowExternalStylesheets === true,
+                allowScripts: mergedSettings.customPage?.allowScripts === true,
+                hideBranding: mergedSettings.customPage?.hideBranding === true,
+                hideHeader: mergedSettings.customPage?.hideHeader === true,
+                hideFooter: mergedSettings.customPage?.hideFooter === true
+            }
         });
     } catch (e) {
         console.error('[API Error /public/config]', e);

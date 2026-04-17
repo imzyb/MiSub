@@ -13,6 +13,7 @@ import GlobalSettings from '../components/settings/sections/GlobalSettings.vue';
 
 import SystemSettings from '../components/settings/sections/SystemSettings.vue';
 import ClientSettings from '../components/settings/sections/ClientSettings.vue';
+import CustomPageSettings from '../components/settings/sections/CustomPageSettings.vue';
 
 // 使用 composable 获取所有设置相关的状态和函数
 const {
@@ -43,6 +44,7 @@ const currentTabLabel = computed(() => {
 
     case 'client': return '客户端管理';
     case 'system': return '系统设置';
+    case 'custom-page': return '自定义公开页';
     default: return '设置';
   }
 });
@@ -107,6 +109,7 @@ watch(() => route.path, (path) => {
         <GlobalSettings v-show="activeTab === 'global'" :settings="settings" />
         <ServiceSettings v-show="activeTab === 'service'" :settings="settings" />
         <ClientSettings v-show="activeTab === 'client'" />
+        <CustomPageSettings v-show="activeTab === 'custom-page'" :settings="settings" />
         <SystemSettings v-show="activeTab === 'system'" :settings="settings" :exportBackup="exportBackup"
           :importBackup="importBackup" :handleReset="handleReset" @migrate="handleOpenMigrationModal" />
       </div>

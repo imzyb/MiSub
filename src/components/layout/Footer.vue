@@ -3,6 +3,13 @@ import { computed } from 'vue';
 import { useVersionStore } from '../../stores/version';
 import packageJson from '../../../package.json';
 
+defineProps({
+  hideBranding: {
+    type: Boolean,
+    default: false
+  }
+});
+
 const versionStore = useVersionStore();
 const currentYear = computed(() => new Date().getFullYear());
 const currentVersion = packageJson.version;
@@ -12,8 +19,9 @@ const currentVersion = packageJson.version;
 <footer class="w-full text-center p-8 border-t border-gray-200 dark:border-white/10 mt-8">
   <div class="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-gray-400 dark:text-gray-500">
     <p>
-      Copyright © {{ currentYear }}
-      <a
+      <template v-if="!hideBranding">
+        Copyright © {{ currentYear }}
+        <a
         href="https://github.com/imzyb/MiSub"
         target="_blank"
         rel="noopener noreferrer"
@@ -21,7 +29,11 @@ const currentVersion = packageJson.version;
       >
         MiSUB
       </a>.
-      All Rights Reserved.
+        All Rights Reserved.
+      </template>
+      <template v-else>
+        Copyright © {{ currentYear }}. All Rights Reserved.
+      </template>
     </p>
     <button 
       @click="versionStore.openModal"

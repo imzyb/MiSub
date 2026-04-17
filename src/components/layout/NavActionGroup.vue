@@ -35,6 +35,10 @@ const props = defineProps({
   showDivider: {
     type: Boolean,
     default: false
+  },
+  hideExternalRepo: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -129,7 +133,7 @@ function buildBtnClass(type) {
     </template>
 
     <template v-else>
-      <ExternalRepoButton :class-name="buildBtnClass('neutral')" />
+      <ExternalRepoButton v-if="!hideExternalRepo" :class-name="buildBtnClass('neutral')" />
 
       <LoginEntryButton v-if="showLoginButton" />
     </template>

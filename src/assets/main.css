@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-display: 'Outfit', sans-serif;
@@ -68,15 +68,15 @@
   }
 
 html {
-font-family: var(--font-body);
-scroll-behavior: smooth;
--webkit-font-smoothing: antialiased;
--moz-osx-font-smoothing: grayscale;
-color-scheme: light;
+  font-family: var(--font-body);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
 
-.dark html {
-color-scheme: dark;
+.dark, .dark html {
+  color-scheme: dark;
 }
 
 body {

@@ -11,7 +11,18 @@ export const useSessionStore = defineStore('session', () => {
   const sessionState = ref('loading'); // loading, loggedIn, loggedOut
   const initialData = ref(null);
   const subscriptionConfig = ref({}); // [NEW] Added subscriptionConfig
-  const publicConfig = ref({ enablePublicPage: true }); // Default true until fetched
+  const publicConfig = ref({
+    enablePublicPage: true,
+    customPage: {
+      enabled: false,
+      useDefaultLayout: true,
+      allowExternalStylesheets: false,
+      allowScripts: false,
+      hideBranding: false,
+      hideHeader: false,
+      hideFooter: false
+    }
+  }); // Default true until fetched
 
   async function checkSession() {
     // Parallel fetch of initial data (auth check) and public config
@@ -25,7 +36,17 @@ export const useSessionStore = defineStore('session', () => {
       publicConfig.value = pConfigResult.data;
     } else {
       // Fallback to default if fetch fails
-      publicConfig.value = { enablePublicPage: false };
+      publicConfig.value = {
+        enablePublicPage: false,
+        customPage: {
+          enabled: false,
+          allowExternalStylesheets: false,
+          allowScripts: false,
+          hideBranding: false,
+          hideHeader: false,
+          hideFooter: false
+        }
+      };
     }
 
     if (dataResult.success) {
