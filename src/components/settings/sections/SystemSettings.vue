@@ -5,7 +5,8 @@ defineProps({
         required: true
     },
     exportBackup: Function,
-    importBackup: Function
+    importBackup: Function,
+    handleReset: Function
 });
 
 import { useToastStore } from '../../../stores/toast.js';
@@ -221,6 +222,36 @@ const emit = defineEmits(['migrate']);
                     </svg>
                     <span>{{ isUpdatingPassword ? '更新中...' : '修改管理员密码' }}</span>
                 </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 危险区域卡片 -->
+        <div class="rounded-xl border border-red-200/60 bg-red-50/30 p-6 shadow-sm dark:border-red-900/30 dark:bg-red-900/10">
+            <div class="mb-5 flex items-start gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-600 dark:text-red-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                </div>
+                <div class="space-y-1">
+                    <h3 class="text-base font-semibold text-red-900 dark:text-red-300">危险区域 (Danger Zone)</h3>
+                    <p class="text-sm text-red-600/80 dark:text-red-400/80">关键系统项重置。请谨慎操作，建议操作前先导出备份。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/50 dark:bg-gray-900/40 p-6 misub-radius-lg border border-red-100 dark:border-red-900/20">
+                <div class="space-y-2">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">恢复出厂设置</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">将所有应用配置（UI、模板、API等）重置为初始状态。注意：此操作<strong>不会</strong>删除节点和订阅组数据。</p>
+                </div>
+                <div class="flex items-center sm:justify-end">
+                    <button @click="handleReset"
+                        class="px-5 py-2.5 misub-radius-lg text-red-600 dark:text-red-400 text-sm font-medium border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white transition-all active:scale-95">
+                        恢复出厂设置
+                    </button>
                 </div>
             </div>
         </div>

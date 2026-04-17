@@ -100,3 +100,5 @@ test-screenshots/
 # Docker (Closed Source)
 docker/
 data/
+/brain/
+/scratch/

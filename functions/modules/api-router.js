@@ -7,7 +7,7 @@ import { StorageFactory, DataMigrator } from '../storage-adapter.js';
 import { KV_KEY_SUBS } from './config.js';
 import { createJsonResponse, createErrorResponse, getAuthDebugInfo } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, getAuthSessionDiagnostic, getLoginPasswordDiagnostic } from './auth-middleware.js';
-import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
+import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handleSettingsReset, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
 import { handleCronTrigger } from './notifications.js';
 import {
     handleSubscriptionNodesRequest,
@@ -397,6 +397,12 @@ export async function handleApiRequest(request, env) {
 
         case '/settings/password':
             return await handleUpdatePassword(request, env);
+
+        case '/settings/reset':
+            if (request.method === 'POST') {
+                return await handleSettingsReset(env);
+            }
+            return createErrorResponse('Method Not Allowed', 405);
 
         case '/guestbook/manage':
             if (request.method === 'GET') {

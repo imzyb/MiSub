@@ -147,6 +147,19 @@ export async function saveSettings(settings) {
 }
 
 /**
+ * 恢复出厂设置（仅限设置项，不删除节点和订阅组）
+ * @returns {Promise<Object>} - 重置结果
+ */
+export async function resetSettings() {
+    try {
+        return await api.post('/api/settings/reset');
+    } catch (error) {
+        return handleApiError(error, 'resetSettings');
+    }
+}
+
+
+/**
  * 批量更新订阅的节点信息
  * @param {string[]} subscriptionIds - 要更新的订阅ID数组
  * @returns {Promise<Object>} - 更新结果

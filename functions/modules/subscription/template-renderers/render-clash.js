@@ -4,7 +4,7 @@ import { normalizeUnifiedTemplateModel } from '../template-model.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '').trim().toLowerCase();
-    if (normalized === 'url-test' || normalized === 'fallback' || normalized === 'load-balance' || normalized === 'relay' || normalized === 'select') {
+    if (normalized === 'url-test' || normalized === 'fallback' || normalized === 'load-balance' || normalized === 'select') {
         return normalized;
     }
     return 'select';
@@ -75,14 +75,36 @@ export function renderClashFromTemplateModel(model) {
         'external-controller': ':9090',
         'proxies': normalizedModel.proxies,
         'proxy-groups': normalizedModel.groups
-            .filter(group => Array.isArray(group.members) && group.members.length > 0)
-            .map(group => ({
-                name: group.name,
-                type: mapGroupType(group.type),
-                proxies: filterAutoSelectMembers(group),
-                filter: Array.isArray(group.filters) && group.filters.length > 0 ? group.filters.join('|') : undefined,
-                ...group.options
-            })),
+            .filter(group => 
+                (Array.isArray(group.members) && group.members.length > 0) || 
+                (Array.isArray(group.filters) && group.filters.length > 0)
+            )
+            .map(group => {
+                const rawType = String(group.type || '').trim().toLowerCase();
+                
+                // [统一化改造] 彻底抛弃 type: relay，统一使用现代 Mihomo (Meta) 的 dialer-proxy 语法
+                // 如果类型是 relay，或者名称为链式代理且具备链式结构特征，执行转换
+                const isRelayGroup = rawType === 'relay' || (group.name?.includes('链式代理') && Array.isArray(group.proxies) && group.proxies.length >= 2);
+                
+                if (isRelayGroup && Array.isArray(group.proxies) && group.proxies.length >= 2) {
+                    const members = filterAutoSelectMembers(group);
+                    return {
+                        name: group.name,
+                        type: 'select',
+                        proxies: members.slice(1),      // 落地节点
+                        'dialer-proxy': members[0],     // 入口节点
+                        ...group.options
+                    };
+                }
+
+                return {
+                    name: group.name,
+                    type: mapGroupType(group.type),
+                    proxies: filterAutoSelectMembers(group),
+                    filter: Array.isArray(group.filters) && group.filters.length > 0 ? group.filters.join('|') : undefined,
+                    ...group.options
+                };
+            }),
         'rule-providers': Object.keys(ruleProviders).length > 0 ? ruleProviders : undefined,
         'rules': normalizedModel.rules.map(r => mapRule(r, ruleProviderMap)).filter(Boolean),
         'profile': {

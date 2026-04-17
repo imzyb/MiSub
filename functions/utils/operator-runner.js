@@ -107,8 +107,21 @@ function opRename(nodes, params) {
     }
 
     if (template?.enabled && template.text) {
+        const counters = new Map();
+        const scope = template.indexScope || template.scope || 'region'; // 默认按地区分组计数，符合用户直觉
+
         result = result.map((r, index) => {
             const enriched = NodeUtils.ensureRegionInfo(r, true);
+            
+            // 确定索引分组键
+            let groupKey = 'global';
+            if (scope === 'region') groupKey = `r:${enriched.regionZh || 'Other'}`;
+            else if (scope === 'protocol') groupKey = `p:${r.protocol}`;
+            else if (scope === 'regionProtocol') groupKey = `rp:${enriched.regionZh || 'Other'}|${r.protocol}`;
+            
+            const groupIndex = (counters.get(groupKey) || 0) + 1;
+            counters.set(groupKey, groupIndex);
+
             const vars = {
                 name: r.name,
                 protocol: r.protocol,
@@ -117,7 +130,8 @@ function opRename(nodes, params) {
                 emoji: enriched.emoji,
                 server: r.server,
                 port: r.port,
-                index: index + (template.offset || 1)
+                index: groupIndex + (template.offset || 1) - 1,
+                globalIndex: index + (template.offset || 1)
             };
             const newName = NodeUtils.renderTemplate(template.text, vars, r);
             

@@ -96,20 +96,9 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     // 清理控制字符
     proxies = deepCleanControlChars(proxies);
 
-    // 应用 UDP 开关：强制设置所有节点的 UDP 参数
-    if (enableUdp) {
-        proxies.forEach(proxy => {
-            proxy.udp = true;
-        });
-    }
-
     // 强制跳过证书验证
-    if (skipCertVerify) {
-        proxies.forEach(proxy => {
-            proxy['skip-cert-verify'] = true;
-        });
-    }
-
+    // (已在 urlsToClashProxies 中全局处理)
+    
     // 处理重名节点
     deduplicateNames(proxies);
 

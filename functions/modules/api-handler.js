@@ -500,6 +500,46 @@ export async function handleSettingsSave(request, env) {
 }
 
 /**
+ * 处理设置重置API
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handleSettingsReset(env) {
+    try {
+        const storageAdapter = await getStorageAdapter(env);
+        
+        // 使用存储适配器删除设置（会自动处理 KV 和 D1 映射）
+        await storageAdapter.delete(KV_KEY_SETTINGS);
+
+        // 如果存在双存储配置，尝试同时清理另一端
+        try {
+            if (storageAdapter.type === STORAGE_TYPES.D1) {
+                const kvNs = StorageFactory.resolveKV(env);
+                if (kvNs) await kvNs.delete(KV_KEY_SETTINGS);
+            } else if (env.MISUB_DB) {
+                const d1Adapter = StorageFactory.createAdapter(env, STORAGE_TYPES.D1);
+                await d1Adapter.delete(KV_KEY_SETTINGS);
+            }
+        } catch (syncError) {
+            console.warn('[API Reset] Dual storage sync cleanup failed:', syncError.message);
+        }
+
+        // 清除内存缓存
+        SettingsCache.clear();
+
+        return createJsonResponse({ 
+            success: true, 
+            message: '设置已恢复出厂状态',
+            data: defaultSettings 
+        });
+    } catch (e) {
+        console.error('[API Error /settings/reset]', e);
+        return createErrorResponse('重置设置失败', 500);
+    }
+}
+
+
+/**
  * 处理公开订阅组获取API
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应

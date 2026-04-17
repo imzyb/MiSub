@@ -103,7 +103,8 @@ export class ProcessorService {
                     interval: config.UpdateInterval || 86400,
                     managedConfigUrl,
                     skipCertVerify: builtinOptions.skipCertVerify,
-                    enableUdp: builtinOptions.enableUdp
+                    enableUdp: builtinOptions.enableUdp,
+                    isMeta: builtinOptions.isMeta
                 };
 
                 switch (targetFormat) {

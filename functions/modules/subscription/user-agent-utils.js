@@ -116,3 +116,29 @@ export function determineTargetFormat(userAgent, searchParams) {
     // 3. Default fallback
     return 'base64';
 }
+
+/**
+ * 判断是否为 Mihomo (Clash Meta) 核心或兼容核心
+ * 用于启用 Meta 专用语法（如 dialer-proxy）
+ * @param {string} userAgent 
+ * @param {URLSearchParams} [searchParams]
+ * @returns {boolean}
+ */
+export function isMetaCore(userAgent, searchParams) {
+    // 支持通过 URL 参数强制开启 meta 模式 (e.g., &meta=true)
+    if (searchParams && (searchParams.get('meta') === '1' || searchParams.get('meta') === 'true')) {
+        return true;
+    }
+    
+    if (!userAgent) return false;
+    const ua = userAgent.toLowerCase();
+    
+    // 包含 meta, mihomo, verge, flclash, stash, party, nekobox 等识别特征
+    // [注意] 我们将 'clash' 放在稍后的位置，并与 core 关键字结合
+    const isMetaKeyword = /mihomo|meta|verge|flclash|stash|nekoray|nekobox|party|surfboard/i.test(ua);
+    
+    // 如果 UA 包含 clash 但不属于已知的传统核心，通常现代客户端都支持/使用 Meta 核心特性
+    const isModernClash = ua.includes('clash') && !ua.includes('clash-for-windows') && !ua.includes('clash.for.windows');
+
+    return isMetaKeyword || isModernClash;
+}

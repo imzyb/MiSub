@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
     transformConfig: '',
     ruleLevel: 'std',
     builtinSkipCertVerify: false,
-    builtinEnableUdp: false,
+    builtinEnableUdp: true,
     builtinLoonSkipCertVerify: false,
     enableAccessLog: false,
     accessLogPersistenceMode: 'light',

@@ -108,7 +108,7 @@ watch(() => route.path, (path) => {
         <ServiceSettings v-show="activeTab === 'service'" :settings="settings" />
         <ClientSettings v-show="activeTab === 'client'" />
         <SystemSettings v-show="activeTab === 'system'" :settings="settings" :exportBackup="exportBackup"
-          :importBackup="importBackup" @migrate="handleOpenMigrationModal" />
+          :importBackup="importBackup" :handleReset="handleReset" @migrate="handleOpenMigrationModal" />
       </div>
 
       <template #footer>

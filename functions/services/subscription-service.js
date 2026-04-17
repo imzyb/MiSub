@@ -743,7 +743,8 @@ function adaptLegacyTransform(config) {
                 template: { 
                     enabled: true, 
                     text: template.template || '{emoji}{region}-{protocol}-{index}', 
-                    offset: template.indexStart || 1 
+                    offset: template.indexStart || 1,
+                    indexScope: template.indexScope || 'region'
                 } 
             } 
         });

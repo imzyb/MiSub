@@ -112,19 +112,32 @@ function parseAclProxyGroupLine(line) {
             options.url = part;
             continue;
         }
-        if (/^\d+$/.test(part)) {
-            if (!options.interval) {
-                options.interval = Number(part);
-            } else if (!options.tolerance) {
-                options.tolerance = Number(part);
+        // 支持纯数字或带逗号的数字序列（如 300 或 300,,50）
+        if (/^\d+(?:,\s*\d*)*$/.test(part)) {
+            const nums = part.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+            if (nums.length > 0) {
+                if (!options.interval) options.interval = nums[0];
+                if (nums.length > 1 && !options.tolerance) options.tolerance = nums[1];
             }
             continue;
         }
-        if (part.startsWith('(') && part.endsWith(')')) {
-            filters.push(part.slice(1, -1));
+        // 支持 ACL4SSR 正则过滤器，如 .* 或 (HK|TW|SG)
+        if (part === '.*' || (part.startsWith('(') && part.endsWith(')'))) {
+            const filterValue = part === '.*' ? '.*' : part.slice(1, -1);
+            filters.push(filterValue);
             continue;
         }
         if (part === ',') continue;
+        
+        // 兜底：如果既不是特殊的 [] 开头也不是已知格式，尝试作为成员或正则识别
+        if (part && !part.includes('=')) {
+            // 如果包含正则特殊字符，视为过滤器
+            if (/[*+[\]?|]/.test(part)) {
+                filters.push(part);
+            } else {
+                members.push(part);
+            }
+        }
     }
 
     return { name, type, members, filters, options };
@@ -158,7 +171,8 @@ export function parseIniTemplate(templateText, options = {}) {
             target: options.targetFormat || 'clash',
             // [逻辑说明] ruleLevel 在 INI 模式下暂不直接影响生成，因为 INI 自带了 hardcoded rules。
             // 仅作为元数据打包进 TemplateModel，供未来动态模板扩展使用。
-            ruleLevel: options.ruleLevel || 'std'
+            ruleLevel: options.ruleLevel || 'std',
+            isMeta: Boolean(options.isMeta)
         },
         proxies: options.proxies || [],
         groups,

@@ -431,6 +431,9 @@ export function generateBuiltinSurgeConfig(nodeList, options = {}) {
     // 转换为 Clash 代理对象
     const proxies = urlsToClashProxies(nodeUrls, options);
 
+    // 应用 UDP 开关
+    // (已在 urlsToClashProxies 中全局处理)
+    
     for (const clashProxy of proxies) {
         const result = clashProxyToSurgeResult(clashProxy);
         if (result) {

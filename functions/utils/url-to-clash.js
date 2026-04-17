@@ -223,9 +223,6 @@ function parseVlessUrl(url) {
             proxy['dialer-proxy'] = params.get('dp');
         }
 
-        // UDP
-        proxy.udp = true;
-
         return proxy;
     } catch (e) {
         console.error('解析 VLESS URL 失败:', e);
@@ -313,9 +310,6 @@ function parseTrojanUrl(url) {
         if (params.get('dp')) {
             proxy['dialer-proxy'] = params.get('dp');
         }
-
-        // UDP
-        proxy.udp = true;
 
         return proxy;
     } catch (e) {
@@ -426,7 +420,7 @@ function parseVmessUrl(url) {
         }
 
         // UDP
-        proxy.udp = true;
+        // proxy.udp = true;
 
         return proxy;
     } catch (e) {
@@ -573,7 +567,7 @@ function parseSsUrl(url) {
         }
 
         // UDP
-        proxy.udp = true;
+        // proxy.udp = true;
 
         return proxy;
     } catch (e) {
@@ -1247,8 +1241,21 @@ export function urlsToClashProxies(urls, options = {}) {
             
             // [URL 参数覆盖] 补全对 TFO/UDP/SCV 的映射
             if (options.enableTfo !== undefined) proxy.tfo = options.enableTfo;
-            if (options.enableUdp !== undefined) proxy.udp = options.enableUdp;
-            if (options.skipCertVerify !== undefined) proxy['skip-cert-verify'] = options.skipCertVerify;
+            
+            if (options.enableUdp !== undefined) {
+                const type = (proxy.type || '').toLowerCase();
+                const isNativeUdp = ['hysteria2', 'hy2', 'tuic', 'hysteria', 'wireguard'].includes(type);
+                
+                if (options.enableUdp) {
+                    proxy.udp = true;
+                } else if (!isNativeUdp) {
+                    proxy.udp = false;
+                } else {
+                    proxy.udp = true; // 原生 UDP 协议即便开关关闭也保持开启
+                }
+            }
+            
+            if (options.skipCertVerify) proxy['skip-cert-verify'] = true;
 
             // [智能增强] 注入元数据
             proxy.metadata = extractNodeMetadata(proxy.name);
