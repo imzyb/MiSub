@@ -79,8 +79,8 @@ export const useSessionStore = defineStore('session', () => {
     const result = await apiLogin(password);
     if (result.success) {
       handleLoginSuccess();
-      // 登录成功后跳转到首页 (HomeView will show Dashboard)
-      router.push({ path: '/' });
+      // 登录成功后跳转到仪表盘
+      router.push({ path: '/dashboard' });
     } else {
       throw new Error(result.error || '登录失败');
     }
@@ -104,7 +104,7 @@ export const useSessionStore = defineStore('session', () => {
     const dataStore = useDataStore();
     dataStore.clearCachedData();
 
-    // 跳转到首页（由于状态已变更为loggedOut，HomeView会自动渲染PublicProfilesView）
+    // 跳转到首页（公开页）
     router.push({ path: '/' });
   }
 

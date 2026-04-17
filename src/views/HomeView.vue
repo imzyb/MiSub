@@ -1,22 +1,29 @@
 <script setup>
-import { defineAsyncComponent, computed } from 'vue';
+import { defineAsyncComponent, computed, watchEffect } from 'vue';
 import { useSessionStore } from '../stores/session';
 import { storeToRefs } from 'pinia';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 // Lazy load components
-const DashboardView = defineAsyncComponent(() => import('./DashboardView.vue'));
 const PublicProfilesView = defineAsyncComponent(() => import('./PublicProfilesView.vue'));
-const NotFoundView = defineAsyncComponent(() => import('./NotFound.vue')); // [NEW] Use NotFound if public access disabled
+const NotFoundView = defineAsyncComponent(() => import('./NotFound.vue'));
 
 const sessionStore = useSessionStore();
 const { sessionState, publicConfig } = storeToRefs(sessionStore);
 const route = useRoute();
+const router = useRouter();
 
 const isExploreRoute = computed(() => route.path === '/explore');
 
+// 如果用户已登录且访问的是首页 /，自动通过逻辑重定向到仪表盘 /dashboard
+watchEffect(() => {
+    if (sessionState.value === 'loggedIn' && !isExploreRoute.value) {
+        router.replace('/dashboard');
+    }
+});
+
 const currentView = computed(() => {
-    // Always allow public page on /explore
+    // 1. 明确的 /explore 路由，显示公开页
     if (isExploreRoute.value) {
         if (publicConfig.value && !publicConfig.value.enablePublicPage) {
             return NotFoundView;
@@ -24,27 +31,20 @@ const currentView = computed(() => {
         return PublicProfilesView;
     }
 
-    // If logged using 'loggedIn' state, show Dashboard
+    // 2. 根路径 /
+    // 已登录：显示空白（等待 watchEffect 执行重定向）
     if (sessionState.value === 'loggedIn') {
-        return DashboardView;
+        return { template: '<div></div>' };
     }
     
-    // If public page is disabled, do NOT redirect to /login (which exposes entry).
-    // Instead, show 404/Disguise logic.
+    // 未登录 + 公开页关闭：显示 404 (Disguise)
     if (sessionState.value === 'loggedOut' && publicConfig.value && !publicConfig.value.enablePublicPage) {
         return NotFoundView;
     }
     
-    // Otherwise show Public Profiles
+    // 其他情况（未登录 + 公开页开启）：显示公开页
     return PublicProfilesView;
 });
-
-// [REMOVED] Watcher that forced redirect to /login
-// watchEffect(() => {
-//     if (sessionState.value === 'loggedOut' && publicConfig.value && !publicConfig.value.enablePublicPage) {
-//         router.replace('/login');
-//     }
-// });
 </script>
 
 <template>

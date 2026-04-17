@@ -23,29 +23,31 @@ const routes = [
         meta: { title: '公开页', isPublic: true }
     },
     {
-        path: '/dashboard', // Explicit dashboard route redirects to home or is alias
-        redirect: '/'
+        path: '/dashboard',
+        name: 'Dashboard',
+        component: DashboardView,
+        meta: { title: '仪表盘' }
     },
     {
-        path: '/groups',
+        path: '/dashboard/groups',
         name: 'SubscriptionGroups',
         component: SubscriptionGroupsView,
         meta: { title: '订阅组' }
     },
     {
-        path: '/nodes',
+        path: '/dashboard/nodes',
         name: 'ManualNodes',
         component: ManualNodesView,
         meta: { title: '手工节点' }
     },
     {
-        path: '/subscriptions',
+        path: '/dashboard/subscriptions',
         name: 'MySubscriptions',
         component: MySubscriptionsView,
         meta: { title: '我的订阅' }
     },
     {
-        path: '/settings',
+        path: '/dashboard/settings',
         name: 'Settings',
         component: SettingsView,
         meta: { title: '设置' }

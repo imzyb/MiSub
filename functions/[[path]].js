@@ -132,7 +132,11 @@ async function fetchSpaEntry(request, env, next) {
             return applyNoStoreToHtmlResponse(await next());
         }
 
-        const assetsResponse = await fetchStaticAsset(new Request(indexUrl, request), env, next);
+        const assetsResponse = await fetchStaticAsset(new Request(indexUrl, {
+            method: request.method,
+            headers: headers,
+            redirect: request.redirect
+        }), env, next);
         return applyNoStoreToHtmlResponse(assetsResponse);
     }
 
@@ -231,18 +235,21 @@ export async function onRequest(context) {
                 // [修复] 增加更多可能的SPA路由，防止被误判为订阅请求
                 // [新增] 动态包含自定义登录路径
                 const isSpaRoute = [
-                    '/groups',
-                    '/nodes',
-                    '/subscriptions',
-                    '/settings',
-                    '/login', // 默认 login 仍然需要保留，以便前端处理 "入口" 逻辑
+                    '/',
                     '/dashboard',
-                    '/profile',
-                    '/explore', // [新增] 公开页面
-                    customLoginPath // [新增] 自定义登录路径
-                ].some(route => url.pathname === route || url.pathname.startsWith(route + '/'));
+                    '/login',
+                    '/explore',
+                    customLoginPath
+                ].some(route => {
+                    if (route === '/') return url.pathname === '/';
+                    if (route === '/dashboard') {
+                        return url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/');
+                    }
+                    return url.pathname === route || url.pathname.startsWith(route + '/');
+                });
 
                 const isProtectedSpaRoute = isSpaRoute
+                    && url.pathname !== '/'
                     && url.pathname !== '/login'
                     && url.pathname !== customLoginPath
                     && !url.pathname.startsWith('/explore');

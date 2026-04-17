@@ -463,16 +463,16 @@ export async function handleMisubRequest(context) {
     const domain = url.hostname;
 
     // [Support] External Subconverter Logic
-    // 1. If 'nodes' format requested, return Base64 nodes directly (DataSource for external converters)
+    // 1. If 'nodes' format requested, return plain text nodes (DataSource for external converters)
     if (targetFormat === 'nodes') {
-        const contentToEncode = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
-        // [兼容性修复] 第三方转换后端通常默认识别 Base64 编码的订阅。
-        // 虽然明文更直观，但为了通过后端的 WAF 和格式校验，恢复为标准 Base64 编码。
-        return new Response(base64EncodeUtf8(contentToEncode), { 
+        const contentToReturn = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
+        // [兼容性优化] 第三方转换后端对明文列表的支持通常比 Base64 更好。
+        // 同时对于 Cloudflare 而言，明文输出更有利于其边缘节点的流式处理。
+        return new Response(contentToReturn, { 
             headers: { 
                 "Content-Type": "text/plain; charset=utf-8", 
                 'Cache-Control': 'no-store, no-cache',
-                'X-MiSub-Mode': 'node-export-base64'
+                'X-MiSub-Mode': 'node-export-plain'
             } 
         });
     }
@@ -481,12 +481,12 @@ export async function handleMisubRequest(context) {
     if (isExternalMode && targetFormat !== 'base64') {
         let backend = url.searchParams.get('backend') || profileSub.backend || globalSub.defaultBackend || "https://sub.id9.cc/sub?";
         
-        // [加固] 防止 UI 标签泄漏到配置中（例如出现 "subconverter 后端" 字样）
+        // [加固] 防止 UI 标签泄漏到配置中
         if (typeof backend === 'string' && (backend.includes('后端') || backend.includes('参数'))) {
             backend = "https://subapi.cmliussss.net/sub?";
         }
 
-        // [自动纠错] 如果地址不带 http/https 协议，自动补全，防止 URL 构造失败
+        // [自动纠错] 如果地址不带 http/https 协议，自动补全
         if (backend && typeof backend === 'string' && !backend.startsWith('http://') && !backend.startsWith('https://')) {
             backend = 'http://' + backend;
         }
@@ -498,15 +498,18 @@ export async function handleMisubRequest(context) {
         const dataSourceUrl = new URL(request.url);
         
         // [加固] 彻底清理 URL 参数，防止参数污染导致后端返回 400 错误
-        const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan'];
+        const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan', 'list', 'include', 'exclude'];
         paramsToClear.forEach(p => dataSourceUrl.searchParams.delete(p));
         
         dataSourceUrl.searchParams.set('target', 'nodes');
         dataSourceUrl.searchParams.set('engine', 'builtin');
 
-        // [关键修复] 确保后端拉取数据时包含身份令牌，否则会报 401 (No nodes found)
-        // 恢复显式注入逻辑，以确保在所有路径下第三方转换后端都能成功访问内部数据源
-        if (!dataSourceUrl.searchParams.has('token')) {
+        // [关键修复] 确保后端拉取数据时包含身份令牌
+        // 只有当 URL 路径中不包含令牌时，才在查询参数中显式注入
+        const pathSegments = dataSourceUrl.pathname.split('/').filter(Boolean);
+        const hasTokenInPath = pathSegments.some(seg => seg === config.mytoken || seg === config.profileToken);
+
+        if (!hasTokenInPath && !dataSourceUrl.searchParams.has('token')) {
             const authToken = token || currentProfile?.token || config.mytoken;
             if (authToken) dataSourceUrl.searchParams.set('token', authToken);
         }
