@@ -22,7 +22,24 @@ function buildProxyLine(proxy) {
         return `${name} = trojan, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'ss' || type === 'shadowsocks') {
-        return `${name} = ss, ${server}, ${port}, encrypt-method=${proxy.cipher || 'aes-128-gcm'}, password=${proxy.password || ''}`;
+        const extras = [`encrypt-method=${proxy.cipher || 'aes-128-gcm'}`, `password=${proxy.password || ''}`];
+        const plugin = proxy.plugin || '';
+        const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
+        if (plugin === 'obfs-local' || proxy.obfs) {
+            const obfsMode = opts.mode || proxy.obfs;
+            if (obfsMode) extras.push(`obfs=${obfsMode}`);
+            const obfsHost = opts.host || proxy['obfs-host'];
+            if (obfsHost) extras.push(`obfs-host=${obfsHost}`);
+            const obfsUri = opts.uri || proxy['obfs-uri'];
+            if (obfsUri) extras.push(`obfs-uri=${obfsUri}`);
+        } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
+            extras.push('ws=true');
+            if (opts.path) extras.push(`ws-path=${opts.path}`);
+            if (opts.host) extras.push(`ws-headers=Host:${opts.host}`);
+            if (opts.tls || opts.mode === 'websocket-tls') extras.push('tls=true');
+        }
+        if (proxy.udp) extras.push('udp-relay=true');
+        return `${name} = ss, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'vmess') {
         const extras = [`username=${proxy.uuid || ''}`];

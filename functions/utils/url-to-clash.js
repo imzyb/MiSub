@@ -433,6 +433,14 @@ function parseVmessUrl(url) {
  * 解析 Shadowsocks 插件参数 (SIP002)
  * 格式: plugin-name;opt1=val1;opt2=val2
  */
+function normalizeSsPluginOption(key, value) {
+    if (key === 'mux') {
+        if (value === '1' || value === 'true') return true;
+        if (value === '0' || value === 'false') return false;
+    }
+    return value;
+}
+
 function parseSsPlugin(pluginStr) {
     if (!pluginStr) return null;
     // 插件参数内部通常用分号分隔
@@ -454,7 +462,7 @@ function parseSsPlugin(pluginStr) {
             // 尝试处理布尔值字符串
             if (val === 'true') val = true;
             if (val === 'false') val = false;
-            opts[key] = val;
+            opts[key] = normalizeSsPluginOption(key, val);
         }
     }
     return { name, opts };

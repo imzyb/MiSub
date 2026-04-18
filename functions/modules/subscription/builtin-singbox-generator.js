@@ -214,7 +214,7 @@ function buildOutbound(proxy) {
         outbound.tls.enabled = true;
         outbound.tls.insecure = true;
     }
-    if (proxy.sni || proxy.servername) {
+    if ((proxy.sni || proxy.servername) && (type !== 'ss' && type !== 'shadowsocks' || proxy.tls || outbound.tls?.enabled)) {
         outbound.tls = outbound.tls || {};
         outbound.tls.server_name = proxy.sni || proxy.servername;
     }

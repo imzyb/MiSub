@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import yaml from 'js-yaml';
 import { transformBuiltinSubscription } from '../../functions/modules/subscription/transformer-factory.js';
 
+const SS2022_V2RAY_PLUGIN_NODE = 'ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206TldSak1UVmxNVFZtTWpnMU5HRTVaRGsxT1dJd1pUUm1ZbVJrTnpkaU5qTT0@cf.090227.xyz:8080?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dss.2227tsj.workers.dev%3Bpath%3D%2F%3Fenc%5C%3D2022-blake3-aes-256-gcm%3Bmux%3D0#2022-blake3-aes-256-gcm';
+
 describe('Egern native renderer', () => {
   it('renders a Profile.yaml style config for Egern', () => {
     const nodeList = [
@@ -61,5 +63,18 @@ describe('Egern native renderer', () => {
     expect(anytls.password).toBe('9d6c62f6-e38d-4146-ab3e-d40568555f89');
     expect(anytls.sni).toBe('xkhkfree.99887766.best');
     expect(anytls.udp_relay).toBe(true);
+  });
+
+  it('maps SS2022 v2ray-plugin websocket using Egern Shadowsocks transport', () => {
+    const rendered = transformBuiltinSubscription(SS2022_V2RAY_PLUGIN_NODE, 'egern');
+    const parsed = yaml.load(rendered);
+    const shadowsocks = parsed.proxies.find(item => item.shadowsocks)?.shadowsocks;
+
+    expect(shadowsocks.method).toBe('2022-blake3-aes-256-gcm');
+    expect(shadowsocks.server).toBe('cf.090227.xyz');
+    expect(shadowsocks.port).toBe(8080);
+    expect(shadowsocks.transport.ws.path).toBe('/?enc=2022-blake3-aes-256-gcm');
+    expect(shadowsocks.transport.ws.headers.Host).toBe('ss.2227tsj.workers.dev');
+    expect(shadowsocks.transport.wss).toBeUndefined();
   });
 });

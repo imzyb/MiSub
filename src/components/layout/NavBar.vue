@@ -102,9 +102,9 @@ function isActive(path) {
   <nav
     v-if="isLoggedIn"
     aria-label="底部主导航"
-    class="md:hidden mobile-nav-glass fixed bottom-0 inset-x-0 safe-bottom-inset z-[60]"
+    class="md:hidden mobile-nav-glass z-[60]"
   >
-    <div class="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
+    <div class="mobile-nav-inner">
       <router-link
         v-for="item in navItems"
         :key="item.path"

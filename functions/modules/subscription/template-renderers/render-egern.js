@@ -139,6 +139,24 @@ function mapProxy(proxy) {
         if (proxy.plugin === 'obfs') {
             mapped.shadowsocks.obfs = s(proxy['plugin-opts']?.mode || 'http');
             mapped.shadowsocks.obfs_host = s(proxy['plugin-opts']?.host || proxy.server);
+        } else if (proxy.plugin === 'v2ray-plugin' || proxy['plugin-opts']?.mode === 'websocket') {
+            const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
+            const isTls = Boolean(opts.tls || opts.mode === 'websocket-tls');
+            mapped.shadowsocks.transport = isTls
+                ? {
+                    wss: {
+                        path: s(opts.path || '/'),
+                        headers: opts.host ? { Host: s(opts.host) } : {},
+                        sni: s(proxy.servername ?? proxy.sni ?? opts.host ?? proxy.server),
+                        skip_tls_verify: Boolean(proxy['skip-cert-verify'] || proxy.skipCertVerify)
+                    }
+                }
+                : {
+                    ws: {
+                        path: s(opts.path || '/'),
+                        headers: opts.host ? { Host: s(opts.host) } : {}
+                    }
+                };
         }
         return mapped;
     }

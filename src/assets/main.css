@@ -389,12 +389,25 @@ textarea {
 
 /* 📱 Mobile Bottom Nav */
 .mobile-nav-glass {
-  @apply fixed bottom-0 left-0 right-0 z-50;
-  padding-bottom: env(safe-area-inset-bottom, 20px);
+  @apply fixed left-0 right-0 z-50;
+  bottom: 0;
+  min-height: calc(4rem + max(env(safe-area-inset-bottom, 0px), 12px));
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-top: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  contain: layout paint;
+  transform: translateZ(0);
+  overflow: visible;
+  will-change: transform;
+}
+
+.mobile-nav-inner {
+  @apply flex justify-around items-center h-16 max-w-lg mx-auto px-2;
+  min-height: 4rem;
 }
 
 .dark .mobile-nav-glass {

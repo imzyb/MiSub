@@ -13,4 +13,15 @@ describe('Clash 内置生成器', () => {
         const result = generateProxiesOnly(nodeWithControl);
         expect(result).toContain('TestSS');
     });
+    it('should render SS v2ray-plugin mux as a boolean for Clash compatibility', () => {
+        const node = 'ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206TldSak1UVmxNVFZtTWpnMU5HRTVaRGsxT1dJd1pUUm1ZbVJrTnpkaU5qTT0@cf.090227.xyz:8080?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dss.2227tsj.workers.dev%3Bpath%3D%2F%3Fenc%5C%3D2022-blake3-aes-256-gcm%3Bmux%3D0#2022-blake3-aes-256-gcm';
+        const result = generateProxiesOnly(node);
+
+        expect(result).toContain('plugin: v2ray-plugin');
+        expect(result).toContain('mode: websocket');
+        expect(result).toContain('path: /?enc=2022-blake3-aes-256-gcm');
+        expect(result).toContain('mux: false');
+        expect(result).not.toContain('mux: "0"');
+        expect(result).not.toContain("mux: '0'");
+    });
 });
