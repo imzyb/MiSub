@@ -295,9 +295,8 @@ export async function handleMisubRequest(context) {
     
     const builtinParam = (url.searchParams.get('builtin') || '').toLowerCase();
     const engineParam = (url.searchParams.get('engine') || '').toLowerCase();
-    // [Optimization] For non-browser agents (like subconverters), default to 'builtin' engine 
-    // to avoid redirection loops and provide a cleaner data source URL.
-    const defaultEngineMode = isBrowser ? (profileSub.engineMode || globalSub.engineMode || 'builtin') : 'builtin';
+    // [Optimization] Respect user defined engine mode while preventing loops for non-browser agents (backend fetchers)
+    const defaultEngineMode = profileSub.engineMode || globalSub.engineMode || 'builtin';
     
     const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || defaultEngineMode;
     const isExternalMode = effectiveEngine === 'external';
@@ -513,9 +512,11 @@ export async function handleMisubRequest(context) {
         const dataSourceUrl = new URL(request.url);
         
         // [加固] 彻底清理 URL 参数，防止参数污染导致后端返回 400 错误
-        // [优化] 不再强制注入 target=nodes 和 engine=builtin，因为非浏览器请求已默认使用内置引擎
+        // [优化] 不再强制注入 target=nodes，因为非浏览器请求已默认使用内置引擎
+        // [关键] 显式注入 builtin=true 确保后端拉取数据时强制走内置逻辑，打破重定向环
         const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan', 'list', 'include', 'exclude'];
         paramsToClear.forEach(p => dataSourceUrl.searchParams.delete(p));
+        dataSourceUrl.searchParams.set('builtin', 'true');
 
         // [关键修复] 确保后端拉取数据时包含身份令牌
         // 只有当 URL 路径中不包含令牌时，才在查询参数中显式注入
@@ -553,6 +554,22 @@ export async function handleMisubRequest(context) {
 
         // Add File Name
         externalUrl.searchParams.set('filename', subName);
+
+        // [Access Log] Send notification for external redirection
+        if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
+            const clientIp = request.headers.get('CF-Connecting-IP')
+                || request.headers.get('X-Real-IP')
+                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+                || 'N/A';
+            context.waitUntil(
+                sendEnhancedTgNotification(
+                    config,
+                    '🛰️ <b>订阅被访问</b> (第三方转换)',
+                    clientIp,
+                    `<b>域名:</b> <code>${tgEscape(domain)}</code>\n<b>客户端:</b> <code>${tgEscape(userAgentHeader)}</code>\n<b>请求格式:</b> <code>${tgEscape(targetFormat)}</code>\n<b>订阅组:</b> <code>${tgEscape(subName)}</code>`
+                )
+            );
+        }
 
         // [重要修复] 使用手动构建出的 302 响应，以确保头部是可变的 (Mutable)
         return new Response(null, {

@@ -29,7 +29,7 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
     
     let model = parseIniTemplate(templateText, {
@@ -49,7 +49,7 @@ export function renderSingboxFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -66,7 +66,7 @@ export function renderSurgeFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -83,7 +83,7 @@ export function renderLoonFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -100,7 +100,7 @@ export function renderQuanxFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -117,7 +117,7 @@ export function renderEgernFromIniTemplate(templateText, options = {}) {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls);
+    const proxies = Array.isArray(options.proxies) ? options.proxies : urlsToClashProxies(proxyUrls, options);
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
