@@ -27,6 +27,7 @@ const navItems = MAIN_NAV_ITEMS;
 // 路由激活判断：/ 精确匹配，其他路径前缀匹配（支持子路由）
 function isActive(path) {
   if (path === '/') return route.path === '/';
+  if (path === '/dashboard') return route.path === '/dashboard';
   return route.path.startsWith(path);
 }
 </script>

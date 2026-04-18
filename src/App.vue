@@ -176,7 +176,7 @@ const handleDiscard = async () => {
 };
 
 const isCustomPageFullWidth = computed(() => {
-  if (isLoggedIn.value || !isPublicRoute.value) return false;
+  if (!isPublicRoute.value) return false;
   const cp = sessionStore.publicConfig?.customPage;
   return cp?.enabled === true && cp?.useDefaultLayout === false;
 });
@@ -191,8 +191,7 @@ const isCustomPageFullWidth = computed(() => {
     <Header v-else-if="showLegacyHeader" :is-logged-in="isLoggedIn" :hide-branding="shouldHidePublicBranding" @logout="logout" />
 
     <main :class="[
-      'grow w-full py-6 pb-24 md:pb-6',
-      isCustomPageFullWidth ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
+      isCustomPageFullWidth ? 'grow w-full' : 'grow w-full py-6 pb-24 md:pb-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
       {
         'flex items-center justify-center': shouldCenterMain,
         'ios-header-padding': showLegacyHeader

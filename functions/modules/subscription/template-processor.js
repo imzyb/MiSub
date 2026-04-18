@@ -197,61 +197,61 @@ function pruneInvalidMembers(model) {
 export function applySmartModelOptimizations(model) {
     const { ruleLevel } = model.meta;
     
-    // 1. 执行现有的正则过滤器解析
+    // 1. 执行现有的正则过滤器解析 (始终执行)
     resolveGroupFilters(model);
 
-    // 2. 如果等级为 none (完全禁用) 或 base (精简版)，则执行完基础解析和修剪后即可返回
+    // 2. 检查等级。如果是 none (完全禁用)，我们只执行占位符展开和清理，不进行智能注入。
     const normalizedLevel = (ruleLevel || '').toLowerCase();
-    if (normalizedLevel === 'none' || normalizedLevel === 'base' || !normalizedLevel) {
-        pruneEmptyGroups(model);
-        return model;
-    }
-
-    // 3. 准备获取所有节点的名称，用于后续注入
-    const proxyNames = model.proxies.map(p => p.name || p.tag).filter(Boolean);
-    if (proxyNames.length === 0) {
-        pruneEmptyGroups(model);
-        return model;
-    }
-
-    // 4. 识别地区分组并注入（如果模板中没有对应名称的组）
-    const nodeEntries = proxyNames.map(name => ({ tag: name }));
-    const regions = groupNodeLinesByRegion(nodeEntries);
     
-    // 注入地区自动选优组
-    regions.forEach(region => {
-        if (hasEquivalentRegionGroup(model, region)) return;
-        model.groups.push({
-            name: region.name,
-            type: 'url-test',
-            members: region.tags,
-            options: {
-                url: 'http://www.gstatic.com/generate_204',
-                interval: '300',
-                tolerance: '50'
-            }
-        });
-    });
-
-    // 5. 展开魔法占位符
-    expandMagicPlaceholders(model);
-
-    // 6. 寻找目标“主选择器”进行手动注入兜底（如果模板里一个占位符都没写）
-    const mainGroupCandidates = model.groups.filter(g => 
-        /选择|Proxy|Default|Global|Main|select/i.test(g.name)
-    );
-    if (mainGroupCandidates.length > 0) {
-        const targetGroup = mainGroupCandidates[0];
-        // 如果该组还没有任何成员，注入所有地区作为兜底
-        if (targetGroup.members.length === 0) {
-            targetGroup.members.push(...regions.map(r => r.name));
+    if (normalizedLevel !== 'none' && normalizedLevel !== 'base' && normalizedLevel) {
+        // 3. 准备获取所有节点的名称，用于后续注入
+        const proxyNames = model.proxies.map(p => p.name || p.tag).filter(Boolean);
+        if (proxyNames.length > 0) {
+            // 4. 识别地区分组并注入
+            const nodeEntries = proxyNames.map(name => ({ tag: name }));
+            const regions = groupNodeLinesByRegion(nodeEntries);
+            
+            // 注入地区自动选优组
+            regions.forEach(region => {
+                if (hasEquivalentRegionGroup(model, region)) return;
+                model.groups.push({
+                    name: region.name,
+                    type: 'url-test',
+                    members: region.tags,
+                    options: {
+                        url: 'http://www.gstatic.com/generate_204',
+                        interval: '300',
+                        tolerance: '50'
+                    }
+                });
+            });
         }
     }
 
-    // 7. 最后进行全局修剪与去重
+    // 5. 展开魔法占位符 (始终执行，确保模板标签被替换)
+    expandMagicPlaceholders(model);
+
+    // 6. 只有在非精简模式下才执行主选择器兜底注入
+    if (normalizedLevel !== 'none' && normalizedLevel !== 'base' && normalizedLevel) {
+        const mainGroupCandidates = model.groups.filter(g => 
+            /选择|Proxy|Default|Global|Main|select/i.test(g.name)
+        );
+        if (mainGroupCandidates.length > 0) {
+            const targetGroup = mainGroupCandidates[0];
+            // 如果该组还没有任何成员，注入所有可用的组
+            if (targetGroup.members.length === 0) {
+                const availableGroups = model.groups
+                    .filter(g => g.name !== targetGroup.name && (g.type === 'url-test' || g.type === 'fallback'))
+                    .map(g => g.name);
+                targetGroup.members.push(...availableGroups);
+            }
+        }
+    }
+
+    // 7. 最后进行全局修剪与去重 (始终执行，保证输出质量)
     dedupeGroupsByName(model);
-    pruneInvalidMembers(model); // 清理无效引用
-    pruneEmptyGroups(model);    // 递归清理最终可能产生的新空组
+    pruneInvalidMembers(model); 
+    pruneEmptyGroups(model);
 
     return model;
 }

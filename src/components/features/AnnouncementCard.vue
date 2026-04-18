@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import DOMPurify from 'dompurify';
 
 const props = defineProps({
@@ -10,10 +10,9 @@ const props = defineProps({
 });
 
 const isVisible = ref(true);
-const isExpanded = ref(false); // 默认折叠
 
-const allowedContentTags = ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'li'];
-const allowedContentAttrs = ['href', 'target', 'rel'];
+const allowedContentTags = ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'li', 'code', 'pre'];
+const allowedContentAttrs = ['href', 'target', 'rel', 'class'];
 
 const sanitizedContent = computed(() => {
     const rawContent = props.announcement?.content?.trim()
@@ -25,12 +24,8 @@ const sanitizedContent = computed(() => {
     });
 });
 
-const toggleExpand = () => {
-    isExpanded.value = !isExpanded.value;
-};
-
 const dismiss = (e) => {
-    e.stopPropagation(); // 防止触发展开
+    e.stopPropagation(); 
     isVisible.value = false;
     try {
         if (props.announcement.updatedAt) {
@@ -41,86 +36,115 @@ const dismiss = (e) => {
     }
 };
 
-onMounted(() => {
-    if (props.announcement.dismissible && props.announcement.updatedAt) {
+const checkVisibility = () => {
+    if (props.announcement?.dismissible && props.announcement?.updatedAt) {
         const dismissed = localStorage.getItem(`announcement_dismissed_${props.announcement.updatedAt}`);
         if (dismissed) {
             isVisible.value = false;
+        } else {
+            isVisible.value = true;
         }
+    } else {
+        isVisible.value = true;
     }
+};
+
+checkVisibility();
+
+watch(() => props.announcement, () => {
+    checkVisibility();
+}, { deep: true });
+
+const typeConfig = computed(() => {
+    const types = {
+        info: {
+            bg: 'bg-indigo-50/50 dark:bg-indigo-900/10',
+            border: 'border-indigo-100 dark:border-indigo-800/30',
+            text: 'text-indigo-700 dark:text-indigo-300',
+            iconBg: 'bg-indigo-500',
+            glow: 'rgba(99, 102, 241, 0.15)'
+        },
+        success: {
+            bg: 'bg-emerald-50/50 dark:bg-emerald-900/10',
+            border: 'border-emerald-100 dark:border-emerald-800/30',
+            text: 'text-emerald-700 dark:text-emerald-300',
+            iconBg: 'bg-emerald-500',
+            glow: 'rgba(16, 185, 129, 0.15)'
+        },
+        warning: {
+            bg: 'bg-amber-50/50 dark:bg-amber-900/10',
+            border: 'border-amber-100 dark:border-amber-800/30',
+            text: 'text-amber-700 dark:text-amber-300',
+            iconBg: 'bg-amber-500',
+            glow: 'rgba(245, 158, 11, 0.15)'
+        },
+        error: {
+            bg: 'bg-rose-50/50 dark:bg-rose-900/10',
+            border: 'border-rose-100 dark:border-rose-800/30',
+            text: 'text-rose-700 dark:text-rose-300',
+            iconBg: 'bg-rose-500',
+            glow: 'rgba(244, 63, 94, 0.15)'
+        }
+    };
+    return types[props.announcement.type] || types.info;
 });
+
 </script>
 
 <template>
-    <Transition name="fade">
-        <div v-if="isVisible" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-            <div @click="toggleExpand"
-                class="relative misub-radius-lg p-4 shadow-sm border transition-all duration-300 cursor-pointer hover:shadow-md group"
-                :class="{
-                    'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800': announcement.type === 'info',
-                    'bg-green-50 border-green-100 dark:bg-green-900/20 dark:border-green-800': announcement.type === 'success',
-                    'bg-yellow-50 border-yellow-100 dark:bg-yellow-900/20 dark:border-yellow-800': announcement.type === 'warning',
-                    'bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800': announcement.type === 'error'
-                }">
+    <Transition name="fade-slide">
+        <div v-if="isVisible" 
+             class="announcement-glass group relative overflow-hidden transition-all duration-500 misub-radius-lg border backdrop-blur-xl shadow-lg"
+             :class="[typeConfig.bg, typeConfig.border]">
+            
+            <!-- Subtle Background Glow -->
+            <div class="absolute -right-20 -top-20 w-64 h-64 blur-[80px] rounded-full opacity-20 pointer-events-none transition-transform duration-1000 group-hover:scale-125"
+                 :style="{ background: typeConfig.glow }"></div>
 
-                <div class="flex items-center gap-4">
-                    <!-- Icon -->
-                    <div class="flex-shrink-0">
-                        <div class="w-8 h-8 misub-radius-md flex items-center justify-center text-lg shadow-sm" :class="{
-                            'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300': announcement.type === 'info',
-                            'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300': announcement.type === 'success',
-                            'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/40 dark:text-yellow-300': announcement.type === 'warning',
-                            'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300': announcement.type === 'error'
-                        }">
-                            <span v-if="announcement.type === 'info'">ℹ️</span>
-                            <span v-if="announcement.type === 'success'">✅</span>
-                            <span v-if="announcement.type === 'warning'">⚠️</span>
-                            <span v-if="announcement.type === 'error'">⛔</span>
-                        </div>
-                    </div>
-
-                    <!-- Header / Summary -->
-                    <div class="flex-1 min-w-0 flex items-center justify-between">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate pr-4">
-                            {{ announcement.title || '系统公告' }}
-                        </h3>
-
-                        <!-- Actions -->
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline-block"
-                                v-if="!isExpanded">
-                                点击展开
-                            </span>
-                            <!-- Expand Icon -->
-                            <svg class="w-5 h-5 text-gray-400 transition-transform duration-300 transform"
-                                :class="{ 'rotate-180': isExpanded }" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Close Button (Always visible if dismissible) -->
-                    <button v-if="announcement.dismissible" @click="dismiss"
-                        class="flex-shrink-0 p-1.5 -mr-1 misub-radius-md text-gray-400 hover:text-gray-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-10"
-                        title="关闭公告">
-                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+            <div class="relative p-5 sm:p-6 z-10 flex flex-col sm:flex-row gap-5">
+                <!-- Icon Area -->
+                <div class="shrink-0">
+                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3"
+                         :class="typeConfig.iconBg">
+                        <svg v-if="announcement.type === 'success'" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                         </svg>
-                    </button>
+                        <svg v-else-if="announcement.type === 'warning'" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <svg v-else-if="announcement.type === 'error'" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <svg v-else class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
                 </div>
 
-                <!-- Expandable Content -->
-                <div v-show="isExpanded" class="mt-4 pt-4 border-t border-black/5 dark:border-white/5 animate-fade-in">
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-600 dark:text-gray-300 break-words"
+                <!-- Content Area -->
+                <div class="flex-1 space-y-1.5 min-w-0">
+                    <div class="flex items-center justify-between gap-4">
+                        <h3 class="text-lg font-bold truncate transition-colors duration-300"
+                            :class="[typeConfig.text]">
+                            {{ announcement.title || '系统公告' }}
+                        </h3>
+                        <button v-if="announcement.dismissible" 
+                                @click="dismiss"
+                                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                                title="不再显示">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="prose prose-sm max-w-none text-gray-600 dark:text-gray-300 leading-relaxed dark:prose-invert transition-colors duration-300"
                         v-html="sanitizedContent">
                     </div>
-                    <div v-if="announcement.updatedAt"
-                        class="mt-4 text-xs text-gray-400 dark:text-gray-500 flex justify-end">
-                        发布时间: {{ new Date(announcement.updatedAt).toLocaleString() }}
+
+                    <div v-if="announcement.updatedAt" class="pt-2 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <span class="w-1 h-1 rounded-full bg-current opacity-40"></span>
+                        最后更新于 {{ new Date(announcement.updatedAt).toLocaleString() }}
                     </div>
                 </div>
             </div>
@@ -129,30 +153,46 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.3s ease, transform 0.3s ease;
+.announcement-glass {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.announcement-glass:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.15);
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-20px) scale(0.95);
+    filter: blur(10px);
 }
 
-.animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
+:deep(.prose) {
+    --tw-prose-body: currentColor;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-5px);
-    }
+:deep(.prose a) {
+    color: var(--primary-600, #4f46e5);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+}
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+:deep(.prose code) {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.dark :deep(.prose code) {
+    background: rgba(255, 255, 255, 0.1);
 }
 </style>

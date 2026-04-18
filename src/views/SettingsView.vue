@@ -27,6 +27,7 @@ const {
   loadSettings,
   handleSave,
   handleMigrationSuccess,
+  handleReset,
   exportBackup,
   importBackup,
 } = useSettingsLogic();

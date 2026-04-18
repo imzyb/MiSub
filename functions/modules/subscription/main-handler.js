@@ -293,10 +293,13 @@ export async function handleMisubRequest(context) {
     const profileSub = currentProfile?.subconverter || {};
     const globalSub = config.subconverter || {};
     
-    // Determine the effective engine mode
     const builtinParam = (url.searchParams.get('builtin') || '').toLowerCase();
     const engineParam = (url.searchParams.get('engine') || '').toLowerCase();
-    const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || profileSub.engineMode || globalSub.engineMode || 'builtin';
+    // [Optimization] For non-browser agents (like subconverters), default to 'builtin' engine 
+    // to avoid redirection loops and provide a cleaner data source URL.
+    const defaultEngineMode = isBrowser ? (profileSub.engineMode || globalSub.engineMode || 'builtin') : 'builtin';
+    
+    const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || defaultEngineMode;
     const isExternalMode = effectiveEngine === 'external';
     const useBuiltin = !isExternalMode;
 
@@ -492,17 +495,27 @@ export async function handleMisubRequest(context) {
         }
 
         const externalUrl = new URL(backend);
-        externalUrl.searchParams.set('target', targetFormat.includes('&') ? targetFormat.split('&')[0] : targetFormat);
+
+        // [Fix] Automatically append '/sub' if the backend URL only has a root path.
+        // Most subconverter backends (FatSheep, subapi, etc.) use /sub as the conversion endpoint.
+        if (externalUrl.pathname === '/' || !externalUrl.pathname) {
+            externalUrl.pathname = '/sub';
+        }
+        // [优化] 解析 targetFormat，支持带参数的格式（如 surge&ver=4）
+        const [targetBase, ...targetParams] = targetFormat.split('&');
+        externalUrl.searchParams.set('target', targetBase);
+        targetParams.forEach(p => {
+            const [k, v] = p.split('=');
+            if (k && v) externalUrl.searchParams.set(k, v);
+        });
         
         // Data source is THIS worker, but forcing builtin and nodes format
         const dataSourceUrl = new URL(request.url);
         
         // [加固] 彻底清理 URL 参数，防止参数污染导致后端返回 400 错误
+        // [优化] 不再强制注入 target=nodes 和 engine=builtin，因为非浏览器请求已默认使用内置引擎
         const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan', 'list', 'include', 'exclude'];
         paramsToClear.forEach(p => dataSourceUrl.searchParams.delete(p));
-        
-        dataSourceUrl.searchParams.set('target', 'nodes');
-        dataSourceUrl.searchParams.set('engine', 'builtin');
 
         // [关键修复] 确保后端拉取数据时包含身份令牌
         // 只有当 URL 路径中不包含令牌时，才在查询参数中显式注入
