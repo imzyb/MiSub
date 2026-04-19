@@ -298,13 +298,19 @@ function mapRuleToSingbox(rule) {
     return null;
 }
 
+function detectRuleSetFormat(url) {
+    const raw = String(url || '').trim().toLowerCase();
+    if (!raw) return 'source';
+    return raw.endsWith('.srs') ? 'binary' : 'source';
+}
+
 function buildRuleSets(rules) {
     const remoteRuleSets = rules
         .filter(rule => String(rule.type || '').toLowerCase() === 'rule-set' && rule.source === 'remote')
         .map(rule => ({
             tag: sanitizeTag(`${rule.policy}_${rule.value}`),
             type: 'remote',
-            format: 'binary',
+            format: detectRuleSetFormat(rule.value),
             url: rule.value,
             download_detour: 'DIRECT'
         }));

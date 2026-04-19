@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import TransformSelector from '@/components/forms/TransformSelector.vue';
 import Switch from '@/components/ui/Switch.vue';
 import SectionHeader from '../../SectionHeader.vue';
@@ -67,6 +67,19 @@ const modeHint = computed(() => {
 const isBuiltinEngine = computed(() => props.settings.subconverter.engineMode === 'builtin' || props.settings.subconverter.engineMode === '');
 const isExternalEngine = computed(() => props.settings.subconverter.engineMode === 'external');
 
+watch(isExternalEngine, (enabled) => {
+  if (!enabled) return;
+
+  if (props.settings.transformConfigMode === 'builtin') {
+    props.settings.transformConfigMode = 'preset';
+  }
+
+  if (String(props.settings.transformConfig || '').startsWith('builtin:')) {
+    props.settings.transformConfig = '';
+    selectedAsset.value = null;
+  }
+}, { immediate: true });
+
 </script>
 
 <template>
@@ -120,10 +133,20 @@ const isExternalEngine = computed(() => props.settings.subconverter.engineMode =
             </label>
             <select v-model="settings.transformConfigMode"
               class="block w-full px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition-colors duration-200 shadow-sm">
-              <option v-for="option in modeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              <option
+                v-for="option in modeOptions"
+                :key="option.value"
+                :value="option.value"
+                :disabled="option.value === 'builtin' && isExternalEngine"
+              >
+                {{ option.label }}
+              </option>
             </select>
             <p class="mt-2 text-[10px] leading-relaxed text-gray-400">
               {{ modeHint }}
+            </p>
+            <p v-if="isExternalEngine" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+              第三方后端不支持 MiSub 内置规则源与内置模板，请使用预设远程模板或自定义 URL。
             </p>
           </div>
 
@@ -140,6 +163,7 @@ const isExternalEngine = computed(() => props.settings.subconverter.engineMode =
               placeholder="选择预设规则配置..."
               custom-placeholder="输入远程 .ini 配置文件 URL"
               :allowEmpty="settings.transformConfigMode === 'builtin'"
+              :exclude-builtin-assets="isExternalEngine"
             />
           </div>
         </div>
@@ -163,7 +187,7 @@ const isExternalEngine = computed(() => props.settings.subconverter.engineMode =
          <div class="space-y-4">
             <div :class="{ 'opacity-60': !isBuiltinMode }" class="transition-opacity">
               <label class="block text-[11px] font-medium text-gray-500 mb-1.5">分流详细等级 (仅自动分流生效)</label>
-              <select v-model="settings.ruleLevel" :disabled="!isBuiltinMode"
+              <select v-model="settings.ruleLevel" :disabled="!isBuiltinMode || isExternalEngine"
                 class="block w-full px-3 py-2 text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
                 <option value="base">精简版 Base</option>
                 <option value="std">标准版 Standard (推荐)</option>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildManagedConfigUrl, resolveTemplateSource, resolveTemplateUrl } from '../../functions/modules/subscription/main-handler.js';
+import { buildManagedConfigUrl, resolveExternalTemplateConfigUrl, resolveTemplateSource, resolveTemplateUrl } from '../../functions/modules/subscription/main-handler.js';
 import {
     TEMPLATE_COMPATIBILITY,
     normalizeTemplateTarget,
@@ -19,6 +19,8 @@ describe('Main handler template url', () => {
         expect(resolveTemplateUrl('preset', 'https://example.com/preset.yaml', 'https://example.com/fallback.yaml')).toBe('https://example.com/preset.yaml');
         expect(resolveTemplateUrl('custom', 'https://example.com/custom.yaml', 'https://example.com/fallback.yaml')).toBe('https://example.com/custom.yaml');
         expect(resolveTemplateSource('builtin:clash_acl4ssr_full')).toEqual({ kind: 'builtin', value: 'clash_acl4ssr_full' });
+        expect(resolveExternalTemplateConfigUrl(resolveTemplateSource('builtin:clash_acl4ssr_full'))).toBe('');
+        expect(resolveExternalTemplateConfigUrl(resolveTemplateSource('https://example.com/preset.yaml'))).toBe('https://example.com/preset.yaml');
     });
 
     it('should apply external templates only to compatible targets', () => {

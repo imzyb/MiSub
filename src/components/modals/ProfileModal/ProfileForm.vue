@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import TransformSelector from '../../forms/TransformSelector.vue';
 import Input from '../../ui/Input.vue';
 import Switch from '../../ui/Switch.vue';
@@ -69,8 +69,38 @@ const flagOptions = [
 const selectedTransformAsset = ref(null);
 const emit = defineEmits(['toggle-advanced']);
 
-const isBuiltinMode = computed(() => props.localProfile.transformConfigMode === 'builtin');
-const isExternalEngine = computed(() => props.localProfile.subconverter.engineMode === 'external');
+const isExternalEngine = computed(() => {
+  const localMode = props.localProfile?.subconverter?.engineMode || '';
+  if (localMode === 'external') return true;
+  if (localMode === 'builtin') return false;
+  return (props.globalSettings?.subconverter?.engineMode || 'builtin') === 'external';
+});
+
+const enforceExternalSchemeConstraints = () => {
+  const enabled = isExternalEngine.value;
+  if (!enabled) return;
+
+  if (props.localProfile.transformConfigMode === 'builtin') {
+    props.localProfile.transformConfigMode = 'preset';
+  }
+
+  if (String(props.localProfile.transformConfig || '').startsWith('builtin:')) {
+    props.localProfile.transformConfig = '';
+    selectedTransformAsset.value = null;
+  }
+};
+
+watch(
+  () => [
+    isExternalEngine.value,
+    props.localProfile,
+    props.localProfile?.transformConfigMode,
+    props.localProfile?.transformConfig,
+    props.localProfile?.subconverter?.engineMode
+  ],
+  enforceExternalSchemeConstraints,
+  { immediate: true }
+);
 
 </script>
 
@@ -176,11 +206,14 @@ const isExternalEngine = computed(() => props.localProfile.subconverter.engineMo
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md focus:ring-indigo-500 sm:text-sm dark:text-white"
             >
               <option value="global">跟随全局方案</option>
-              <option value="builtin">内置自动分流</option>
+              <option value="builtin" :disabled="isExternalEngine">内置自动分流</option>
               <option v-for="option in transformModeOptions.slice(1)" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
             </select>
+            <p v-if="isExternalEngine" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+              第三方后端不支持 MiSub 内置规则源与内置模板，请选择预设远程模板或自定义 URL。
+            </p>
             <div v-if="localProfile.transformConfigMode === 'global'" class="flex items-center gap-1.5 mt-1.5">
                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
                <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-tight">
@@ -218,6 +251,7 @@ const isExternalEngine = computed(() => props.localProfile.subconverter.engineMo
               custom-placeholder="输入远程 .ini 规则配置 URL"
               :force-custom="localProfile.transformConfigMode === 'custom'"
               :allowEmpty="false"
+              :exclude-builtin-assets="isExternalEngine"
             />
           </div>
         </div>
@@ -242,7 +276,7 @@ const isExternalEngine = computed(() => props.localProfile.subconverter.engineMo
           </div>
 
           <!-- 内置规则等级 (当切换到内置引擎，或切换到第三方引擎但使用内置分流方案时显示) -->
-          <div v-if="!isExternalEngine || isBuiltinMode">
+          <div v-if="!isExternalEngine">
 
             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">内置规则等级 (仅内置自动分流生效)</label>
             <select

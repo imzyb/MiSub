@@ -98,6 +98,11 @@ export function resolveTemplateSource(value) {
     return { kind: 'remote', value: normalizedValue };
 }
 
+export function resolveExternalTemplateConfigUrl(templateSource) {
+    if (!templateSource || typeof templateSource !== 'object') return '';
+    return templateSource.kind === 'remote' ? String(templateSource.value || '').trim() : '';
+}
+
 /**
  * 处理MiSub订阅请求
  * @param {Object} context - Cloudflare上下文
@@ -547,9 +552,9 @@ export async function handleMisubRequest(context) {
         });
 
         // Pass Remote Config if applicable
-        if (templateUrl && templateSource.kind === 'remote') {
-            // [回滚] 恢复使用 URL 传递配置。虽然 Base64 更可靠，但并非所有后端都支持 base64: 前缀
-            externalUrl.searchParams.set('config', templateSource.value);
+        const externalTemplateConfigUrl = resolveExternalTemplateConfigUrl(templateSource);
+        if (externalTemplateConfigUrl) {
+            externalUrl.searchParams.set('config', externalTemplateConfigUrl);
         }
 
         // Add File Name
@@ -577,7 +582,8 @@ export async function handleMisubRequest(context) {
             headers: {
                 'Location': externalUrl.toString(),
                 'Cache-Control': 'no-store, no-cache',
-                'X-MiSub-Mode': 'external-redirect-v2'
+                'X-MiSub-Mode': 'external-redirect-v2',
+                ...(templateSource.kind === 'builtin' ? { 'X-MiSub-Template-Warning': 'external-engine-ignores-builtin-template' } : {})
             }
         });
     }

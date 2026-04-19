@@ -155,7 +155,7 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
 
     // Extraction of remote rules for Quantumult X
     const remoteRules = normalizedModel.rules.filter(r => String(r.type).toUpperCase() === 'RULE-SET' && r.value.startsWith('http'));
-    const filterRemoteLines = remoteRules.map(r => `${r.value}, tag=${r.policy}, policy=${r.policy}, enabled=true`);
+    const filterRemoteLines = remoteRules.map(r => `filter_remote, ${r.value}, tag=${r.policy}, force-policy=${r.policy}, update-interval=86400, enabled=true`);
     const localRules = normalizedModel.rules.filter(r => !remoteRules.includes(r));
 
     return [

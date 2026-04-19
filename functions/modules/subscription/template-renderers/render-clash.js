@@ -19,6 +19,30 @@ function filterAutoSelectMembers(group) {
     return members.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()));
 }
 
+function toClashRuleProviderUrl(sourceUrl) {
+    if (!/^https?:\/\//i.test(String(sourceUrl || ''))) return sourceUrl;
+
+    try {
+        const url = new URL(sourceUrl);
+        if (!/raw\.githubusercontent\.com$/i.test(url.hostname)) return sourceUrl;
+        if (!/\/Clash\/.*\.(list|txt)$/i.test(url.pathname)) return sourceUrl;
+
+        if (/\/Clash\/Ruleset\//i.test(url.pathname)) {
+            url.pathname = url.pathname
+                .replace(/\/Clash\/Ruleset\//i, '/Clash/Providers/Ruleset/')
+                .replace(/\.(list|txt)$/i, '.yaml');
+        } else {
+            url.pathname = url.pathname
+                .replace(/\/Clash\//i, '/Clash/Providers/')
+                .replace(/\.(list|txt)$/i, '.yaml');
+        }
+
+        return url.toString();
+    } catch {
+        return sourceUrl;
+    }
+}
+
 function mapRule(rule, ruleProviderMap) {
     const type = String(rule.type || '').toUpperCase();
     if (!type) return null;
@@ -33,38 +57,38 @@ function mapRule(rule, ruleProviderMap) {
 
 export function renderClashFromTemplateModel(model) {
     const normalizedModel = normalizeUnifiedTemplateModel(model);
-    
-    // 生成 Rule Providers
+
     const ruleProviders = {};
     const ruleProviderMap = new Map();
     let providerCounter = 0;
 
     normalizedModel.rules.forEach(rule => {
         const type = String(rule.type || '').toUpperCase();
-        if (type === 'RULE-SET' && rule.value && /^https?:\/\//i.test(rule.value)) {
-            if (!ruleProviderMap.has(rule.value)) {
-                // 生成一个可读性较好的名称，尝试从 URL 获取文件名
-                let nameHint = 'rs';
-                try {
-                    const urlPath = new URL(rule.value).pathname;
-                    const fileName = urlPath.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
-                    if (fileName && fileName.length > 2) {
-                        nameHint = fileName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-                    }
-                } catch (e) { /* ignore */ }
-                
-                const providerName = `${nameHint}_${providerCounter++}`;
-                ruleProviderMap.set(rule.value, providerName);
-                
-                ruleProviders[providerName] = {
-                    type: 'http',
-                    behavior: 'classical',
-                    url: rule.value,
-                    path: `./ruleset/${providerName}.yaml`,
-                    interval: 86400
-                };
+        if (type !== 'RULE-SET' || !rule.value || !/^https?:\/\//i.test(rule.value)) return;
+
+        const providerUrl = toClashRuleProviderUrl(rule.value);
+        if (ruleProviderMap.has(providerUrl)) return;
+
+        let nameHint = 'rs';
+        try {
+            const urlPath = new URL(providerUrl).pathname;
+            const fileName = urlPath.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
+            if (fileName && fileName.length > 2) {
+                nameHint = fileName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             }
+        } catch {
+            // ignore invalid provider url shapes and keep fallback name
         }
+
+        const providerName = `${nameHint}_${providerCounter++}`;
+        ruleProviderMap.set(providerUrl, providerName);
+        ruleProviders[providerName] = {
+            type: 'http',
+            behavior: 'classical',
+            url: providerUrl,
+            path: `./ruleset/${providerName}.yaml`,
+            interval: 86400
+        };
     });
 
     const config = {
@@ -75,24 +99,21 @@ export function renderClashFromTemplateModel(model) {
         'external-controller': ':9090',
         'proxies': normalizedModel.proxies,
         'proxy-groups': normalizedModel.groups
-            .filter(group => 
-                (Array.isArray(group.members) && group.members.length > 0) || 
+            .filter(group =>
+                (Array.isArray(group.members) && group.members.length > 0) ||
                 (Array.isArray(group.filters) && group.filters.length > 0)
             )
             .map(group => {
                 const rawType = String(group.type || '').trim().toLowerCase();
-                
-                // [统一化改造] 彻底抛弃 type: relay，统一使用现代 Mihomo (Meta) 的 dialer-proxy 语法
-                // 如果类型是 relay，或者名称为链式代理且具备链式结构特征，执行转换
                 const isRelayGroup = rawType === 'relay' || (group.name?.includes('链式代理') && Array.isArray(group.proxies) && group.proxies.length >= 2);
-                
+
                 if (isRelayGroup && Array.isArray(group.proxies) && group.proxies.length >= 2) {
                     const members = filterAutoSelectMembers(group);
                     return {
                         name: group.name,
                         type: 'select',
-                        proxies: members.slice(1),      // 落地节点
-                        'dialer-proxy': members[0],     // 入口节点
+                        proxies: members.slice(1),
+                        'dialer-proxy': members[0],
                         ...group.options
                     };
                 }
@@ -106,7 +127,12 @@ export function renderClashFromTemplateModel(model) {
                 };
             }),
         'rule-providers': Object.keys(ruleProviders).length > 0 ? ruleProviders : undefined,
-        'rules': normalizedModel.rules.map(r => mapRule(r, ruleProviderMap)).filter(Boolean),
+        'rules': normalizedModel.rules.map(rule => {
+            if (String(rule.type || '').toUpperCase() !== 'RULE-SET' || !rule.value) {
+                return mapRule(rule, ruleProviderMap);
+            }
+            return mapRule({ ...rule, value: toClashRuleProviderUrl(rule.value) }, ruleProviderMap);
+        }).filter(Boolean),
         'profile': {
             'store-selected': true,
             'subscription-url': normalizedModel.settings.managedConfigUrl || ''
