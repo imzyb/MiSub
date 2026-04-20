@@ -257,19 +257,17 @@ const updateOperatorParams = (index, params) => {
               <DedupEditor v-else-if="op.type === 'dedup'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               
               <div v-else-if="op.type === 'script'" class="space-y-4">
-                 <input 
-                    :value="op.params.url" 
-                    @input="(e) => updateOperatorParams(index, { ...op.params, url: e.target.value })"
-                    placeholder="远程脚本 URL（GitGist / Raw 链接）" 
-                    class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900" 
-                 />
-                 <textarea 
-                    v-if="!op.params.url" 
-                    :value="op.params.code" 
-                    @input="(e) => updateOperatorParams(index, { ...op.params, code: e.target.value })"
-                    placeholder="输入 JavaScript 代码...&#10;支持 $proxies、$context、$utils" 
-                    class="h-40 w-full rounded-xl border border-gray-200 bg-gray-50 p-3 font-mono text-[11px] focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900"
-                 ></textarea>
+                <Input 
+                  :modelValue="op.params.url"
+                  @update:modelValue="(val) => updateOperatorParams(index, { ...op.params, url: val })"
+                  placeholder="远程脚本 URL (GitGist/Raw 链接)" 
+                />
+                <textarea
+                  :value="op.params.code"
+                  @input="(e) => updateOperatorParams(index, { ...op.params, code: e.target.value })"
+                  class="w-full h-64 p-4 font-mono text-sm bg-slate-900/50 text-slate-200 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all resize-none"
+                  placeholder="function operator($proxies, $context) { ... }"
+                ></textarea>
               </div>
 
             </div>

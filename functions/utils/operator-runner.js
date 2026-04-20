@@ -92,9 +92,27 @@ function opRename(nodes, params) {
         const rules = normalizeRules(regex.rules);
         if (rules.length > 0) {
             result = result.map(r => {
-                const newName = NodeUtils.applyRegexRename(r.name, rules);
+                const enriched = NodeUtils.ensureRegionInfo(r, true);
+                const vars = {
+                    name: r.name,
+                    protocol: r.protocol,
+                    region: enriched.region,
+                    regionZh: enriched.regionZh,
+                    emoji: enriched.emoji,
+                    server: r.server,
+                    port: r.port
+                };
+
+                // 核心增强：允许在正则替换中使用 {regionZh} 等变量
+                const processedRules = rules.map(rule => {
+                    if (typeof rule === 'object' && rule.replacement && rule.replacement.includes('{')) {
+                        return { ...rule, replacement: NodeUtils.renderTemplate(rule.replacement, vars, r) };
+                    }
+                    return rule;
+                });
+
+                const newName = NodeUtils.applyRegexRename(r.name, processedRules);
                 if (newName !== r.name) {
-                    // [核心修复] 即时同步 URL，防止改名在不同协议间丢失
                     return {
                         ...r,
                         name: newName,
@@ -106,7 +124,7 @@ function opRename(nodes, params) {
         }
     }
 
-    if (template?.enabled && template.text) {
+    if (template?.enabled && template.template) {
         const counters = new Map();
         const scope = template.indexScope || template.scope || 'region'; // 默认按地区分组计数，符合用户直觉
 
@@ -130,10 +148,10 @@ function opRename(nodes, params) {
                 emoji: enriched.emoji,
                 server: r.server,
                 port: r.port,
-                index: groupIndex + (template.offset || 1) - 1,
-                globalIndex: index + (template.offset || 1)
+                index: groupIndex + (Number(template.offset || template.indexStart) || 1) - 1,
+                globalIndex: index + (Number(template.offset || template.indexStart) || 1)
             };
-            const newName = NodeUtils.renderTemplate(template.text, vars, r);
+            const newName = NodeUtils.renderTemplate(template.template, vars, r);
             
             if (newName !== r.name) {
                 return {
@@ -173,7 +191,7 @@ async function opScript(nodes, params, context) {
     if (!scriptCode) return nodes;
 
     try {
-        // [审计增强] 脚本执行前自动补全地理元数据，确保 $proxies 包含 regionZh 等信息
+        // [审计增强] 脚本执行前自动补全地理元数据
         const enrichedNodes = nodes.map(r => NodeUtils.ensureRegionInfo(r, true));
         
         const scriptEnv = {
@@ -188,35 +206,74 @@ async function opScript(nodes, params, context) {
                 encodeURIComponent: s => encodeURIComponent(s),
                 jsonStringify: o => JSON.stringify(o),
                 jsonParse: s => JSON.parse(s),
-                // 模拟常用 Sub-Store 辅助函数
                 getHost: url => { try { return new URL(url).hostname; } catch(e) { return ''; } }
             }
         };
 
-        const wrapper = `
-            return (async () => {
-                const $proxies = Array.from(arguments[0]);
-                const $context = arguments[1];
-                const { $utils } = arguments[2];
+        // 智能包装与容错
+        let finalScript = scriptCode.trim();
+        if (!finalScript.includes('function operator') && !finalScript.includes('const operator')) {
+            finalScript = `async function operator($proxies, $context) { \n ${finalScript} \n }`;
+        } else {
+            const openBraces = (finalScript.match(/\{/g) || []).length;
+            const closeBraces = (finalScript.match(/\}/g) || []).length;
+            if (openBraces > closeBraces) {
+                finalScript += '\n'.repeat(openBraces - closeBraces) + '}'.repeat(openBraces - closeBraces);
+            }
+        }
+
+        // 尝试使用更兼容的 Function 构造器，并减少包装复杂度
+        let runner;
+        try {
+            runner = new Function('$proxies', '$context', '$utils', `
+                const operator = async ($proxies, $context) => {
+                    ${finalScript}
+                    if (typeof operator === 'function') return await operator($proxies, $context);
+                    return $proxies;
+                };
+                return operator($proxies, $context);
+            `);
+        } catch (e) {
+            // 如果 Function 被彻底封死，我们尝试最后的 eval 降级
+            console.warn('[Operator] Function constructor blocked, trying eval fallback');
+            runner = ($proxies, $context, $utils) => {
+                return (async () => {
+                    // 这里是一个非常激进的尝试
+                    const fn = eval(`(async ($proxies, $context) => { ${finalScript}; return await operator($proxies, $context); })`);
+                    return await fn($proxies, $context);
+                })();
+            };
+        }
+
+        const processedNodes = enrichedNodes.map(n => {
+            if (n.name) n.name = n.name.replace(/[·•・∙]/g, '·');
+            n.regionzh = n.regionZh;
+            n.region_zh = n.regionZh;
+            return n;
+        });
+
+        // 执行脚本
+        const result = await runner(processedNodes, context, scriptEnv.$utils);
+        
+        // 核心修复：彻底信任脚本返回的结果，并强制同步到 URL
+        if (Array.isArray(result) && result.length > 0) {
+            return result.map((n) => {
+                // 脚本可能返回 Proxy 对象，我们需要提取原始数据
+                const target = n.__target || n;
+                const newName = n.name || target.name;
                 
-                ${scriptCode}
-
-                if (typeof operator === 'function') {
-                    const res = await operator($proxies, $context);
-                    // 兼容返回 { proxies: [] } 或 { nodes: [] } 的脚本
-                    if (res && !Array.isArray(res)) {
-                        return res.proxies || res.nodes || $proxies;
+                if (newName) {
+                    target.name = newName;
+                    // 只要名字和初始状态不一致，就强制同步 URL
+                    if (target.name !== target.originalName) {
+                        target.url = NodeUtils.setNodeName(target.url, target.protocol, target.name);
+                        if (target.metadata) target.metadata.cleanName = target.name;
                     }
-                    return res;
                 }
-                return $proxies;
-            })();
-        `;
-
-        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-        const runner = new AsyncFunction(wrapper);
-        const result = await runner(enrichedNodes, context, scriptEnv);
-        return Array.isArray(result) ? result : nodes;
+                return target;
+            });
+        }
+        return nodes;
     } catch (e) {
         console.error('[Operator] Script execution failed:', e);
         return nodes;
@@ -225,9 +282,6 @@ async function opScript(nodes, params, context) {
 
 /**
  * Main Entry Point for Operator Chain
- * @param {string[]} nodeUrls 
- * @param {Object[]} operators 
- * @param {Object} context 
  */
 export async function runOperatorChain(nodeUrls, operators, context = {}) {
     if (!Array.isArray(operators) || operators.length === 0) {
@@ -240,7 +294,6 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
         ensureRegion: false 
     });
 
-    // 1.5 Determine platform info for scripts
     const ua = (context.userAgent || '').toLowerCase();
     const platform = {
         isClash: /clash|mihomo|stash|meta|verge/i.test(ua),
@@ -272,7 +325,6 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
                 break;
             case 'sort':
                 if (params && Array.isArray(params.keys)) {
-                    // [排序审计] 如果按地区排序，先确保地区信息已提取
                     const needsRegion = params.keys.some(k => k.key === 'region' || k.key === 'regionZh');
                     if (needsRegion) {
                         records = records.map(r => NodeUtils.ensureRegionInfo(r, true));
@@ -281,18 +333,14 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
                 }
                 break;
             case 'dedup':
-                // [智能去重] 支持协议感知的去重，并允许保留首选协议
                 const includeProtocol = params?.includeProtocol !== false;
                 const seenNodes = new Map();
-                
                 for (const r of records) {
                     const hostPort = `${r.server}:${r.port}`;
                     const key = includeProtocol ? `${r.protocol}|${hostPort}` : hostPort;
-                    
                     if (!seenNodes.has(key)) {
                         seenNodes.set(key, r);
                     } else {
-                        // 简单的优先级逻辑：保留更详细的节点（名称更长的往往包含更多元数据）
                         const existing = seenNodes.get(key);
                         if ((r.name || '').length > (existing.name || '').length) {
                             seenNodes.set(key, r);
@@ -300,7 +348,6 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
                     }
                 }
                 records = Array.from(seenNodes.values());
-                break;
                 break;
         }
     }
