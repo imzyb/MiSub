@@ -18,7 +18,9 @@ function cleanControlChars(str) {
 function sanitizeNodeName(name) {
     if (!name) return 'Untitled';
     let safe = cleanControlChars(name);
-    safe = safe.replace(/,/g, ' ').replace(/=/g, '-');
+    // QuanX lines are comma-separated and uses = for key-value. 
+    // Semicolons and quotes can also be problematic in some versions.
+    safe = safe.replace(/,/g, ' ').replace(/=/g, '-').replace(/;/g, ' ').replace(/["']/g, '');
     safe = safe.replace(/\s+/g, ' ').trim();
     return safe || 'Untitled';
 }

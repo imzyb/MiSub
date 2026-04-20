@@ -678,8 +678,15 @@ export async function handleMisubRequest(context) {
                 return acc;
             }, { upload: 0, download: 0, total: 0, expire: 0 });
 
-            const userInfoHeader = totalUserInfo.total > 0 
-                ? `upload=${totalUserInfo.upload}; download=${totalUserInfo.download}; total=${totalUserInfo.total}; expire=${totalUserInfo.expire}`
+            const safeUserInfo = {
+                upload: isFinite(totalUserInfo.upload) ? totalUserInfo.upload : 0,
+                download: isFinite(totalUserInfo.download) ? totalUserInfo.download : 0,
+                total: isFinite(totalUserInfo.total) ? totalUserInfo.total : 0,
+                expire: isFinite(totalUserInfo.expire) ? totalUserInfo.expire : 0
+            };
+
+            const userInfoHeader = safeUserInfo.total > 0 
+                ? `upload=${safeUserInfo.upload}; download=${safeUserInfo.download}; total=${safeUserInfo.total}; expire=${safeUserInfo.expire}`
                 : null;
 
             let { content: finalContent, contentType, headers: resultHeaders } = await ProcessorService.renderOutput({
@@ -704,9 +711,15 @@ export async function handleMisubRequest(context) {
             }
 
             const isJson = targetFormat === 'singbox' || targetFormat === 'sing-box';
+            
+            // [RFC 6266 / RFC 5987] Standardized Content-Disposition
+            // filename: ASCII-only fallback, filename*: UTF-8 encoded
+            const asciiSubName = subName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+            const encodedSubName = encodeURIComponent(subName).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\*/g, "%2A");
+            
             const responseHeaders = new Headers({
-                "Content-Disposition": `attachment; filename="${encodeURIComponent(subName)}"; filename*=utf-8''${encodeURIComponent(subName)}`,
-                'Content-Type': contentType,
+                "Content-Disposition": `attachment; filename="${asciiSubName}"; filename*=utf-8''${encodedSubName}`,
+                'Content-Type': contentType || 'text/plain; charset=utf-8',
                 'Cache-Control': 'no-store, no-cache',
                 'X-MiSub-Mode': `builtin-${targetFormat}`,
                 'Access-Control-Allow-Origin': '*'
@@ -749,7 +762,7 @@ export async function handleMisubRequest(context) {
                 }
             }
 
-            return new Response(finalContent, { headers: responseHeaders });
+            return new Response(finalContent || '', { headers: responseHeaders });
 
         } catch (e) {
             console.error(`[Builtin${targetFormat}] Generation failed:`, e);

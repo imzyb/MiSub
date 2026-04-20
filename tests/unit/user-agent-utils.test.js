@@ -66,7 +66,7 @@ describe('User-Agent Utils', () => {
             expect(determineTargetFormat('ClashVerge/1.0', params)).toBe('clash');
             expect(determineTargetFormat('Shadowrocket/2.0', params)).toBe('base64');
             expect(determineTargetFormat('sing-box/1.0', params)).toBe('singbox');
-            expect(determineTargetFormat('Egern/1.0.73 (iPhone; iOS 17.0)', params)).toBe('clash');
+            expect(determineTargetFormat('Egern/1.0.73 (iPhone; iOS 17.0)', params)).toBe('egern');
             expect(determineTargetFormat('Quantumult X', params)).toBe('quanx');
             expect(determineTargetFormat('Loon/2.1', params)).toBe('loon');
         });

@@ -107,7 +107,9 @@ export function determineFormatByUserAgent(userAgentHeader) {
         ['v2rayng', 'base64'],
         ['surge', 'surge'],
         ['loon', 'loon'],
+        ['quantumult x', 'quanx'],
         ['quantumult%20x', 'quanx'],
+        ['quantumult-x', 'quanx'],
         ['quantumult', 'quanx'],
 
         // 最後才匹配通用的 clash，作為向下相容

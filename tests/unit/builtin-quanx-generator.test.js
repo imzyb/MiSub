@@ -30,14 +30,14 @@ describe('Quantumult X 内置生成器', () => {
             'trojan://password@1.2.3.4:443#TrojanNode'
         ].join('\n'));
 
-        expect(result).toContain('vmess=1.2.3.4:443, method=auto, password=uuid-1234, tag=VmessNode');
-        expect(result).toContain('trojan=1.2.3.4:443, password=password, over-tls=true, tag=TrojanNode');
+        expect(result).toContain('vmess=1.2.3.4:443, method=auto, password=uuid-1234, tag=🌍 VmessNode');
+        expect(result).toContain('trojan=1.2.3.4:443, password=password, over-tls=true, tag=🌍 TrojanNode');
     });
 
     it('should emit parser-compatible shadowsocks lines', () => {
         const result = generateBuiltinQuanxConfig('ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:443#SSNode');
 
-        expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=password, udp-relay=true, tag=SSNode');
+        expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=password, tag=🌍 SSNode');
         expect(result).toContain('password');
     });
 
@@ -69,7 +69,7 @@ describe('Quantumult X 内置生成器', () => {
         expect(vmessDecoded.host).toBe('example.com');
         expect(vmessDecoded.path).toBe('/ws');
         expect(vmessDecoded.tls).toBe('true');
-        expect(ss.name).toBe('SS Node');
+        expect(ss.name).toBe('🌍 SS Node');
     });
 
     it('should emit parser-compatible hysteria2 tuic and anytls lines', () => {
@@ -79,9 +79,9 @@ describe('Quantumult X 内置生成器', () => {
             'anytls://pass-anytls@anytls.example.com:443/?sni=anytls.example.com&alpn=h2,h3&allowInsecure=1#AnyTLSNode'
         ].join('\n'));
 
-        expect(generated).toContain('hysteria2=hy2.example.com:443, password=pass-hy2, sni=hy2.example.com, tls-verification=false, tag=HY2Node');
-        expect(generated).toContain('tuic=tuic.example.com:443, uuid-tuic, pass-tuic, sni=tuic.example.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=TUICNode');
-        expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, sni=anytls.example.com, alpn=h2,h3, tls-verification=false, tag=AnyTLSNode');
+        expect(generated).toContain('hysteria2=hy2.example.com:443, password=pass-hy2, sni=hy2.example.com, tls-verification=false, tag=🌍 HY2Node');
+        expect(generated).toContain('tuic=tuic.example.com:443, uuid-tuic, pass-tuic, sni=tuic.example.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUICNode');
+        expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, sni=anytls.example.com, alpn=h2,h3, tls-verification=false, tag=🌍 AnyTLSNode');
 
         const parsed = parseQuantumultXConfig(generated);
         expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(true);
