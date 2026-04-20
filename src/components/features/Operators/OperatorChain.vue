@@ -43,7 +43,7 @@ const migrateFromLegacy = () => {
     // 3. Rename (Template)
     const template = config.rename?.template;
     if (template?.enabled) {
-        ops.push({ id: crypto.randomUUID(), type: 'rename', enabled: true, params: { template: { enabled: true, text: template.template || '{emoji}{region}-{protocol}-{index}', offset: template.indexStart || 1 } } });
+        ops.push({ id: crypto.randomUUID(), type: 'rename', enabled: true, params: { template: { enabled: true, template: template.template || '{emoji}{region}-{protocol}-{index}', offset: template.indexStart || 1 } } });
     }
 
     // 4. Script Rename
@@ -90,7 +90,7 @@ const addOperator = (type) => {
 const getInitialParams = (type) => {
   switch (type) {
     case 'filter': return { include: { enabled: false, rules: [] }, exclude: { enabled: false, rules: [] }, protocols: { enabled: false, values: [] }, regions: { enabled: false, values: [] } };
-    case 'rename': return { regex: { enabled: false, rules: [] }, template: { enabled: false, text: '' } };
+    case 'rename': return { regex: { enabled: false, rules: [] }, template: { enabled: false, template: '' } };
     case 'script': return { code: '', url: '' };
     case 'sort': return { keys: [{ key: 'region', order: 'asc', customOrder: [] }] };
     case 'dedup': return { mode: 'serverPort', includeProtocol: true, prefer: { protocolOrder: [] } };
@@ -138,8 +138,13 @@ const getOperatorIcon = (type) => {
         case 'script': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
         case 'sort': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>';
         case 'dedup': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>';
-        default: return '';
     }
+};
+
+const updateOperatorParams = (index, params) => {
+    const newList = [...props.modelValue];
+    newList[index] = { ...newList[index], params };
+    emit('update:modelValue', newList);
 };
 
 </script>
@@ -246,14 +251,25 @@ const getOperatorIcon = (type) => {
         >
           <div v-show="expandedIndex === index" class="border-t border-gray-100 dark:border-gray-700/50">
             <div class="p-4 sm:p-5">
-              <FilterEditor v-if="op.type === 'filter'" v-model="op.params" />
-              <RenameEditor v-else-if="op.type === 'rename'" v-model="op.params" />
-              <SortEditor v-else-if="op.type === 'sort'" v-model="op.params" />
-              <DedupEditor v-else-if="op.type === 'dedup'" v-model="op.params" />
+              <FilterEditor v-if="op.type === 'filter'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
+              <RenameEditor v-else-if="op.type === 'rename'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
+              <SortEditor v-else-if="op.type === 'sort'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
+              <DedupEditor v-else-if="op.type === 'dedup'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               
               <div v-else-if="op.type === 'script'" class="space-y-4">
-                 <input v-model="op.params.url" placeholder="远程脚本 URL（GitGist / Raw 链接）" class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900" />
-                 <textarea v-if="!op.params.url" v-model="op.params.code" placeholder="输入 JavaScript 代码...&#10;支持 $proxies、$context、$utils" class="h-40 w-full rounded-xl border border-gray-200 bg-gray-50 p-3 font-mono text-[11px] focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900"></textarea>
+                 <input 
+                    :value="op.params.url" 
+                    @input="(e) => updateOperatorParams(index, { ...op.params, url: e.target.value })"
+                    placeholder="远程脚本 URL（GitGist / Raw 链接）" 
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900" 
+                 />
+                 <textarea 
+                    v-if="!op.params.url" 
+                    :value="op.params.code" 
+                    @input="(e) => updateOperatorParams(index, { ...op.params, code: e.target.value })"
+                    placeholder="输入 JavaScript 代码...&#10;支持 $proxies、$context、$utils" 
+                    class="h-40 w-full rounded-xl border border-gray-200 bg-gray-50 p-3 font-mono text-[11px] focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-900"
+                 ></textarea>
               </div>
 
             </div>
