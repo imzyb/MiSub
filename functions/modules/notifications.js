@@ -35,6 +35,27 @@ export async function sendEnhancedTgNotification(settings, type, clientIp, addit
     return sendCoreEnhancedTg(settings, type, clientIp, additionalData);
 }
 
+async function loadSubscriptionsForCron(storageAdapter) {
+    if (typeof storageAdapter.getAllSubscriptions === 'function') {
+        const subscriptions = await storageAdapter.getAllSubscriptions();
+        if (Array.isArray(subscriptions)) {
+            return subscriptions;
+        }
+    }
+
+    const subscriptions = await storageAdapter.get(KV_KEY_SUBS);
+    return Array.isArray(subscriptions) ? subscriptions : [];
+}
+
+async function persistSubscriptionsForCron(storageAdapter, subscriptions) {
+    if (typeof storageAdapter.putAllSubscriptions === 'function') {
+        await storageAdapter.putAllSubscriptions(subscriptions);
+        return;
+    }
+
+    await storageAdapter.put(KV_KEY_SUBS, subscriptions);
+}
+
 /**
  * 检查并发送订阅到期和流量预警通知
  */
@@ -95,7 +116,7 @@ export async function handleCronTrigger(env) {
     const { StorageFactory } = await import('../storage-adapter.js');
 
     const storageAdapter = await StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-    const originalSubs = await storageAdapter.get(KV_KEY_SUBS) || [];
+    const originalSubs = await loadSubscriptionsForCron(storageAdapter);
     const allSubs = JSON.parse(JSON.stringify(originalSubs));
     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || DEFAULT_SETTINGS;
 
@@ -239,7 +260,7 @@ export async function handleCronTrigger(env) {
     }
 
     if (changesMade) {
-        await storageAdapter.put(KV_KEY_SUBS, allSubs);
+        await persistSubscriptionsForCron(storageAdapter, allSubs);
     }
 
     const duration = Date.now() - startTime;

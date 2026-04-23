@@ -104,19 +104,27 @@ async function getTelegramPushConfig(env, cache = null) {
         settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
     }
     const config = settings.telegram_push_config || {};
+    const allowedUserIds = Array.isArray(config.allowed_user_ids)
+        ? config.allowed_user_ids
+        : (env.TELEGRAM_PUSH_ALLOWED_USERS?.split(',') || []);
 
     return {
         enabled: config.enabled ?? true,
         bot_token: config.bot_token || env.TELEGRAM_PUSH_BOT_TOKEN,
         webhook_secret: config.webhook_secret || env.TELEGRAM_PUSH_WEBHOOK_SECRET,
-        allowed_user_ids: config.allowed_user_ids ||
-            (env.TELEGRAM_PUSH_ALLOWED_USERS?.split(',') || []),
+        allowed_user_ids: allowedUserIds
+            .map(id => id?.toString().trim())
+            .filter(Boolean),
+        allow_all_users: config.allow_all_users === true,
         rate_limit: config.rate_limit || {
             max_per_minute: 1000,
             max_per_day: 10000
         },
-        default_profile_id: config.default_profile_id || '',  // 默认关联的订阅组
-        auto_bind: config.auto_bind ?? true  // 是否自动关联
+        default_profile_id: config.default_profile_id || '',
+        auto_bind: config.auto_bind ?? true,
+        user_bindings: (config.user_bindings && typeof config.user_bindings === 'object')
+            ? config.user_bindings
+            : {}
     };
 }
 
@@ -310,6 +318,38 @@ function verifyTelegramRequest(request, config) {
     return secretToken === config.webhook_secret;
 }
 
+function getUserBindingKey(userId) {
+    return userId?.toString().trim();
+}
+
+function getUserBoundProfileId(config, userId) {
+    const bindingKey = getUserBindingKey(userId);
+    const bindings = config?.user_bindings || {};
+
+    if (bindingKey && Object.prototype.hasOwnProperty.call(bindings, bindingKey)) {
+        return bindings[bindingKey] || '';
+    }
+
+    if (config?.auto_bind && config?.default_profile_id) {
+        return config.default_profile_id;
+    }
+
+    return '';
+}
+
+function setUserBoundProfileId(config, userId, profileId) {
+    const bindingKey = getUserBindingKey(userId);
+    const bindings = (config.user_bindings && typeof config.user_bindings === 'object')
+        ? { ...config.user_bindings }
+        : {};
+
+    if (bindingKey) {
+        bindings[bindingKey] = profileId || '';
+    }
+
+    config.user_bindings = bindings;
+}
+
 /**
  * 检查用户权限
  */
@@ -318,12 +358,14 @@ function checkUserPermission(userId, config) {
         return { allowed: false, reason: 'Bot 已被管理员禁用' };
     }
 
-    // 如果白名单为空，允许所有用户
-    if (!config.allowed_user_ids || config.allowed_user_ids.length === 0) {
+    if (config.allow_all_users) {
         return { allowed: true };
     }
 
-    // 检查用户是否在白名单中
+    if (!config.allowed_user_ids || config.allowed_user_ids.length === 0) {
+        return { allowed: false, reason: '未配置白名单，请先在设置中添加允许用户或显式开启公开访问' };
+    }
+
     const userIdStr = userId.toString();
     if (!config.allowed_user_ids.some(id => id.toString().trim() === userIdStr)) {
         return { allowed: false, reason: '无权限使用此 Bot，请联系管理员添加白名单' };
@@ -516,8 +558,9 @@ async function handleListCommand(chatId, userId, env, page = 0, type = 'all', me
         }
 
         // 获取当前绑定的订阅组
-        const boundProfile = config.default_profile_id
-            ? profiles.find(p => p.id === config.default_profile_id)
+        const boundProfileId = getUserBoundProfileId(config, userId);
+        const boundProfile = boundProfileId
+            ? profiles.find(p => p.id === boundProfileId)
             : null;
         const boundNodeIds = new Set(boundProfile?.manualNodes || []);
 
@@ -1611,8 +1654,9 @@ async function handleBindCommand(chatId, userId, args, env, requestCache = null)
             let message = '🔗 <b>绑定订阅组</b>\n\n';
             message += '当前绑定: ';
 
-            if (config.default_profile_id) {
-                const current = profiles.find(p => p.id === config.default_profile_id);
+            const currentProfileId = getUserBoundProfileId(config, userId);
+            if (currentProfileId) {
+                const current = profiles.find(p => p.id === currentProfileId);
                 message += current ? `<b>${current.name}</b>` : '(已失效)';
             } else {
                 message += '无';
@@ -1620,7 +1664,7 @@ async function handleBindCommand(chatId, userId, args, env, requestCache = null)
 
             message += '\n\n可用订阅组:\n';
             profiles.forEach((p, i) => {
-                const isCurrent = p.id === config.default_profile_id;
+                const isCurrent = p.id === currentProfileId;
                 message += `${isCurrent ? '✅' : ''} ${i + 1}. ${p.name}\n`;
             });
             message += '\n用法: /bind [序号]';
@@ -1653,7 +1697,7 @@ async function handleBindCommand(chatId, userId, args, env, requestCache = null)
         const targetProfile = profiles[idx];
 
         // 更新配置
-        config.default_profile_id = targetProfile.id;
+        setUserBoundProfileId(config, userId, targetProfile.id);
         config.auto_bind = true;
         settings.telegram_push_config = config;
         cache.settings = settings;
@@ -1676,19 +1720,18 @@ async function handleBindCommand(chatId, userId, args, env, requestCache = null)
 /**
  * 处理 /unbind 命令 - 解除绑定
  */
-async function handleUnbindCommand(chatId, env, requestCache = null) {
+async function handleUnbindCommand(chatId, userId, env, requestCache = null) {
     try {
         const cache = requestCache || createRequestCache();
         const settings = await getCachedSettings(env, cache);
         const config = settings.telegram_push_config || {};
 
-        if (!config.default_profile_id) {
-            await sendTelegramMessage(chatId, '📋 当前未绑定任何订阅组', env);
+        if (!getUserBoundProfileId(config, userId)) {
+            await sendTelegramMessage(chatId, '馃搵 褰撳墠鏈粦瀹氫换浣曡闃呯粍', env);
             return;
         }
 
-        config.default_profile_id = '';
-        config.auto_bind = false;
+        setUserBoundProfileId(config, userId, '');
         settings.telegram_push_config = config;
         cache.settings = settings;
         await persistCachedSettings(env, cache);
@@ -1813,9 +1856,10 @@ async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
 
         // 4. 自动关联到订阅组 (分类处理)
         let boundProfileName = '';
-        if (config.auto_bind && config.default_profile_id) {
+        const boundProfileId = getUserBoundProfileId(config, userId);
+        if (boundProfileId) {
             const profiles = await storageAdapter.getAllProfiles();
-            const targetProfile = profiles.find(p => p.id === config.default_profile_id);
+            const targetProfile = profiles.find(p => p.id === boundProfileId);
 
             if (targetProfile) {
                 // 分类 ID
@@ -1986,7 +2030,7 @@ async function handleCommand(chatId, text, userId, env, request, requestCache = 
             break;
 
         case '/unbind':
-            await handleUnbindCommand(chatId, env, requestCache);
+            await handleUnbindCommand(chatId, userId, env, requestCache);
             break;
 
         default:
@@ -2189,9 +2233,10 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     }
 
                     const node = targetList[idx];
-                    const boundProfile = config.default_profile_id
-                        ? profiles.find(p => p.id === config.default_profile_id)
-                        : null;
+                    const boundProfileId = getUserBoundProfileId(config, userId);
+        const boundProfile = boundProfileId
+            ? profiles.find(p => p.id === boundProfileId)
+            : null;
 
                     // Note: Manual nodes use 'id', subscriptions might not have 'id' in the same way or logic might differ.
                     // Subscriptions usually have 'id' too.
@@ -2269,9 +2314,10 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
-                    if (idx >= 0 && idx < userNodes.length && config.default_profile_id) {
+                    const boundProfileId = getUserBoundProfileId(config, userId);
+                    if (idx >= 0 && idx < userNodes.length && boundProfileId) {
                         const node = userNodes[idx];
-                        const profile = profiles.find(p => p.id === config.default_profile_id);
+                        const profile = profiles.find(p => p.id === boundProfileId);
                         if (profile) {
                             profile.manualNodes = profile.manualNodes || [];
                             if (!profile.manualNodes.includes(node.id)) {
@@ -2300,9 +2346,10 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
-                    if (idx >= 0 && idx < userNodes.length && config.default_profile_id) {
+                    const boundProfileId = getUserBoundProfileId(config, userId);
+                    if (idx >= 0 && idx < userNodes.length && boundProfileId) {
                         const node = userNodes[idx];
-                        const profile = profiles.find(p => p.id === config.default_profile_id);
+                        const profile = profiles.find(p => p.id === boundProfileId);
                         if (profile && profile.manualNodes) {
                             profile.manualNodes = profile.manualNodes.filter(id => id !== node.id);
                             await storageAdapter.putAllProfiles(profiles);
@@ -2327,9 +2374,10 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
-                    if (idx >= 0 && idx < subs.length && config.default_profile_id) {
+                    const boundProfileId = getUserBoundProfileId(config, userId);
+                    if (idx >= 0 && idx < subs.length && boundProfileId) {
                         const sub = subs[idx];
-                        const profile = profiles.find(p => p.id === config.default_profile_id);
+                        const profile = profiles.find(p => p.id === boundProfileId);
                         if (profile) {
                             profile.subscriptions = profile.subscriptions || [];
                             if (!profile.subscriptions.includes(sub.id)) {
@@ -2357,9 +2405,10 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
 
-                    if (idx >= 0 && idx < subs.length && config.default_profile_id) {
+                    const boundProfileId = getUserBoundProfileId(config, userId);
+                    if (idx >= 0 && idx < subs.length && boundProfileId) {
                         const sub = subs[idx];
-                        const profile = profiles.find(p => p.id === config.default_profile_id);
+                        const profile = profiles.find(p => p.id === boundProfileId);
                         if (profile && profile.subscriptions) {
                             profile.subscriptions = profile.subscriptions.filter(id => id !== sub.id);
                             await storageAdapter.putAllProfiles(profiles);
@@ -2570,7 +2619,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
 
                     const targetProfile = profiles.find(p => p.id === profileId);
                     if (targetProfile) {
-                        config.default_profile_id = profileId;
+                        setUserBoundProfileId(config, userId, profileId);
                         config.auto_bind = true;
                         settings.telegram_push_config = config;
                         cache.settings = settings;
@@ -2592,8 +2641,7 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const settings = await getCachedSettings(env, cache);
                     const config = settings.telegram_push_config || {};
 
-                    config.default_profile_id = '';
-                    config.auto_bind = false;
+                    setUserBoundProfileId(config, userId, '');
                     settings.telegram_push_config = config;
                     cache.settings = settings;
                     await persistCachedSettings(env, cache);
@@ -2630,7 +2678,12 @@ export async function handleTelegramWebhook(request, env) {
         }
 
         // 验证请求来源
-        if (config.webhook_secret && !verifyTelegramRequest(request, config)) {
+        if (!config.webhook_secret) {
+            console.error('[Telegram Push] Missing webhook secret');
+            return createJsonResponse({ error: 'Webhook secret required' }, 503);
+        }
+
+        if (!verifyTelegramRequest(request, config)) {
             console.error('[Telegram Push] Invalid webhook secret');
             return createJsonResponse({ error: 'Unauthorized' }, 401);
         }
