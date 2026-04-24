@@ -39,13 +39,13 @@ const emit = defineEmits(['logout']);
 
 <template>
   <header
-    class="ios-fixed-header bg-gradient-to-b from-white/95 via-white/90 to-white/95 dark:from-[#030712]/95 dark:via-[#030712]/90 dark:to-[#030712]/95 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/30 dark:border-white/5 supports-[backdrop-filter]:bg-white/80 supports-[backdrop-filter]:dark:bg-[#030712]/80 transition-all duration-300"
+    class="app-nav-bar ios-fixed-header bg-gradient-to-b from-white/95 via-white/90 to-white/95 dark:from-[#030712]/95 dark:via-[#030712]/90 dark:to-[#030712]/95 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/30 dark:border-white/5 supports-[backdrop-filter]:bg-white/80 supports-[backdrop-filter]:dark:bg-[#030712]/80 transition-all duration-300"
   >
     <div class="ios-status-overlay"></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="safe-top-inset">
-        <div class="flex justify-between items-center h-16 md:h-20">
+        <div class="flex justify-between items-center h-16 md:h-[76px]">
           <BrandLogo v-if="!hideBranding" text-size-class="text-lg" :icon-size="32" />
           <router-link v-else to="/" class="text-sm font-semibold tracking-[0.24em] uppercase text-gray-500 dark:text-gray-400">Home</router-link>
 
