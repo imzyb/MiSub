@@ -3,9 +3,78 @@ import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
 import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
 import { applyNodeTransformPipeline } from '../../utils/node-transformer.js';
+import { runOperatorChain } from '../../utils/operator-runner.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
 import { applyManualNodeName } from '../utils/node-cleaner.js';
+
+function ensureArray(data) {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') {
+        try {
+            const parsed = JSON.parse(data);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function adaptLegacyTransform(config) {
+    if (!config || !config.enabled) return [];
+
+    const ops = [];
+    const filter = config.filter;
+    if (filter && (filter.include?.enabled || filter.exclude?.enabled || filter.protocols?.enabled || filter.regions?.enabled || filter.script?.enabled || filter.useless?.enabled)) {
+        ops.push({ id: 'legacy-filter', type: 'filter', enabled: true, params: { ...filter } });
+    }
+
+    const regex = config.rename?.regex;
+    if (regex?.enabled && regex.rules?.length > 0) {
+        ops.push({ id: 'legacy-rename-regex', type: 'rename', enabled: true, params: { regex: { ...regex } } });
+    }
+
+    const template = config.rename?.template;
+    if (template?.enabled) {
+        ops.push({
+            id: 'legacy-rename-template',
+            type: 'rename',
+            enabled: true,
+            params: {
+                template: {
+                    enabled: true,
+                    template: template.template || '{emoji}{region}-{protocol}-{index}',
+                    offset: template.indexStart || 1,
+                    indexScope: template.indexScope || 'region'
+                }
+            }
+        });
+    }
+
+    const renameScript = config.rename?.script;
+    if (renameScript?.enabled && renameScript.expression) {
+        ops.push({
+            id: 'legacy-rename-script',
+            type: 'script',
+            enabled: true,
+            params: { code: `return ($nodes) => { return $nodes.map(n => { n.name = (${renameScript.expression})(n.name, n); return n; }); }` }
+        });
+    }
+
+    const dedup = config.dedup;
+    if (dedup?.enabled) {
+        ops.push({ id: 'legacy-dedup', type: 'dedup', enabled: true, params: { ...dedup } });
+    }
+
+    const sort = config.sort;
+    if (sort?.enabled && sort.keys?.length > 0) {
+        ops.push({ id: 'legacy-sort', type: 'sort', enabled: true, params: { ...sort } });
+    }
+
+    return ops;
+}
 
 /**
  * 处理订阅组模式的节点获取
@@ -110,26 +179,42 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
         : null;
     const effectiveNodeTransform = profile.nodeTransform?.enabled ? profile.nodeTransform : presetNodeTransform;
 
-    if (applyTransform && effectiveNodeTransform?.enabled) {
-        // 提取节点 URL 列表
+    if (applyTransform) {
         const nodeUrls = allNodes.map(node => node.url);
 
-        // 应用节点转换管道
-        // 使用默认模板 '{emoji}{region}-{protocol}-{index}'，如果用户未自定义模板
-        const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
-        const effectiveTemplate = effectiveNodeTransform.rename?.template?.template || defaultTemplate;
-        const transformedUrls = applyNodeTransformPipeline(nodeUrls, {
-            ...effectiveNodeTransform,
-            enableEmoji: settings.enableFlagEmoji !== false && effectiveTemplate.includes('{emoji}')
-        });
+        let activeOperators = ensureArray(profile?.operators);
+        if (!activeOperators.length && profile?.nodeTransform?.enabled && profile.nodeTransform?.operators) {
+            activeOperators = ensureArray(profile.nodeTransform.operators);
+        }
+        if (!activeOperators.length && settings?.defaultOperators) {
+            activeOperators = ensureArray(settings.defaultOperators);
+        }
+        if (!activeOperators.length && effectiveNodeTransform?.enabled) {
+            activeOperators = adaptLegacyTransform({
+                ...effectiveNodeTransform,
+                enableEmoji: settings.enableFlagEmoji !== false
+            });
+        }
 
-        // 重要修复：由于节点转换管道可能会重新排序节点，
-        // 不能用原始索引匹配转换后的 URL，必须从转换后的 URL 重新解析所有节点信息
+        let transformedUrls = nodeUrls;
+        if (activeOperators.length > 0) {
+            transformedUrls = await runOperatorChain(nodeUrls, activeOperators, {
+                subName: profile?.name,
+                userAgent,
+                config: settings
+            });
+        } else if (effectiveNodeTransform?.enabled) {
+            const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
+            const effectiveTemplate = effectiveNodeTransform.rename?.template?.template || defaultTemplate;
+            transformedUrls = applyNodeTransformPipeline(nodeUrls, {
+                ...effectiveNodeTransform,
+                enableEmoji: settings.enableFlagEmoji !== false && effectiveTemplate.includes('{emoji}')
+            });
+        }
+
         processedNodes = transformedUrls.map(transformedUrl => {
             const nodeInfo = parseNodeInfo(transformedUrl);
-            // 尝试找到原始节点以保留 subscriptionName
             const originalNode = allNodes.find(n => {
-                // 通过 URL 的核心部分（服务器和端口）进行匹配
                 try {
                     const origUrl = new URL(n.url);
                     const transUrl = new URL(transformedUrl);

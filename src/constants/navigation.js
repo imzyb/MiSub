@@ -13,7 +13,7 @@ export const NAV_ICONS = {
 export const MAIN_NAV_ITEMS = [
   { name: '仪表盘', path: '/dashboard', iconPath: NAV_ICONS.dashboard },
   { name: '机场订阅', path: '/dashboard/groups', iconPath: NAV_ICONS.groups },
-  { name: '手工节点', path: '/dashboard/nodes', iconPath: NAV_ICONS.nodes },
+  { name: '手动节点', path: '/dashboard/nodes', iconPath: NAV_ICONS.nodes },
   { name: '我的订阅', path: '/dashboard/subscriptions', iconPath: NAV_ICONS.subscriptions },
   { name: '设置', path: '/dashboard/settings', iconPath: NAV_ICONS.settings }
 ];

@@ -38,7 +38,7 @@ const routes = [
         path: '/dashboard/nodes',
         name: 'ManualNodes',
         component: ManualNodesView,
-        meta: { title: '手工节点' }
+        meta: { title: '手动节点' }
     },
     {
         path: '/dashboard/subscriptions',
