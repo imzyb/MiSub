@@ -1,9 +1,9 @@
 export const TEMPLATE_COMPATIBILITY = {
     clash: {
         allowExternalTemplate: true,
-        externalTemplateTypes: ['yaml', 'template'],
-        strategy: 'external-first',
-        description: 'Clash 系列可使用外部模板进行完整覆写。'
+        externalTemplateTypes: ['ini'],
+        strategy: 'model-driven',
+        description: 'Clash 系列通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 Clash 配置。'
     },
     surge: {
         allowExternalTemplate: true,
@@ -25,11 +25,24 @@ export const TEMPLATE_COMPATIBILITY = {
     },
     singbox: {
         allowExternalTemplate: true,
-        externalTemplateTypes: ['ini', 'json'],
+        externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Sing-Box 通过统一模板模型接入，支持将 ini/json 模板转译为 JSON 配置。'
+        description: 'Sing-Box 通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 JSON 配置。'
     }
 };
+
+function getTemplateExtension(templateUrl) {
+    const normalizedTemplateUrl = typeof templateUrl === 'string' ? templateUrl.trim() : '';
+    if (!normalizedTemplateUrl) return '';
+
+    try {
+        const url = new URL(normalizedTemplateUrl);
+        return url.pathname.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+    } catch {
+        const cleanPath = normalizedTemplateUrl.split('#')[0].split('?')[0];
+        return cleanPath.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+    }
+}
 
 export function normalizeTemplateTarget(targetFormat) {
     const normalizedTarget = typeof targetFormat === 'string' ? targetFormat.toLowerCase() : '';
@@ -51,5 +64,5 @@ export function shouldApplyExternalTemplateForTarget(targetFormat, templateUrl) 
     if (!targetRule) return false;
     if (!targetRule.allowExternalTemplate) return false;
 
-    return true;
+    return targetRule.externalTemplateTypes.includes(getTemplateExtension(normalizedTemplateUrl));
 }

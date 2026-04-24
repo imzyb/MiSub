@@ -24,11 +24,12 @@ describe('Main handler template url', () => {
     });
 
     it('should apply external templates only to compatible targets', () => {
-        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.yaml')).toBe(true);
-        expect(shouldApplyExternalTemplateForTarget('surge&ver=4', 'https://example.com/preset.yaml')).toBe(true);
-        expect(shouldApplyExternalTemplateForTarget('loon', 'https://example.com/preset.yaml')).toBe(true);
-        expect(shouldApplyExternalTemplateForTarget('quanx', 'https://example.com/preset.yaml')).toBe(true);
-        expect(shouldApplyExternalTemplateForTarget('singbox', 'https://example.com/preset.yaml')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.ini')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('surge&ver=4', 'https://example.com/preset.ini')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('loon', 'https://example.com/preset.ini')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('quanx', 'https://example.com/preset.ini')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('singbox', 'https://example.com/preset.ini')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.yaml')).toBe(false);
     });
 
     it('should normalize template targets and expose compatibility table', () => {

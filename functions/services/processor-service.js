@@ -10,6 +10,24 @@ import { getBuiltinTemplate } from '../modules/subscription/builtin-template-reg
 import { fetchTransformTemplate } from '../modules/subscription/transform-template-cache.js';
 import { base64EncodeUtf8 } from '../modules/utils.js';
 
+function getTemplateExtension(templateUrl) {
+    const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
+    if (!raw) return '';
+
+    try {
+        const parsed = new URL(raw);
+        return parsed.pathname.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+    } catch {
+        const cleanPath = raw.split('#')[0].split('?')[0];
+        return cleanPath.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+    }
+}
+
+export function isIniTemplateSource(templateSource, builtinTemplateEntry = null) {
+    if (builtinTemplateEntry?.format === 'ini') return true;
+    return getTemplateExtension(templateSource?.value) === 'ini';
+}
+
 export class ProcessorService {
     /**
      * Generate nodes based on target format and configuration
@@ -52,12 +70,12 @@ export class ProcessorService {
             combinedNodeList,
             subName,
             config,
-            builtinOptions,
-            templateSource,
+            builtinOptions = {},
+            templateSource = { kind: 'none', value: '' },
             managedConfigUrl,
             storageAdapter,
             userInfoHeader
-        } = options;
+        } = options || {};
 
         // Check for Base64 (simplest case)
         if (targetFormat === 'base64') {
@@ -92,7 +110,7 @@ export class ProcessorService {
 
         if (builtinTemplateEntry || remoteTemplateUrl) {
             const templateText = builtinTemplateEntry?.content || await fetchTransformTemplate(storageAdapter, remoteTemplateUrl);
-            const isIniTemplate = builtinTemplateEntry?.format === 'ini' || (remoteTemplateUrl && remoteTemplateUrl.toLowerCase().endsWith('.ini'));
+            const isIniTemplate = isIniTemplateSource(templateSource, builtinTemplateEntry);
 
             if (templateText && isIniTemplate) {
                 const renderParams = {
