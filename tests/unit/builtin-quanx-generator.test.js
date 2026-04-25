@@ -13,6 +13,9 @@ describe('Quantumult X 内置生成器', () => {
         expect(result).toContain('[general]');
         expect(result).toContain('[dns]');
         expect(result).toContain('[server_local]');
+        expect(result).toContain('[server_remote]');
+        expect(result).toContain('[rewrite_remote]');
+        expect(result).toContain('[rewrite_local]');
         expect(result).toContain('server_check_url = http://www.gstatic.com/generate_204');
         expect(result).toContain('excluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8');
         expect(result).toContain('server = 223.5.5.5');
@@ -112,5 +115,26 @@ describe('Quantumult X 内置生成器', () => {
         expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(true);
         expect(parsed.some(node => node.protocol === 'tuic')).toBe(true);
         expect(parsed.some(node => node.protocol === 'anytls')).toBe(true);
+    });
+
+    it('should emit Quantumult X compatible vless reality syntax', () => {
+        const generated = generateBuiltinQuanxConfig([
+            'vless://52e98ca8-0671-451a-940a-961b8k@34.21.195.221:65043?security=reality&sni=addons.mozilla.org&pbk=QpmZt9PSrjOltpKalxbwoCYTkOkRPwVnNInqTCRic&sid=0123456789abcdef&type=tcp#Gcp%20SG'
+        ].join('\n'));
+
+        expect(generated).toContain('vless=34.21.195.221:65043, password=52e98ca8-0671-451a-940a-961b8k, method=none, obfs=over-tls, obfs-host=addons.mozilla.org, reality-base64-pubkey=QpmZt9PSrjOltpKalxbwoCYTkOkRPwVnNInqTCRic, reality-hex-shortid=0123456789abcdef');
+        expect(generated).toContain('tag=');
+        expect(generated).not.toContain('reality-public-key=');
+        expect(generated).not.toContain('tls-host=addons.mozilla.org');
+        expect(generated).not.toContain('over-tls=true');
+    });
+
+    it('should avoid obfs-uri when xhttp is mapped to over-tls for QuanX', () => {
+        const generated = generateBuiltinQuanxConfig([
+            'vless://67d08f0c-d864-4c58-8491-ffa03097c60b@cf.tencentapp.cn:443?type=xhttp&path=%2Fargo&xhttp-host=uk.xxxxxxxxxxxxx.xxx.kg&host=uk.xxxxxxxxxxxxx.xxx.kg&security=tls&sni=uk.xxxxxxxxxxxxx.xxx.kg&allowInsecure=1#UK-Argo-XHTTP'
+        ].join('\n'));
+
+        expect(generated).toContain('vless=cf.tencentapp.cn:443, password=67d08f0c-d864-4c58-8491-ffa03097c60b, method=none, obfs=over-tls, obfs-host=uk.xxxxxxxxxxxxx.xxx.kg');
+        expect(generated).not.toContain('obfs-uri=/argo');
     });
 });

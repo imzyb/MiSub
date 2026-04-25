@@ -128,38 +128,40 @@ function buildQxLine(proxy) {
         const uuid = proxy.uuid || '';
         const extraParts = ['method=none'];
         const transport = proxy.network || 'tcp';
+        const isReality = proxy.security === 'reality' || !!proxy['reality-opts'];
+        const hasTlsLayer = proxy.tls || isReality;
+        const hostValue = proxy.sni || proxy.servername;
 
         // 传输层映射 (QX 兼容性适配)
         if (transport === 'ws' || proxy['ws-opts']) {
-            extraParts.push('obfs=ws');
+            extraParts.push(hasTlsLayer ? 'obfs=wss' : 'obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) extraParts.push(`obfs-uri=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extraParts.push(`obfs-host=${wsOpts.headers.Host}`);
+            else if (hostValue) extraParts.push(`obfs-host=${hostValue}`);
+            if (wsOpts?.path) extraParts.push(`obfs-uri=${wsOpts.path}`);
         } else if (transport === 'grpc' || proxy['grpc-opts']) {
-            extraParts.push('obfs=grpc');
+            extraParts.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=grpc');
+            if (hostValue) extraParts.push(`obfs-host=${hostValue}`);
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (grpcOpts?.['grpc-service-name']) extraParts.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
+            if (!hasTlsLayer && grpcOpts?.['grpc-service-name']) extraParts.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
         } else if (transport === 'xhttp' || proxy['xhttp-opts']) {
             // QX 不直接支持 xhttp，尝试映射为 http(s) 以提高兼容性
-            extraParts.push('obfs=http');
+            extraParts.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=http');
             const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
-            if (xhttpOpts?.path) extraParts.push(`obfs-uri=${xhttpOpts.path}`);
             if (xhttpOpts?.host) extraParts.push(`obfs-host=${xhttpOpts.host}`);
+            else if (hostValue) extraParts.push(`obfs-host=${hostValue}`);
+            if (!hasTlsLayer && xhttpOpts?.path) extraParts.push(`obfs-uri=${xhttpOpts.path}`);
+        } else if (hasTlsLayer) {
+            extraParts.push('obfs=over-tls');
+            if (hostValue) extraParts.push(`obfs-host=${hostValue}`);
         }
 
-        // 安全层映射 (TLS / Reality)
-        const isReality = proxy.security === 'reality' || !!proxy['reality-opts'];
-        if (proxy.tls || isReality) {
-            extraParts.push('over-tls=true');
-            if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
-            
-            if (isReality) {
-                const realityOpts = proxy['reality-opts'] || {};
-                if (realityOpts['public-key']) extraParts.push(`reality-public-key=${realityOpts['public-key']}`);
-                if (realityOpts['short-id']) extraParts.push(`reality-short-id=${realityOpts['short-id']}`);
-            }
+        if (isReality) {
+            const realityOpts = proxy['reality-opts'] || {};
+            if (realityOpts['public-key']) extraParts.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
+            if (realityOpts['short-id']) extraParts.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
-        
+
         appendQxTlsParams(extraParts, proxy);
         return `vless=${server}:${port}, password=${uuid}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
     }
@@ -248,7 +250,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     }
 
     if (proxyLines.length === 0) {
-        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8\n\n[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29\n\n[server_local]\n';
+        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8\n\n[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29\n\n[server_remote]\n\n[server_local]\n\n[rewrite_remote]\n\n[rewrite_local]\n';
     }
 
     const sections = [];
@@ -258,6 +260,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     sections.push(`[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8`);
     sections.push(`[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29`);
+    sections.push(`[server_remote]`);
     sections.push(`[server_local]\n${proxyLines.join('\n')}`);
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
@@ -337,6 +340,8 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     sections.push(`[filter_remote]\n${remoteRules.join('\n')}`);
     sections.push(`[filter_local]\n${localRuleLines.filter(Boolean).join('\n')}`);
+    sections.push(`[rewrite_remote]`);
+    sections.push(`[rewrite_local]`);
 
     return sections.join('\n\n') + '\n';
 }
