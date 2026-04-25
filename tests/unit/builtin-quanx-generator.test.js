@@ -41,7 +41,9 @@ describe('Quantumult X 内置生成器', () => {
             'trojan://password@1.2.3.4:443#TrojanNode'
         ].join('\n'));
 
-        expect(result).toContain('vmess=1.2.3.4:443, method=none, password=uuid-1234, tag=🌍 VmessNode');
+        expect(result).toContain('vmess=1.2.3.4:443, method=none, password=uuid-1234, obfs=wss, obfs-uri=/ws, obfs-host=example.com, tag=🌍 VmessNode');
+        expect(result).not.toContain('vmess=1.2.3.4:443, method=none, password=uuid-1234, obfs=ws,');
+        expect(result).not.toContain('over-tls=true, tag=🌍 VmessNode');
         expect(result).toContain('trojan=1.2.3.4:443, password=password, over-tls=true, tag=🌍 TrojanNode');
     });
 
@@ -102,21 +104,28 @@ describe('Quantumult X 内置生成器', () => {
         expect(ss.name).toBe('🌍 SS Node');
     });
 
-    it('should emit parser-compatible hysteria2 tuic and anytls lines', () => {
+    it('should skip unsupported hysteria2 lines for QuanX and keep tuic anytls lines', () => {
         const generated = generateBuiltinQuanxConfig([
             'hysteria2://pass-hy2@hy2.example.com:443?sni=hy2.example.com&allowInsecure=1#HY2Node',
             'tuic://uuid-tuic:pass-tuic@tuic.example.com:443?sni=tuic.example.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allowInsecure=1#TUICNode',
             'anytls://pass-anytls@anytls.example.com:443/?sni=anytls.example.com&alpn=h2,h3&allowInsecure=1#AnyTLSNode'
         ].join('\n'));
 
-        expect(generated).toContain('hysteria2=hy2.example.com:443, password=pass-hy2, sni=hy2.example.com, tls-verification=false, tag=🌍 HY2Node');
+        expect(generated).not.toContain('hysteria2=');
         expect(generated).toContain('tuic=tuic.example.com:443, uuid-tuic, pass-tuic, sni=tuic.example.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUICNode');
         expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, sni=anytls.example.com, alpn=h2,h3, tls-verification=false, tag=🌍 AnyTLSNode');
 
         const parsed = parseQuantumultXConfig(generated);
-        expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(true);
+        expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(false);
         expect(parsed.some(node => node.protocol === 'tuic')).toBe(true);
         expect(parsed.some(node => node.protocol === 'anytls')).toBe(true);
+    });
+
+    it('should skip hysteria2 when rendering QuanX because target rejects it', () => {
+        const generated = generateBuiltinQuanxConfig('hysteria2://97fe958d-2c3e-4994-9df0-293ccdb5f39@x-mg.xueshan168.cc:20201?sni=x-mg.xueshan168.cc&allowInsecure=1#Stable%20-%20%E8%B7%9D%E7%A6%BB%E4%B8%8B%E6%AC%A1%E9%87%8D%E7%BD%AE%E5%89%A9%E4%BD%99%EF%BC%9A%2019%20%E5%A4%A9');
+
+        expect(generated).not.toContain('hysteria2=');
+        expect(generated).not.toContain('x-mg.xueshan168.cc:20201');
     });
 
     it('should emit Quantumult X compatible vless reality syntax', () => {
@@ -138,5 +147,31 @@ describe('Quantumult X 内置生成器', () => {
 
         expect(generated).toContain('vless=cf.tencentapp.cn:443, password=67d08f0c-d864-4c58-8491-ffa03097c60b, method=none, obfs=over-tls, obfs-host=uk.xxxxxxxxxxxxx.xxx.kg');
         expect(generated).not.toContain('obfs-uri=/argo');
+    });
+
+    it('should keep QuanX vmess ws tls tag at the end of the server line', () => {
+        const vmessConfig = Buffer.from(JSON.stringify({
+            v: '2',
+            ps: 'VMESS 节点',
+            add: 'ip.sb',
+            port: '443',
+            id: '6f4e029b-099f-45f6-afd2-33f0e8f86f15',
+            aid: '0',
+            scy: 'auto',
+            net: 'ws',
+            type: 'none',
+            host: 'gbwarp.owg.dpdns.org',
+            path: '/vmess-argo?ed=2560',
+            tls: 'tls',
+            sni: 'gbwarp.owg.dpdns.org'
+        })).toString('base64');
+
+        const generated = generateBuiltinQuanxConfig(`vmess://${vmessConfig}`);
+        const line = generated.split('\n').find(item => item.startsWith('vmess='));
+
+        expect(line).toBe('vmess=ip.sb:443, method=none, password=6f4e029b-099f-45f6-afd2-33f0e8f86f15, obfs=wss, obfs-uri=/vmess-argo?ed=2560, obfs-host=gbwarp.owg.dpdns.org, tag=🌍 VMESS 节点');
+        expect(line).not.toContain('tag=🌍 VMESS 节点, obfs=');
+        expect(line).not.toContain('over-tls=true');
+        expect(line).not.toContain('tls-host=');
     });
 });

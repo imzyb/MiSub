@@ -142,6 +142,10 @@ function parseQuantumultXVmess(line) {
                         break;
                     case 'obfs':
                         if (value.toLowerCase() === 'ws') vmessConfig.net = 'ws';
+                        if (value.toLowerCase() === 'wss') {
+                            vmessConfig.net = 'ws';
+                            vmessConfig.tls = 'true';
+                        }
                         break;
                     case 'obfs-host':
                     case 'tls-host':
@@ -386,7 +390,7 @@ function parseQuantumultXHysteria2(line) {
         extra.forEach(param => {
             const [key, value] = param.split('=').map(p => p.trim());
             if (!key || !value) return;
-            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer') urlParams.push(`sni=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer' || key.toLowerCase() === 'tls-host') urlParams.push(`sni=${encodeURIComponent(value)}`);
             if (key.toLowerCase() === 'insecure' || key.toLowerCase() === 'tls-verification') urlParams.push(`insecure=${value === 'false' ? '1' : value}`);
         });
 

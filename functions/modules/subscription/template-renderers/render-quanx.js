@@ -41,17 +41,20 @@ function buildProxyLine(proxy) {
     }
     if (type === 'vmess') {
         const extras = [];
+        const sni = proxy.servername ?? proxy.sni;
+        const hasTlsLayer = proxy.tls || sni !== undefined;
         if (proxy.network === 'ws') {
-            extras.push('obfs=ws');
+            extras.push(hasTlsLayer ? 'obfs=wss' : 'obfs=ws');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             if (wsOpts?.path) extras.push(`obfs-uri=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`obfs-host=${wsOpts.headers.Host}`);
+            else if (sni !== undefined) extras.push(`obfs-host=${sni}`);
+        } else {
+            if (hasTlsLayer) extras.push('over-tls=true');
+            if (sni !== undefined) extras.push(`tls-host=${sni}`);
         }
-        const sni = proxy.servername ?? proxy.sni;
-        if (proxy.tls || sni !== undefined) extras.push('over-tls=true');
-        if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
-        return `vmess=${server}:${port}, method=${normalizeQxVmessMethod(proxy.cipher)}, password=${proxy.uuid || ''}, tag=${name}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+        return `vmess=${server}:${port}, method=${normalizeQxVmessMethod(proxy.cipher)}, password=${proxy.uuid || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'vless') {
         const extras = [];
@@ -76,11 +79,9 @@ function buildProxyLine(proxy) {
         return `http=${server}:${port}, username=${proxy.username || ''}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'hysteria2' || type === 'hy2') {
-        const extras = [];
-        const sni = proxy.servername ?? proxy.sni;
-        if (sni !== undefined) extras.push(`sni=${sni}`);
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
-        return `hysteria2=${server}:${port}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
+        // Quantumult X rejects the Hysteria2 server syntax emitted by MiSub; omit it
+        // from rendered QuanX templates rather than breaking the entire import.
+        return null;
     }
     if (type === 'tuic') {
         const extras = [];
