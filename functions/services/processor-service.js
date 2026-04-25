@@ -89,7 +89,7 @@ export class ProcessorService {
         // Handle built-in generation with optional templates
         const builtinProxyContent = transformBuiltinSubscription(combinedNodeList, targetFormat, {
             ...builtinOptions,
-            managedConfigUrl: ''
+            managedConfigUrl
         });
 
         if (!builtinProxyContent) {

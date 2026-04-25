@@ -10,10 +10,17 @@ describe('Quantumult X 内置生成器', () => {
         });
 
         expect(result).toContain('#!MANAGED-CONFIG https://example.com/qx');
-        expect(result).toContain('[General]');
+        expect(result).toContain('[general]');
+        expect(result).toContain('[dns]');
         expect(result).toContain('[server_local]');
+        expect(result).toContain('server_check_url = http://www.gstatic.com/generate_204');
+        expect(result).toContain('excluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8');
+        expect(result).toContain('server = 223.5.5.5');
         expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm');
         expect(result).toContain('password');
+        expect(result).not.toContain('[General]');
+        expect(result).not.toContain('dns-server =');
+        expect(result).not.toContain('proxy-test-url =');
     });
 
     it('should emit tls-verification=false when skipCertVerify is enabled', () => {
@@ -30,7 +37,7 @@ describe('Quantumult X 内置生成器', () => {
             'trojan://password@1.2.3.4:443#TrojanNode'
         ].join('\n'));
 
-        expect(result).toContain('vmess=1.2.3.4:443, method=auto, password=uuid-1234, tag=🌍 VmessNode');
+        expect(result).toContain('vmess=1.2.3.4:443, method=none, password=uuid-1234, tag=🌍 VmessNode');
         expect(result).toContain('trojan=1.2.3.4:443, password=password, over-tls=true, tag=🌍 TrojanNode');
     });
 
@@ -39,6 +46,24 @@ describe('Quantumult X 内置生成器', () => {
 
         expect(result).toContain('shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=password, tag=🌍 SSNode');
         expect(result).toContain('password');
+    });
+
+    it('should use Quantumult X policy syntax without pseudo DIRECT node entries', () => {
+        const result = generateBuiltinQuanxConfig('ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:443#SSNode');
+
+        expect(result).not.toContain('DIRECT = direct');
+        expect(result).toContain('static=');
+        expect(result).toContain('url-latency-benchmark=');
+        expect(result).toContain('[filter_remote]');
+        expect(result).not.toContain('filter_remote, ');
+        expect(result).toContain('final,');
+    });
+
+    it('should avoid pseudo DIRECT node even when node list is empty', () => {
+        const result = generateBuiltinQuanxConfig('');
+
+        expect(result).not.toContain('DIRECT = direct');
+        expect(result).toContain('[server_local]');
     });
 
     it('should round-trip back through parser', () => {

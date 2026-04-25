@@ -50,6 +50,12 @@ function appendQxTlsParams(extraParts, proxy) {
     }
 }
 
+function normalizeQxVmessMethod(method) {
+    const normalized = String(method || '').trim().toLowerCase();
+    if (!normalized || normalized === 'auto') return 'none';
+    return normalized;
+}
+
 function buildQxLine(proxy) {
     if (!proxy || !proxy.server || !proxy.port) return null;
 
@@ -84,7 +90,7 @@ function buildQxLine(proxy) {
 
     if (type === 'vmess') {
         const uuid = proxy.uuid || '';
-        const method = proxy.cipher || 'auto';
+        const method = normalizeQxVmessMethod(proxy.cipher);
         const aid = Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0;
         const extraParts = [];
         if (proxy.network === 'ws' || proxy['ws-opts']) {
@@ -242,7 +248,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     }
 
     if (proxyLines.length === 0) {
-        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[server_local]\nDIRECT = direct\n';
+        return '#!MANAGED-CONFIG http://example.com interval=86400 strict=false\n[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8\n\n[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29\n\n[server_local]\n';
     }
 
     const sections = [];
@@ -250,8 +256,9 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         sections.push(`#!MANAGED-CONFIG ${managedConfigUrl} interval=${interval} strict=false`);
     }
 
-    sections.push(`[General]\niv6 = false\ndns-server = system, 223.5.5.5, 119.29.29.29\nskip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local\nproxy-test-url = http://www.gstatic.com/generate_204`);
-    sections.push(`[server_local]\nDIRECT = direct\n${proxyLines.join('\n')}`);
+    sections.push(`[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8`);
+    sections.push(`[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29`);
+    sections.push(`[server_local]\n${proxyLines.join('\n')}`);
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
@@ -279,29 +286,52 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     };
 
     const groupLines = abstractGroups.map(group => {
-        let type = group.type === 'url-test' ? 'url-test' : 'select';
-        if (group.type === 'fallback') type = 'fallback';
+        const normalizePolicyMember = (member) => {
+            const upper = String(member || '').toUpperCase();
+            if (upper === 'DIRECT') return 'direct';
+            if (upper === 'REJECT') return 'reject';
+            if (upper === 'REJECT-DROP') return 'reject';
+            return member;
+        };
+
+        let type = 'static';
+        if (group.type === 'url-test') type = 'url-latency-benchmark';
+        if (group.type === 'fallback') type = 'available';
         if (group.type === 'relay') type = 'static';
 
-        const proxies = group.proxies.join(', ');
+        const proxies = group.proxies.map(normalizePolicyMember).join(', ');
         const icon = groupIcons[group.name] ? `, img-url=${groupIcons[group.name]}` : '';
-        const extra = type === 'url-test' || type === 'fallback' ? `, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50` : '';
-        return `${group.name} = ${type}, ${proxies}${extra}${icon}`;
+        const extra = type === 'url-latency-benchmark' ? ', check-interval=300, tolerance=50' : '';
+        return `${type}=${group.name}, ${proxies}${extra}${icon}`;
     });
 
     sections.push(`[policy]\n${groupLines.join('\n')}`);
 
     const rawRules = getBuiltinRules(levelKey, 'quanx');
-    const remoteRules = rawRules.filter(r => r.startsWith('filter_remote'));
-    const localRules = rawRules.filter(r => !r.startsWith('filter_remote'));
+    const remoteRules = rawRules
+        .filter(r => r.startsWith('filter_remote'))
+        .map(r => r.replace(/^filter_remote,\s*/i, ''));
+    const localRules = rawRules
+        .filter(r => !r.startsWith('filter_remote'))
+        .map(rule => rule
+            .replace(/^HOST-SUFFIX/i, 'host-suffix')
+            .replace(/^HOST-KEYWORD/i, 'host-keyword')
+            .replace(/^HOST,/i, 'host,')
+            .replace(/^IP-CIDR/i, 'ip-cidr')
+            .replace(/^GEOIP/i, 'geoip')
+            .replace(/^FINAL/i, 'final')
+            .replace(/,\s*DIRECT\b/g, ', direct')
+            .replace(/,\s*REJECT\b/g, ', reject'));
 
     const localRuleLines = [
         '; 基础分流',
-        'HOST-SUFFIX, localhost, DIRECT',
-        'IP-CIDR, 127.0.0.0/8, DIRECT',
-        'IP-CIDR, 10.0.0.0/8, DIRECT',
-        'IP-CIDR, 172.16.0.0/12, DIRECT',
-        'IP-CIDR, 192.168.0.0/16, DIRECT',
+        'host-suffix, localhost, direct',
+        'host-suffix, local, direct',
+        'ip-cidr, 127.0.0.0/8, direct',
+        'ip-cidr, 10.0.0.0/8, direct',
+        'ip-cidr, 100.64.0.0/10, direct',
+        'ip-cidr, 172.16.0.0/12, direct',
+        'ip-cidr, 192.168.0.0/16, direct',
         ...localRules
     ];
 

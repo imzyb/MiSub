@@ -34,7 +34,7 @@ function buildTemplateProxyBlock(nodeList) {
         .join('\n');
 }
 
-function extractProxySectionFromBuiltin(content, targetFormat) {
+export function extractProxySectionFromBuiltin(content, targetFormat) {
     if (typeof content !== 'string' || content.trim() === '') return '';
 
     if (targetFormat === 'clash') {
@@ -42,8 +42,18 @@ function extractProxySectionFromBuiltin(content, targetFormat) {
         return match ? match[1].trim() : '';
     }
 
-    if (targetFormat.startsWith('surge') || targetFormat === 'loon' || targetFormat === 'quanx') {
+    if (targetFormat.startsWith('surge') || targetFormat === 'loon') {
         const match = content.match(/\[Proxy\]\s*\n([\s\S]*?)(?:\n\n\[|$)/i);
+        if (!match) return '';
+        return match[1]
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !/^DIRECT\s*=\s*direct$/i.test(line))
+            .join('\n');
+    }
+
+    if (targetFormat === 'quanx') {
+        const match = content.match(/\[server_local\]\s*\n([\s\S]*?)(?:\n\n\[|$)/i);
         if (!match) return '';
         return match[1]
             .split('\n')

@@ -51,7 +51,7 @@ function buildProxyLine(proxy) {
         if (proxy.tls || sni !== undefined) extras.push('over-tls=true');
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
-        return `vmess=${server}:${port}, method=${proxy.cipher || 'auto'}, password=${proxy.uuid || ''}, tag=${name}${extras.length ? `, ${extras.join(', ')}` : ''}`;
+        return `vmess=${server}:${port}, method=${normalizeQxVmessMethod(proxy.cipher)}, password=${proxy.uuid || ''}, tag=${name}${extras.length ? `, ${extras.join(', ')}` : ''}`;
     }
     if (type === 'vless') {
         const extras = [];
@@ -140,6 +140,12 @@ function buildRuleLine(rule) {
     if (type === 'MATCH' || type === 'FINAL') return `FINAL,${rule.policy}`;
     if (type === 'GEOIP') return `GEOIP,${rule.value || 'CN'},${rule.policy}`;
     return `${type},${rule.value},${rule.policy}`;
+}
+
+function normalizeQxVmessMethod(method) {
+    const normalized = String(method || '').trim().toLowerCase();
+    if (!normalized || normalized === 'auto') return 'none';
+    return normalized;
 }
 
 export function renderQuanxFromTemplateModel(model, options = {}) {

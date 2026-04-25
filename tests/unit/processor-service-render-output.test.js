@@ -58,4 +58,20 @@ MATCH,MyGroup
         expect(result.content).toContain('proxies:');
         expect(fetch).not.toHaveBeenCalled();
     });
+
+    it('preserves managed config header for builtin quanx output', async () => {
+        const result = await ProcessorService.renderOutput({
+            targetFormat: 'quanx',
+            combinedNodeList: NODE_LIST,
+            subName: 'Demo',
+            config: { UpdateInterval: 86400 },
+            builtinOptions: { ruleLevel: 'std', skipCertVerify: false, enableUdp: false },
+            managedConfigUrl: 'https://example.com/sub?target=quanx&builtin=1',
+            storageAdapter
+        });
+
+        expect(result.content).toContain('#!MANAGED-CONFIG https://example.com/sub?target=quanx&builtin=1 interval=86400 strict=false');
+        expect(result.content).toContain('[general]');
+        expect(result.content).toContain('[dns]');
+    });
 });

@@ -172,7 +172,7 @@ MATCH,节点选择
         expect(quanxRendered).toContain('[policy]');
         expect(quanxRendered).toContain('[filter_remote]');
         expect(quanxRendered).toContain('[filter_local]');
-        expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=auto, password=uuid-5678, tag=🇺🇸 US-01');
+        expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, tag=🇺🇸 US-01');
         expect(quanxRendered).toContain('filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list, tag=🤖 OpenAi, force-policy=🤖 OpenAi, update-interval=86400, enabled=true');
         expect(quanxRendered).toContain('🚀 节点选择 = select');
         expect(surgeRendered).not.toContain('SG-01 = vless');

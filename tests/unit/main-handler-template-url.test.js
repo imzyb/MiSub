@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildManagedConfigUrl, resolveExternalTemplateConfigUrl, resolveTemplateSource, resolveTemplateUrl } from '../../functions/modules/subscription/main-handler.js';
+import { buildManagedConfigUrl, extractProxySectionFromBuiltin, resolveExternalTemplateConfigUrl, resolveTemplateSource, resolveTemplateUrl } from '../../functions/modules/subscription/main-handler.js';
 import {
     TEMPLATE_COMPATIBILITY,
     normalizeTemplateTarget,
@@ -11,6 +11,22 @@ describe('Main handler template url', () => {
         const url = buildManagedConfigUrl('https://example.com/sub?token=abc&refresh=1&nocache=1');
 
         expect(url).toBe('https://example.com/sub?token=abc');
+    });
+
+    it('should extract QuanX nodes from server_local section for list mode', () => {
+        const content = [
+            '[General]',
+            'skip-proxy = localhost',
+            '',
+            '[server_local]',
+            'DIRECT = direct',
+            'shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=test, tag=HK-01',
+            '',
+            '[policy]',
+            'Proxy = select, HK-01, DIRECT'
+        ].join('\n');
+
+        expect(extractProxySectionFromBuiltin(content, 'quanx')).toBe('shadowsocks=1.2.3.4:443, method=aes-128-gcm, password=test, tag=HK-01');
     });
 
     it('should resolve template sources by mode', () => {
