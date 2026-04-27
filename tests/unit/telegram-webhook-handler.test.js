@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createAdapter = vi.fn();
 const getStorageType = vi.fn();
+const clearAllNodeCaches = vi.fn();
 
 vi.mock('../../functions/storage-adapter.js', () => ({
   StorageFactory: {
     createAdapter: (...args) => createAdapter(...args),
     getStorageType: (...args) => getStorageType(...args)
   }
+}));
+
+vi.mock('../../functions/services/node-cache-service.js', () => ({
+  clearAllNodeCaches: (...args) => clearAllNodeCaches(...args)
 }));
 
 vi.mock('../../functions/modules/utils.js', () => ({
@@ -77,6 +82,7 @@ describe('handleTelegramWebhook', () => {
     vi.resetModules();
     vi.clearAllMocks();
     getStorageType.mockResolvedValue('d1');
+    clearAllNodeCaches.mockResolvedValue({ cleared: 1, failed: 0 });
     global.fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
   });
 
@@ -175,6 +181,8 @@ describe('handleTelegramWebhook', () => {
     expect(state.subscriptions).toHaveLength(1);
     expect(state.profiles[0].manualNodes).toEqual([state.subscriptions[0].id]);
     expect(state.profiles[1].manualNodes).toEqual([]);
+    expect(clearAllNodeCaches).toHaveBeenCalledTimes(1);
+    expect(clearAllNodeCaches).toHaveBeenCalledWith(adapter);
   });
 
   it('keeps the original command surface in help output', async () => {

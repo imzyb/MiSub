@@ -23,6 +23,7 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
+import { clearAllNodeCaches } from '../../services/node-cache-service.js';
 import { createJsonResponse, escapeHtml } from '../utils.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS } from '../config.js';
 
@@ -1887,7 +1888,15 @@ async function handleNodeInput(chatId, text, userId, env, requestCache = null) {
             }
         }
 
-        // 5. 发送反馈消息
+        // 5. 清除节点缓存，确保 Bot 新增/关联的节点能立即出现在实际订阅输出中
+        try {
+            const cacheResult = await clearAllNodeCaches(storageAdapter);
+            console.info(`[Telegram Push] Cleared ${cacheResult?.cleared ?? 0} node caches after node import`);
+        } catch (cacheError) {
+            console.warn('[Telegram Push] Failed to clear node caches after node import:', cacheError?.message || cacheError);
+        }
+
+        // 6. 发送反馈消息
         let message;
         const totalIgnored = ignoredUrls.length;
         const ignoreMsg = totalIgnored > 0 ? `\n⚠️ 已跳过 ${totalIgnored} 个重复链接` : '';
