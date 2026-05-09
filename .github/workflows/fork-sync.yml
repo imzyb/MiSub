@@ -2,7 +2,7 @@ name: Fork Sync
 
 on:
   schedule:
-    - cron: "0 3 * * *"     # 每天执行一次（UTC 03:00，北京时间 11:00）
+    - cron: "0 20 * * *"     # 每天执行一次（UTC 20:00，北京时间 04:00）
   workflow_dispatch:
 
 permissions:
