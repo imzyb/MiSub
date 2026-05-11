@@ -412,7 +412,9 @@ export async function handleMisubRequest(context) {
             name: subName,
             operators: Array.isArray(activeProfile?.operators) ? [...activeProfile.operators] : [],
             exclude: urlExclude || activeProfile?.exclude,
-            include: urlInclude || activeProfile?.include
+            include: urlInclude || activeProfile?.include,
+            // [Issue #345] 透传 emoji 开关到内置生成器
+            addFlagEmoji: effectiveNodeTransform.addFlagEmoji
         };
 
         // [Subconverter API] 动态注入更名算子 (rename=old@new|A@B)

@@ -51,7 +51,7 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             showToast('订阅链接不能为空', 'error');
             return;
         }
-        if (!/^https?:\/\//.test(editingSubscription.value.url)) {
+        if (!/^https?:\/\//i.test(editingSubscription.value.url)) {
             showToast('请输入有效的 http:// 或 https:// 订阅链接', 'error');
             return;
         }

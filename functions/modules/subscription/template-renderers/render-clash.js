@@ -97,6 +97,18 @@ export function renderClashFromTemplateModel(model) {
         'mode': 'rule',
         'log-level': 'info',
         'external-controller': ':9090',
+        'dns': {
+            'enable': true,
+            'listen': '0.0.0.0:1053',
+            'default-nameserver': ['223.5.5.5', '1.1.1.1'],
+            'enhanced-mode': 'fake-ip',
+            'fake-ip-range': '198.18.0.1/16',
+            'fake-ip-filter': ['*.lan', '*.localhost'],
+            'nameserver': [
+                'https://dns.alidns.com/dns-query',
+                'https://doh.pub/dns-query'
+            ]
+        },
         'proxies': normalizedModel.proxies,
         'proxy-groups': normalizedModel.groups
             .filter(group =>

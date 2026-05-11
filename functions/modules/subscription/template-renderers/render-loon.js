@@ -189,6 +189,16 @@ export function renderLoonFromTemplateModel(model, options = {}) {
         : urlsToClashProxies(proxyUrls);
 
     return [
+        '[General]',
+        'ipv6 = false',
+        'dns-server = 223.5.5.5, 114.114.114.114',
+        'skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local',
+        'allow-udp-proxy = true',
+        'allow-wifi-access = true',
+        'wifi-access-http-port = 7222',
+        'wifi-access-socks5-port = 7221',
+        'resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store-Resources/master/scripts/sub-store-parser.js',
+        '',
         '[Proxy]',
         ...proxies.map(buildProxyLine).filter(Boolean),
         '',

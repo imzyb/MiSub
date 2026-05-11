@@ -191,7 +191,8 @@ function buildQxLine(proxy) {
         if (proxy.uuid) parts.push(proxy.uuid || '');
         if (proxy.password) parts.push(proxy.password || '');
         if (proxy.sni || proxy.servername) parts.push(`sni=${proxy.sni || proxy.servername}`);
-        if (proxy['congestion-control']) parts.push(`congestion-controller=${proxy['congestion-control']}`);
+        const congestionControl = proxy['congestion-control'] || proxy['congestion-controller'];
+        if (congestionControl) parts.push(`congestion-controller=${congestionControl}`);
         if (proxy['udp-relay-mode']) parts.push(`udp-relay=${proxy['udp-relay-mode']}`);
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;

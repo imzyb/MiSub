@@ -89,7 +89,8 @@ function buildProxyLine(proxy) {
         if (proxy.password) extras.push(proxy.password || '');
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
-        if (proxy['congestion-control']) extras.push(`congestion-controller=${proxy['congestion-control']}`);
+        const congestionControl = proxy['congestion-control'] || proxy['congestion-controller'];
+        if (congestionControl) extras.push(`congestion-controller=${congestionControl}`);
         if (proxy['udp-relay-mode']) extras.push(`udp-relay=${proxy['udp-relay-mode']}`);
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
@@ -167,6 +168,17 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
     const localRules = normalizedModel.rules.filter(r => !remoteRules.includes(r));
 
     return [
+        '[general]',
+        '; 监听端口',
+        'network_check_url=http://www.gstatic.com/generate_204',
+        'server_check_url=http://www.gstatic.com/generate_204',
+        '',
+        '[dns]',
+        '; 优先解析 IPv4',
+        'prefer-ipv4=true',
+        'server=223.5.5.5',
+        'server=114.114.114.114',
+        '',
         '[server_local]',
         ...proxies.map(buildProxyLine).filter(Boolean),
         '',

@@ -45,4 +45,18 @@ describe('Clash 内置生成器', () => {
         expect(fullConfig.proxies[0]).not.toHaveProperty('metadata');
         expect(proxiesOnly.proxies[0]).not.toHaveProperty('metadata');
     });
+
+    it('应将 TUIC URL 的 congestion_control 转为 Clash/Mihomo 兼容字段', () => {
+        const node = 'tuic://uuid-tuic:pass-tuic@tuic.example.com:443?sni=tuic.example.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#TUICNode';
+
+        const fullConfig = yaml.load(generateBuiltinClashConfig(node));
+        const proxiesOnly = yaml.load(generateProxiesOnly(node));
+
+        for (const parsed of [fullConfig, proxiesOnly]) {
+            expect(parsed.proxies[0].type).toBe('tuic');
+            expect(parsed.proxies[0]['congestion-controller']).toBe('bbr');
+            expect(parsed.proxies[0]).not.toHaveProperty('congestion-control');
+            expect(parsed.proxies[0]['udp-relay-mode']).toBe('native');
+        }
+    });
 });

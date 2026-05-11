@@ -126,10 +126,11 @@ export const POLICY_GROUPS = {
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             ...regionSelectGroups,
             { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', '🇭🇰 香港节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
             ...regionSupportGroups
         ];
     },
@@ -146,12 +147,12 @@ export const POLICY_GROUPS = {
             ...regionSelectGroups,
             // 核心修复：业务组直接引用具体地区组或自动选择组，不引用 DEFAULT_SELECT_GROUP 
             { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
-            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎧 Spotify', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', '🇭🇰 香港节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎧 Spotify', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🎮 游戏平台', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             ...regionSupportGroups
         ];
@@ -173,11 +174,11 @@ export const POLICY_GROUPS = {
             { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             // 核心修复：链式版的分流也禁止回引 DEFAULT_RELAY_GROUP，统一使用地区组或常用节点
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: ['🔗 链式代理', '🚀 常用节点', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🤖 智能 AI', type: 'select', proxies: ['🔗 链式代理', '🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', '🚀 常用节点', 'DIRECT'] },
-            { name: '🍎 Apple', type: 'select', proxies: ['🔗 链式代理', 'DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['🔗 链式代理', 'DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
+            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
             ...regionSupportGroups
         ];
     }

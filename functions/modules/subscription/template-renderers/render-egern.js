@@ -312,6 +312,10 @@ export function renderEgernFromTemplateModel(model) {
         .filter(Boolean);
 
     const config = {
+        general: {
+            dns_server: ['223.5.5.5', '114.114.114.114'],
+            ipv6: false
+        },
         proxies,
         policy_groups: policyGroups,
         rules

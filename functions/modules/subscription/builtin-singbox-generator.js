@@ -153,10 +153,22 @@ function buildOutbound(proxy) {
         outbound.server_port = port;
         outbound.uuid = proxy.uuid || '';
         outbound.password = proxy.password || '';
+
+        const congestionControl = proxy['congestion-controller'] || proxy['congestion-control'] || proxy.congestion;
+        if (congestionControl) outbound.congestion_control = congestionControl;
+        if (proxy['udp-relay-mode']) outbound.udp_relay_mode = proxy['udp-relay-mode'];
+        if (proxy['udp-over-stream'] !== undefined) outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
+        if (proxy['zero-rtt-handshake'] !== undefined || proxy['reduce-rtt'] !== undefined) {
+            outbound.zero_rtt_handshake = Boolean(proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']);
+        }
+        if (proxy.heartbeat) outbound.heartbeat = String(proxy.heartbeat);
+        if (proxy.network) outbound.network = proxy.network;
+
         outbound.tls = {
             enabled: true,
             server_name: proxy.sni || proxy.servername || server
         };
+        if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
     } else if (type === 'anytls') {
         outbound.type = 'anytls';
         outbound.server = server;
