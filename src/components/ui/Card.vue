@@ -75,10 +75,16 @@ const expiryInfo = computed(() => {
     let style = 'text-gray-500 dark:text-gray-400';
     if (diffDays < 0) style = 'text-red-500 font-bold';
     else if (diffDays <= 7) style = 'text-orange-500 font-semibold';
+    return {
+        date: expiryDate.toLocaleDateString(),
+        daysRemaining: diffDays < 0 ? '已过期' : (diffDays === 0 ? '今天到期' : `${diffDays} 天后`),
+        style: style
+    };
+});
+
 const websiteUrl = computed(() => {
   const notes = props.misub.notes;
   if (!notes) return null;
-  // 简单的正则匹配 http/https 链接
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const matches = notes.match(urlRegex);
   return matches ? matches[0] : null;
@@ -196,4 +202,3 @@ const noteWithoutUrl = computed(() => {
     </div>
   </div>
 </template>
-
