@@ -19,6 +19,10 @@ function filterAutoSelectMembers(group) {
     return members.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()));
 }
 
+const ACL4SSR_ROOT_PROVIDER_FILES = new Set([
+    'proxygfwlist'
+]);
+
 function toClashRuleProviderUrl(sourceUrl) {
     if (!/^https?:\/\//i.test(String(sourceUrl || ''))) return sourceUrl;
 
@@ -27,13 +31,18 @@ function toClashRuleProviderUrl(sourceUrl) {
         if (!/raw\.githubusercontent\.com$/i.test(url.hostname)) return sourceUrl;
         if (!/\/Clash\/.*\.(list|txt)$/i.test(url.pathname)) return sourceUrl;
 
+        const fileName = url.pathname.split('/').pop()?.replace(/\.(list|txt)$/i, '') || '';
         if (/\/Clash\/Ruleset\//i.test(url.pathname)) {
             url.pathname = url.pathname
                 .replace(/\/Clash\/Ruleset\//i, '/Clash/Providers/Ruleset/')
                 .replace(/\.(list|txt)$/i, '.yaml');
-        } else {
+        } else if (ACL4SSR_ROOT_PROVIDER_FILES.has(fileName.toLowerCase())) {
             url.pathname = url.pathname
                 .replace(/\/Clash\//i, '/Clash/Providers/')
+                .replace(/\.(list|txt)$/i, '.yaml');
+        } else {
+            url.pathname = url.pathname
+                .replace(/\/Clash\//i, '/Clash/Providers/Ruleset/')
                 .replace(/\.(list|txt)$/i, '.yaml');
         }
 

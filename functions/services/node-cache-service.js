@@ -77,6 +77,15 @@ export async function getCache(storageAdapter, cacheKey) {
 export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
     try {
         const nodeCount = nodes.split('\n').filter(line => line.trim()).length;
+        if (nodeCount === 0) {
+            const existing = await storageAdapter.get(cacheKey);
+            const existingNodeCount = existing?.nodeCount || String(existing?.nodes || '').split('\n').filter(line => line.trim()).length;
+            if (existingNodeCount > 0) {
+                console.warn(`[Cache] Refusing to overwrite non-empty cache ${cacheKey} with empty node list`);
+                return false;
+            }
+        }
+
         const cacheEntry = {
             nodes,
             timestamp: Date.now(),

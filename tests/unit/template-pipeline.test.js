@@ -355,4 +355,23 @@ custom_proxy_group=TestGroup`;
         expect(providerUrls.some(url => String(url).includes('/Clash/Providers/ProxyGFWlist.yaml'))).toBe(true);
         expect(providerUrls.every(url => !String(url).endsWith('.list'))).toBe(true);
     });
+
+    it('should map ACL4SSR root Clash list rules to existing provider ruleset urls', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=📲 电报消息,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Telegram.list
+ruleset=🚀 节点选择,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ProxyGFWlist.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Telegram.yaml');
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/ProxyGFWlist.yaml');
+    });
 });
