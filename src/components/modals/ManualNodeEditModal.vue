@@ -11,7 +11,11 @@ import { useManualNodes } from '../../composables/useManualNodes.js';
 const props = defineProps({
   show: Boolean,
   isNew: Boolean,
-  editingNode: Object
+  editingNode: Object,
+  groups: {
+    type: Array,
+    default: () => []
+  }
 });
 
 const emit = defineEmits(['update:show', 'confirm', 'input-url']);
@@ -19,7 +23,7 @@ const dataStore = useDataStore();
 const { markDirty } = dataStore;
 
 const { addSubscriptionsFromBulk } = useSubscriptions(markDirty);
-const { addNodesFromBulk, manualNodeGroups } = useManualNodes(markDirty);
+const { addNodesFromBulk } = useManualNodes(markDirty);
 const { handleBulkImport } = useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk });
 
 // 浮动标签状态
@@ -221,7 +225,7 @@ const protocolColorMap = {
               </label>
               <GroupSelector
                 v-model="editingNode.group"
-                :groups="manualNodeGroups"
+                :groups="groups"
                 placeholder="选择或输入新分组..."
               />
             </div>

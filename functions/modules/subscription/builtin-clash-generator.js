@@ -139,6 +139,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         userAgent = ''
     } = options;
     const enableMihomoSyntax = Boolean(options.isMeta) || isMetaCore(userAgent, options.searchParams);
+    const isHiddifyClient = /hiddify/i.test(userAgent || '');
 
     // 解析节点 URL 列表（先清理控制字符）
     const cleanedNodeList = cleanControlChars(nodeList);
@@ -166,16 +167,19 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     // 生成 YAML
     try {
         const levelKey = (ruleLevel || 'std').toUpperCase();
-        const rawRules = getBuiltinRules(levelKey, 'clash');
+        const rawRules = isHiddifyClient
+            ? ['MATCH,🚀 节点选择']
+            : getBuiltinRules(levelKey, 'clash');
 
         // 生成策略组并执行引用修剪
         const policyGroupsFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
         let proxyGroups = policyGroupsFactory(proxies);
         proxyGroups = pruneProxyGroups(proxyGroups, proxies);
         
-        // 提取远程 Provider 定义
-        const ruleProviders = getRemoteProviderDefinitions('clash', rawRules);
-        
+        // 提取远程 Provider 定义。Hiddify 4.x 的 Clash 转 sing-box 解析对 rule-providers 兼容性较差，
+        // 自动识别为 Hiddify 时降级为纯 MATCH 规则，避免导入时报 unable to determine config format。
+        const ruleProviders = isHiddifyClient ? {} : getRemoteProviderDefinitions('clash', rawRules);
+
         // 转换规则行为最终字符串
         const clashRules = rawRules.map(r => {
             if (typeof r === 'string') return r;
@@ -218,7 +222,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             },
 
             'proxy-groups': proxyGroups,
-            'rule-providers': ruleProviders,
+            ...(Object.keys(ruleProviders).length ? { 'rule-providers': ruleProviders } : {}),
             'rules': clashRules
         };
 

@@ -468,7 +468,7 @@ import SavePrompt from '../../ui/SavePrompt.vue';
     :all-subscriptions="subscriptions" :all-manual-nodes="manualNodes" @save="handleSaveProfile" size="6xl" />
 
   <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
-    @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
+    :groups="manualNodeGroups" @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
   <ManualNodeDedupModal v-model:show="showDedupModal" :plan="dedupPlan"
     @confirm="applyDedupPlan(dedupPlan); showDedupModal = false; dedupPlan = null" />
   

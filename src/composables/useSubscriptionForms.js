@@ -19,6 +19,7 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             exclude: '',
             customUserAgent: '',
             fetchProxy: '',
+            enableNodeCache: false,
             plusAsSpace: false,
             notes: ''
         };

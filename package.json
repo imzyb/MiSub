@@ -30,6 +30,7 @@
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.0.11",
     "miniflare": "^4.20250803.0",
+    "playwright": "^1.60.0",
     "tailwindcss": "^4.1.12",
     "vite": "^7.1.2",
     "vitest": "^4.0.16",

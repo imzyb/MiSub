@@ -146,7 +146,7 @@ const confirmBatchDelete = () => {
     />
 
     <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
-      @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
+      :groups="manualNodeGroups" @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
     <ManualNodeDedupModal v-model:show="showDedupModal" :plan="dedupPlan"
       @confirm="applyDedupPlan(dedupPlan); showDedupModal = false; dedupPlan = null" />
     

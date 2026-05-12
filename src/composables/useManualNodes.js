@@ -8,7 +8,7 @@ import { pingNode } from '../utils/ping.js';
 import { filterManualNodes, isManualNodeEntry } from './manual-nodes/filters.js';
 import { buildDedupPlan as buildDedupPlanCore } from './manual-nodes/dedup.js';
 import { buildAutoSortedSubscriptions } from './manual-nodes/sorting.js';
-import { collectManualNodeGroups, buildGroupedManualNodes } from './manual-nodes/groups.js';
+import { collectManualNodeGroups, buildGroupedManualNodes, normalizeManualNodeGroupName } from './manual-nodes/groups.js';
 
 export function useManualNodes(markDirty) {
   const { showToast } = useToastStore();
@@ -66,13 +66,14 @@ export function useManualNodes(markDirty) {
 
   function batchUpdateGroup(nodeIds, groupName) {
     if (!nodeIds || nodeIds.length === 0) return;
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
     const idsSet = new Set(nodeIds);
     const updates = manualNodes.value
       .filter(n => idsSet.has(n.id))
       .map(n => {
-        // Only update if changed
-        if (n.group === groupName) return null;
-        return { id: n.id, updates: { ...n, group: groupName } };
+        // Only update if changed after normalization
+        if (normalizeManualNodeGroupName(n.group) === normalizedGroupName) return null;
+        return { id: n.id, updates: { ...n, group: normalizedGroupName } };
       })
       .filter(u => u);
 
@@ -81,7 +82,7 @@ export function useManualNodes(markDirty) {
         dataStore.updateSubscription(id, updates);
       });
       markDirty();
-      showToast(`已将 ${updates.length} 个节点移动到分组 ${groupName || '默认'}`, 'success');
+      showToast(`已将 ${updates.length} 个节点移动到分组 ${normalizedGroupName || '默认'}`, 'success');
     }
   }
 
@@ -105,18 +106,26 @@ export function useManualNodes(markDirty) {
   }
 
   function addNode(node) {
-    if (!node.name) {
-      node.name = extractNodeName(node.url);
+    const normalizedNode = {
+      ...node,
+      group: normalizeManualNodeGroupName(node.group)
+    };
+    if (!normalizedNode.name) {
+      normalizedNode.name = extractNodeName(normalizedNode.url);
     }
     // Add to shared store
-    dataStore.addSubscription(node);
+    dataStore.addSubscription(normalizedNode);
     manualNodesCurrentPage.value = 1;
     markDirty();
   }
 
   function updateNode(updatedNode) {
+    const normalizedNode = {
+      ...updatedNode,
+      group: normalizeManualNodeGroupName(updatedNode.group)
+    };
     // Update in shared store
-    dataStore.updateSubscription(updatedNode.id, updatedNode);
+    dataStore.updateSubscription(normalizedNode.id, normalizedNode);
     markDirty();
   }
 
@@ -150,12 +159,11 @@ export function useManualNodes(markDirty) {
   }
 
   function addNodesFromBulk(nodes, groupName = '') {
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
     // Reverse insert so they appear in correct order when unshifted
     for (let i = nodes.length - 1; i >= 0; i--) {
       const node = { ...nodes[i] };
-      if (groupName) {
-        node.group = groupName;
-      }
+      node.group = normalizeManualNodeGroupName(normalizedGroupName || node.group);
       dataStore.addSubscription(node);
     }
     markDirty();
@@ -228,19 +236,22 @@ export function useManualNodes(markDirty) {
   });
 
   function renameGroup(oldName, newName) {
-    if (!oldName || !newName || oldName === newName) return;
+    const normalizedOldName = normalizeManualNodeGroupName(oldName);
+    const normalizedNewName = normalizeManualNodeGroupName(newName);
+    if (!normalizedOldName || !normalizedNewName || normalizedOldName === normalizedNewName) return;
 
-    const nodesInGroup = manualNodes.value.filter(n => n.group === oldName);
+    const nodesInGroup = manualNodes.value.filter(n => normalizeManualNodeGroupName(n.group) === normalizedOldName);
     nodesInGroup.forEach(node => {
-      dataStore.updateSubscription(node.id, { ...node, group: newName });
+      dataStore.updateSubscription(node.id, { ...node, group: normalizedNewName });
     });
     markDirty();
   }
 
   function deleteGroup(groupName) {
-    if (!groupName) return;
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
+    if (!normalizedGroupName) return;
     // Ungroup nodes (move to default)
-    const nodesInGroup = manualNodes.value.filter(n => n.group === groupName);
+    const nodesInGroup = manualNodes.value.filter(n => normalizeManualNodeGroupName(n.group) === normalizedGroupName);
     nodesInGroup.forEach(node => {
       // Creating a copy logic is safe here as updateSubscription handles it
       const { group, ...rest } = node;

@@ -18,4 +18,15 @@ describe('useSubscriptionForms', () => {
 
     expect(editingSubscription.value.customUserAgent).toBe('');
   });
+
+  it('新增机场订阅时保护性缓存节点默认关闭', () => {
+    const { openAdd, editingSubscription } = useSubscriptionForms({
+      addSubscription: vi.fn(),
+      updateSubscription: vi.fn()
+    });
+
+    openAdd();
+
+    expect(editingSubscription.value.enableNodeCache).toBe(false);
+  });
 });

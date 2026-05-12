@@ -9,7 +9,7 @@ import { resolveRequestContext } from './request-context.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
 import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
-import { isBrowserAgent, determineTargetFormat, isMetaCore } from './user-agent-utils.js'; // [Added] Import centralized util
+import { isBrowserAgent, determineTargetFormat, isMetaCore, isHiddifyAgent } from './user-agent-utils.js'; // [Added] Import centralized util
 import { authMiddleware } from '../auth-middleware.js';
 import { transformBuiltinSubscription } from './transformer-factory.js';
 import { fetchTransformTemplate } from './transform-template-cache.js';
@@ -111,6 +111,54 @@ export function resolveTemplateSource(value) {
 export function resolveExternalTemplateConfigUrl(templateSource) {
     if (!templateSource || typeof templateSource !== 'object') return '';
     return templateSource.kind === 'remote' ? String(templateSource.value || '').trim() : '';
+}
+
+export function resolveBuiltinEngineFlags(config = {}, isExternalMode = false) {
+    if (isExternalMode) {
+        return {
+            shouldSkipCertificateVerify: false,
+            shouldEnableUdp: false
+        };
+    }
+
+    return {
+        shouldSkipCertificateVerify: Boolean(config.builtinSkipCertVerify),
+        shouldEnableUdp: Boolean(config.builtinEnableUdp)
+    };
+}
+
+export function resolveEffectiveEngine({
+    searchParams,
+    userAgent = '',
+    profileEngineMode = '',
+    globalEngineMode = ''
+} = {}) {
+    const params = searchParams || new URLSearchParams('');
+    const builtinParam = (params.get('builtin') || '').toLowerCase();
+    const engineParam = (params.get('engine') || '').toLowerCase();
+    const hasExplicitFormat = Boolean(
+        params.get('target') ||
+        params.has('clash') ||
+        params.has('singbox') ||
+        params.has('surge') ||
+        params.has('loon') ||
+        params.has('quanx') ||
+        params.has('egern') ||
+        params.has('base64') ||
+        params.has('v2ray') ||
+        params.has('trojan') ||
+        params.has('nodes')
+    );
+
+    if (engineParam) return engineParam;
+    if (builtinParam === 'external') return 'external';
+    if (builtinParam === 'true' || builtinParam === '1' || builtinParam === 'builtin') return 'builtin';
+
+    if (!hasExplicitFormat && isHiddifyAgent(userAgent)) {
+        return 'builtin';
+    }
+
+    return profileEngineMode || globalEngineMode || 'builtin';
 }
 
 /**
@@ -269,9 +317,6 @@ export async function handleMisubRequest(context) {
         targetMisubs = allMisubs.filter(s => s.enabled);
     }
 
-    const shouldSkipCertificateVerify = Boolean(config.builtinSkipCertVerify);
-    const shouldEnableUdp = Boolean(config.builtinEnableUdp);
-
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
     let targetFormat = determineTargetFormat(userAgentHeader, url.searchParams);
 
@@ -308,14 +353,16 @@ export async function handleMisubRequest(context) {
     const profileSub = currentProfile?.subconverter || {};
     const globalSub = config.subconverter || {};
     
-    const builtinParam = (url.searchParams.get('builtin') || '').toLowerCase();
-    const engineParam = (url.searchParams.get('engine') || '').toLowerCase();
     // [Optimization] Respect user defined engine mode while preventing loops for non-browser agents (backend fetchers)
-    const defaultEngineMode = profileSub.engineMode || globalSub.engineMode || 'builtin';
-    
-    const effectiveEngine = engineParam || (builtinParam === 'external' ? 'external' : (builtinParam === 'true' ? 'builtin' : '')) || defaultEngineMode;
+    const effectiveEngine = resolveEffectiveEngine({
+        searchParams: url.searchParams,
+        userAgent: userAgentHeader,
+        profileEngineMode: profileSub.engineMode,
+        globalEngineMode: globalSub.engineMode
+    });
     const isExternalMode = effectiveEngine === 'external';
     const useBuiltin = !isExternalMode;
+    const { shouldSkipCertificateVerify, shouldEnableUdp } = resolveBuiltinEngineFlags(config, isExternalMode);
 
     
     const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');

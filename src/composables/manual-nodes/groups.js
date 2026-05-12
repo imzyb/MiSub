@@ -1,8 +1,13 @@
+export function normalizeManualNodeGroupName(groupName) {
+  return typeof groupName === 'string' ? groupName.trim() : '';
+}
+
 export function collectManualNodeGroups(nodes) {
   const groups = new Set();
   nodes.forEach(node => {
-    if (node.group) {
-      groups.add(node.group);
+    const group = normalizeManualNodeGroupName(node.group);
+    if (group) {
+      groups.add(group);
     }
   });
   return Array.from(groups).sort();
@@ -17,7 +22,7 @@ export function buildGroupedManualNodes(nodesToDisplay, manualNodeGroups) {
   groups['默认'] = []; // Default group for ungrouped nodes
 
   nodesToDisplay.forEach(node => {
-    const groupName = node.group || '默认';
+    const groupName = normalizeManualNodeGroupName(node.group) || '默认';
     if (!groups[groupName]) {
       groups[groupName] = [];
     }

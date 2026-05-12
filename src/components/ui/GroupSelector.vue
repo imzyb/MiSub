@@ -22,12 +22,23 @@ const isOpen = ref(false);
 const inputRef = ref(null);
 const containerRef = ref(null);
 const dropdownStyle = ref({ top: '0px', left: '0px', width: '0px' });
+const isTyping = ref(false);
 
-// Filter groups based on input
+const normalizeGroup = (value) => String(value || '').trim();
+const normalizeGroupForCompare = (value) => normalizeGroup(value).toLowerCase();
+const hasExistingGroup = computed(() => {
+  const current = normalizeGroupForCompare(props.modelValue);
+  if (!current) return false;
+  return props.groups.some(group => normalizeGroupForCompare(group) === current);
+});
+
+// Filter groups based on actual typing. Opening dropdown should show all groups.
 const filteredGroups = computed(() => {
-  const query = (props.modelValue || '').toLowerCase();
-  if (!query) return props.groups;
-  return props.groups.filter(g => g && String(g).toLowerCase().includes(query));
+  const groups = props.groups.map(normalizeGroup).filter(Boolean);
+  const uniqueGroups = Array.from(new Set(groups));
+  const query = isTyping.value ? normalizeGroupForCompare(props.modelValue) : '';
+  if (!query) return uniqueGroups;
+  return uniqueGroups.filter(group => group.toLowerCase().includes(query));
 });
 
 const updatePosition = () => {
@@ -42,20 +53,24 @@ const updatePosition = () => {
 };
 
 const handleInput = (e) => {
+  isTyping.value = true;
   emit('update:modelValue', e.target.value);
   isOpen.value = true;
 };
 
 const handleFocus = () => {
+  isTyping.value = false;
   isOpen.value = true;
 };
 
 const selectGroup = (group) => {
-  emit('update:modelValue', group);
+  emit('update:modelValue', normalizeGroup(group));
+  isTyping.value = false;
   isOpen.value = false;
 };
 
 const toggleDropdown = () => {
+  isTyping.value = false;
   isOpen.value = !isOpen.value;
 };
 
@@ -124,6 +139,7 @@ onUnmounted(() => {
       
       <!-- Arrow Icon -->
       <div 
+        data-testid="group-selector-toggle"
         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer transition-transform duration-200 hover:text-gray-600 dark:hover:text-gray-300" 
         :class="{ 'rotate-180': isOpen }"
         @click.stop="toggleDropdown"
@@ -151,7 +167,7 @@ onUnmounted(() => {
           :style="dropdownStyle"
         >
           <button
-            v-if="modelValue && !groups.some(g => g && String(g).toLowerCase() === String(modelValue).toLowerCase())" 
+            v-if="normalizeGroup(modelValue) && !hasExistingGroup"
             class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
             @click="selectGroup(modelValue)"
           >

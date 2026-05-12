@@ -22,6 +22,80 @@ const FETCH_CONFIG = {
     RETRYABLE_STATUS: [500, 502, 503, 504, 429] // 可重试的 HTTP 状态码
 };
 
+const REAL_PROXY_PROTOCOLS = [
+    'ss://',
+    'ssr://',
+    'vmess://',
+    'vless://',
+    'trojan://',
+    'hysteria://',
+    'hysteria2://',
+    'hy2://',
+    'tuic://',
+    'anytls://',
+    'socks5://',
+    'socks://'
+];
+
+/**
+ * 判断是否是真实代理节点，排除流量/到期/公告等系统伪节点
+ */
+export function isRealProxyNode(node) {
+    if (typeof node !== 'string') return false;
+    const trimmed = node.trim().toLowerCase();
+    if (!trimmed) return false;
+    return REAL_PROXY_PROTOCOLS.some(protocol => trimmed.startsWith(protocol));
+}
+
+/**
+ * 构建单机场订阅源的保护性缓存 key
+ */
+export function buildSubscriptionNodeCacheKey(sub = {}) {
+    const id = typeof sub.id === 'string' ? sub.id.trim() : '';
+    if (id) return `node_cache_subscription_${encodeURIComponent(id)}`;
+
+    const url = typeof sub.url === 'string' ? sub.url.trim() : '';
+    let hash = 0;
+    for (let i = 0; i < url.length; i++) {
+        hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+    }
+    return `node_cache_subscription_url_${Math.abs(hash).toString(36)}`;
+}
+
+async function readSubscriptionNodeCache(storage, sub) {
+    if (!storage?.get) return null;
+    try {
+        const cached = await storage.get(buildSubscriptionNodeCacheKey(sub));
+        if (!cached || !Array.isArray(cached.nodes)) return null;
+        const nodes = cached.nodes.filter(isRealProxyNode);
+        return nodes.length > 0 ? { ...cached, nodes } : null;
+    } catch (error) {
+        console.warn('[SubscriptionCache] Failed to read cache:', error);
+        return null;
+    }
+}
+
+async function writeSubscriptionNodeCache(storage, sub, nodes) {
+    if (!storage?.put) return false;
+    const realNodes = Array.isArray(nodes) ? nodes.filter(isRealProxyNode) : [];
+    if (realNodes.length === 0) return false;
+
+    try {
+        await storage.put(buildSubscriptionNodeCacheKey(sub), {
+            nodes: realNodes,
+            nodeCount: realNodes.length,
+            updatedAt: new Date().toISOString(),
+            sourceId: sub?.id || null,
+            sourceName: sub?.name || '',
+            sourceUrl: sub?.url || ''
+        });
+        return true;
+    } catch (error) {
+        console.warn('[SubscriptionCache] Failed to write cache:', error);
+        return false;
+    }
+}
+
 /**
  * 带重试的订阅获取函数（支持网络错误和 HTTP 状态码重试）
  * @param {string} url - 请求 URL
@@ -260,6 +334,14 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
      * @returns {Promise<string>} - 处理后的节点列表
      */
     const fetchSingleSubscription = async (sub) => {
+        const cacheEnabled = sub?.enableNodeCache === true;
+        const storage = context?.storage;
+        const readCachedNodes = async () => {
+            if (!cacheEnabled) return [];
+            const cached = await readSubscriptionNodeCache(storage, sub);
+            return cached?.nodes || [];
+        };
+
         try {
             const customUserAgent = typeof sub.customUserAgent === 'string' ? sub.customUserAgent.trim() : '';
             const processedUserAgent = customUserAgent || getProcessedUserAgent(userAgent, sub.url);
@@ -284,7 +366,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             });
 
             if (!response.ok) {
-                return '';
+                return (await readCachedNodes()).join('\n');
             }
             const buffer = await response.arrayBuffer();
             let text = new TextDecoder('utf-8').decode(buffer);
@@ -308,6 +390,15 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             // --- 统一转换治理 (算子 + 过滤 + 组级诊断) ---
             validNodes = await applySubscriptionTransforms(validNodes, sub);
 
+            const realNodes = validNodes.filter(isRealProxyNode);
+            if (cacheEnabled && realNodes.length === 0) {
+                return (await readCachedNodes()).join('\n');
+            }
+
+            if (cacheEnabled) {
+                await writeSubscriptionNodeCache(storage, sub, realNodes);
+            }
+
             // 判断是否启用订阅前缀（智能重命名启用时跳过）
             const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ?? true;
             const shouldAddSubPrefix = shouldPrependSubscriptions && !skipPrefixDueToRenaming;
@@ -316,7 +407,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
         } catch (e) {
-            return '';
+            return (await readCachedNodes()).join('\n');
         }
     };
 

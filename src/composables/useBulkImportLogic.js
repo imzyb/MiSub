@@ -3,6 +3,7 @@ import { useToastStore } from '../stores/toast.js';
 import { extractNodeName } from '../lib/utils.js';
 import { generateNodeId, generateSubscriptionId } from '../utils/id.js';
 import { COMMON_NODE_PROTOCOLS, createProtocolRegex } from '@/constants/nodeProtocols.js';
+import { normalizeManualNodeGroupName } from './manual-nodes/groups.js';
 
 const BULK_IMPORT_NODE_PROTOCOLS = COMMON_NODE_PROTOCOLS.filter(protocol => protocol !== 'http' && protocol !== 'https');
 const BULK_IMPORT_NODE_REGEX = createProtocolRegex(BULK_IMPORT_NODE_PROTOCOLS, false);
@@ -14,6 +15,7 @@ export function useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk 
     const handleBulkImport = (importText, group) => {
         if (!importText) return;
 
+        const normalizedGroup = normalizeManualNodeGroupName(group);
         const lines = importText.split('\n').map(line => line.trim()).filter(Boolean);
         const validSubs = [];
         const validNodes = [];
@@ -24,7 +26,7 @@ export function useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk 
                 url: line,
                 enabled: true,
                 status: 'unchecked',
-                group: group || null,
+                group: normalizedGroup || null,
                 colorTag: null,
                 // Default fields for subscriptions
                 exclude: '',

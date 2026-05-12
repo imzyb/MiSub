@@ -26,6 +26,10 @@ export function isBrowserAgent(userAgent) {
  * @param {URLSearchParams} searchParams 
  * @returns {string} targetFormat (e.g., 'clash', 'singbox', 'base64')
  */
+export function isHiddifyAgent(userAgent) {
+    return /hiddify/i.test(userAgent || '');
+}
+
 export function determineTargetFormat(userAgent, searchParams) {
     // 1. Check URL parameters first
     let targetFormat = searchParams.get('target');
