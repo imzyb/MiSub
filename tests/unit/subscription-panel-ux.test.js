@@ -31,7 +31,7 @@ function mountPanel(props = {}) {
 }
 
 describe('SubscriptionPanel UX', () => {
-  it('summarizes subscription health without requiring search/filter for small lists', () => {
+  it('keeps the panel header focused on local actions instead of duplicating dashboard statistics', () => {
     const nowSeconds = Math.floor(Date.now() / 1000);
     const wrapper = mountPanel({
       subscriptions: [
@@ -42,10 +42,12 @@ describe('SubscriptionPanel UX', () => {
       paginatedSubscriptions: []
     });
 
-    expect(wrapper.text()).toContain('启用 2/3');
-    expect(wrapper.text()).toContain('节点 20');
-    expect(wrapper.text()).toContain('待处理 3');
-    expect(wrapper.text()).toContain('含到期/异常/刷新中');
+    expect(wrapper.text()).toContain('机场订阅');
+    expect(wrapper.text()).toContain('维护机场订阅源，添加/导入后可在卡片中查看节点、流量与到期信息。');
+    expect(wrapper.text()).not.toContain('启用 2/3');
+    expect(wrapper.text()).not.toContain('节点 20');
+    expect(wrapper.text()).not.toContain('待处理 3');
+    expect(wrapper.text()).not.toContain('状态正常');
   });
 
   it('offers direct add and bulk import actions in the empty state', async () => {

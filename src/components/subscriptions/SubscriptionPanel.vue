@@ -24,24 +24,6 @@ const draggableSubscriptions = computed({
     set: (val) => emit('reorder', val)
 });
 
-const enabledCount = computed(() => props.subscriptions.filter(sub => sub.enabled).length);
-
-const totalNodeCount = computed(() => props.subscriptions.reduce((total, sub) => total + (Number(sub.nodeCount) || 0), 0));
-
-const attentionCount = computed(() => props.subscriptions.filter(sub => {
-  if (sub.isUpdating || sub.lastError) return true;
-  const expire = sub.userInfo?.expire;
-  if (!expire) return false;
-  const daysRemaining = Math.ceil(((expire * 1000) - Date.now()) / (24 * 60 * 60 * 1000));
-  return daysRemaining <= 7;
-}).length);
-
-const statusHint = computed(() => {
-  if (props.subscriptions.length === 0) return '添加后可预览节点、刷新流量与生成二维码';
-  if (attentionCount.value > 0) return '含到期/异常/刷新中';
-  return '状态正常';
-});
-
 const handleDelete = (id) => emit('delete', id);
 const handleEdit = (id) => emit('edit', id);
 const handleUpdate = (id) => emit('updateNodeCount', id);
@@ -65,13 +47,7 @@ const handleImport = () => emit('import');
             <h2 class="text-xl font-bold text-gray-900 dark:text-white">机场订阅</h2>
             <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">{{ subscriptions.length }}</span>
           </div>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">维护少量机场源，优先关注可用性、节点数与到期/异常状态。</p>
-          <div v-if="subscriptions.length > 0" class="mt-3 flex flex-wrap gap-2 text-xs">
-            <span class="rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">启用 {{ enabledCount }}/{{ subscriptions.length }}</span>
-            <span class="rounded-full border border-primary-200/70 bg-primary-50 px-2.5 py-1 font-medium text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-300">节点 {{ totalNodeCount }}</span>
-            <span class="rounded-full border px-2.5 py-1 font-medium" :class="attentionCount > 0 ? 'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : 'border-gray-200/70 bg-gray-50 text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300'">待处理 {{ attentionCount }}</span>
-            <span class="rounded-full border border-gray-200/70 bg-gray-50 px-2.5 py-1 text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">{{ statusHint }}</span>
-          </div>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">维护机场订阅源，添加/导入后可在卡片中查看节点、流量与到期信息。</p>
         </div>
         <div class="flex flex-wrap items-center gap-2 sm:w-auto justify-end sm:justify-start">
           <slot name="actions-prepend"></slot>
