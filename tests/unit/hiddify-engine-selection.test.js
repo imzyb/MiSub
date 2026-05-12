@@ -4,7 +4,8 @@ import {
     isHiddifyAgent
 } from '../../functions/modules/subscription/user-agent-utils.js';
 import {
-    resolveEffectiveEngine
+    resolveEffectiveEngine,
+    resolveBuiltinRequestOptions
 } from '../../functions/modules/subscription/main-handler.js';
 
 const hiddifyUa = 'HiddifyNext/4.1.1 (android) like ClashMeta v2ray sing-box';
@@ -49,5 +50,18 @@ describe('Hiddify subscription compatibility', () => {
             profileEngineMode: '',
             globalEngineMode: 'external'
         })).toBe('external');
+    });
+
+    it('exposes Hiddify compatibility options for builtin rendering', () => {
+        const params = new URLSearchParams('');
+
+        expect(resolveBuiltinRequestOptions({
+            searchParams: params,
+            userAgent: hiddifyUa
+        })).toMatchObject({
+            userAgent: hiddifyUa,
+            searchParams: params,
+            hiddifyCompatible: true
+        });
     });
 });

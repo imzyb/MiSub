@@ -116,26 +116,26 @@ const handleQRCode = (url, title) => {
       <div class="mb-4 bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">仪表盘</h1>
-          <p class="mt-1 text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-2">
+          <p class="mt-1 text-sm font-medium text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
             <span class="inline-flex items-center gap-2">
               <span class="inline-block h-1.5 w-1.5 rounded-full bg-primary-500/80"></span>
               概览与生成的订阅配置
             </span>
-            <span class="text-gray-400 dark:text-gray-500">|</span>
-            <span>上次更新: {{ lastUpdatedTime }}</span>
+            <span class="hidden sm:inline text-gray-400 dark:text-gray-500">|</span>
+            <span class="w-full sm:w-auto text-xs sm:text-sm">上次更新: {{ lastUpdatedTime }}</span>
           </p>
         </div>
         
-        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <button @click="showLogModal = true" class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white/80 text-gray-700 hover:bg-white dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900 misub-radius-lg transition-colors border border-gray-200/80 dark:border-white/10 shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full md:w-auto">
+            <button @click="showLogModal = true" class="min-h-11 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-white/80 text-gray-700 hover:bg-white dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900 misub-radius-lg transition-colors border border-gray-200/80 dark:border-white/10 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 订阅日志
             </button>
 
-            <button @click="openBulkImportModal" class="px-4 py-2 text-sm font-medium bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:bg-gray-800/60 dark:text-gray-200 dark:hover:bg-gray-700/70 misub-radius-lg transition-colors">
+            <button @click="openBulkImportModal" class="min-h-11 px-4 py-2.5 text-sm font-medium bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:bg-gray-800/60 dark:text-gray-200 dark:hover:bg-gray-700/70 misub-radius-lg transition-colors">
                 批量导入
             </button>
-            <button @click="handleAddProfile" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg transition-colors shadow-sm shadow-primary-500/20">
+            <button @click="handleAddProfile" class="min-h-11 px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg transition-colors shadow-sm shadow-primary-500/20">
                 新增我的订阅
             </button>
         </div>

@@ -136,10 +136,11 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         enableTfo = false,
         skipCertVerify = false,
         ruleLevel = 'std', // [New] 支持 base, std, full
-        userAgent = ''
+        userAgent = '',
+        hiddifyCompatible = false
     } = options;
     const enableMihomoSyntax = Boolean(options.isMeta) || isMetaCore(userAgent, options.searchParams);
-    const isHiddifyClient = /hiddify/i.test(userAgent || '');
+    const isHiddifyClient = hiddifyCompatible || /hiddify/i.test(userAgent || '');
 
     // 解析节点 URL 列表（先清理控制字符）
     const cleanedNodeList = cleanControlChars(nodeList);

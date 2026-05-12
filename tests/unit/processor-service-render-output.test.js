@@ -59,6 +59,54 @@ MATCH,MyGroup
         expect(fetch).not.toHaveBeenCalled();
     });
 
+    it('passes userAgent into builtin generator so Hiddify profile rendering omits rule providers', async () => {
+        const result = await ProcessorService.renderOutput({
+            targetFormat: 'clash',
+            combinedNodeList: NODE_LIST,
+            subName: 'Hiddify Test',
+            config: { UpdateInterval: 86400 },
+            builtinOptions: {
+                ruleLevel: 'std',
+                userAgent: 'HiddifyNext/4.1.1 (android) like ClashMeta v2ray sing-box',
+                searchParams: new URLSearchParams('')
+            },
+            templateSource: { kind: 'none', value: '' },
+            managedConfigUrl: '',
+            storageAdapter
+        });
+
+        expect(result.contentType).toBe('application/x-yaml; charset=utf-8');
+        expect(result.content).toContain('proxies:');
+        expect(result.content).not.toContain('rule-providers:');
+        expect(result.content).not.toContain('RULE-SET,');
+        expect(result.content).toContain('MATCH,🚀 节点选择');
+    });
+
+    it('ignores ini templates for Hiddify Clash rendering to keep conservative compatibility output', async () => {
+        const result = await ProcessorService.renderOutput({
+            targetFormat: 'clash',
+            combinedNodeList: NODE_LIST,
+            subName: 'Hiddify Test',
+            config: { UpdateInterval: 86400 },
+            builtinOptions: {
+                ruleLevel: 'std',
+                userAgent: 'HiddifyNext/4.1.1 (android) like ClashMeta v2ray sing-box',
+                hiddifyCompatible: true,
+                searchParams: new URLSearchParams('')
+            },
+            templateSource: { kind: 'remote', value: 'https://example.com/template.ini' },
+            managedConfigUrl: '',
+            storageAdapter
+        });
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(result.content).toContain('proxies:');
+        expect(result.content).not.toContain('name: MyGroup');
+        expect(result.content).not.toContain('rule-providers:');
+        expect(result.content).not.toContain('RULE-SET,');
+        expect(result.content).toContain('MATCH,🚀 节点选择');
+    });
+
     it('preserves managed config header for builtin quanx output', async () => {
         const result = await ProcessorService.renderOutput({
             targetFormat: 'quanx',

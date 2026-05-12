@@ -11,8 +11,9 @@ export const useSessionStore = defineStore('session', () => {
   const sessionState = ref('loading'); // loading, loggedIn, loggedOut
   const initialData = ref(null);
   const subscriptionConfig = ref({}); // [NEW] Added subscriptionConfig
-  const publicConfig = ref({
+  const defaultPublicConfig = Object.freeze({
     enablePublicPage: true,
+    customLoginPath: 'login',
     customPage: {
       enabled: false,
       useDefaultLayout: true,
@@ -22,7 +23,14 @@ export const useSessionStore = defineStore('session', () => {
       hideHeader: false,
       hideFooter: false
     }
-  }); // Default true until fetched
+  });
+
+  const disabledPublicConfig = Object.freeze({
+    ...defaultPublicConfig,
+    enablePublicPage: false
+  });
+
+  const publicConfig = ref({ ...defaultPublicConfig, customPage: { ...defaultPublicConfig.customPage } }); // Default true until fetched
 
   async function checkSession() {
     // Parallel fetch of initial data (auth check) and public config
@@ -36,17 +44,7 @@ export const useSessionStore = defineStore('session', () => {
       publicConfig.value = pConfigResult.data;
     } else {
       // Fallback to default if fetch fails
-      publicConfig.value = {
-        enablePublicPage: false,
-        customPage: {
-          enabled: false,
-          allowExternalStylesheets: false,
-          allowScripts: false,
-          hideBranding: false,
-          hideHeader: false,
-          hideFooter: false
-        }
-      };
+      publicConfig.value = { ...disabledPublicConfig, customPage: { ...disabledPublicConfig.customPage } };
     }
 
     if (dataResult.success) {

@@ -105,8 +105,9 @@ export class ProcessorService {
         let contentType = 'text/plain; charset=utf-8';
         const headers = userInfoHeader ? { 'Subscription-Userinfo': userInfoHeader } : {};
 
-        const builtinTemplateEntry = templateSource.kind === 'builtin' ? getBuiltinTemplate(templateSource.value) : null;
-        const remoteTemplateUrl = templateSource.kind === 'remote' ? templateSource.value : '';
+        const shouldApplyTemplate = !builtinOptions.hiddifyCompatible;
+        const builtinTemplateEntry = shouldApplyTemplate && templateSource.kind === 'builtin' ? getBuiltinTemplate(templateSource.value) : null;
+        const remoteTemplateUrl = shouldApplyTemplate && templateSource.kind === 'remote' ? templateSource.value : '';
 
         if (builtinTemplateEntry || remoteTemplateUrl) {
             const templateText = builtinTemplateEntry?.content || await fetchTransformTemplate(storageAdapter, remoteTemplateUrl);

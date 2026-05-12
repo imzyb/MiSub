@@ -161,6 +161,14 @@ export function resolveEffectiveEngine({
     return profileEngineMode || globalEngineMode || 'builtin';
 }
 
+export function resolveBuiltinRequestOptions({ searchParams, userAgent = '' } = {}) {
+    return {
+        userAgent,
+        searchParams: searchParams || new URLSearchParams(''),
+        hiddifyCompatible: isHiddifyAgent(userAgent)
+    };
+}
+
 /**
  * 处理MiSub订阅请求
  * @param {Object} context - Cloudflare上下文
@@ -701,6 +709,7 @@ export async function handleMisubRequest(context) {
     const finalEnableTfo = urlTfo === 'true' || urlTfo === '1';
 
     const builtinOptions = {
+        ...resolveBuiltinRequestOptions({ searchParams: url.searchParams, userAgent: userAgentHeader }),
         fileName: subName,
         managedConfigUrl: '',
         interval: config.UpdateInterval || 86400,
