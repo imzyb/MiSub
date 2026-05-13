@@ -26,10 +26,12 @@ const detectPlatform = () => {
 };
 
 // URL Scheme 映射表（内置）
+// 桌面端 Clash/Mihomo 系客户端在导入订阅时会直接拉取这里的 url。
+// 明确带上 target=clash，避免客户端/中间层使用通用 target 名称时拿到原始 Base64 节点列表。
 const urlSchemeMap = {
-    'clash-verge-rev': 'clash://install-config?url={url}&name={name}',
-    'clash-party': 'clash://install-config?url={url}&name={name}',
-    'clashbox': 'clash://install-config?url={url}&name={name}',
+    'clash-verge-rev': 'clash://install-config?url={url_clash}&name={name}',
+    'clash-party': 'mihomo://install-config?url={url_clash}&name={name}',
+    'clashbox': 'clash://install-config?url={url_clash}&name={name}',
     'v2rayn': 'v2rayng://install-config?url={url}',
     'v2rayng': 'v2rayng://install-config?url={url}',
     'shadowrocket': 'shadowrocket://add/sub://{url_base64}?remark={name}',
@@ -55,13 +57,28 @@ const getSubscriptionUrl = () => {
 };
 
 // 生成深度链接
+const withQueryParam = (url, key, value) => {
+    try {
+        const parsed = new URL(url);
+        if (!parsed.searchParams.has(key)) {
+            parsed.searchParams.set(key, value);
+        }
+        return parsed.toString();
+    } catch {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+    }
+};
+
 const generateDeepLink = (client) => {
     const subUrl = getSubscriptionUrl();
+    const clashSubUrl = withQueryParam(subUrl, 'target', 'clash');
     const scheme = urlSchemeMap[client.id];
 
     if (!scheme) return null;
 
     return scheme
+        .replace('{url_clash}', encodeURIComponent(clashSubUrl))
         .replace('{url}', encodeURIComponent(subUrl))
         .replace('{name}', encodeURIComponent(props.profile?.name || '订阅'))
         .replace('{url_base64}', btoa(subUrl))

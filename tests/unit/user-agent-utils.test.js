@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isBrowserAgent, determineTargetFormat } from '../../functions/modules/subscription/user-agent-utils.js';
+import { isBrowserAgent, determineTargetFormat, isMetaCore } from '../../functions/modules/subscription/user-agent-utils.js';
 
 describe('User-Agent Utils', () => {
     describe('isBrowserAgent', () => {
@@ -29,7 +29,8 @@ describe('User-Agent Utils', () => {
                 'Egern/1.0.73 (iPhone; iOS 17.0)',
                 'v2rayNG/1.6.25 (Linux; Android 11; Pixel 4 XL Build/RQ3A.210605.005) Go/1.16.5',
                 'NekoBox/1.0',
-                'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 月兔/v2.0.9'
+                'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 月兔/v2.0.9',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)'
             ];
             proxies.forEach(ua => {
                 expect(isBrowserAgent(ua)).toBe(false);
@@ -78,10 +79,31 @@ describe('User-Agent Utils', () => {
             expect(determineTargetFormat('Yuetu/v2.0.9 Platform/android', params)).toBe('clash');
         });
 
+        it('should treat Clash-Party default User-Agent as Clash-compatible', () => {
+            const params = new URLSearchParams('');
+            const partyUas = [
+                'mihomo.party/v1.8.5 (clash.meta)',
+                'clash-party/v1.8.5',
+                'Clash Party/1.8.5',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)'
+            ];
+
+            partyUas.forEach(ua => {
+                expect(determineTargetFormat(ua, params)).toBe('clash');
+            });
+        });
+
         it('should fallback to base64 for unknown UAs', () => {
             const params = new URLSearchParams('');
             expect(determineTargetFormat('UnknownClient/1.0', params)).toBe('base64');
             expect(determineTargetFormat('curl/7.0', params)).toBe('base64');
+        });
+    });
+
+    describe('isMetaCore', () => {
+        it('should treat Clash-Party default User-Agent as Meta-compatible', () => {
+            expect(isMetaCore('mihomo.party/v1.8.5 (clash.meta)')).toBe(true);
+            expect(isMetaCore('clash-party/v1.8.5')).toBe(true);
         });
     });
 });
