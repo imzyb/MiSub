@@ -60,7 +60,9 @@ function isStorageUnavailableError(error) {
     const message = String(error?.message || error || '').toLowerCase();
     return message.includes('kv storage is paused')
         || message.includes('storage is paused')
-        || message.includes('namespace is paused');
+        || message.includes('namespace is paused')
+        || message.includes('kv put() limit exceeded')
+        || message.includes('put() limit exceeded for the day');
 }
 
 async function safeKvGet(kv, key) {

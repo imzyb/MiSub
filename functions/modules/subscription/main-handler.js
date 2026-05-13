@@ -183,6 +183,7 @@ export async function handleMisubRequest(context) {
     console.log(`[MiSub UA] ${userAgentHeader}`);
 
     const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+    context.storage = storageAdapter;
     const [settingsData, allMisubs, allProfiles] = await Promise.all([
         storageAdapter.get(KV_KEY_SETTINGS),
         storageAdapter.getAllSubscriptions(),
@@ -584,10 +585,12 @@ export async function handleMisubRequest(context) {
         const dataSourceUrl = new URL(request.url);
         
         // [加固] 彻底清理 URL 参数，防止参数污染导致后端返回 400 错误
-        // [优化] 不再强制注入 target=nodes，因为非浏览器请求已默认使用内置引擎
-        // [关键] 显式注入 builtin=true 确保后端拉取数据时强制走内置逻辑，打破重定向环
+        // [关键] 后端 converter 拉取数据源时必须拿到明文节点列表；否则未知 UA 会回退 base64，
+        // 第三方转换后端再按 Clash/Loon 等目标解析时会出现空订阅或拉取失败。
+        // 同时显式注入 builtin=true，确保数据源请求强制走内置节点导出逻辑，打破重定向环。
         const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan', 'list', 'include', 'exclude'];
         paramsToClear.forEach(p => dataSourceUrl.searchParams.delete(p));
+        dataSourceUrl.searchParams.set('target', 'nodes');
         dataSourceUrl.searchParams.set('builtin', 'true');
 
         // [关键修复] 确保后端拉取数据时包含身份令牌

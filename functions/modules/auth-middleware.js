@@ -290,8 +290,12 @@ export async function handleLogin(request, env) {
             const headers = new Headers({ 'Content-Type': 'application/json' });
             const isSecure = request.url.startsWith('https');
             const cookieString = `${COOKIE_NAME}=${token}; Path=/; HttpOnly; ${isSecure ? 'Secure;' : ''} SameSite=Lax; Max-Age=${SESSION_DURATION / 1000}`;
-            headers.append('Set-Cookie', cookieString);
-            return new Response(JSON.stringify({ success: true }), { headers });
+            return new Response(JSON.stringify({ success: true }), {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Set-Cookie': cookieString
+                }
+            });
         }
         return new Response(JSON.stringify({ error: '密码错误' }), { status: 401 });
     } catch (e) {
