@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     buildSubscriptionNodeCacheKey,
     generateCombinedNodeList,
-    isRealProxyNode
+    isRealProxyNode,
+    parseSubscriptionUserInfoHeader
 } from '../../functions/services/subscription-service.js';
 
 function createMemoryStorage(initial = {}) {
@@ -34,6 +35,16 @@ describe('subscription protective node cache', () => {
         expect(isRealProxyNode('127.0.0.1:8080#剩余流量')).toBe(false);
         expect(isRealProxyNode('到期时间：2099-01-01')).toBe(false);
         expect(isRealProxyNode('')).toBe(false);
+    });
+
+    it('解析机场返回的 subscription-userinfo 响应头', () => {
+        expect(parseSubscriptionUserInfoHeader('upload=1; download=2; total=100; expire=200')).toEqual({
+            upload: 1,
+            download: 2,
+            total: 100,
+            expire: 200
+        });
+        expect(parseSubscriptionUserInfoHeader('')).toBeNull();
     });
 
     it('enableNodeCache 开启时，成功拉取真实节点后写入单机场缓存', async () => {
@@ -103,6 +114,49 @@ describe('subscription protective node cache', () => {
         const cache = await storage.get(cacheKey);
         expect(result.trim()).toBe('trojan://cached@example.com:443#Cached');
         expect(cache.nodes).toEqual(['trojan://cached@example.com:443#Cached']);
+    });
+
+    it('外部拉取成功时，异步同步节点数和流量到前端订阅数据', async () => {
+        const sub = { id: 'sub-a', name: '机场A', url: 'https://example.com/sub', enabled: true, enableNodeCache: true };
+        const storage = createMemoryStorage({
+            misub_subscriptions_v1: [{ ...sub, nodeCount: 0, userInfo: null }]
+        });
+        const waitUntilPromises = [];
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('trojan://pass@example.com:443#HK', {
+            status: 200,
+            headers: {
+                'subscription-userinfo': 'upload=1; download=2; total=100; expire=200'
+            }
+        })));
+
+        const result = await generateCombinedNodeList(
+            {
+                storage,
+                waitUntil: promise => waitUntilPromises.push(promise)
+            },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [sub],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        expect(result.trim()).toBe('trojan://pass@example.com:443#HK');
+        expect(waitUntilPromises).toHaveLength(1);
+
+        await Promise.all(waitUntilPromises);
+
+        const [updatedSub] = await storage.get('misub_subscriptions_v1');
+        expect(updatedSub.nodeCount).toBe(1);
+        expect(updatedSub.userInfo).toEqual({
+            upload: 1,
+            download: 2,
+            total: 100,
+            expire: 200
+        });
+        expect(updatedSub.lastError).toBeNull();
+        expect(typeof updatedSub.lastUpdate).toBe('string');
     });
 
     it('enableNodeCache 关闭时，拉取失败不使用旧缓存', async () => {

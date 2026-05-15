@@ -47,6 +47,21 @@ export function isRealProxyNode(node) {
     return REAL_PROXY_PROTOCOLS.some(protocol => trimmed.startsWith(protocol));
 }
 
+export function parseSubscriptionUserInfoHeader(header) {
+    if (typeof header !== 'string' || !header.trim()) return null;
+
+    const info = {};
+    header.split(';').forEach(part => {
+        const [rawKey, rawValue] = part.trim().split('=');
+        const key = rawKey?.trim();
+        const value = rawValue?.trim();
+        if (!key || value === undefined || value === '') return;
+        info[key] = /^\d+$/.test(value) ? Number(value) : value;
+    });
+
+    return Object.keys(info).length > 0 ? info : null;
+}
+
 /**
  * 构建单机场订阅源的保护性缓存 key
  */
@@ -94,6 +109,56 @@ async function writeSubscriptionNodeCache(storage, sub, nodes) {
         console.warn('[SubscriptionCache] Failed to write cache:', error);
         return false;
     }
+}
+
+async function writeSubscriptionRuntimeInfo(storage, sub, { nodeCount, userInfo } = {}) {
+    if (!storage || !sub?.id) return false;
+
+    try {
+        const applyUpdate = current => {
+            if (!current) return current;
+            return {
+                ...current,
+                nodeCount: Number.isFinite(nodeCount) ? nodeCount : current.nodeCount,
+                ...(userInfo ? { userInfo } : {}),
+                lastError: null,
+                lastUpdate: new Date().toISOString()
+            };
+        };
+
+        if (typeof storage.updateSubscriptionById === 'function') {
+            return Boolean(await storage.updateSubscriptionById(sub.id, applyUpdate));
+        }
+
+        if (typeof storage.get === 'function' && typeof storage.put === 'function') {
+            const all = await storage.get('misub_subscriptions_v1');
+            if (!Array.isArray(all)) return false;
+            const index = all.findIndex(item => item?.id === sub.id);
+            if (index === -1) return false;
+            all[index] = applyUpdate(all[index]);
+            await storage.put('misub_subscriptions_v1', all);
+            return true;
+        }
+    } catch (error) {
+        console.warn('[SubscriptionRuntimeInfo] Failed to write subscription info:', error);
+    }
+
+    return false;
+}
+
+function scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo) {
+    const promise = writeSubscriptionRuntimeInfo(storage, sub, runtimeInfo);
+
+    if (context && typeof context.waitUntil === 'function') {
+        context.waitUntil(promise.catch(error => {
+            console.warn('[SubscriptionRuntimeInfo] Async update failed:', error);
+        }));
+        return;
+    }
+
+    promise.catch(error => {
+        console.warn('[SubscriptionRuntimeInfo] Async update failed:', error);
+    });
 }
 
 /**
@@ -397,6 +462,14 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
             if (cacheEnabled) {
                 await writeSubscriptionNodeCache(storage, sub, realNodes);
+            }
+
+            if (realNodes.length > 0) {
+                const userInfo = parseSubscriptionUserInfoHeader(response.headers.get('subscription-userinfo'));
+                scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, {
+                    nodeCount: realNodes.length,
+                    userInfo
+                });
             }
 
             // 判断是否启用订阅前缀（智能重命名启用时跳过）
