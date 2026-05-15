@@ -31,10 +31,27 @@ const props = defineProps({
     </p>
   </div>
 
+  <!-- 官网 -->
+  <div>
+    <label for="sub-edit-website" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      官网
+      <span class="text-xs text-gray-500 ml-2">(可选，用于卡片跳转)</span>
+    </label>
+    <input
+      id="sub-edit-website"
+      v-model="editingSubscription.website"
+      type="url"
+      inputmode="url"
+      placeholder="https://example.com"
+      class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md dark:text-white font-mono text-sm"
+    />
+    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">填写机场官网或用户中心地址；未写协议时会自动按 https:// 打开。</p>
+  </div>
+
   <!-- 备注 -->
   <div>
     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">备注</label>
-    <textarea v-model="editingSubscription.notes" placeholder="例如: 官网: example.com | 价格: ¥20/月 | 到期: 2024-12-31"
+    <textarea v-model="editingSubscription.notes" placeholder="例如: 价格: ¥20/月 | 到期: 2024-12-31"
       rows="2"
       class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md dark:text-white"></textarea>
   </div>

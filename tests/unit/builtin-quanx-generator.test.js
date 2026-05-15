@@ -174,4 +174,14 @@ describe('Quantumult X 内置生成器', () => {
         expect(line).not.toContain('over-tls=true');
         expect(line).not.toContain('tls-host=');
     });
+
+    it('should render Shadowsocks v2ray-plugin TLS websocket as wss without over-tls', () => {
+        const generated = generateBuiltinQuanxConfig('ss://YWVzLTEyOC1nY206OGI1NDBmNWMtNjJjMS00NDkyLTgzZjYtOTQ0ZjUzNGFkMDI2@79.137.195.150:444?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dfofo.sinemp.nyc.mn%3Bpath%3D%2Fproxyip%3Dproxyip.cmliussss.net%3Fenc%3Daes-128-gcm%3Bmux%3Dfalse%3Btls#DE');
+        const line = generated.split('\n').find(item => item.startsWith('shadowsocks='));
+
+        expect(line).toBe('shadowsocks=79.137.195.150:444, method=aes-128-gcm, password=8b540f5c-62c1-4492-83f6-944f534ad026, obfs=wss, obfs-uri=/proxyip=proxyip.cmliussss.net?enc=aes-128-gcm, obfs-host=fofo.sinemp.nyc.mn, tag=🇩🇪 DE');
+        expect(line).not.toContain('obfs=ws,');
+        expect(line).not.toContain('over-tls=true');
+    });
+
 });

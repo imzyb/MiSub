@@ -77,10 +77,9 @@ function buildQxLine(proxy) {
             extraParts.push(`obfs=${proxy.obfs || opts.mode}`);
             if (proxy['obfs-host'] || opts.host) extraParts.push(`obfs-host=${proxy['obfs-host'] || opts.host}`);
         } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
-            extraParts.push('obfs=ws');
+            extraParts.push((opts.tls || opts.mode === 'websocket-tls') ? 'obfs=wss' : 'obfs=ws');
             if (opts.path) extraParts.push(`obfs-uri=${opts.path}`);
             if (opts.host) extraParts.push(`obfs-host=${opts.host}`);
-            if (opts.tls || opts.mode === 'websocket-tls') extraParts.push('over-tls=true');
         }
 
         if (proxy.udp) extraParts.push('udp-relay=true');

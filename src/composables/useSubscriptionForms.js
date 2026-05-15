@@ -21,6 +21,7 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             fetchProxy: '',
             enableNodeCache: false,
             plusAsSpace: false,
+            website: '',
             notes: ''
         };
         showModal.value = true;

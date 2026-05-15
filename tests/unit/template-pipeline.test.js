@@ -187,7 +187,7 @@ MATCH,节点选择
         expect(loonRendered).toContain('grpc-service-name=edge');
         expect(loonRendered).toContain('reality=true');
         expect(loonRendered).toContain('WG-01 = wireguard');
-        expect(loonRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 OpenAi');
+        expect(loonRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 AI 服务');
         expect(loonRendered).toContain('🚀 节点选择 = select');
         expect(quanxRendered).toContain('[server_local]');
         expect(quanxRendered).toContain('[policy]');
@@ -195,11 +195,11 @@ MATCH,节点选择
         expect(quanxRendered).toContain('[filter_local]');
         expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=wss, obfs-uri=/ws, obfs-host=example.com, tag=🇺🇸 US-01');
         expect(quanxRendered).not.toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=ws,');
-        expect(quanxRendered).toContain('filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list, tag=🤖 OpenAi, force-policy=🤖 OpenAi, update-interval=86400, enabled=true');
+        expect(quanxRendered).toContain('filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list, tag=🤖 AI 服务, force-policy=🤖 AI 服务, update-interval=86400, enabled=true');
         expect(quanxRendered).toContain('static=🚀 节点选择');
         expect(surgeRendered).not.toContain('SG-01 = vless');
         expect(surgeRendered).toContain('WG-01 = wireguard');
-        expect(surgeRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 OpenAi');
+        expect(surgeRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 AI 服务');
         expect(surgeRendered).toContain('🚀 节点选择 = select');
     });
 
@@ -327,6 +327,7 @@ custom_proxy_group=TestGroup`;
         expect(quanxRendered).toContain('obfs=ws');
         expect(quanxRendered).toContain('obfs-uri=/?enc=2022-blake3-aes-256-gcm');
         expect(quanxRendered).toContain('obfs-host=ss.2227tsj.workers.dev');
+        expect(quanxRendered).not.toContain('over-tls=true');
 
         expect(ssOutbound?.method).toBe('2022-blake3-aes-256-gcm');
         expect(ssOutbound?.transport?.type).toBe('ws');

@@ -5,24 +5,24 @@ export const TRANSFORM_ASSETS = {
             name: 'MiSub 内置 极简默认分流',
             url: 'builtin:clash_misub_minimal',
             group: 'MiSub Builtin',
-            is_default: false,
+            is_default: true,
             sourceType: 'builtin-preset',
             recommendedFor: ['clash', 'singbox', 'surge', 'loon', 'quanx'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox', 'surge', 'loon', 'quanx'],
             strategy: 'model-driven',
-            description: 'MiSub 自带的更轻量极简模板，适合日常通用和小白直接使用。'
+            description: 'MiSub 自带的默认极简模板，适合日常通用、新手用户和优先稳定的场景。'
         },
         {
             id: 1,
             name: 'MiSub 内置 ACL4SSR 精简分流',
             url: 'builtin:clash_acl4ssr_lite',
             group: 'MiSub Builtin',
-            is_default: true,
+            is_default: false,
             sourceType: 'builtin-preset',
             recommendedFor: ['clash', 'singbox', 'surge', 'loon', 'quanx'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox', 'surge', 'loon', 'quanx'],
             strategy: 'model-driven',
-            description: '内置精简 ACL4SSR 分流模板，适合作为更轻量的默认内置转换配置。'
+            description: '内置精简 ACL4SSR 分流模板，适合习惯 ACL4SSR 规则且希望保持轻量的用户。'
         },
         {
             id: 2,

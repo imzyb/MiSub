@@ -86,6 +86,7 @@ temp/
 
 DOCKER_GUIDE.md
 AGENTS.md
+misub-agent.md
 
 # Local development and testing
 local-server.js
