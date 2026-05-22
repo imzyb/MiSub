@@ -402,6 +402,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
     const httpSubs = misubs.filter(sub => sub && sub.url && sub.url.toLowerCase().startsWith('http'));
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
+    let upstreamSuccessCount = 0; // 追踪真正从远程拉取成功的订阅数（不含 per-sub 缓存回退）
 
     /**
      * 获取单个订阅内容
@@ -488,6 +489,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             }
 
             if (realNodes.length > 0) {
+                upstreamSuccessCount++;
                 const userInfo = parseSubscriptionUserInfoHeader(response.headers.get('subscription-userinfo'));
                 const runtimeInfo = {
                     nodeCount: realNodes.length,
@@ -598,6 +600,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
                 sourceCount: httpSubs.length,
                 successCount,
                 failCount,
+                upstreamSuccessCount,
                 duration: endTime - (context.startTime || Date.now())
             };
         }

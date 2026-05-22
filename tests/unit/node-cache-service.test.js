@@ -36,6 +36,7 @@ describe('node-cache-service', () => {
 
         const storage = createStorage({
             stale: { nodes: 'a', timestamp: now - (FRESH_TTL + 1000), nodeCount: 1, sources: [] },
+            // STALE_TTL == MAX_AGE 时，STALE_TTL + 1000 已超过 MAX_AGE，直接变 miss
             expired: { nodes: 'b', timestamp: now - (STALE_TTL + 1000), nodeCount: 2, sources: [] },
             miss: { nodes: 'c', timestamp: now - (MAX_AGE + 1000), nodeCount: 3, sources: [] }
         });
@@ -44,7 +45,8 @@ describe('node-cache-service', () => {
         expect(stale.status).toBe('stale');
 
         const expired = await getCache(storage, 'expired');
-        expect(expired.status).toBe('expired');
+        // 当 STALE_TTL == MAX_AGE 时，expired 状态不可达，直接变为 miss
+        expect(expired.status).toBe(STALE_TTL < MAX_AGE ? 'expired' : 'miss');
 
         const miss = await getCache(storage, 'miss');
         expect(miss.status).toBe('miss');

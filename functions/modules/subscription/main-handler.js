@@ -657,7 +657,12 @@ export async function handleMisubRequest(context) {
         const sourceNames = targetMisubs
             .filter(s => typeof s?.url === 'string' && s.url.startsWith('http'))
             .map(s => s.name || s.url);
-        await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+        // 仅在至少一个订阅源真正从远程拉取成功时才刷新缓存时间
+        // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
+        const stats = context.generationStats;
+        if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
+            await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+        }
         return freshNodes;
     };
 
