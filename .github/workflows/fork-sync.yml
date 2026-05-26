@@ -50,7 +50,7 @@ jobs:
           git fetch --prune origin main
           git fetch --prune upstream main
 
-      - name: Mirror upstream main
+      - name: Merge upstream main safely
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
@@ -67,12 +67,20 @@ jobs:
           if [ -z "${SYNC_PAT:-}" ]; then
             WORKFLOW_DIFF="$(git diff --name-only "${ORIGIN_SHA}" "${UPSTREAM_SHA}" -- .github/workflows || true)"
             if [ -n "${WORKFLOW_DIFF}" ]; then
-              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更，默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行，或在网页使用 Sync fork / Discard commits 对齐上游。"
+              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行。"
               exit 0
             fi
           fi
 
-          echo "🚀 正在镜像上游 main，fork 本地 main 上的额外提交会被丢弃。"
-          git reset --hard upstream/main
-          git push --force-with-lease origin main
-          echo "✅ Fork main 已镜像到上游 main。"
+          echo "🚀 正在尝试安全合并（Merge）上游更新，保留主人的本地改动..."
+          
+          # 💡 核心改良：使用 merge 而不是 reset --hard
+          # 如果遇到主人改动的文件，优先尝试自动融合。
+          if git merge upstream/main -m "chore: safe sync from upstream main"; then
+            echo "✅ 自动合并成功！正在推送到 origin..."
+            git push origin main
+          else
+            echo "❌ 糟糕，合并时发生冲突（主人和原作者修改了同一个地方）！"
+            echo "为了防止覆盖主人的改动，本次自动同步已安全终止，请去网页或本地手动解决冲突喵~"
+            exit 1
+          fi
