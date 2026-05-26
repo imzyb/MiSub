@@ -12,7 +12,7 @@ const CACHE_CONFIG = {
     KEY_PREFIX: 'node_cache_',           // 缓存键前缀
     FRESH_TTL: 3 * 60 * 1000,            // 新鲜期：3 分钟（命中时不触发后台刷新）
     STALE_TTL: 60 * 60 * 1000,           // 可用期：1 小时（超过后同步获取）
-    MAX_AGE: 12 * 60 * 60 * 1000,        // 最大缓存时间：12 小时
+    MAX_AGE: 60 * 60 * 1000,        // 最大缓存时间：12 小时 -> 1 小时
     BACKGROUND_REFRESH_TIMEOUT: 25000    // 后台刷新超时：25 秒
 };
 
