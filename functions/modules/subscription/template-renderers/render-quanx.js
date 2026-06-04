@@ -89,7 +89,7 @@ function buildProxyLine(proxy) {
             if (realityOpts['public-key']) extras.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
             if (realityOpts['short-id']) extras.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
-        if (proxy.flow) extras.push(`flow=${proxy.flow}`);
+        if (proxy.flow) extras.push(`vless-flow=${proxy.flow}`);
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
         return `vless=${server}:${port}, password=${proxy.uuid || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }

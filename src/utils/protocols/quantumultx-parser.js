@@ -334,6 +334,7 @@ function parseQuantumultXVless(line) {
                     }
                     break;
                 case 'flow':
+                case 'vless-flow':
                     urlParams.push(`flow=${encodeURIComponent(value)}`);
                     break;
             }
