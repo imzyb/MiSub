@@ -3,6 +3,7 @@
 //
 
 import { api, APIError } from './http.js';
+import { t } from '../i18n/index.js';
 
 /**
  * 统一的 API 错误处理辅助函数
@@ -14,39 +15,70 @@ function handleApiError(error, context = '') {
     console.error(`[API Error - ${context}]`, error);
 
     let errorType = 'unknown';
-    let errorMessage = '未知错误';
+    let errorMessage = t('subscriptions.unknownError');
+
+    let status = null;
 
     if (error instanceof APIError) {
+        status = error.status;
         if (error.status === 401) {
             errorType = 'auth';
-            errorMessage = '认证失败,请重新登录';
+            errorMessage = t('settings.authFailedRelogin');
         } else {
             errorType = 'server';
-            errorMessage = error.message || `HTTP ${error.status}`;
+            const message = error.message || `HTTP ${error.status}`;
+            errorMessage = formatHttpErrorMessage(error.status, message);
         }
     } else if (error.name === 'AbortError') {
         errorType = 'timeout';
-        errorMessage = '请求超时,请稍后重试';
+        errorMessage = t('settings.requestTimeout');
     } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
         errorType = 'network';
-        errorMessage = '网络连接失败,请检查网络连接';
+        errorMessage = t('settings.networkFailedGeneric');
     } else if (error.message === 'UNAUTHORIZED') {
         errorType = 'auth';
-        errorMessage = '认证失败,请重新登录';
+        errorMessage = t('settings.authFailedRelogin');
     } else if (error.message.includes('HTTP')) {
         errorType = 'server';
         errorMessage = error.message;
     } else if (error.name === 'SyntaxError') {
         errorType = 'server';
-        errorMessage = '服务器响应格式错误';
+        errorMessage = t('settings.serverResponseInvalid');
     } else {
-        errorMessage = error.message || '操作失败,请稍后重试';
+        errorMessage = error.message || t('settings.operationFailed');
     }
 
     return {
         success: false,
         error: errorMessage,
-        errorType: errorType
+        errorType: errorType,
+        status
+    };
+}
+
+function extractHttpStatus(message = '') {
+    const match = String(message).match(/HTTP\s+(\d{3})/i);
+    return match ? Number(match[1]) : null;
+}
+
+function formatHttpErrorMessage(status, message = '') {
+    const normalizedMessage = String(message || '').trim();
+    if (!status) return normalizedMessage;
+    if (new RegExp(`^HTTP\\s+${status}\\b`, 'i').test(normalizedMessage)) {
+        return normalizedMessage;
+    }
+    return `HTTP ${status}: ${normalizedMessage || `HTTP ${status}`}`;
+}
+
+function normalizeApiFailure(data, fallbackMessage = t('settings.operationFailed')) {
+    const error = data?.error || data?.message || fallbackMessage;
+    const status = data?.status || extractHttpStatus(error);
+    return {
+        success: false,
+        error,
+        errorType: data?.errorType || (status ? 'server' : 'unknown'),
+        status,
+        data
     };
 }
 export async function fetchInitialData() {
@@ -59,7 +91,7 @@ export async function fetchInitialData() {
 
         // 检查新的认证状态响应 (200 OK with authenticated: false)
         if (data && data.authenticated === false) {
-            return { success: false, error: '认证失败,请重新登录', errorType: 'auth' };
+            return { success: false, error: t('settings.authFailedRelogin'), errorType: 'auth' };
         }
 
         return { success: true, data };
@@ -76,7 +108,7 @@ export async function login(password) {
         if (error instanceof APIError && error.status === 401) {
             return {
                 success: false,
-                error: error.data?.message || error.data?.error || '登录失败',
+                error: error.data?.message || error.data?.error || t('settings.loginFailed'),
                 errorType: 'auth'
             };
         }
@@ -89,7 +121,7 @@ export async function saveMisubs(misubs, profiles) {
     try {
         // 数据预验证
         if (!Array.isArray(misubs) || !Array.isArray(profiles)) {
-            return { success: false, error: '数据格式错误：misubs 和 profiles 必须是数组', errorType: 'validation' };
+            return { success: false, error: t('settings.dataFormatInvalid'), errorType: 'validation' };
         }
 
         return await api.post('/api/misubs', { misubs, profiles });
@@ -98,7 +130,7 @@ export async function saveMisubs(misubs, profiles) {
     }
 }
 
-export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = false) {
+export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = false, userAgent = '') {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
@@ -110,9 +142,16 @@ export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = fals
         if (plusAsSpace) {
             payload.plusAsSpace = true;
         }
+        if (userAgent) {
+            payload.userAgent = userAgent;
+        }
 
         const data = await api.post('/api/node_count', payload, { signal: controller.signal });
         clearTimeout(timeoutId);
+
+        if (data?.success === false) {
+            return normalizeApiFailure(data, t('settings.updateNodeInfoFailed'));
+        }
 
         return { success: true, data }; // data 包含 { count, userInfo }
     } catch (error) {
@@ -172,6 +211,10 @@ export async function batchUpdateNodes(subscriptionIds) {
         const result = await api.post('/api/batch_update_nodes', { subscriptionIds }, { signal: controller.signal });
         clearTimeout(timeoutId);
 
+        if (result?.success === false) {
+            return normalizeApiFailure(result, '批量更新节点信息失败');
+        }
+
         return result;
     } catch (error) {
         return handleApiError(error, 'batchUpdateNodes');
@@ -227,6 +270,18 @@ export async function fetchGithubLatestRelease(repo) {
         return await api.get(`/api/github/release?repo=${encodeURIComponent(repo)}`);
     } catch (error) {
         return handleApiError(error, 'fetchGithubLatestRelease');
+    }
+}
+
+export async function testSubconverterBackend(backend, target = 'clash') {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const data = await api.post('/api/subconverter/test', { backend, target }, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return data;
+    } catch (error) {
+        return handleApiError(error, 'testSubconverterBackend');
     }
 }
 

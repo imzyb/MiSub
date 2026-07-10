@@ -14,9 +14,9 @@ export const MANUAL_SELECT_GROUP = '👋 手动切换';
  * @param {Object[]} proxies 
  * @returns {Array} 地区分组数据
  */
-function generateRegionData(proxies) {
+function generateRegionData(proxies, options = {}) {
     // [智能升级] 直接传递代理对象数组，region-groups 现在能识别 metadata
-    return groupNodeLinesByRegion(proxies);
+    return groupNodeLinesByRegion(proxies, options);
 }
 
 /**
@@ -69,8 +69,8 @@ export function pruneProxyGroups(proxyGroups, proxies) {
 /**
  * 内部辅助：生成地区相关的策略组定义
  */
-function _generateRegionGroups(proxies) {
-    const regions = groupNodeLinesByRegion(proxies);
+function _generateRegionGroups(proxies, options = {}) {
+    const regions = generateRegionData(proxies, options);
     const regionSelectGroups = [];   // 地区选择组（顶级按钮）
     const regionSupportGroups = []; // 地区辅助组（隐藏/末尾）
     const regionNames = [];
@@ -105,7 +105,7 @@ function _generateRegionGroups(proxies) {
  */
 export const POLICY_GROUPS = {
     // 基础配置：精简版
-    BASE: (proxies) => {
+    BASE: (proxies, options = {}) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
         return [
             { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
@@ -115,9 +115,9 @@ export const POLICY_GROUPS = {
         ];
     },
     // 标准配置：全能型
-    STD: (proxies) => {
+    STD: (proxies, options = {}) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies, options);
         
         return [
             { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
@@ -126,17 +126,18 @@ export const POLICY_GROUPS = {
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             ...regionSelectGroups,
             { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
+            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', '🇭🇰 香港节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
             ...regionSupportGroups
         ];
     },
     // 完整配置：细化分类
-    FULL: (proxies) => {
+    FULL: (proxies, options = {}) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies, options);
         
         return [
             { name: DEFAULT_SELECT_GROUP, type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
@@ -146,37 +147,38 @@ export const POLICY_GROUPS = {
             ...regionSelectGroups,
             // 核心修复：业务组直接引用具体地区组或自动选择组，不引用 DEFAULT_SELECT_GROUP 
             { name: '🤖 智能 AI', type: 'select', proxies: ['🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
-            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
-            { name: '🎧 Spotify', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '📲 Telegram', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', '🇭🇰 香港节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
+            { name: '🎧 Spotify', type: 'select', proxies: [AUTO_SELECT_GROUP, '🇸🇬 狮城节点', MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🎮 游戏平台', type: 'select', proxies: ['DIRECT', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP] },
             ...regionSupportGroups
         ];
     },
     // 链式代理：中转优化
-    RELAY: (proxies) => {
+    RELAY: (proxies, options = {}) => {
         const proxyNames = proxies.map(p => p.tag || p.name);
-        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies);
+        const { regionSelectGroups, regionSupportGroups, regionNames } = _generateRegionGroups(proxies, options);
         
         return [
-            { name: DEFAULT_RELAY_GROUP, type: 'select', proxies: ['🔗 链式代理', '🚀 常用节点', ...regionNames, 'DIRECT'] },
-            { name: '🔗 链式代理', type: 'select', proxies: ['入口节点', '落地节点'] },
+            { name: DEFAULT_RELAY_GROUP, type: 'select', proxies: ['🔗 链式代理', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, '🚀 常用节点', ...regionNames, 'DIRECT'] },
+            // 保持 provider 层为通用 select，不在抽象层输出 relay 语义。
+            // 否则模板渲染/普通 Clash 路径可能把它转换成 Mihomo 专属 dialer-proxy，导致客户端拉取失败。
+            { name: '🔗 链式代理', type: 'select', proxies: ['入口节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT', ...proxyNames] },
             { name: '入口节点', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT', ...proxyNames] },
-            { name: '落地节点', type: 'select', proxies: [AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT', ...proxyNames] },
             ...regionSelectGroups,
             { name: '🚀 常用节点', type: 'select', proxies: [AUTO_SELECT_GROUP, FALLBACK_GROUP, MANUAL_SELECT_GROUP, ...regionNames, 'DIRECT'] },
             { name: AUTO_SELECT_GROUP, type: 'url-test', proxies: proxyNames },
             { name: FALLBACK_GROUP, type: 'fallback', proxies: proxyNames },
             { name: MANUAL_SELECT_GROUP, type: 'select', proxies: proxyNames },
             // 核心修复：链式版的分流也禁止回引 DEFAULT_RELAY_GROUP，统一使用地区组或常用节点
-            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT', AUTO_SELECT_GROUP] },
-            { name: '🎥 流媒体', type: 'select', proxies: ['🔗 链式代理', '🚀 常用节点', 'DIRECT', AUTO_SELECT_GROUP] },
+            { name: '🎬 视频广告', type: 'select', proxies: ['REJECT', 'DIRECT'] },
+            { name: '🎥 流媒体', type: 'select', proxies: ['🇸🇬 狮城节点', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇯🇵 日本节点', AUTO_SELECT_GROUP, MANUAL_SELECT_GROUP, 'DIRECT'] },
             { name: '🤖 智能 AI', type: 'select', proxies: ['🔗 链式代理', '🇺🇸 美国节点', '🇸🇬 狮城节点', '🇯🇵 日本节点', '🚀 常用节点', 'DIRECT'] },
-            { name: '🍎 Apple', type: 'select', proxies: ['🔗 链式代理', 'DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
-            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['🔗 链式代理', 'DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
+            { name: '🍎 Apple', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
+            { name: 'Ⓜ️ Microsoft', type: 'select', proxies: ['DIRECT', '🚀 常用节点', AUTO_SELECT_GROUP] },
             ...regionSupportGroups
         ];
     }
@@ -185,43 +187,45 @@ export const POLICY_GROUPS = {
 /**
  * 远程规则源配置 (对齐各平台最高性能格式)
  */
+const SING_GEOSITE_BASE = 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set';
+
 export const REMOTE_SOURCES = {
     ADS: {
         name: '广告拦截',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/BanAD.yaml',
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-category-ads-all.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-category-ads-all.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list',
         quanx: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list'
     },
     STREAM: {
         name: '流媒体',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Netflix.yaml', // 示例，实际使用聚合源
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-netflix.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-netflix.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Netflix.list'
     },
     SOCIAL: {
         name: '社交媒体',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Telegram.yaml',
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-telegram.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-telegram.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Telegram.list'
     },
     APPLE: {
         name: '苹果服务',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Apple.yaml',
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-apple.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-apple.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list'
     },
     MICROSOFT: {
         name: '微软服务',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Microsoft.yaml',
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-microsoft.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-microsoft.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list',
         quanx: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list'
     },
     AI: {
         name: '智能 AI',
         clash: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/OpenAi.yaml',
-        singbox: 'https://raw.githubusercontent.com/Loyalsoldier/sing-box-rules/release/geosite-openai.json',
+        singbox: `${SING_GEOSITE_BASE}/geosite-openai.srs`,
         surge: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list',
         quanx: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list'
     }
@@ -374,7 +378,7 @@ export function getRemoteProviderDefinitions(format, ruleLines) {
             providers[tag] = {
                 tag: tag,
                 type: 'remote',
-                format: 'source',
+                format: String(source.singbox || '').toLowerCase().endsWith('.srs') ? 'binary' : 'source',
                 url: source.singbox,
                 download_detour: 'DIRECT'
             };

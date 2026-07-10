@@ -4,12 +4,15 @@
  */
 
 import { StorageFactory, SettingsCache, STORAGE_TYPES } from '../storage-adapter.js';
-import { getCookieSecret, getAdminPassword, setAdminPassword, isUsingDefaultPassword, createJsonResponse, createErrorResponse, migrateProfileIds } from './utils.js';
+import { getCookieSecret, getAdminPassword, setAdminPassword, isUsingDefaultPassword, createJsonResponse, createErrorResponse, migrateProfileIds, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, createUnauthorizedResponse } from './auth-middleware.js';
 import { sendTgNotification, checkAndNotify } from './notifications.js';
 import { clearAllNodeCaches } from '../services/node-cache-service.js';
+import { buildSubscriptionNodeCacheKey } from '../services/subscription-service.js';
+import { maybeRunScheduledTasks } from './scheduled-task-runner.js';
 
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings } from './config.js';
+import { listRuleTemplates } from './rule-template-handler.js';
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
@@ -129,7 +132,7 @@ async function syncCollectionRowLevel(storageAdapter, type, finalItems) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleDataRequest(env) {
+export async function handleDataRequest(env, context = null) {
     let storageType = 'unknown';
     try {
         storageType = await StorageFactory.getStorageType(env);
@@ -141,14 +144,18 @@ export async function handleDataRequest(env) {
         }
         const storageAdapter = StorageFactory.createAdapter(env, storageType);
         const cachedSettings = await SettingsCache.get(env);
-        const [misubs, rawProfiles, settings] = await Promise.all([
+        const [misubs, rawProfiles, settings, ruleTemplates] = await Promise.all([
             typeof storageAdapter.getAllSubscriptions === 'function'
                 ? storageAdapter.getAllSubscriptions()
                 : storageAdapter.get(KV_KEY_SUBS).then(res => res || []),
             typeof storageAdapter.getAllProfiles === 'function'
                 ? storageAdapter.getAllProfiles()
                 : storageAdapter.get(KV_KEY_PROFILES).then(res => res || []),
-            Promise.resolve(cachedSettings || {}).then(res => res || {})
+            Promise.resolve(cachedSettings || {}).then(res => res || {}),
+            listRuleTemplates(storageAdapter).catch(error => {
+                console.warn('[API /data] Failed to load custom rule templates:', error?.message || error);
+                return [];
+            })
         ]);
         const profiles = await attachProfileDownloadCounts(storageAdapter, rawProfiles);
 
@@ -163,7 +170,16 @@ export async function handleDataRequest(env) {
             ...settings,
             isDefaultPassword: await isUsingDefaultPassword(env)
         };
-        return createJsonResponse({ misubs, profiles, config });
+        try {
+            const taskContext = context || { env };
+            const runPromise = maybeRunScheduledTasks(taskContext, { source: 'admin-api' });
+            if (typeof taskContext.waitUntil !== 'function') {
+                runPromise.catch(error => console.warn('[ScheduledTasks] lazy check failed:', error?.message || error));
+            }
+        } catch (taskError) {
+            console.warn('[ScheduledTasks] lazy check init failed:', taskError?.message || taskError);
+        }
+        return createJsonResponse({ misubs, profiles, ruleTemplates, config });
     } catch (e) {
         console.error('[API Error /data] Failed to read from storage', {
             error: e?.message,
@@ -196,13 +212,13 @@ export async function handleMisubsSave(request, env) {
         // 步骤1: 解析请求体
         let requestData;
         try {
-            requestData = await request.json();
+            requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
         } catch (parseError) {
             console.error('[API Error /misubs] JSON解析失败:', parseError);
             return createJsonResponse({
                 success: false,
-                message: '请求数据格式错误，请检查数据格式'
-            }, 400);
+                message: parseError.status === 413 ? parseError.message : '请求数据格式错误，请检查数据格式'
+            }, parseError.status || 400);
         }
 
         const { misubs, profiles, diff } = requestData;
@@ -353,8 +369,11 @@ export async function handleMisubsSave(request, env) {
 
         // 步骤6.5: 清除节点缓存（订阅变动后确保拉取最新数据）
         try {
-            const cacheResult = await clearAllNodeCaches(storageAdapter);
-            console.info(`[API] Cleared ${cacheResult.cleared} node caches after subscription update`);
+            const preserveKeys = (Array.isArray(finalMisubs) ? finalMisubs : [])
+                .filter(sub => sub?.enableNodeCache === true)
+                .map(sub => buildSubscriptionNodeCacheKey(sub));
+            const cacheResult = await clearAllNodeCaches(storageAdapter, { preserveKeys });
+            console.info(`[API] Cleared ${cacheResult.cleared} node caches after subscription update, preserved ${cacheResult.skipped || 0}`);
         } catch (cacheError) {
             // 缓存清除失败不影响保存结果
             console.warn('[API] Failed to clear node caches:', cacheError.message);
@@ -384,10 +403,19 @@ export async function handleMisubsSave(request, env) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
+function redactSettingsForResponse(settings = {}) {
+    return {
+        ...settings,
+        webdavBackup: settings.webdavBackup
+            ? { ...settings.webdavBackup, password: '' }
+            : settings.webdavBackup
+    };
+}
+
 export async function handleSettingsGet(env) {
     try {
         const settings = await SettingsCache.get(env) || {};
-        return createJsonResponse({ ...defaultSettings, ...settings });
+        return createJsonResponse(redactSettingsForResponse({ ...defaultSettings, ...settings }));
     } catch (e) {
         if (isStorageUnavailableError(e)) {
             return createJsonResponse({
@@ -408,7 +436,7 @@ export async function handleSettingsGet(env) {
  */
 export async function handleSettingsSave(request, env) {
     try {
-        const newSettings = await request.json();
+        const newSettings = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
 
         const reservedPathRoots = new Set([
             'settings', 'login', 'groups', 'nodes', 'subscriptions', 'dashboard',
@@ -453,6 +481,15 @@ export async function handleSettingsSave(request, env) {
 
         const storageAdapter = await getStorageAdapter(env);
         const oldSettings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        if (newSettings.webdavBackup && oldSettings.webdavBackup) {
+            const incomingPassword = newSettings.webdavBackup.password;
+            if (incomingPassword === '' || incomingPassword == null) {
+                newSettings.webdavBackup = {
+                    ...newSettings.webdavBackup,
+                    password: oldSettings.webdavBackup.password
+                };
+            }
+        }
         const finalSettings = { ...oldSettings, ...newSettings };
 
         // 使用存储适配器保存设置
@@ -493,7 +530,7 @@ export async function handleSettingsSave(request, env) {
         const message = `⚙️ *MiSub 设置更新* ⚙️\n\n您的 MiSub 应用设置已成功更新。`;
         await sendTgNotification(finalSettings, message);
 
-        return createJsonResponse({ success: true, message: '设置已保存', data: finalSettings });
+        return createJsonResponse({ success: true, message: '设置已保存', data: redactSettingsForResponse(finalSettings) });
     } catch (e) {
         return createErrorResponse('保存设置失败', 500);
     }
@@ -671,7 +708,7 @@ export async function handleUpdatePassword(request, env) {
     }
 
     try {
-        const { password } = await request.json();
+        const { password } = await readJsonWithLimit(request, JSON_BODY_LIMITS.auth);
 
         if (!password || typeof password !== 'string' || password.length < 6) {
             return createErrorResponse('密码必须至少6位字符', 400);

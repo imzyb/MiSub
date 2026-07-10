@@ -1,5 +1,6 @@
 <script setup>
 import StatusIndicator from './StatusIndicator.vue';
+import { useI18n } from '@/i18n/index.js';
 
 defineProps({
   isDirty: Boolean,
@@ -7,6 +8,7 @@ defineProps({
 });
 
 defineEmits(['save', 'discard']);
+const { t } = useI18n();
 </script>
 
 <template>
@@ -22,14 +24,14 @@ defineEmits(['save', 'discard']);
         </span>
         <p class="text-sm font-semibold transition-colors duration-300"
             :class="saveState === 'success' ? 'text-teal-700 dark:text-teal-300' : 'text-gray-700 dark:text-gray-300'">
-            {{ saveState === 'success' ? '所有更改已保存' : '检测到未保存的更改' }}
+            {{ saveState === 'success' ? t('common.allChangesSaved') : t('common.unsavedChanges') }}
         </p>
       </div>
 
       <div class="flex items-center gap-3 w-full sm:w-auto">
         <button v-if="saveState !== 'success'" @click="$emit('discard')"
           class="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hover:bg-black/5 dark:hover:bg-white/5 misub-radius-md whitespace-nowrap">
-          放弃
+          {{ t('actions.discard') }}
         </button>
         <button @click.prevent="$emit('save')" :disabled="saveState !== 'idle'"
           class="flex-1 sm:flex-none px-6 py-2 text-sm text-white font-bold misub-radius-lg flex items-center justify-center transition-all duration-300 transform active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
@@ -40,13 +42,13 @@ defineEmits(['save', 'discard']);
           }">
           <div v-if="saveState === 'saving'" class="flex items-center">
             <StatusIndicator status="loading" size="sm" class="mr-2" />
-            <span>保存中...</span>
+            <span>{{ t('settings.saving') }}</span>
           </div>
           <div v-else-if="saveState === 'success'" class="flex items-center">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            <span>已保存</span>
+            <span>{{ t('common.saved') }}</span>
           </div>
-          <span v-else>立即保存</span>
+          <span v-else>{{ t('common.saveNow') }}</span>
         </button>
       </div>
     </div>

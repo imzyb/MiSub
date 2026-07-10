@@ -59,7 +59,7 @@ function adaptLegacyTransform(config) {
             id: 'legacy-rename-script',
             type: 'script',
             enabled: true,
-            params: { code: `return ($nodes) => { return $nodes.map(n => { n.name = (${renameScript.expression})(n.name, n); return n; }); }` }
+            params: { dsl: [{ action: 'rename', template: renameScript.expression }] }
         });
     }
 
@@ -144,12 +144,14 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
         const nodeInfo = parseNodeInfo(effectiveUrl);
         return {
             subscriptionName: node.name || '手工节点',
+            group: node.group || '',
             url: effectiveUrl,
             success: true,
             nodes: [{
                 ...nodeInfo,
                 url: effectiveUrl,
-                subscriptionName: node.name || '手工节点'
+                subscriptionName: node.name || '手工节点',
+                group: node.group || ''
             }],
             error: null,
             isManualNode: true
@@ -158,7 +160,7 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
 
     // 并行获取HTTP订阅节点
     const subscriptionResults = await Promise.all(
-        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, sub.customUserAgent, false, sub.exclude, sub.fetchProxy, skipCertVerify, Boolean(sub?.plusAsSpace)))
+        targetSubscriptions.map(sub => fetchSubscriptionNodes(sub.url, sub.name, userAgent, sub.customUserAgent, false, sub.exclude, sub.fetchProxy, skipCertVerify, Boolean(sub?.plusAsSpace), sub?.enableNodeCache === true))
     );
 
     // 合并所有结果
@@ -181,6 +183,7 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
 
     if (applyTransform) {
         const nodeUrls = allNodes.map(node => node.url);
+        const nodeMetadataByUrl = new Map(allNodes.map(node => [node.url, { group: node.group || '' }]));
 
         let activeOperators = ensureArray(profile?.operators);
         if (!activeOperators.length && profile?.nodeTransform?.enabled && profile.nodeTransform?.operators) {
@@ -201,7 +204,8 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
             transformedUrls = await runOperatorChain(nodeUrls, activeOperators, {
                 subName: profile?.name,
                 userAgent,
-                config: settings
+                config: settings,
+                nodeMetadataByUrl
             });
         } else if (effectiveNodeTransform?.enabled) {
             const defaultTemplate = '{emoji}{region}-{protocol}-{index}';

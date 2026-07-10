@@ -5,6 +5,9 @@ import Input from '../../ui/Input.vue';
 import Switch from '../../ui/Switch.vue';
 import OperatorChain from '../../features/Operators/OperatorChain.vue';
 import { TRANSFORM_ASSETS } from '@/constants/transform-assets';
+import { useI18n } from '@/i18n/index.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   localProfile: {
@@ -35,35 +38,36 @@ const props = defineProps({
 
 const globalEngineLabel = computed(() => {
   const mode = props.globalSettings?.subconverter?.engineMode || 'builtin';
-  return mode === 'external' ? '第三方后端' : '内置渲染引擎';
+  return mode === 'external' ? t('profileModal.externalBackend') : t('profileModal.builtinEngine');
 });
 
 const globalConfigLabel = computed(() => {
   const mode = props.globalSettings?.transformConfigMode || 'builtin';
-  if (mode === 'builtin') return '内置自动分流';
+  if (mode === 'builtin') return t('profileModal.builtinAutoRoute');
   const url = props.globalSettings?.transformConfig || '';
   const asset = TRANSFORM_ASSETS.configs.find(a => a.url === url);
-  return asset ? asset.name : (url ? '自定义 URL' : '未设置');
+  return asset ? asset.name : (url ? t('profileModal.customUrl') : t('profileModal.notSet'));
 });
 
 const transformModeOptions = [
-  { value: 'global', label: '跟随全局设置' },
-  { value: 'preset', label: '选择预设方案' },
-  { value: 'custom', label: '自定义规则模板 URL' }
+  { value: 'global', label: t('profileModal.followGlobalSettings') },
+  { value: 'preset', label: t('profileModal.selectPreset') },
+  { value: 'custom', label: t('profileModal.customTemplateUrl') },
+  { value: 'custom_template', label: t('profileModal.customTemplate') }
 ];
 
 const engineOptions = [
-  { value: 'builtin', label: '内置脚本引擎' },
-  { value: 'external', label: '第三方后端转换' }
+  { value: 'builtin', label: t('profileModal.builtinScriptEngine') },
+  { value: 'external', label: t('profileModal.externalBackendConvert') }
 ];
 
 const flagOptions = [
-  { key: 'udp', label: 'UDP 转发', icon: '⚡️' },
-  { key: 'emoji', label: 'Emoji 开关', icon: '🎨' },
-  { key: 'scv', label: '跳过证书校验', icon: '🛡️' },
-  { key: 'sort', label: '节点排序', icon: '🔢' },
+  { key: 'udp', label: t('profileModal.udpForward'), icon: '⚡️' },
+  { key: 'emoji', label: t('profileModal.emojiSwitch'), icon: '🎨' },
+  { key: 'scv', label: t('profileModal.skipCert'), icon: '🛡️' },
+  { key: 'sort', label: t('profileModal.nodeSort'), icon: '🔢' },
   { key: 'tfo', label: 'TCP Fast Open', icon: '🚀' },
-  { key: 'list', label: '输出为列表', icon: '📋' }
+  { key: 'list', label: t('profileModal.outputList'), icon: '📋' }
 ];
 
 const selectedTransformAsset = ref(null);
@@ -80,11 +84,11 @@ const enforceExternalSchemeConstraints = () => {
   const enabled = isExternalEngine.value;
   if (!enabled) return;
 
-  if (props.localProfile.transformConfigMode === 'builtin') {
+  if (props.localProfile.transformConfigMode === 'builtin' || props.localProfile.transformConfigMode === 'custom_template') {
     props.localProfile.transformConfigMode = 'preset';
   }
 
-  if (String(props.localProfile.transformConfig || '').startsWith('builtin:')) {
+  if (/^(builtin|custom):/.test(String(props.localProfile.transformConfig || ''))) {
     props.localProfile.transformConfig = '';
     selectedTransformAsset.value = null;
   }
@@ -110,18 +114,18 @@ watch(
       <Input 
         id="profile-name"
         v-model="localProfile.name"
-        label="订阅组名称"
-        placeholder="例如：家庭共享"
+        :label="t('profiles.nameLabel')"
+        :placeholder="t('profiles.namePlaceholder')"
       />
     </div>
     <div>
       <Input
         id="profile-custom-id"
         v-model="localProfile.customId"
-        label="自定义 ID (可选)"
-        placeholder="如: home, game (限字母、数字、-、_)"
+        :label="t('profiles.customIdLabel')"
+        :placeholder="t('profiles.customIdPlaceholder')"
       />
-      <p class="text-xs text-gray-400 mt-1 ml-1">订阅链接后缀，如 /token/home</p>
+      <p class="text-xs text-gray-400 mt-1 ml-1">{{ t('profiles.customIdHint') }}</p>
     </div>
   </div>
 
@@ -136,11 +140,11 @@ watch(
           class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500"
         />
         <label for="profile-is-public" class="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          公开展示 (Public)
+          {{ t('profiles.publicDisplay') }}
         </label>
       </div>
       <span class="text-xs text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full" v-if="localProfile.isPublic">
-        将在公开页显示
+        {{ t('profiles.publicVisible') }}
       </span>
     </div>
     
@@ -149,12 +153,12 @@ watch(
         id="profile-description"
         v-model="localProfile.description"
         rows="2"
-        placeholder="简要介绍此订阅组的内容..."
+        :placeholder="t('profiles.descriptionPlaceholder')"
         class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
       ></textarea>
     </div>
     <div v-else class="text-xs text-gray-400">
-      开启后，任何人均可通过公开页面查看此订阅组并获取链接。
+      {{ t('profiles.publicDisplayHint') }}
     </div>
   </div>
 
@@ -165,7 +169,7 @@ watch(
       @click="emit('toggle-advanced')"
       class="flex items-center text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 focus:outline-hidden"
     >
-      <span>核心配置与高级设置</span>
+      <span>{{ t('profiles.advancedTitle') }}</span>
       <svg :class="{ 'rotate-180': showAdvanced }" class="w-4 h-4 ml-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
@@ -175,66 +179,74 @@ watch(
       <!-- === 区块 A：渲染核心配置 (Core Logic) === -->
       <div class="space-y-4">
         <div class="flex items-center gap-2 border-l-4 border-indigo-500 pl-3">
-          <h3 class="text-sm font-bold text-gray-900 dark:text-white">渲染核心配置</h3>
-          <span class="text-[10px] text-gray-400">决定订阅如何转换与分流</span>
+          <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('profileModal.coreConfig') }}</h3>
+          <span class="text-[10px] text-gray-400">{{ t('profileModal.coreConfigDesc') }}</span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-white dark:bg-gray-800/40 p-4 border border-gray-100 dark:border-gray-700 misub-radius-lg shadow-sm">
           <!-- 引擎选择 -->
           <div class="space-y-1.5">
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">转换引擎 (Engine)</label>
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('profileModal.engineLabel') }}</label>
             <select
               v-model="localProfile.subconverter.engineMode"
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md focus:ring-indigo-500 sm:text-sm dark:text-white transition-all font-medium"
             >
-              <option value="">跟随全局配置</option>
+              <option value="">{{ t('profileModal.followGlobalConfig') }}</option>
               <option v-for="opt in engineOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
             <div v-if="localProfile.subconverter.engineMode === ''" class="flex items-center gap-1.5 mt-1.5">
                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-tight">
-                  当前全局：{{ globalEngineLabel }}
+                  {{ t('profileModal.currentGlobal', { value: globalEngineLabel }) }}
                </span>
             </div>
           </div>
 
           <!-- 方案选择 -->
           <div class="space-y-1.5">
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">配置规则方案 (Scheme)</label>
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('profileModal.schemeLabel') }}</label>
             <select
               v-model="localProfile.transformConfigMode"
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md focus:ring-indigo-500 sm:text-sm dark:text-white"
             >
-              <option value="global">跟随全局方案</option>
-              <option value="builtin" :disabled="isExternalEngine">内置自动分流</option>
-              <option v-for="option in transformModeOptions.slice(1)" :key="option.value" :value="option.value">
+              <option value="global">{{ t('profileModal.followGlobalScheme') }}</option>
+              <option value="builtin" :disabled="isExternalEngine">{{ t('profileModal.builtinAutoRoute') }}</option>
+              <option
+                v-for="option in transformModeOptions.slice(1)"
+                :key="option.value"
+                :value="option.value"
+                :disabled="option.value === 'custom_template' && isExternalEngine"
+              >
                 {{ option.label }}
               </option>
             </select>
             <p v-if="isExternalEngine" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-              第三方后端不支持 MiSub 内置规则源与内置模板，请选择预设远程模板或自定义 URL。
+              {{ t('profileModal.externalEngineHint') }}
             </p>
             <div v-if="localProfile.transformConfigMode === 'global'" class="flex items-center gap-1.5 mt-1.5">
                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
                <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-tight">
-                  当前全局：{{ globalConfigLabel }}
+                  {{ t('profileModal.currentGlobal', { value: globalConfigLabel }) }}
                </span>
             </div>
           </div>
 
           <!-- 引擎为第三方时的 URL 输入 -->
           <div v-if="isExternalEngine" class="sm:col-span-2 animate-fade-in-down border-t border-gray-50 dark:border-gray-700/50 pt-3">
-            <label class="block text-xs font-medium text-orange-600 dark:text-orange-400 mb-1.5">第三方后端地址 (Backend URL Override)</label>
+            <label class="block text-xs font-medium text-orange-600 dark:text-orange-400 mb-1.5">{{ t('profileModal.backendOverride') }}</label>
             <input
               type="text"
               v-model="localProfile.subconverter.backend"
-              placeholder="留空则使用全局默认后端"
+              :placeholder="t('profileModal.backendPlaceholder')"
               class="block w-full px-3 py-2 bg-orange-50/20 dark:bg-orange-900/10 border border-orange-200/50 dark:border-orange-500/20 misub-radius-md sm:text-sm dark:text-white focus:ring-orange-500"
             />
+            <p class="mt-1.5 text-[10px] leading-relaxed text-gray-400">
+              {{ t('profileModal.backendHint') }}
+            </p>
             <div v-if="!localProfile.subconverter.backend" class="flex items-center gap-1.5 mt-1.5">
                <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
                <span class="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-tight">
-                  当前全局：{{ globalSettings?.subconverter?.defaultBackend || '未设置' }}
+                  {{ t('profileModal.currentGlobal', { value: globalSettings?.subconverter?.defaultBackend || t('profileModal.notSet') }) }}
                </span>
             </div>
 
@@ -242,17 +254,21 @@ watch(
 
           <!-- 规则配置选择器 -->
           <div v-if="localProfile.transformConfigMode !== 'global' && localProfile.transformConfigMode !== 'builtin'" class="sm:col-span-2 animate-fade-in-down border-t border-gray-50 dark:border-gray-700/50 pt-3">
-            <label class="block text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1.5">定制化规则模板 (Config Template URL)</label>
+            <label class="block text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1.5">{{ t('profileModal.templateLabel') }}</label>
             <TransformSelector
               v-model="localProfile.transformConfig"
               @select-asset="selectedTransformAsset = $event"
               type="config"
-              placeholder="选择预设方案..."
-              custom-placeholder="输入远程 .ini 规则配置 URL"
+              :placeholder="t('profileModal.presetPlaceholder')"
+              :custom-placeholder="t('profileModal.remoteTemplatePlaceholder')"
               :force-custom="localProfile.transformConfigMode === 'custom'"
+              :custom-templates-only="localProfile.transformConfigMode === 'custom_template'"
               :allowEmpty="false"
               :exclude-builtin-assets="isExternalEngine"
             />
+            <p v-if="localProfile.transformConfigMode === 'custom_template'" class="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] leading-relaxed text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+              {{ t('profileModal.customTemplateHint') }}
+            </p>
           </div>
         </div>
       </div>
@@ -260,14 +276,14 @@ watch(
       <!-- === 区块 B：参数微调与后处理 (Parameter Tuning) === -->
       <div class="space-y-4">
         <div class="flex items-center gap-2 border-l-4 border-emerald-500 pl-3">
-          <h3 class="text-sm font-bold text-gray-900 dark:text-white">参数微调与后处理</h3>
-          <span class="text-[10px] text-gray-400">细化控制转换参数与结果</span>
+          <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('profileModal.tuningTitle') }}</h3>
+          <span class="text-[10px] text-gray-400">{{ t('profileModal.tuningDesc') }}</span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-white dark:bg-gray-800/40 p-4 border border-gray-100 dark:border-gray-700 misub-radius-lg shadow-sm">
           <!-- 到期时间 -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">到期时间 (过期后回退原始订阅)</label>
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('profileModal.expiresLabel') }}</label>
             <input
               type="date"
               v-model="localProfile.expiresAt"
@@ -278,36 +294,36 @@ watch(
           <!-- 内置规则等级 (当切换到内置引擎，或切换到第三方引擎但使用内置分流方案时显示) -->
           <div v-if="!isExternalEngine">
 
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">内置规则等级 (仅内置自动分流生效)</label>
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('profileModal.ruleLevelLabel') }}</label>
             <select
               v-model="localProfile.ruleLevel"
               :disabled="localProfile.transformConfigMode !== 'builtin' && localProfile.transformConfigMode !== 'global'"
               :class="{ 'opacity-50 cursor-not-allowed': localProfile.transformConfigMode !== 'builtin' && localProfile.transformConfigMode !== 'global' }"
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white transition-all"
             >
-              <option value="">跟随全局等级</option>
-              <option value="base">精简版 Base</option>
-              <option value="std">标准版 Standard</option>
-              <option value="full">完整版 Full</option>
-              <option value="relay">链式版 Relay</option>
+              <option value="">{{ t('profileModal.followGlobalLevel') }}</option>
+              <option value="base">{{ t('profileModal.ruleBase') }}</option>
+              <option value="std">{{ t('profileModal.ruleStandard') }}</option>
+              <option value="full">{{ t('profileModal.ruleFull') }}</option>
+              <option value="relay">{{ t('profileModal.ruleRelay') }}</option>
             </select>
           </div>
 
           <!-- 节点前缀设置 (合并) -->
           <div class="sm:col-span-2 space-y-3 pt-2 border-t border-gray-50 dark:border-gray-700/50">
-             <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">节点名称与可见性</label>
+             <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">{{ t('profileModal.nodeNameVisibility') }}</label>
              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- 手动节点文本前缀 -->
                 <Input
                   v-model="localProfile.prefixSettings.manualNodePrefix"
-                  label="手动节点前缀文本"
-                  placeholder="留空则跟随全局"
+                  :label="t('profileModal.manualPrefixText')"
+                  :placeholder="t('profileModal.followGlobalEmpty')"
                   size="sm"
                 />
                 
-                <!-- 手动节点展示开关 -->
+                <!-- {{ t('profileModal.manualNodeDisplay') }}开关 -->
                 <div class="space-y-1">
-                    <label class="block text-xs font-medium text-gray-500">手动节点展示</label>
+                    <label class="block text-xs font-medium text-gray-500">{{ t('profileModal.manualNodeDisplay') }}</label>
                     <select v-model="localProfile.prefixSettings.enableManualNodes" class="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:ring-1 focus:ring-indigo-500">
                         <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
                     </select>
@@ -315,7 +331,7 @@ watch(
 
                 <!-- 机场订阅展示开关 (自动机场名) -->
                 <div class="space-y-1">
-                    <label class="block text-xs font-medium text-gray-500">机场订阅前缀 (自动机场名)</label>
+                    <label class="block text-xs font-medium text-gray-500">{{ t('profileModal.subscriptionPrefix') }}</label>
                     <select v-model="localProfile.prefixSettings.enableSubscriptions" class="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:ring-1 focus:ring-indigo-500">
                         <option v-for="option in prefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
                     </select>
@@ -323,7 +339,7 @@ watch(
 
                 <!-- 组名前缀开关 -->
                 <div class="space-y-1">
-                    <label class="block text-xs font-medium text-gray-500">组名前缀 (Prepend Group Name)</label>
+                    <label class="block text-xs font-medium text-gray-500">{{ t('profileModal.groupPrefix') }}</label>
                     <select v-model="localProfile.prefixSettings.prependGroupName" class="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:ring-1 focus:ring-indigo-500">
                         <option v-for="option in groupPrefixToggleOptions" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
                     </select>
@@ -342,9 +358,9 @@ watch(
                  <select v-model="localProfile.subconverter.options[flag.key]"
                    class="w-full px-1.5 py-1 text-[11px] bg-white dark:bg-gray-700 border-none misub-radius-md focus:ring-1 focus:ring-indigo-500 dark:text-white"
                  >
-                   <option :value="null">跟随全局</option>
-                   <option :value="true">开启</option>
-                   <option :value="false">关闭</option>
+                   <option :value="null">{{ t('profileModal.followGlobal') }}</option>
+                   <option :value="true">{{ t('profileModal.on') }}</option>
+                   <option :value="false">{{ t('profileModal.off') }}</option>
                  </select>
                </div>
             </div>
@@ -355,8 +371,8 @@ watch(
       <!-- === 区块 C：处理管道 (Process Workflow) === -->
       <div class="space-y-4">
         <div class="flex items-center gap-2 border-l-4 border-indigo-400 pl-3">
-          <h3 class="text-sm font-bold text-gray-900 dark:text-white">节点处理管道</h3>
-          <span class="text-[10px] text-gray-400">流水线式批量处理节点逻辑</span>
+          <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('profileModal.pipelineTitle') }}</h3>
+          <span class="text-[10px] text-gray-400">{{ t('profileModal.pipelineDesc') }}</span>
         </div>
         
         <OperatorChain 

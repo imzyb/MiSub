@@ -334,6 +334,7 @@ function parseQuantumultXVless(line) {
                     }
                     break;
                 case 'flow':
+                case 'vless-flow':
                     urlParams.push(`flow=${encodeURIComponent(value)}`);
                     break;
             }
@@ -472,7 +473,15 @@ function parseQuantumultXAnyTLS(line) {
         const equalIndex = line.indexOf('=');
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const rawParams = config.split(',').map(p => p.trim());
+        const params = [];
+        for (const param of rawParams) {
+            if (/^[A-Za-z][A-Za-z0-9_-]*=/.test(param) || param.includes(':') || params.length < 1 || (params.length < 3 && !/^[A-Za-z][A-Za-z0-9_-]*=/.test(param))) {
+                params.push(param);
+            } else if (params.length > 0) {
+                params[params.length - 1] = `${params[params.length - 1]},${param}`;
+            }
+        }
         let name = '';
         let server = '';
         let port = '';
@@ -507,6 +516,7 @@ function parseQuantumultXAnyTLS(line) {
                     break;
                 case 'sni':
                 case 'peer':
+                case 'tls-host':
                     urlParams.push(`sni=${encodeURIComponent(value)}`);
                     break;
                 case 'alpn':

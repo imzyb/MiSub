@@ -14,13 +14,16 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   function toggleLayout() {
-    layoutMode.value = layoutMode.value === 'modern' ? 'legacy' : 'modern';
-    localStorage.setItem('layoutMode', layoutMode.value);
+    const nextMode = layoutMode.value === 'modern' ? 'legacy' : 'modern';
+    localStorage.setItem('layoutMode', nextMode);
 
-    // Always redirect to root / to ensure clean state and consistent entry point
-    // This handles:
-    // 1. Switching to Legacy directly invokes Dashboard at /
-    // 2. Switching to Modern ensures we start at Dashboard as requested
+    // Navigate immediately WITHOUT modifying the reactive ref first.
+    // Setting layoutMode.value before window.location.href triggers Vue
+    // reactivity to re-render the component tree (unmounting the old layout,
+    // mounting the new one) during the brief window before the browser
+    // actually navigates. Any component error in that window is caught
+    // by the global app.config.errorHandler and displayed as a Toast
+    // error notification at the top-right of the screen.
     window.location.href = '/';
   }
 

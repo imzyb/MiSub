@@ -1,5 +1,8 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from '@/i18n/index.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   stats: {
@@ -10,9 +13,9 @@ const props = defineProps({
 });
 
 const statsData = computed(() => [
-  { name: '总订阅数', value: props.stats.totalSubscriptions, color: 'text-gray-900 dark:text-white' },
-  { name: '已启用', value: props.stats.enabledSubscriptions, color: 'text-green-600 dark:text-green-400' },
-  { name: '总节点数', value: props.stats.totalNodes, color: 'text-blue-600 dark:text-blue-400' }
+  { name: t('dashboard.totalSubscriptions'), value: props.stats.totalSubscriptions, color: 'text-gray-900 dark:text-white' },
+  { name: t('dashboard.enabled'), value: props.stats.enabledSubscriptions, color: 'text-green-600 dark:text-green-400' },
+  { name: t('dashboard.totalNodes'), value: props.stats.totalNodes, color: 'text-blue-600 dark:text-blue-400' }
 ]);
 </script>
 

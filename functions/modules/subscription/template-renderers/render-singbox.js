@@ -202,8 +202,15 @@ function buildOutbound(proxy) {
             }
         };
         if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
-        if (proxy['congestion-control']) outbound.congestion_control = proxy['congestion-control'];
+        const congestionControl = proxy['congestion-control'] || proxy['congestion-controller'] || proxy.congestion;
+        if (congestionControl) outbound.congestion_control = congestionControl;
         if (proxy['udp-relay-mode']) outbound.udp_relay_mode = proxy['udp-relay-mode'];
+        if (proxy['udp-over-stream'] !== undefined) outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
+        if (proxy['zero-rtt-handshake'] !== undefined || proxy['reduce-rtt'] !== undefined) {
+            outbound.zero_rtt_handshake = Boolean(proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']);
+        }
+        if (proxy.heartbeat) outbound.heartbeat = String(proxy.heartbeat);
+        if (proxy.network) outbound.network = proxy.network;
         return outbound;
     }
 

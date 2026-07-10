@@ -562,6 +562,11 @@ function parseSsUrl(url) {
             if (pluginDetails) {
                 proxy.plugin = pluginDetails.name;
                 proxy['plugin-opts'] = pluginDetails.opts;
+
+                const obfsMode = params.get('obfs');
+                const obfsHost = params.get('obfs-host');
+                if (obfsMode) proxy['plugin-opts'].mode = obfsMode;
+                if (obfsHost) proxy['plugin-opts'].host = obfsHost;
                 
                 // 协议兼容性映射 (TLS / Host)
                 if (pluginDetails.opts.tls || pluginDetails.opts.mode?.includes('tls') || pluginDetails.opts.security === 'tls') {
@@ -645,6 +650,22 @@ function parseHysteria2Url(url) {
             }
         }
 
+        const realmId = params.get('realm-id');
+        const realmToken = params.get('realm-token') || params.get('token');
+        const realmServerUrl = params.get('realm-server') || params.get('server-url');
+        const stunServers = params.get('stun-servers');
+        if (realmId || realmToken || realmServerUrl || stunServers) {
+            proxy['realm-opts'] = {
+                enable: true
+            };
+            if (realmId) proxy['realm-opts']['realm-id'] = realmId;
+            if (realmToken) proxy['realm-opts'].token = realmToken;
+            if (realmServerUrl) proxy['realm-opts']['server-url'] = realmServerUrl;
+            if (stunServers) {
+                proxy['realm-opts']['stun-servers'] = stunServers.split(',').map(item => item.trim()).filter(Boolean);
+            }
+        }
+
         // [重要] dialer-proxy 链式代理
         if (params.get('dp')) {
             proxy['dialer-proxy'] = params.get('dp');
@@ -667,17 +688,24 @@ function parseTuicUrl(url) {
         // tuic://token@server:port?sni=xxx&alpn=xxx#name
         const body = url.substring(7); // 去掉 tuic://
 
-        const atIndex = body.indexOf('@');
+        const atIndex = body.lastIndexOf('@');
         if (atIndex === -1) return null;
 
-        let token = body.substring(0, atIndex);
-        try {
-            token = decodeURIComponent(token);
-        } catch { }
+        const token = body.substring(0, atIndex);
+        const separatorIndex = token.indexOf(':');
+        const rawUuid = separatorIndex === -1 ? token : token.substring(0, separatorIndex);
+        const rawPassword = separatorIndex === -1 ? '' : token.substring(separatorIndex + 1);
 
-        const tokenParts = token.split(':');
-        const uuid = tokenParts[0] || '';
-        const password = tokenParts[1] || '';
+        const safeDecode = (value) => {
+            try {
+                return decodeURIComponent(value);
+            } catch {
+                return value;
+            }
+        };
+
+        const uuid = safeDecode(rawUuid);
+        const password = safeDecode(rawPassword);
 
         let serverPart = body.substring(atIndex + 1);
         const queryIndex = serverPart.indexOf('?');
@@ -720,21 +748,69 @@ function parseTuicUrl(url) {
         }
         
         // 拥塞控制
-        if (params.get('congestion_control')) {
-            proxy['congestion-control'] = params.get('congestion_control');
+        const congestionControl = params.get('congestion_control') || params.get('congestion-control') || params.get('congestion-controller');
+        if (congestionControl) {
+            proxy['congestion-controller'] = congestionControl;
         }
 
         // UDP Relay Mode
-        if (params.get('udp_relay_mode')) {
-            proxy['udp-relay-mode'] = params.get('udp_relay_mode');
+        const udpRelayMode = params.get('udp_relay_mode') || params.get('udp-relay-mode');
+        if (udpRelayMode) {
+            proxy['udp-relay-mode'] = udpRelayMode;
         }
 
-        // Reduce RTT & Fast Open
-        if (params.get('reduce_rtt') === '1' || params.get('reduce_rtt') === 'true') {
-            proxy['reduce-rtt'] = true;
+        // sing-box extension: UDP over stream. Conflicts with udp-relay-mode in sing-box,
+        // but preserve both input fields so target renderers can decide how to emit them.
+        const udpOverStream = params.get('udp_over_stream') || params.get('udp-over-stream');
+        if (udpOverStream === '1' || udpOverStream === 'true') {
+            proxy['udp-over-stream'] = true;
+        } else if (udpOverStream === '0' || udpOverStream === 'false') {
+            proxy['udp-over-stream'] = false;
         }
-        if (params.get('fast_open') === '1' || params.get('fast_open') === 'true') {
+
+        const zeroRttHandshake = params.get('zero_rtt_handshake') || params.get('zero-rtt-handshake') || params.get('reduce_rtt') || params.get('reduce-rtt');
+        if (zeroRttHandshake === '1' || zeroRttHandshake === 'true') {
+            proxy['zero-rtt-handshake'] = true;
+            proxy['reduce-rtt'] = true;
+        } else if (zeroRttHandshake === '0' || zeroRttHandshake === 'false') {
+            proxy['zero-rtt-handshake'] = false;
+            proxy['reduce-rtt'] = false;
+        }
+
+        if (params.get('heartbeat')) {
+            proxy.heartbeat = params.get('heartbeat');
+        }
+        if (params.get('heartbeat_interval') || params.get('heartbeat-interval')) {
+            proxy['heartbeat-interval'] = params.get('heartbeat_interval') || params.get('heartbeat-interval');
+        }
+        if (params.get('request_timeout') || params.get('request-timeout')) {
+            proxy['request-timeout'] = Number(params.get('request_timeout') || params.get('request-timeout'));
+        }
+        if (params.get('cwnd')) {
+            proxy.cwnd = Number(params.get('cwnd'));
+        }
+        if (params.get('bbr_profile') || params.get('bbr-profile')) {
+            proxy['bbr-profile'] = params.get('bbr_profile') || params.get('bbr-profile');
+        }
+        if (params.get('max_udp_relay_packet_size') || params.get('max-udp-relay-packet-size')) {
+            proxy['max-udp-relay-packet-size'] = Number(params.get('max_udp_relay_packet_size') || params.get('max-udp-relay-packet-size'));
+        }
+        if (params.get('max_open_streams') || params.get('max-open-streams')) {
+            proxy['max-open-streams'] = Number(params.get('max_open_streams') || params.get('max-open-streams'));
+        }
+
+        const disableSni = params.get('disable_sni') || params.get('disable-sni');
+        if (disableSni === '1' || disableSni === 'true') {
+            proxy['disable-sni'] = true;
+        } else if (disableSni === '0' || disableSni === 'false') {
+            proxy['disable-sni'] = false;
+        }
+
+        const fastOpen = params.get('fast_open') || params.get('fast-open');
+        if (fastOpen === '1' || fastOpen === 'true') {
             proxy['fast-open'] = true;
+        } else if (fastOpen === '0' || fastOpen === 'false') {
+            proxy['fast-open'] = false;
         }
 
         // [重要] dialer-proxy 链式代理
@@ -957,6 +1033,11 @@ function parseAnytlsUrl(url) {
         
         if (params.get('alpn')) proxy.alpn = params.get('alpn').split(',');
         if (params.get('insecure') === '1' || params.get('allowInsecure') === '1') proxy['skip-cert-verify'] = true;
+        const pinnedPeerCertSha256 = params.get('pinnedPeerCertSha256')
+            || params.get('pinned-peer-cert-sha256')
+            || params.get('peer-cert-sha256')
+            || params.get('certSha256');
+        if (pinnedPeerCertSha256) proxy.pinnedPeerCertSha256 = pinnedPeerCertSha256;
 
         proxy.udp = true;
         return proxy;
@@ -1270,7 +1351,7 @@ export function urlsToClashProxies(urls, options = {}) {
             
             // [自动补全] 仅在名称中完全没有国旗/地球 Emoji 时才尝试补全，避免重复添加或干扰用户重命名
             const HAS_EMOJI_REGEX = /([\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F30D}-\u{1F30F}])/u;
-            if (proxy.metadata.flag && !HAS_EMOJI_REGEX.test(proxy.name)) {
+            if (options.addFlagEmoji !== false && proxy.metadata.flag && !HAS_EMOJI_REGEX.test(proxy.name)) {
                 proxy.name = `${proxy.metadata.flag} ${proxy.name}`;
             }
             

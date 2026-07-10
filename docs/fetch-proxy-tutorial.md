@@ -1,4 +1,4 @@
-# Vercel Edge Functions Fetch Proxy 部署指南
+# Vercel Node.js Functions Fetch Proxy 部署指南
 
 > 说明：本文档介绍的是可选的抓取代理组件，用于辅助 MiSub 拉取订阅内容；它不是 MiSub 主站部署方式。MiSub 主站仍然仅支持部署在 Cloudflare Pages。
 
@@ -11,12 +11,20 @@
 
 这时可以给该订阅配置一个 **Fetch Proxy**。MiSub 会先请求 Fetch Proxy，再由 Fetch Proxy 从非 Cloudflare 环境去拉取机场订阅。
 
-本文以 **Vercel Edge Functions** 为例。它的优点：
+本文以 **Vercel Node.js Functions** 为例。原因是 Vercel Edge Runtime 对直连 IP 目标有限制，遇到类似 `http://47.242.55.240/...` 这种纯 IP 订阅地址会直接返回：
 
-- **冷启动 0ms**
+```text
+Direct IP access is not allowed in Vercel's Edge environment
+```
+
+因此，如果要代理这类机场订阅，不能使用 Edge Runtime，必须使用 Node.js Serverless Function 或其他允许访问纯 IP 的运行环境。
+
+它的特点：
+
+- **可以访问纯 IP HTTP/HTTPS 订阅地址**
 - **IP 通常比 Cloudflare 更容易被机场放行**
-- **每月免费 100GB 流量**
 - 部署简单，只需要一个 `api/index.js`
+- 支持透传 `subscription-userinfo` 等 MiSub 需要的响应头
 
 ---
 
@@ -90,8 +98,6 @@ E:\proxy
 推荐使用这个增强版代码：
 
 ```javascript
-export const config = { runtime: 'edge' };
-
 const DEFAULT_USER_AGENT = 'clash-verge/v2.4.3';
 
 // MiSub 需要这些响应头来读取流量、到期时间、文件名等信息
@@ -109,75 +115,109 @@ function createCorsHeaders() {
   return {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-    'access-control-allow-headers': 'content-type,user-agent',
+    'access-control-allow-headers': 'content-type,user-agent,x-user-agent',
     // 让浏览器调试时也能看到这些自定义响应头
     'access-control-expose-headers': PASS_THROUGH_RESPONSE_HEADERS.join(', '),
   };
 }
 
-export default async function handler(req) {
+function applyHeaders(res, headers) {
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
+  }
+}
+
+function sanitizeHeaderValue(value) {
+  return String(value || '').replace(/[\r\n]/g, '').trim();
+}
+
+function getUpstreamUserAgent(req, requestUrl) {
+  // 优先使用 MiSub 自动拼接到代理前缀里的 ua 参数：
+  //   /api?ua=clash-verge%2Fv2.4.3&url=<encoded-subscription-url>
+  // 其次兼容手动传入的 x-user-agent 请求头，最后使用默认 Clash Verge UA。
+  return sanitizeHeaderValue(
+    requestUrl.searchParams.get('ua') ||
+    req.headers['x-user-agent'] ||
+    DEFAULT_USER_AGENT
+  );
+}
+
+function sendText(res, statusCode, message) {
+  applyHeaders(res, createCorsHeaders());
+  res.statusCode = statusCode;
+  res.setHeader('content-type', 'text/plain; charset=utf-8');
+  res.end(message);
+}
+
+module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: createCorsHeaders(),
-    });
+    applyHeaders(res, createCorsHeaders());
+    res.statusCode = 204;
+    res.end();
+    return;
   }
 
-  const requestUrl = new URL(req.url);
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    sendText(res, 405, 'Method Not Allowed');
+    return;
+  }
+
+  const requestUrl = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
   const targetUrl = requestUrl.searchParams.get('url');
 
   if (!targetUrl) {
-    return new Response('Miss URL', {
-      status: 400,
-      headers: createCorsHeaders(),
-    });
+    sendText(res, 400, 'Miss URL');
+    return;
   }
 
   let parsedTarget;
   try {
     parsedTarget = new URL(targetUrl);
   } catch {
-    return new Response('Invalid URL', {
-      status: 400,
-      headers: createCorsHeaders(),
-    });
+    sendText(res, 400, 'Invalid URL');
+    return;
   }
 
   if (!['http:', 'https:'].includes(parsedTarget.protocol)) {
-    return new Response('Only http/https URLs are allowed', {
-      status: 400,
-      headers: createCorsHeaders(),
-    });
+    sendText(res, 400, 'Only http/https URLs are allowed');
+    return;
   }
 
   const upstreamResponse = await fetch(parsedTarget.toString(), {
     method: req.method === 'HEAD' ? 'HEAD' : 'GET',
     redirect: 'follow',
     headers: {
-      // 很多机场会根据 UA 返回不同格式；Clash 类 UA 通常会返回 YAML 和 subscription-userinfo
-      'user-agent': requestUrl.searchParams.get('ua') || DEFAULT_USER_AGENT,
+      // 很多机场会根据 UA 返回不同格式；Clash 类 UA 通常会返回 YAML 和 subscription-userinfo。
+      // 注意：MiSub 发给代理的 User-Agent 不一定会自动成为代理访问机场时的 UA，
+      // 所以这里必须显式使用 ua 参数 / x-user-agent 覆盖上游请求 UA。
+      'user-agent': getUpstreamUserAgent(req, requestUrl),
       'accept': '*/*',
     },
   });
 
-  const responseHeaders = new Headers(createCorsHeaders());
+  const responseHeaders = createCorsHeaders();
 
   for (const headerName of PASS_THROUGH_RESPONSE_HEADERS) {
     const value = upstreamResponse.headers.get(headerName);
-    if (value) responseHeaders.set(headerName, value);
+    if (value) responseHeaders[headerName] = value;
   }
 
   // 如果上游没有 Content-Type，给一个安全默认值
-  if (!responseHeaders.has('content-type')) {
-    responseHeaders.set('content-type', 'text/plain; charset=utf-8');
+  if (!responseHeaders['content-type']) {
+    responseHeaders['content-type'] = 'text/plain; charset=utf-8';
   }
 
-  return new Response(upstreamResponse.body, {
-    status: upstreamResponse.status,
-    statusText: upstreamResponse.statusText,
-    headers: responseHeaders,
-  });
-}
+  applyHeaders(res, responseHeaders);
+  res.statusCode = upstreamResponse.status;
+
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+
+  const body = Buffer.from(await upstreamResponse.arrayBuffer());
+  res.end(body);
+};
 ```
 
 ---
@@ -243,12 +283,21 @@ https://misub-proxy.vercel.app/api?url=
 - 必须包含 `/api?url=`
 - 最后的 `=` 不能省略
 - MiSub 会自动把原始订阅链接拼接到后面
+- 如果订阅源配置了“自定义 User-Agent”，新版 MiSub 会自动把 UA 拼到代理地址上，例如 `?ua=clash-verge%2Fv2.4.3&url=`，确保 Fetch Proxy 访问机场源站时也使用相同 UA
 
 例如 MiSub 实际请求会变成：
 
 ```text
 https://misub-proxy.vercel.app/api?url=https%3A%2F%2Fexample.com%2Fsub%2Fxxxx
 ```
+
+如果该订阅设置了 `Clash Verge` UA，实际请求会变成：
+
+```text
+https://misub-proxy.vercel.app/api?ua=clash-verge%2Fv2.4.3&url=https%3A%2F%2Fexample.com%2Fsub%2Fxxxx
+```
+
+这是为了避免“MiSub 请求代理时用了正确 UA，但代理请求机场源站时又换成默认 UA”的问题。
 
 ---
 
@@ -284,7 +333,31 @@ subscription-userinfo
 
 ## 六、常见问题
 
-### 1. 节点数量能获取，流量/到期时间获取不到
+### 1. 代理返回 `Direct IP access is not allowed in Vercel's Edge environment`
+
+这说明你的 Fetch Proxy 仍在运行 **Vercel Edge Runtime**。Edge Runtime 不允许访问 `47.242.55.240` 这类纯 IP 目标，所以即使 UA 正确也会失败。
+
+请确认 `api/index.js` 里没有下面这行：
+
+```javascript
+export const config = { runtime: 'edge' };
+```
+
+如果有，删除它，并改用本文上方的 Node.js Serverless Function 版本代码，然后重新部署生产环境：
+
+```bash
+npx vercel --prod
+```
+
+部署后再次验证：
+
+```bash
+curl -I "https://你的代理域名.vercel.app/api?ua=clash-verge%2Fv2.4.3&url=http%3A%2F%2F47.242.55.240%2Flink%2FVyB3JGVTdxskaBk9%3Fclash%3D2"
+```
+
+正常情况下应该返回 `HTTP 200`，并且能看到 `subscription-userinfo`。
+
+### 2. 节点数量能获取，流量/到期时间获取不到
 
 通常是 Fetch Proxy 没有透传：
 
@@ -305,7 +378,7 @@ export default async function handler(req) {
 
 极简代码在部分平台/场景下可能只保证正文可用，不适合排查自定义响应头问题。
 
-### 2. 显示“已用 0 B / 99.79 GB”
+### 3. 显示“已用 0 B / 99.79 GB”
 
 这通常代表 MiSub 没拿到 `subscription-userinfo`，只从订阅正文伪节点里解析到了“剩余流量”。
 
@@ -313,7 +386,7 @@ export default async function handler(req) {
 
 解决方法：让 Fetch Proxy 透传 `subscription-userinfo`。
 
-### 3. 机场根据 User-Agent 返回不同内容
+### 4. 机场根据 User-Agent 返回不同内容
 
 有些机场会根据 UA 返回不同格式：
 
@@ -341,15 +414,18 @@ https://misub-proxy.vercel.app/api?ua=v2rayN%2F7.23&url=
 
 注意最后仍然要以 `url=` 结尾。
 
-### 4. 使用 curl 能看到头，但 MiSub 仍然没显示
+新版 MiSub 会在你为订阅源选择“自定义 User-Agent”后自动拼接 `ua` 参数；如果你手动在 Fetch Proxy 前缀中写了 `ua=...`，MiSub 不会重复添加。
+
+### 5. 使用 curl 能看到头，但 MiSub 仍然没显示
 
 请检查：
 
 1. MiSub 订阅源里是否确实配置了 Fetch Proxy。
 2. Fetch Proxy 是否以 `/api?url=` 结尾。
 3. 订阅源是否已经点击刷新/更新节点数量。
-4. 浏览器或后端是否仍有旧缓存，可以保存订阅源后重新刷新。
-5. `curl -I` 检查代理地址时是否能看到 `subscription-userinfo`。
+4. 如果机场依赖特定 UA，实际代理请求里是否出现了 `ua=...&url=`。
+5. 浏览器或后端是否仍有旧缓存，可以保存订阅源后重新刷新。
+6. `curl -I` 检查代理地址时是否能看到 `subscription-userinfo`。
 
 ---
 
@@ -382,6 +458,7 @@ if (!ALLOWED_HOSTS.has(parsedTarget.hostname)) {
 
 - [ ] Vercel 项目已部署成功
 - [ ] MiSub 订阅源已填写 `https://你的域名.vercel.app/api?url=`
+- [ ] 需要特定 UA 的订阅源已在 MiSub 中选择对应“自定义 User-Agent”
 - [ ] `curl -I` 代理地址能看到 `subscription-userinfo`
 - [ ] MiSub 中点击刷新后能显示节点数量
 - [ ] MiSub 中能显示已用流量、总流量、到期时间

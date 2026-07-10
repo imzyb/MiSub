@@ -5,6 +5,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { t } from '../../i18n/index.js';
 
 const props = defineProps({
   data: {
@@ -45,7 +46,7 @@ const props = defineProps({
   },
   emptyText: {
     type: String,
-    default: '暂无数据'
+    default: ''
   },
   showHeader: {
     type: Boolean,
@@ -86,6 +87,8 @@ const emit = defineEmits(['update:selectedRows', 'rowClick', 'rowDblClick', 'sel
 const selectedKeys = ref([]);
 const sortField = ref('');
 const sortOrder = ref(''); // 'asc', 'desc', ''
+
+const resolvedEmptyText = computed(() => props.emptyText || t('common.noData'));
 
 // 计算分页数据
 const paginatedData = computed(() => {
@@ -272,7 +275,7 @@ const handlePageChange = (page) => {
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span class="text-gray-500 dark:text-gray-400">加载中...</span>
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</span>
                 </div>
               </td>
             </tr>
@@ -281,7 +284,7 @@ const handlePageChange = (page) => {
             <tr v-else-if="paginatedData.length === 0">
               <td :colspan="columns.length + (selectable ? 1 : 0)" class="px-6 py-12 text-center">
                 <div class="text-gray-500 dark:text-gray-400">
-                  {{ emptyText }}
+                  {{ resolvedEmptyText }}
                 </div>
               </td>
             </tr>
@@ -340,7 +343,7 @@ const handlePageChange = (page) => {
     <div v-if="pagination && totalPages > 1" class="mt-4">
       <div class="flex items-center justify-between">
         <div class="text-sm text-gray-700 dark:text-gray-300">
-          显示第 {{ (currentPage - 1) * pageSize + 1 }} 至 {{ Math.min(currentPage * pageSize, total) }} 项，共 {{ total }} 项
+          {{ t('common.itemRange', { start: (currentPage - 1) * pageSize + 1, end: Math.min(currentPage * pageSize, total), total }) }}
         </div>
 
         <div class="flex space-x-1">
@@ -349,7 +352,7 @@ const handlePageChange = (page) => {
             class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
             @click="handlePageChange(currentPage - 1)"
           >
-            上一页
+            {{ t('common.prevPage') }}
           </button>
 
           <button
@@ -371,7 +374,7 @@ const handlePageChange = (page) => {
             class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-r-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
             @click="handlePageChange(currentPage + 1)"
           >
-            下一页
+            {{ t('common.nextPage') }}
           </button>
         </div>
       </div>

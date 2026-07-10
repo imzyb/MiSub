@@ -1,4 +1,8 @@
 <script setup>
+import { useI18n } from '../../i18n/index.js';
+
+const { t } = useI18n();
+
 const props = defineProps({
   activeTab: {
     type: String,
@@ -9,13 +13,13 @@ const props = defineProps({
 const emit = defineEmits(['update:activeTab']);
 
 const tabs = [
-  { id: 'basic', label: '基础设置' },
-  { id: 'home', label: '首页设置' },
-  { id: 'custom-page', label: '自定义公开页' },
-  { id: 'global', label: '全局设置' },
-  { id: 'service', label: '服务集成' },
-  { id: 'client', label: '客户端管理' },
-  { id: 'system', label: '系统设置' },
+  { id: 'basic', labelKey: 'settings.tabs.basic' },
+  { id: 'home', labelKey: 'settings.tabs.home' },
+  { id: 'custom-page', labelKey: 'settings.tabs.customPage' },
+  { id: 'global', labelKey: 'settings.tabs.global' },
+  { id: 'service', labelKey: 'settings.tabs.service' },
+  { id: 'client', labelKey: 'settings.tabs.client' },
+  { id: 'system', labelKey: 'settings.tabs.system' },
 ];
 </script>
 
@@ -53,7 +57,7 @@ const tabs = [
           <path v-if="tab.id === 'custom-page'" stroke-linecap="round" stroke-linejoin="round"
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
-      {{ tab.label }}
+      {{ t(tab.labelKey) }}
     </button>
   </nav>
 </template>

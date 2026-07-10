@@ -2,17 +2,20 @@
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore.js';
+import { useSettingsStore } from '../stores/settings.js';
 import { useToastStore } from '../stores/toast.js'; // Restored
 import { extractNodeName, extractHostAndPort } from '../lib/utils.js';
 import { pingNode } from '../utils/ping.js';
 import { filterManualNodes, isManualNodeEntry } from './manual-nodes/filters.js';
 import { buildDedupPlan as buildDedupPlanCore } from './manual-nodes/dedup.js';
 import { buildAutoSortedSubscriptions } from './manual-nodes/sorting.js';
-import { collectManualNodeGroups, buildGroupedManualNodes } from './manual-nodes/groups.js';
+import { collectManualNodeGroups, buildGroupedManualNodes, normalizeManualNodeGroupName } from './manual-nodes/groups.js';
+import { t } from '../i18n/index.js';
 
 export function useManualNodes(markDirty) {
   const { showToast } = useToastStore();
   const dataStore = useDataStore();
+  const settingsStore = useSettingsStore();
   const { subscriptions: allSubscriptions } = storeToRefs(dataStore);
 
   // Manual Nodes are items in subscriptions that are NOT http/https
@@ -66,13 +69,14 @@ export function useManualNodes(markDirty) {
 
   function batchUpdateGroup(nodeIds, groupName) {
     if (!nodeIds || nodeIds.length === 0) return;
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
     const idsSet = new Set(nodeIds);
     const updates = manualNodes.value
       .filter(n => idsSet.has(n.id))
       .map(n => {
-        // Only update if changed
-        if (n.group === groupName) return null;
-        return { id: n.id, updates: { ...n, group: groupName } };
+        // Only update if changed after normalization
+        if (normalizeManualNodeGroupName(n.group) === normalizedGroupName) return null;
+        return { id: n.id, updates: { ...n, group: normalizedGroupName } };
       })
       .filter(u => u);
 
@@ -81,7 +85,7 @@ export function useManualNodes(markDirty) {
         dataStore.updateSubscription(id, updates);
       });
       markDirty();
-      showToast(`已将 ${updates.length} 个节点移动到分组 ${groupName || '默认'}`, 'success');
+      showToast(t('manualNodes.movedToGroup', { count: updates.length, group: normalizedGroupName || t('manualNodes.defaultGroup') }), 'success');
     }
   }
 
@@ -101,22 +105,30 @@ export function useManualNodes(markDirty) {
     }
 
     markDirty();
-    showToast(`已删除 ${nodeIds.length} 个节点`, 'success');
+    showToast(t('manualNodes.deletedCount', { count: nodeIds.length }), 'success');
   }
 
   function addNode(node) {
-    if (!node.name) {
-      node.name = extractNodeName(node.url);
+    const normalizedNode = {
+      ...node,
+      group: normalizeManualNodeGroupName(node.group)
+    };
+    if (!normalizedNode.name) {
+      normalizedNode.name = extractNodeName(normalizedNode.url);
     }
     // Add to shared store
-    dataStore.addSubscription(node);
+    dataStore.addSubscription(normalizedNode);
     manualNodesCurrentPage.value = 1;
     markDirty();
   }
 
   function updateNode(updatedNode) {
+    const normalizedNode = {
+      ...updatedNode,
+      group: normalizeManualNodeGroupName(updatedNode.group)
+    };
     // Update in shared store
-    dataStore.updateSubscription(updatedNode.id, updatedNode);
+    dataStore.updateSubscription(normalizedNode.id, normalizedNode);
     markDirty();
   }
 
@@ -136,7 +148,7 @@ export function useManualNodes(markDirty) {
 
     // 如果没有节点，提示并返回
     if (idsToRemove.length === 0) {
-      showToast('没有可删除的节点', 'info');
+      showToast(t('manualNodes.noNodesToDelete'), 'info');
       return;
     }
 
@@ -146,16 +158,15 @@ export function useManualNodes(markDirty) {
 
     manualNodesCurrentPage.value = 1;
     markDirty();
-    showToast(`已清空 ${idsToRemove.length} 个节点`, 'success');
+    showToast(t('manualNodes.clearedCount', { count: idsToRemove.length }), 'success');
   }
 
   function addNodesFromBulk(nodes, groupName = '') {
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
     // Reverse insert so they appear in correct order when unshifted
     for (let i = nodes.length - 1; i >= 0; i--) {
       const node = { ...nodes[i] };
-      if (groupName) {
-        node.group = groupName;
-      }
+      node.group = normalizeManualNodeGroupName(normalizedGroupName || node.group);
       dataStore.addSubscription(node);
     }
     markDirty();
@@ -165,12 +176,12 @@ export function useManualNodes(markDirty) {
 
   function applyDedupPlan(plan) {
     if (!plan || !plan.removeNodes || plan.removeNodes.length === 0) {
-      showToast('没有发现重复的节点。', 'info');
+      showToast(t('manualNodes.noDuplicates'), 'info');
       return;
     }
 
     plan.removeNodes.forEach(node => dataStore.removeSubscription(node.id));
-    showToast(`成功移除 ${plan.removeNodes.length} 个重复节点，请记得保存。`, 'success');
+    showToast(t('manualNodes.removedDuplicates', { count: plan.removeNodes.length }), 'success');
     markDirty();
     manualNodesCurrentPage.value = 1;
   }
@@ -207,12 +218,22 @@ export function useManualNodes(markDirty) {
   });
 
   function reorderManualNodes(newOrder) {
+    const currentManualNodes = manualNodes.value;
+    const reorderedVisibleNodes = [...(newOrder || [])];
+    const newOrderIds = new Set(reorderedVisibleNodes.map(node => node.id));
+    const orderedManualNodes = newOrderIds.size > 0 && newOrderIds.size < currentManualNodes.length
+      ? currentManualNodes.map((node) => {
+          if (!newOrderIds.has(node.id)) return node;
+          return reorderedVisibleNodes.shift();
+        })
+      : reorderedVisibleNodes;
+
     // 1. Get all Subscriptions (to preserve them)
     const currentSubscriptions = (allSubscriptions.value || []).filter(item => item.url && /^https?:\/\//.test(item.url));
 
     // 2. Combine Existing Subscriptions + New Ordered Manual Nodes
     // Logic: Manual Nodes at top, Subscriptions at bottom
-    const mergedList = [...newOrder, ...currentSubscriptions];
+    const mergedList = [...orderedManualNodes, ...currentSubscriptions];
 
     // 3. Update Store
     dataStore.overwriteSubscriptions(mergedList);
@@ -221,31 +242,61 @@ export function useManualNodes(markDirty) {
     markDirty();
   }
 
-  const manualNodeGroups = computed(() => collectManualNodeGroups(manualNodes.value));
+  const manualNodeGroups = computed(() => {
+    const customOrder = settingsStore.config.manualNodeGroupOrder || [];
+    return collectManualNodeGroups(manualNodes.value, customOrder);
+  });
 
   const groupedManualNodes = computed(() => {
     return buildGroupedManualNodes(filteredManualNodes.value, manualNodeGroups.value);
   });
 
   function renameGroup(oldName, newName) {
-    if (!oldName || !newName || oldName === newName) return;
+    const normalizedOldName = normalizeManualNodeGroupName(oldName);
+    const normalizedNewName = normalizeManualNodeGroupName(newName);
+    if (!normalizedOldName || !normalizedNewName || normalizedOldName === normalizedNewName) return;
 
-    const nodesInGroup = manualNodes.value.filter(n => n.group === oldName);
+    const nodesInGroup = manualNodes.value.filter(n => normalizeManualNodeGroupName(n.group) === normalizedOldName);
     nodesInGroup.forEach(node => {
-      dataStore.updateSubscription(node.id, { ...node, group: newName });
+      dataStore.updateSubscription(node.id, { ...node, group: normalizedNewName });
     });
+    
+    // 同步更新自定义分组顺序
+    const customOrder = settingsStore.config.manualNodeGroupOrder || [];
+    const index = customOrder.indexOf(normalizedOldName);
+    if (index !== -1) {
+      const newOrder = [...customOrder];
+      newOrder[index] = normalizedNewName;
+      settingsStore.updateConfig({ manualNodeGroupOrder: newOrder });
+    }
+    
     markDirty();
   }
 
   function deleteGroup(groupName) {
-    if (!groupName) return;
+    const normalizedGroupName = normalizeManualNodeGroupName(groupName);
+    if (!normalizedGroupName) return;
     // Ungroup nodes (move to default)
-    const nodesInGroup = manualNodes.value.filter(n => n.group === groupName);
+    const nodesInGroup = manualNodes.value.filter(n => normalizeManualNodeGroupName(n.group) === normalizedGroupName);
     nodesInGroup.forEach(node => {
       // Creating a copy logic is safe here as updateSubscription handles it
       const { group, ...rest } = node;
       dataStore.updateSubscription(node.id, { ...rest, group: '' }); // Set to empty string or remove property
     });
+    
+    // 从自定义分组顺序中移除
+    const customOrder = settingsStore.config.manualNodeGroupOrder || [];
+    const newOrder = customOrder.filter(g => g !== normalizedGroupName);
+    if (newOrder.length !== customOrder.length) {
+      settingsStore.updateConfig({ manualNodeGroupOrder: newOrder });
+    }
+    
+    markDirty();
+  }
+
+  function reorderGroups(newOrder) {
+    // 保存用户自定义的分组顺序
+    settingsStore.updateConfig({ manualNodeGroupOrder: newOrder });
     markDirty();
   }
 
@@ -260,7 +311,7 @@ export function useManualNodes(markDirty) {
   
       const { host, port } = extractHostAndPort(node.url);
       if (!host || !port) {
-          pingResults.value[nodeId] = { status: 'error', latency: -1, message: '解析地址失败' };
+          pingResults.value[nodeId] = { status: 'error', latency: -1, message: t('manualNodes.parseAddressFailed') };
           return;
       }
   
@@ -283,7 +334,7 @@ export function useManualNodes(markDirty) {
       const nodesToTest = enabledManualNodes.value.map(n => n.id);
       if (nodesToTest.length === 0) return;
       
-      showToast(`开始测速 ${nodesToTest.length} 个节点...`, 'info');
+      showToast(t('manualNodes.pingStarted', { count: nodesToTest.length }), 'info');
       
       // 控制并发数 (比如最大 10 并发)
       const CONCURRENCY = 10;
@@ -298,7 +349,7 @@ export function useManualNodes(markDirty) {
       });
       
       await Promise.allSettled(workers);
-      showToast(`已完成 ${nodesToTest.length} 个节点的连通性测试`, 'success');
+      showToast(t('manualNodes.pingCompleted', { count: nodesToTest.length }), 'success');
   }
 
   return {
@@ -324,6 +375,7 @@ export function useManualNodes(markDirty) {
     reorderManualNodes, // Added
     renameGroup,
     deleteGroup,
+    reorderGroups, // New: 调整分组顺序
     setGroupFilter, // New
     batchUpdateGroup, // New
     batchDeleteNodes, // New

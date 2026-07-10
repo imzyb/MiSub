@@ -2,6 +2,9 @@
 import Input from '../../ui/Input.vue';
 import AnnouncementSettings from './AnnouncementSettings.vue';
 import GuestbookManagement from './GuestbookManagement.vue';
+import { useI18n } from '../../../i18n/index.js';
+
+const { t } = useI18n();
 
 defineProps({
   settings: {
@@ -13,7 +16,7 @@ defineProps({
 
 <template>
   <div v-if="settings" class="space-y-8">
-    <!-- 公开页 Hero 设置 -->
+    <!-- {{ t('settings.homeHeroTitle') }} -->
     <div class="rounded-xl border border-gray-100/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-gray-900/70">
       <div class="mb-5 flex items-start gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-300">
@@ -23,30 +26,30 @@ defineProps({
           </svg>
         </div>
         <div class="space-y-1">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">公开页 Hero 设置</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">统一公开页主标题和简介文案，保持首页展示信息简洁清晰。</p>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('settings.homeHeroTitle') }}</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('settings.homeHeroDesc') }}</p>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <Input 
-            label="主标题 (第一行)"
+            :label="t('settings.homeHeroTitle1')"
             v-model="settings.heroTitle1"
-            placeholder="默认：发现"
+            :placeholder="t('settings.homeHeroTitle1Placeholder')"
           />
         </div>
         <div>
           <Input 
-            label="主标题 (第二行)"
+            :label="t('settings.homeHeroTitle2')"
             v-model="settings.heroTitle2"
-            placeholder="默认：优质订阅"
+            :placeholder="t('settings.homeHeroTitle2Placeholder')"
           />
         </div>
         <div class="md:col-span-2">
           <Input 
-            label="副标题 / 描述"
+            :label="t('settings.homeHeroDescription')"
             v-model="settings.heroDescription"
-            placeholder="默认：浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。"
+            :placeholder="t('settings.homeHeroDescriptionPlaceholder')"
           />
         </div>
       </div>

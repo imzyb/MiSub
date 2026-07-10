@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue';
 import draggable from 'vuedraggable';
+import { useI18n } from '@/i18n/index.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   nodes: {
@@ -61,10 +64,10 @@ const orderedSelectedNodes = computed({
 <template>
   <div v-if="nodes.length > 0" class="space-y-2">
     <div class="flex justify-between items-center mb-2">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">选择手动节点</h4>
+      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('profileModal.selectNodes') }}</h4>
       <div class="space-x-2">
-        <button @click="emit('select-all')" class="text-xs text-indigo-600 hover:underline">全选</button>
-        <button @click="emit('deselect-all')" class="text-xs text-indigo-600 hover:underline">全不选</button>
+        <button @click="emit('select-all')" class="text-xs text-indigo-600 hover:underline">{{ t('profileModal.selectAll') }}</button>
+        <button @click="emit('deselect-all')" class="text-xs text-indigo-600 hover:underline">{{ t('profileModal.deselectAll') }}</button>
       </div>
     </div>
     <!-- Group Filter -->
@@ -72,10 +75,10 @@ const orderedSelectedNodes = computed({
       class="flex items-center gap-2 mb-2 p-1.5 misub-radius-md border-b border-gray-100 dark:border-gray-700/50 overflow-x-auto no-scrollbar mask-gradient-r">
       <button @click="emit('update:groupFilter', null)"
         class="px-2.5 py-1 text-xs font-medium rounded-full transition-all border shrink-0 whitespace-nowrap"
-        :class="!activeGroupFilter ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'">全部</button>
-      <button @click="emit('update:groupFilter', '默认')"
+        :class="!activeGroupFilter ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'">{{ t('manualNodes.allGroups') }}</button>
+      <button @click="emit('update:groupFilter', t('manualNodes.defaultGroup'))"
         class="px-2.5 py-1 text-xs font-medium rounded-full transition-all border shrink-0 whitespace-nowrap"
-        :class="activeGroupFilter === '默认' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'">未分组</button>
+        :class="activeGroupFilter === t('manualNodes.defaultGroup') ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'">{{ t('manualNodes.ungrouped') }}</button>
       <button v-for="group in groups" :key="group"
         @click="emit('update:groupFilter', activeGroupFilter === group ? null : group)"
         class="px-2.5 py-1 text-xs font-medium rounded-full transition-all border shrink-0 whitespace-nowrap"
@@ -85,7 +88,7 @@ const orderedSelectedNodes = computed({
     </div>
 
     <div class="relative mb-2">
-      <input type="text" v-model="searchModel" placeholder="搜索节点..."
+      <input type="text" v-model="searchModel" :placeholder="t('manualNodes.searchPlaceholder')"
         class="w-full pl-9 pr-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md shadow-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
       <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg"
         fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,12 +102,11 @@ const orderedSelectedNodes = computed({
         <label class="flex items-center space-x-3 cursor-pointer">
           <input type="checkbox" :checked="selectedIds.includes(node.id)" @change="emit('toggle-selection', node.id)"
             class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-          <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || '未命名节点'
-          }}</span>
+          <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || t('manualNodes.unnamed') }}</span>
         </label>
       </div>
       <div v-if="filteredNodes.length === 0" class="text-center text-gray-500 text-sm py-4">
-        没有找到匹配的节点。
+        {{ t('profileModal.noMatchedNodes') }}
       </div>
     </div>
 
@@ -112,7 +114,7 @@ const orderedSelectedNodes = computed({
     <div v-if="orderedSelectedNodes.length > 0" class="mt-3">
       <div class="flex justify-between items-center mb-1.5">
         <h5 class="text-xs font-medium text-gray-500 dark:text-gray-400">
-          已选 ({{ orderedSelectedNodes.length }}) - 拖拽调整顺序
+          {{ t('profileModal.selectedDrag', { count: orderedSelectedNodes.length }) }}
         </h5>
       </div>
       <draggable v-model="orderedSelectedNodes" item-key="id" handle=".drag-handle" ghost-class="opacity-40"
@@ -128,10 +130,10 @@ const orderedSelectedNodes = computed({
             </span>
             <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 w-5">{{ index + 1 }}</span>
             <span class="text-sm text-gray-800 dark:text-gray-200 truncate flex-1" :title="element.name">
-              {{ element.name || '未命名节点' }}
+              {{ element.name || t('manualNodes.unnamed') }}
             </span>
             <button @click="emit('toggle-selection', element.id)"
-              class="text-gray-400 hover:text-red-500 transition-colors" title="移除">
+              class="text-gray-400 hover:text-red-500 transition-colors" :title="t('profileModal.remove')">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -143,6 +145,6 @@ const orderedSelectedNodes = computed({
   </div>
   <div v-else
     class="text-center text-sm text-gray-500 p-4 bg-gray-50 dark:bg-gray-900/50 misub-radius-md flex items-center justify-center h-full">
-    没有可用的手动节点
+    {{ t('profileModal.noAvailableNodes') }}
   </div>
 </template>

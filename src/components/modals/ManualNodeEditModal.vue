@@ -7,19 +7,26 @@ import { useDataStore } from '../../stores/useDataStore.js';
 import { useSubscriptions } from '../../composables/useSubscriptions.js';
 import { useBulkImportLogic } from '../../composables/useBulkImportLogic.js';
 import { useManualNodes } from '../../composables/useManualNodes.js';
+import { useI18n } from '../../i18n/index.js';
+import { parseSurgeConfig } from '../../utils/protocolConverter.js';
 
 const props = defineProps({
   show: Boolean,
   isNew: Boolean,
-  editingNode: Object
+  editingNode: Object,
+  groups: {
+    type: Array,
+    default: () => []
+  }
 });
 
 const emit = defineEmits(['update:show', 'confirm', 'input-url']);
 const dataStore = useDataStore();
 const { markDirty } = dataStore;
+const { t } = useI18n();
 
 const { addSubscriptionsFromBulk } = useSubscriptions(markDirty);
-const { addNodesFromBulk, manualNodeGroups } = useManualNodes(markDirty);
+const { addNodesFromBulk } = useManualNodes(markDirty);
 const { handleBulkImport } = useBulkImportLogic({ addSubscriptionsFromBulk, addNodesFromBulk });
 
 // 浮动标签状态
@@ -73,7 +80,7 @@ const parsedNodes = computed(() => {
   const lines = props.editingNode.url.split('\n').map(l => l.trim()).filter(Boolean);
   return lines.map((line, index) => {
     const protocol = getProtocol(line);
-    const name = extractNodeName(line) || `节点 ${index + 1}`;
+    const name = extractNodeName(line) || `${t('common.node')} ${index + 1}`;
     return { line, protocol, name, index };
   });
 });
@@ -115,6 +122,18 @@ const handleConfirm = () => {
     emit('update:show', false);
     return;
   }
+
+  // 单行模式下检测 Surge 配置格式并自动转换
+  if (props.isNew && !isMultiLine.value && props.editingNode?.url) {
+    const surgeNodes = parseSurgeConfig(props.editingNode.url);
+    if (surgeNodes && surgeNodes.length === 1) {
+      props.editingNode.url = surgeNodes[0].url;
+      if (!props.editingNode.name && surgeNodes[0].name) {
+        props.editingNode.name = surgeNodes[0].name;
+      }
+    }
+  }
+
   emit('confirm');
 };
 
@@ -160,14 +179,14 @@ const protocolColorMap = {
         </div>
         <div>
           <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-            {{ isNew ? '新增手动节点' : '编辑手动节点' }}
+            {{ isNew ? t('manualNodes.addTitle') : t('manualNodes.editTitle') }}
           </h3>
-          <p v-if="!(isNew && isMultiLine)" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">支持单条编辑，也支持多行粘贴后批量导入节点。</p>
+          <p v-if="!(isNew && isMultiLine)" class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('manualNodes.modalDescription') }}</p>
           <p v-if="isNew && isMultiLine" class="text-sm text-indigo-500 mt-0.5 font-medium flex items-center gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
             </svg>
-            检测到 {{ validLineCount }} 条有效链接
+            {{ t('manualNodes.validLinksDetected', { count: validLineCount }) }}
           </p>
         </div>
       </div>
@@ -181,12 +200,12 @@ const protocolColorMap = {
           <div class="relative">
              <div class="flex flex-col">
               <label for="node-name" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-                节点名称 (可选)
+                {{ t('manualNodes.nameOptional') }}
               </label>
               <Input
                 id="node-name"
                 v-model="editingNode.name"
-                placeholder="节点名称（可选）"
+                :placeholder="t('manualNodes.namePlaceholderOptional')"
                 @focus="nameFocused = true"
                 @blur="nameFocused = false"
               >
@@ -199,7 +218,7 @@ const protocolColorMap = {
               
               <!-- 名称建议 -->
               <div v-if="suggestedName && !editingNode.name" class="mt-1.5 flex items-center gap-1.5 ml-1">
-                <span class="text-xs text-gray-500 dark:text-gray-400">建议：</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('manualNodes.suggestion') }}</span>
                 <button 
                   @click="applySuggestedName"
                   class="text-xs text-indigo-500 hover:text-indigo-600 font-medium flex items-center gap-1 hover:underline"
@@ -217,12 +236,12 @@ const protocolColorMap = {
           <div class="relative">
             <div class="flex flex-col">
               <label for="node-group" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-                分组 (可选)
+                {{ t('manualNodes.groupOptional') }}
               </label>
               <GroupSelector
                 v-model="editingNode.group"
-                :groups="manualNodeGroups"
-                placeholder="选择或输入新分组..."
+                :groups="groups"
+                :placeholder="t('manualNodes.groupPlaceholder')"
               />
             </div>
           </div>
@@ -265,7 +284,7 @@ const protocolColorMap = {
                 @blur="urlFocused = false"
                 @input="$emit('input-url', $event)"
                 class="flex-1 w-full bg-transparent border-0 focus:ring-0 dark:text-white placeholder-gray-400 text-sm font-mono resize-none py-3 pl-3 pr-20 min-h-[160px]"
-                placeholder="输入单个链接，或粘贴多行链接批量导入..."
+                :placeholder="t('manualNodes.urlPlaceholder')"
               ></textarea>
             </div>
             
@@ -282,10 +301,10 @@ const protocolColorMap = {
                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                 <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" />
               </svg>
-              导入预览
+              {{ t('manualNodes.importPreview') }}
             </h4>
             <span class="text-xs text-gray-500 dark:text-gray-400">
-              共 {{ parsedNodes.length }} 个节点
+              {{ t('manualNodes.nodeCountPreview', { count: parsedNodes.length }) }}
             </span>
           </div>
           <div class="max-h-48 overflow-y-auto misub-radius-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
@@ -303,14 +322,14 @@ const protocolColorMap = {
                 {{ node.protocol.name }}
               </span>
               <span v-else class="text-xs text-gray-400 px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 shrink-0">
-                未知
+                {{ t('manualNodes.unknownProtocol') }}
               </span>
               <span class="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
                 {{ node.name }}
               </span>
             </div>
             <div v-if="parsedNodes.length > 10" class="px-3 py-2 text-center text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800">
-              还有 {{ parsedNodes.length - 10 }} 个节点...
+              {{ t('manualNodes.moreNodes', { count: parsedNodes.length - 10 }) }}
             </div>
           </div>
         </div>

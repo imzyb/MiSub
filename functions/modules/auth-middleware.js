@@ -4,7 +4,7 @@
  */
 
 import { COOKIE_NAME, SESSION_DURATION } from './config.js';
-import { getCookieSecret, getAdminPassword, getAuthDebugInfo } from './utils.js';
+import { getCookieSecret, getAdminPassword, getAuthDebugInfo, JSON_BODY_LIMITS, RequestBodyTooLargeError, readJsonWithLimit } from './utils.js';
 import { StorageFactory } from '../storage-adapter.js';
 
 function normalizeSecret(value) {
@@ -28,6 +28,11 @@ function buildRequestMeta(request, env) {
         hasKv: !!StorageFactory.resolveKV(env),
         hasD1: !!env?.MISUB_DB
     };
+}
+
+async function isUsingDefaultAdminPassword(env) {
+    const debugInfo = await getAuthDebugInfo(env);
+    return debugInfo?.adminPassword?.isDefaultFallback === true;
 }
 
 /**
@@ -217,7 +222,7 @@ export async function getLoginPasswordDiagnostic(request, env) {
 
     let payload;
     try {
-        payload = await request.json();
+        payload = await readJsonWithLimit(request, JSON_BODY_LIMITS.auth);
     } catch (_) {
         result.reason = 'invalid_json';
         return result;
@@ -272,9 +277,15 @@ export async function handleLogin(request, env) {
     const logMeta = buildRequestMeta(request, env);
     let payload;
     try {
-        payload = await request.json();
+        payload = await readJsonWithLimit(request, JSON_BODY_LIMITS.auth);
     } catch (e) {
         console.error('[API Error /login] Request body parse failed', { ...logMeta, error: e?.message });
+        if (e instanceof RequestBodyTooLargeError) {
+            return new Response(JSON.stringify({ error: e.message }), {
+                status: e.status,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
         return new Response(JSON.stringify({ error: '请求体解析失败' }), { status: 400 });
     }
 
@@ -287,11 +298,22 @@ export async function handleLogin(request, env) {
         if (isPasswordMatched) {
             const secret = await getCookieSecret(env);
             const token = await createSignedToken(secret, String(Date.now()));
-            const headers = new Headers({ 'Content-Type': 'application/json' });
             const isSecure = request.url.startsWith('https');
             const cookieString = `${COOKIE_NAME}=${token}; Path=/; HttpOnly; ${isSecure ? 'Secure;' : ''} SameSite=Lax; Max-Age=${SESSION_DURATION / 1000}`;
-            headers.append('Set-Cookie', cookieString);
-            return new Response(JSON.stringify({ success: true }), { headers });
+            const responseBody = { success: true };
+            if (await isUsingDefaultAdminPassword(env)) {
+                responseBody.securityWarning = {
+                    type: 'default_admin_password',
+                    shouldChangePassword: true,
+                    message: '当前正在使用默认管理员密码 admin，请登录后立即修改。'
+                };
+            }
+            return new Response(JSON.stringify(responseBody), {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Set-Cookie': cookieString
+                }
+            });
         }
         return new Response(JSON.stringify({ error: '密码错误' }), { status: 401 });
     } catch (e) {

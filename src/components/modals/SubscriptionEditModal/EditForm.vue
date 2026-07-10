@@ -10,8 +10,10 @@ import Switch from '../../ui/Switch.vue';
 import { ref, watch } from 'vue';
 import { fetchNodeCount } from '../../../lib/api.js';
 import { useToastStore } from '../../../stores/toast.js';
+import { useI18n } from '../../../i18n/index.js';
 
 const { showToast } = useToastStore();
+const { t } = useI18n();
 
 // 使用独立的本地状态，防止用户清空输入框时开关自动跳回关闭状态
 const useFetchProxy = ref(false);
@@ -33,19 +35,24 @@ watch(useFetchProxy, (val) => {
 
 const testProxyConnectivity = async () => {
   if (!props.editingSubscription.fetchProxy || !props.editingSubscription.url) {
-    showToast('需要填入代理地址和订阅链接才能测试', 'warning');
+    showToast(t('subscriptions.proxyRequired'), 'warning');
     return;
   }
   isTestingProxy.value = true;
   try {
-    const res = await fetchNodeCount(props.editingSubscription.url, props.editingSubscription.fetchProxy);
+    const res = await fetchNodeCount(
+      props.editingSubscription.url,
+      props.editingSubscription.fetchProxy,
+      props.editingSubscription.plusAsSpace,
+      props.editingSubscription.customUserAgent
+    );
     if (res.success) {
-      showToast(`代理连通测试成功！获取到 ${res.data.count} 个节点`, 'success');
+      showToast(t('subscriptions.proxyTestSuccess', { count: res.data.count }), 'success');
     } else {
-      showToast(`代理测试失败: ${res.error}`, 'error');
+      showToast(t('subscriptions.proxyTestFailed', { message: res.error }), 'error');
     }
   } catch (err) {
-    showToast(`代理测试异常: ${err.message}`, 'error');
+    showToast(t('subscriptions.proxyTestError', { message: err.message }), 'error');
   } finally {
     isTestingProxy.value = false;
   }
@@ -58,8 +65,8 @@ const testProxyConnectivity = async () => {
     <Input 
       id="sub-edit-name" 
       v-model="editingSubscription.name" 
-      label="订阅名称"
-      placeholder="（可选）不填将自动获取"
+      :label="t('subscriptions.nameLabel')"
+      :placeholder="t('subscriptions.nameAutoPlaceholder')"
     />
   </div>
 
@@ -68,7 +75,7 @@ const testProxyConnectivity = async () => {
     <Input 
       id="sub-edit-url" 
       v-model="editingSubscription.url" 
-      label="订阅链接"
+      :label="t('subscriptions.urlLabel')"
       placeholder="https://..."
       class="font-mono"
     />
@@ -78,8 +85,8 @@ const testProxyConnectivity = async () => {
   <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
     <div class="flex items-center justify-between mb-2">
       <div>
-         <span class="text-sm font-medium text-gray-700 dark:text-gray-200">使用专属拉取代理 (Fetch Proxy)</span>
-         <p class="text-xs text-gray-500 mt-0.5">当该机场封锁了 CF IP 时开启</p>
+         <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('subscriptions.fetchProxyTitle') }}</span>
+         <p class="text-xs text-gray-500 mt-0.5">{{ t('subscriptions.fetchProxyDesc') }}</p>
       </div>
       <Switch v-model="useFetchProxy" />
     </div>
@@ -106,11 +113,11 @@ const testProxyConnectivity = async () => {
           <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          {{ isTestingProxy ? '测试中...' : '测试代理' }}
+          {{ isTestingProxy ? t('subscriptions.testing') : t('subscriptions.testProxy') }}
         </button>
       </div>
       <p class="text-[11px] text-indigo-600 dark:text-indigo-400">
-        所有针对此订阅拉取的链接都会拼接在此前缀之后。
+        {{ t('subscriptions.fetchProxyHint') }}
       </p>
     </div>
   </div>

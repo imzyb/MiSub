@@ -178,6 +178,30 @@ expect(result).toContain('sid=abc123')
                 expect(result).toBeTruthy()
                 expect(result).toMatch(/^hysteria2:\/\//)
             })
+
+            it('应保留Hysteria2 realm配置参数', () => {
+                const proxy = {
+                    name: 'Test Hy2 Realm',
+                    type: 'hysteria2',
+                    server: 'realm.hy2.io',
+                    port: 443,
+                    password: 'realm-id-value',
+                    'skip-cert-verify': true,
+                    'realm-opts': {
+                        enable: true,
+                        'server-url': 'https://realm.hy2.io',
+                        'realm-id': 'realm-id-value',
+                        token: 'public',
+                        'stun-servers': ['stun.sip.us:3478', 'stun.nextcloud.com:3478']
+                    }
+                }
+
+                const result = convertClashProxyToUrl(proxy)
+                expect(result).toContain('realm-id=realm-id-value')
+                expect(result).toContain('realm-token=public')
+                expect(result).toContain('realm-server=https%3A%2F%2Frealm.hy2.io')
+                expect(result).toContain('stun-servers=stun.sip.us%3A3478%2Cstun.nextcloud.com%3A3478')
+            })
         })
 
         describe('边界情况', () => {
@@ -188,13 +212,19 @@ expect(result).toContain('sid=abc123')
             })
 
             it('不支持的类型应返回null', () => {
-                const proxy = {
-                    name: 'Unknown',
-                    type: 'unknown-protocol',
-                    server: '1.2.3.4',
-                    port: 443
+                const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+                try {
+                    const proxy = {
+                        name: 'Unknown',
+                        type: 'unknown-protocol',
+                        server: '1.2.3.4',
+                        port: 443
+                    }
+                    expect(convertClashProxyToUrl(proxy)).toBeNull()
+                    expect(warnSpy).toHaveBeenCalledWith('不支持的代理类型: unknown-protocol')
+                } finally {
+                    warnSpy.mockRestore()
                 }
-                expect(convertClashProxyToUrl(proxy)).toBeNull()
             })
         })
     })

@@ -4,6 +4,9 @@ import ProfileCard from './ProfileCard.vue';
 import MoreActionsMenu from '@/components/shared/MoreActionsMenu.vue';
 import PanelPagination from '@/components/shared/PanelPagination.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import { useI18n } from '../../i18n/index.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   profiles: Array,
@@ -75,18 +78,18 @@ const handleMoveDown = (profileId) => {
       <div class="rounded-xl border border-gray-100/80 bg-white/85 shadow-sm dark:border-white/10 dark:bg-gray-900/70" :class="compact ? 'p-3' : 'p-4'">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div class="flex items-center gap-3 shrink-0">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white">我的订阅组</h2>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('profiles.title') }}</h2>
             <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">{{ profiles.length }}</span>
           </div>
           <div class="flex items-center gap-2 sm:w-auto justify-end sm:justify-start">
-            <button @click="handleAdd" class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700">新增</button>
+            <button @click="handleAdd" class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700">{{ t('actions.add') }}</button>
             <MoreActionsMenu :teleport-to-body="true" menu-width-class="w-36">
               <template #menu="{ close }">
                 <button @click="handleToggleSort(); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                  {{ isSorting ? '完成排序' : '手动排序' }}
+                  {{ isSorting ? t('actions.finishSort') : t('actions.manualSort') }}
                 </button>
                 <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                <button @click="handleDeleteAll(); close()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-500/10">清空</button>
+                <button @click="handleDeleteAll(); close()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-500/10">{{ t('actions.clearAll') }}</button>
               </template>
             </MoreActionsMenu>
           </div>
@@ -95,7 +98,7 @@ const handleMoveDown = (profileId) => {
     </div>
     <div v-if="profiles.length > 0">
       <div v-if="isSorting" class="mb-4 rounded-xl border border-indigo-200/70 bg-indigo-50/80 px-4 py-3 text-sm text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
-        当前为排序模式，已显示全部订阅组。使用卡片右下角的上下箭头调整顺序，完成后点击“完成排序”。
+        {{ t('profiles.sortingHint') }}
       </div>
       <div class="grid gap-4" :class="compact ? 'grid-cols-1' : (displayProfiles.length > 1 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')">
         <div 
@@ -132,8 +135,8 @@ const handleMoveDown = (profileId) => {
     </div>
     <div v-else class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-6 dark:border-gray-700 dark:bg-gray-900/50">
       <EmptyState 
-        title="没有订阅组" 
-        description="创建一个订阅组来组合你的节点吧！" 
+        :title="t('profiles.empty')" 
+        :description="t('profiles.emptyDesc')" 
         icon="folder" 
         :total-count="0" 
       />

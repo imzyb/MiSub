@@ -3,6 +3,7 @@ import {
     fixNodeUrlEncoding,
     fixSSEncoding,
     buildRuleSet,
+    parseFilterRuleText,
     filterNodeObjects,
     applyManualNodeName
 } from '../../functions/modules/utils/node-cleaner.js';
@@ -90,6 +91,21 @@ describe('Node Cleaner Utils', () => {
             const result = filterNodeObjects(nodes, rules, 'include');
             // Trojan (JP Node 3) + HK (HK Node 2)
             expect(result).toHaveLength(2);
+        });
+
+        it('should treat keep-prefixed protocol rules as include rules when parsing mixed text', () => {
+            const nodesWithHy2 = [
+                { protocol: 'vless', name: 'HK VLESS' },
+                { protocol: 'hysteria2', name: 'HK Hysteria2' }
+            ];
+            const { includeRules, excludeRules } = parseFilterRuleText('keep:proto:vless');
+
+            let result = nodesWithHy2;
+            if (includeRules.hasRules) result = filterNodeObjects(result, includeRules, 'include');
+            if (excludeRules.hasRules) result = filterNodeObjects(result, excludeRules, 'exclude');
+
+            expect(result).toHaveLength(1);
+            expect(result[0].protocol).toBe('vless');
         });
     });
 });

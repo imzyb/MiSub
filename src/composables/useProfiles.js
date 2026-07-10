@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore';
 import { useToastStore } from '../stores/toast';
 import { generateProfileId } from '../utils/id.js';
+import { t } from '../i18n/index.js';
 
 export function useProfiles(markDirty) {
   const { showToast } = useToastStore();
@@ -79,13 +80,13 @@ export function useProfiles(markDirty) {
 
   const handleSaveProfile = (profileData) => {
     if (!profileData || !profileData.name) {
-      showToast('订阅组名称不能为空', 'error');
+      showToast(t('profiles.nameRequired'), 'error');
       return;
     }
     if (profileData.customId) {
       profileData.customId = profileData.customId.replace(/[^a-zA-Z0-9-_]/g, '');
       if (profileData.customId && profiles.value.some(p => p.id !== profileData.id && p.customId === profileData.customId)) {
-        showToast(`自定义 ID "${profileData.customId}" 已存在`, 'error');
+        showToast(t('profiles.customIdExists', { id: profileData.customId }), 'error');
         return;
       }
     }
@@ -115,7 +116,7 @@ export function useProfiles(markDirty) {
   const copyProfileLink = (profileId) => {
     const token = settings.value?.profileToken;
     if (!token || token === 'auto' || !token.trim()) {
-      showToast('请在设置中配置一个固定的"订阅组分享Token"', 'error');
+      showToast(t('profiles.fixedTokenRequired'), 'error');
       return;
     }
     const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
@@ -126,8 +127,8 @@ export function useProfiles(markDirty) {
     // Clipboard API Fallback for non-secure contexts (http)
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link)
-        .then(() => showToast('订阅组分享链接已复制！', 'success'))
-        .catch(() => showToast('复制失败，请手动复制', 'error'));
+        .then(() => showToast(t('profiles.linkCopied'), 'success'))
+        .catch(() => showToast(t('publicProfiles.copyFailedManual'), 'error'));
     } else {
       // Fallback method
       const textArea = document.createElement("textarea");
@@ -145,12 +146,12 @@ export function useProfiles(markDirty) {
       try {
         const successful = document.execCommand('copy');
         if (successful) {
-          showToast('订阅组分享链接已复制！', 'success');
+          showToast(t('profiles.linkCopied'), 'success');
         } else {
-          showToast('复制失败，请手动复制', 'error');
+          showToast(t('publicProfiles.copyFailedManual'), 'error');
         }
       } catch (err) {
-        showToast('复制失败，请手动复制', 'error');
+        showToast(t('publicProfiles.copyFailedManual'), 'error');
       }
 
       document.body.removeChild(textArea);
@@ -161,7 +162,7 @@ export function useProfiles(markDirty) {
   const copyClashLink = (profileId) => {
     const token = settings.value?.profileToken;
     if (!token || token === 'auto' || !token.trim()) {
-      showToast('请在设置中配置一个固定的"订阅组分享Token"', 'error');
+      showToast(t('profiles.fixedTokenRequired'), 'error');
       return;
     }
     const profile = profiles.value.find(p => p.id === profileId || p.customId === profileId);
@@ -173,8 +174,8 @@ export function useProfiles(markDirty) {
     // Clipboard API Fallback for non-secure contexts (http)
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link)
-        .then(() => showToast('Clash 专用链接已复制！', 'success'))
-        .catch(() => showToast('复制失败，请手动复制', 'error'));
+        .then(() => showToast(t('profiles.clashLinkCopied'), 'success'))
+        .catch(() => showToast(t('publicProfiles.copyFailedManual'), 'error'));
     } else {
       // Fallback method
       const textArea = document.createElement("textarea");
@@ -191,12 +192,12 @@ export function useProfiles(markDirty) {
       try {
         const successful = document.execCommand('copy');
         if (successful) {
-          showToast('Clash 专用链接已复制！', 'success');
+          showToast(t('profiles.clashLinkCopied'), 'success');
         } else {
-          showToast('复制失败，请手动复制', 'error');
+          showToast(t('publicProfiles.copyFailedManual'), 'error');
         }
       } catch (err) {
-        showToast('复制失败，请手动复制', 'error');
+        showToast(t('publicProfiles.copyFailedManual'), 'error');
       }
 
       document.body.removeChild(textArea);

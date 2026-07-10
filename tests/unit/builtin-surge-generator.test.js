@@ -43,10 +43,9 @@ describe('Surge 内置生成器', () => {
             expect(result).toContain('password=');
         });
 
-        it('应处理 SS UDP', () => {
-            // SS URL 解析后的 Clash 对象中 udp=true
+        it('应在 SS 节点显式启用 UDP 时输出 udp-relay', () => {
             const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
-            const result = generateBuiltinSurgeConfig(ss);
+            const result = generateBuiltinSurgeConfig(ss, { enableUdp: true });
             expect(result).toContain('udp-relay=true');
         });
 
@@ -269,12 +268,14 @@ describe('Surge 内置生成器', () => {
                 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@9.10.11.12:8388#未知地区节点'
             ].join('\n');
             const result = generateBuiltinSurgeConfig(nodeList);
-            expect(result).toContain('🇭🇰 香港节点 = url-test');
-            expect(result).toContain('🇺🇸 美国节点 = url-test');
-            expect(result).not.toContain('🇯🇵 日本节点 = url-test'); // 不包含未匹配的地区
+            expect(result).toContain('🇭🇰 香港节点 = select');
+            expect(result).toContain('🇺🇸 美国节点 = select');
+            expect(result).not.toContain('🇯🇵 日本节点 = select'); // 不包含未匹配的地区
+            expect(result).toContain('⚡️ 🇭🇰 香港 - 自动测速 = url-test');
+            expect(result).toContain('⚡️ 🇺🇸 美国 - 自动测速 = url-test');
             
-            // 主分组应包含地区分组和所有节点
-            expect(result).toContain('🚀 节点选择 = select, 🇭🇰 香港节点, 🇺🇸 美国节点, ♻️ 自动选择');
+            // 主分组应包含地区分组和默认策略
+            expect(result).toContain('🚀 节点选择 = select, ♻️ 自动选择, 🔯 故障转移, 👋 手动切换, 🇭🇰 香港节点, 🇺🇸 美国节点');
         });
     });
 

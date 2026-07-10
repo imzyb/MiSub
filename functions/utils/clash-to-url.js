@@ -6,6 +6,16 @@ function base64UrlSafeEncode(str) {
     return base64Encode(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function appendHysteria2RealmParams(params, realmOpts) {
+    if (!realmOpts || typeof realmOpts !== 'object') return;
+    if (realmOpts['realm-id']) params.push(`realm-id=${encodeURIComponent(realmOpts['realm-id'])}`);
+    if (realmOpts.token) params.push(`realm-token=${encodeURIComponent(realmOpts.token)}`);
+    if (realmOpts['server-url']) params.push(`realm-server=${encodeURIComponent(realmOpts['server-url'])}`);
+    if (Array.isArray(realmOpts['stun-servers']) && realmOpts['stun-servers'].length > 0) {
+        params.push(`stun-servers=${encodeURIComponent(realmOpts['stun-servers'].join(','))}`);
+    }
+}
+
 export function convertClashProxyToUrl(proxy) {
     try {
         const type = (proxy.type || '').toLowerCase();
@@ -18,14 +28,14 @@ export function convertClashProxyToUrl(proxy) {
         if (type === 'ss' || type === 'shadowsocks') {
             const userInfo = base64Encode(`${proxy.cipher}:${proxy.password}`);
             let url = `ss://${userInfo}@${server}:${port}`;
-            if (proxy.plugin === 'anytls' || proxy.plugin === 'obfs-local') {
+            if (proxy.plugin) {
                 const params = [];
-                if (proxy.plugin) params.push(`plugin=${proxy.plugin}`);
+                params.push(`plugin=${encodeURIComponent(proxy.plugin)}`);
                 const pluginOpts = proxy['plugin-opts'];
                 if (pluginOpts) {
                     if (pluginOpts.enabled !== undefined) params.push(`enabled=${pluginOpts.enabled}`);
                     if (pluginOpts.padding !== undefined) params.push(`padding=${pluginOpts.padding}`);
-                    if (pluginOpts.mode) params.push(`obfs=${pluginOpts.mode}`);
+                    if (pluginOpts.mode) params.push(`obfs=${encodeURIComponent(pluginOpts.mode)}`);
                     if (pluginOpts.host) params.push(`obfs-host=${encodeURIComponent(pluginOpts.host)}`);
                 }
                 if (params.length > 0) url += `?${params.join('&')}`;
@@ -112,6 +122,11 @@ export function convertClashProxyToUrl(proxy) {
                 if (wsOpts.path) params.push(`path=${encodeURIComponent(wsOpts.path)}`);
                 if (wsOpts.headers?.Host) params.push(`host=${encodeURIComponent(wsOpts.headers.Host)}`);
             }
+            const grpcOpts = proxy.grpcOpts || proxy['grpc-opts'];
+            if (grpcOpts) {
+                if (grpcOpts['grpc-service-name']) params.push(`serviceName=${encodeURIComponent(grpcOpts['grpc-service-name'])}`);
+                if (grpcOpts['grpc-mode']) params.push(`mode=${encodeURIComponent(grpcOpts['grpc-mode'])}`);
+            }
             const httpupgradeOpts = proxy['httpupgrade-opts'] || proxy.httpupgradeOpts;
             if (httpupgradeOpts) {
                 if (httpupgradeOpts.path) params.push(`path=${encodeURIComponent(httpupgradeOpts.path)}`);
@@ -141,6 +156,7 @@ export function convertClashProxyToUrl(proxy) {
             if (proxy['obfs-password']) params.push(`obfs-password=${encodeURIComponent(proxy['obfs-password'])}`);
             if (proxy.sni !== undefined) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
             if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('insecure=1');
+            appendHysteria2RealmParams(params, proxy['realm-opts']);
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `hysteria2://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
         }
@@ -204,6 +220,8 @@ export function convertClashProxyToUrl(proxy) {
                 params.push(`alpn=${encodeURIComponent(alpn)}`);
             }
             if (proxy['skip-cert-verify']) params.push('insecure=1');
+            const pinnedPeerCertSha256 = proxy.pinnedPeerCertSha256 || proxy['pinned-peer-cert-sha256'] || proxy['peer-cert-sha256'] || proxy.certSha256;
+            if (pinnedPeerCertSha256) params.push(`pinnedPeerCertSha256=${encodeURIComponent(pinnedPeerCertSha256)}`);
             if (proxy.padding !== undefined) params.push(`padding=${proxy.padding}`);
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `anytls://${encodeURIComponent(password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
@@ -211,8 +229,10 @@ export function convertClashProxyToUrl(proxy) {
 
         if (type === 'tuic') {
             const uuid = proxy.uuid || '';
-            const password = proxy.password || '';
-            const auth = password ? `${uuid}:${password}` : uuid;
+            const password = proxy.password || proxy.token || '';
+            const auth = password
+                ? `${encodeURIComponent(uuid)}:${encodeURIComponent(password)}`
+                : encodeURIComponent(uuid);
             const params = [];
             if (proxy.sni !== undefined) params.push(`sni=${encodeURIComponent(proxy.sni)}`);
             if (proxy.alpn) {
@@ -220,8 +240,21 @@ export function convertClashProxyToUrl(proxy) {
                 params.push(`alpn=${encodeURIComponent(alpn)}`);
             }
             if (proxy['skip-cert-verify']) params.push('allow_insecure=1');
-            if (proxy['congestion-controller']) params.push(`congestion_control=${encodeURIComponent(proxy['congestion-controller'])}`);
+            const congestionControl = proxy['congestion-controller'] || proxy['congestion-control'] || proxy.congestion;
+            if (congestionControl) params.push(`congestion_control=${encodeURIComponent(congestionControl)}`);
             if (proxy['udp-relay-mode']) params.push(`udp_relay_mode=${encodeURIComponent(proxy['udp-relay-mode'])}`);
+            if (proxy['udp-over-stream'] !== undefined) params.push(`udp_over_stream=${proxy['udp-over-stream'] ? '1' : '0'}`);
+            if (proxy['zero-rtt-handshake'] !== undefined) params.push(`zero_rtt_handshake=${proxy['zero-rtt-handshake'] ? '1' : '0'}`);
+            else if (proxy['reduce-rtt'] !== undefined) params.push(`zero_rtt_handshake=${proxy['reduce-rtt'] ? '1' : '0'}`);
+            if (proxy.heartbeat) params.push(`heartbeat=${encodeURIComponent(proxy.heartbeat)}`);
+            if (proxy['heartbeat-interval']) params.push(`heartbeat_interval=${encodeURIComponent(proxy['heartbeat-interval'])}`);
+            if (proxy['request-timeout']) params.push(`request_timeout=${encodeURIComponent(String(proxy['request-timeout']))}`);
+            if (proxy.cwnd) params.push(`cwnd=${encodeURIComponent(String(proxy.cwnd))}`);
+            if (proxy['bbr-profile']) params.push(`bbr_profile=${encodeURIComponent(proxy['bbr-profile'])}`);
+            if (proxy['max-udp-relay-packet-size']) params.push(`max_udp_relay_packet_size=${encodeURIComponent(String(proxy['max-udp-relay-packet-size']))}`);
+            if (proxy['max-open-streams']) params.push(`max_open_streams=${encodeURIComponent(String(proxy['max-open-streams']))}`);
+            if (proxy['disable-sni'] !== undefined) params.push(`disable_sni=${proxy['disable-sni'] ? '1' : '0'}`);
+            if (proxy['fast-open'] !== undefined) params.push(`fast_open=${proxy['fast-open'] ? '1' : '0'}`);
             if (proxy['dialer-proxy']) params.push(`dp=${encodeURIComponent(proxy['dialer-proxy'])}`);
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `tuic://${auth}@${server}:${port}${query}#${encodeURIComponent(name)}`;

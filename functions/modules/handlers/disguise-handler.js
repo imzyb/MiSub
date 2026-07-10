@@ -40,11 +40,14 @@ export async function handleDisguiseRequest(context, preloadedSettings = null) {
     // This bypasses the Disguise check.
     const customLoginPath = normalizeLoginPath(settings?.customLoginPath);
     const defaultLoginPath = '/login';
-    if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath) {
-        return new Response(null, {
-            status: 302,
-            headers: { Location: customLoginPath }
-        });
+    const hasCustomLoginPath = customLoginPath !== defaultLoginPath;
+
+    // [Fix #400] 当设置了自定义登录路径后，访问 /login 不应重定向到自定义路径，
+    // 否则会暴露隐藏的管理入口。直接返回 disguise 页面或 404。
+    if (hasCustomLoginPath && url.pathname === defaultLoginPath) {
+        const disguiseResponse = createDisguiseResponse(settings?.disguise, request.url);
+        if (disguiseResponse) return disguiseResponse;
+        return new Response('Not Found', { status: 404 });
     }
     if (url.pathname === customLoginPath) {
         return null; // Allow access to custom login path

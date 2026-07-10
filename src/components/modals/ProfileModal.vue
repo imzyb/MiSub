@@ -7,7 +7,9 @@ import NodeSelector from './ProfileModal/NodeSelector.vue';
 import { useManualNodes } from '../../composables/useManualNodes.js';
 import { useDataStore } from '../../stores/useDataStore.js';
 import { useSettingsStore } from '../../stores/settings.js';
+import { useI18n } from '@/i18n/index.js';
 
+const { t } = useI18n();
 const dataStore = useDataStore();
 const settingsStore = useSettingsStore();
 const { manualNodeGroups } = useManualNodes(dataStore.markDirty);
@@ -27,24 +29,24 @@ const subscriptionSearchTerm = ref('');
 const nodeSearchTerm = ref('');
 const activeManualNodeGroupFilter = ref(null);
 const showAdvanced = ref(false);
-const uiText = {
-  prefixTitle: '\u8282\u70b9\u524d\u7f00\u8bbe\u7f6e',
-  manualPrefixLabel: '\u624b\u52a8\u8282\u70b9\u524d\u7f00',
-  manualPrefixToggle: '\u624b\u52a8\u8282\u70b9\u524d\u7f00',
-  subscriptionPrefixToggle: '\u673a\u573a\u8ba2\u9605\u524d\u7f00',
-  enable: '\u542f\u7528',
-  disable: '\u7981\u7528'
-};
+const uiText = computed(() => ({
+  prefixTitle: t('profileModal.nodeNameVisibility'),
+  manualPrefixLabel: t('profileModal.manualPrefixText'),
+  manualPrefixToggle: t('profileModal.manualNodeDisplay'),
+  subscriptionPrefixToggle: t('profileModal.subscriptionPrefix'),
+  enable: t('profiles.optionEnabled'),
+  disable: t('profiles.optionDisabled')
+}));
 const prefixToggleOptions = [
-{ label: '默认(全局)', value: null },
-{ label: '启用', value: true },
-{ label: '禁用', value: false }
+{ label: t('profiles.globalDefault'), value: null },
+{ label: t('profiles.optionEnabled'), value: true },
+{ label: t('profiles.optionDisabled'), value: false }
 ];
 
 const groupPrefixToggleOptions = [
-{ label: '默认(全局)', value: null },
-{ label: '启用', value: true },
-{ label: '禁用', value: false }
+{ label: t('profiles.globalDefault'), value: null },
+{ label: t('profiles.optionEnabled'), value: true },
+{ label: t('profiles.optionDisabled'), value: false }
 ];
 
 
@@ -302,9 +304,9 @@ const updateSelectedIds = (listName, newIds) => {
         </div>
         <div>
           <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-            {{ isNew ? '新增订阅组' : '编辑订阅组' }}
+            {{ isNew ? t('profiles.addTitle') : t('profiles.editTitle') }}
           </h3>
-          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">统一管理订阅组基础信息、节点来源和处理规则。</p>
+          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('profiles.modalDescription') }}</p>
         </div>
       </div>
     </template>

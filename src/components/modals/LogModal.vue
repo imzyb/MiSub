@@ -6,6 +6,7 @@ import Modal from '../forms/Modal.vue';
 import { useToastStore } from '../../stores/toast';
 import { getClientInfo } from '../../lib/utils';
 import { api } from '../../lib/http.js';
+import { useI18n } from '../../i18n/index.js';
 
 const props = defineProps({
   show: Boolean,
@@ -18,6 +19,7 @@ const props = defineProps({
 const emit = defineEmits(['update:show']);
 
 const { showToast } = useToastStore();
+const { t, locale } = useI18n();
 const logs = ref([]);
 const isLoading = ref(false);
 const expandedLogId = ref(null);
@@ -49,28 +51,28 @@ const fetchLogs = async () => {
         // Reset to first page on refresh
         currentPage.value = 1;
     } catch (e) {
-        showToast('获取日志失败', 'error');
+        showToast(t('logs.fetchFailed'), 'error');
     } finally {
         isLoading.value = false;
     }
 };
 
 const clearLogs = async () => {
-    if (!confirm('确定要清空所有日志吗？')) return;
+    if (!confirm(t('logs.clearConfirm'))) return;
     
     try {
         await api.del('/api/logs');
         logs.value = [];
         currentPage.value = 1;
-        showToast('日志已清空', 'success');
+        showToast(t('logs.clearSuccess'), 'success');
     } catch (e) {
-        showToast('清空日志失败', 'error');
+        showToast(t('logs.clearFailed'), 'error');
     }
 };
 
 const formatTime = (ts) => {
     if (!ts) return '-';
-    return new Date(ts).toLocaleString('zh-CN', { hour12: false });
+    return new Date(ts).toLocaleString(locale.value, { hour12: false });
 };
 
 const toggleExpand = (id) => {
@@ -109,17 +111,17 @@ watch(() => props.show, (newVal) => {
     >
         <template #title>
              <div class="flex justify-between items-center w-full">
-                <span class="text-lg font-bold text-gray-900 dark:text-white">订阅访问日志</span>
+                <span class="text-lg font-bold text-gray-900 dark:text-white">{{ t('logs.title') }}</span>
                  <div class="flex gap-2">
                     <button 
                     @click="fetchLogs" 
                     class="text-xs px-2 py-1 misub-radius-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300">
-                        刷新
+                        {{ t('common.refresh') }}
                     </button>
                     <button 
                     @click="clearLogs" 
                     class="text-xs px-2 py-1 misub-radius-md bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors text-red-600 dark:text-red-400">
-                        清空
+                        {{ t('common.clear') }}
                     </button>
                 </div>
             </div>
@@ -133,14 +135,14 @@ watch(() => props.show, (newVal) => {
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        加载中...
+                        {{ t('common.loading') }}
                     </div>
                     <div v-else-if="filteredLogs.length === 0" class="py-16 text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
                         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            {{ filterProfileName ? '该订阅暂无日志记录' : '暂无日志记录' }}
+                            {{ filterProfileName ? t('logs.emptyForProfile') : t('logs.empty') }}
                         </p>
                     </div>
                     <ul v-else class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -166,12 +168,12 @@ watch(() => props.show, (newVal) => {
                                     <!-- Compact Info Rows -->
                                     <div class="flex justify-between items-center">
                                          <div class="flex items-center gap-1.5 opacity-80">
-                                            <span class="text-[10px] px-1 py-px rounded bg-gray-100 dark:bg-gray-700 text-gray-500 min-w-[24px] text-center">时间</span>
+                                            <span class="text-[10px] px-1 py-px rounded bg-gray-100 dark:bg-gray-700 text-gray-500 min-w-[24px] text-center">{{ t('logs.time') }}</span>
                                             <span class="font-mono text-[10px]">{{ formatTime(log.timestamp) }}</span>
                                          </div>
                                     </div>
                                     <div class="flex items-center gap-1.5 opacity-80">
-                                        <span class="text-[10px] px-1 py-px rounded bg-gray-100 dark:bg-gray-700 text-gray-500 min-w-[24px] text-center">位置</span>
+                                        <span class="text-[10px] px-1 py-px rounded bg-gray-100 dark:bg-gray-700 text-gray-500 min-w-[24px] text-center">{{ t('logs.location') }}</span>
                                         <span class="truncate">
                                            {{ log.geoInfo?.country || 'Unknown' }} 
                                            <span v-if="log.geoInfo?.city" class="text-gray-500 dark:text-gray-400 text-[10px]"> / {{ log.geoInfo.city }}</span>
@@ -191,13 +193,13 @@ watch(() => props.show, (newVal) => {
                                             <span class="text-gray-700 dark:text-gray-300 truncate">{{ log.geoInfo?.isp || '-' }} ({{ log.geoInfo?.asn ? 'AS' + log.geoInfo.asn : '-' }})</span>
                                         </div>
                                         <div class="flex">
-                                            <span class="text-gray-400 w-16 shrink-0">耗时:</span>
+                                            <span class="text-gray-400 w-16 shrink-0">{{ t('logs.duration') }}:</span>
                                             <span class="text-gray-700 dark:text-gray-300">{{ log.details?.duration || 0 }} ms</span>
                                         </div>
                                         <div class="flex col-span-1 sm:col-span-2">
-                                            <span class="text-gray-400 w-16 shrink-0">节点数:</span>
+                                            <span class="text-gray-400 w-16 shrink-0">{{ t('logs.nodes') }}:</span>
                                             <span class="text-gray-700 dark:text-gray-300 truncate">
-                                                总计 {{ log.details?.totalNodes || 0 }} (源: {{ log.details?.sourceCount || 0 }}, 成功: {{ log.details?.successCount || 0 }})
+                                                {{ t('logs.nodeSummary', { total: log.details?.totalNodes || 0, sources: log.details?.sourceCount || 0, success: log.details?.successCount || 0 }) }}
                                             </span>
                                         </div>
                                         <div class="flex col-span-1 sm:col-span-2">
@@ -218,7 +220,7 @@ watch(() => props.show, (newVal) => {
                 <!-- Pagination Footer -->
                 <div v-if="filteredLogs.length > 0" class="pt-4 mt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center shrink-0">
                     <span class="text-sm text-gray-500 dark:text-gray-400">
-                        第 {{ currentPage }} 页 / 共 {{ totalPages }} 页 ({{ filteredLogs.length }} 条)
+                        {{ t('logs.pageSummary', { current: currentPage, total: totalPages, count: filteredLogs.length }) }}
                     </span>
                     <div class="flex gap-2">
                         <button 
@@ -226,14 +228,14 @@ watch(() => props.show, (newVal) => {
                             :disabled="currentPage === 1"
                             class="px-3 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            上一页
+                            {{ t('common.previousPage') }}
                         </button>
                         <button 
                             @click="nextPage" 
                             :disabled="currentPage === totalPages"
                             class="px-3 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            下一页
+                            {{ t('common.nextPage') }}
                         </button>
                     </div>
                 </div>

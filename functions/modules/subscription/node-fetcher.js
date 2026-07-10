@@ -1,8 +1,9 @@
 import { parseNodeList } from '../utils/node-parser.js';
 import { fetchWithRetry } from '../../services/fetch-utils.js';
+import { buildFetchProxyUrl } from '../../utils/fetch-proxy-utils.js';
 import {
     filterNodeObjects,
-    buildRuleSet,
+    parseFilterRuleText,
     encodeArrayBufferToBase64
 } from '../utils/node-cleaner.js';
 
@@ -18,7 +19,7 @@ import {
  * @param {boolean} plusAsSpace - 是否将名称中的 + 视为空格
  * @returns {Promise<Object>} 节点获取结果
  */
-export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null, skipCertVerify = false, plusAsSpace = false) {
+export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null, skipCertVerify = false, plusAsSpace = false, enableNodeCache = false) {
     // 自动检测调试 Token
     const shouldDebug = debug || (url && url.includes('b0b422857bb46aba65da8234c84f38c6'));
 
@@ -29,8 +30,20 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
 
         // 当配置了 fetchProxy 时，使用代理拉取订阅
         let requestUrl = url;
+        
+        // 只有开启保护性缓存节点时才加时间戳绕过强缓存 (如 Cloudflare Edge Cache)
+        if (enableNodeCache) {
+            try {
+                const parsedUrl = new URL(requestUrl);
+                parsedUrl.searchParams.set('_t', Date.now().toString());
+                requestUrl = parsedUrl.toString();
+            } catch (e) {
+                requestUrl += (requestUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+            }
+        }
+
         if (fetchProxy && typeof fetchProxy === 'string' && fetchProxy.trim()) {
-            requestUrl = fetchProxy.trim() + encodeURIComponent(url);
+            requestUrl = buildFetchProxyUrl(fetchProxy, url, effectiveUserAgent);
         }
 
         // 使用统一的 Fetch 工具，复用重试逻辑
@@ -95,21 +108,7 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
  */
 function applyExcludeRulesToNodes(nodes, ruleText) {
     if (!ruleText || !ruleText.trim()) return nodes;
-    const lines = ruleText
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean);
-
-    if (lines.length === 0) return nodes;
-
-    const dividerIndex = lines.findIndex(line => line === '---');
-    // 如果没有分隔符，默认全是 exclude
-    const includeLines = dividerIndex === -1 ? [] : lines.slice(dividerIndex + 1);
-    const excludeLines = dividerIndex === -1 ? lines : lines.slice(0, dividerIndex);
-
-    // 使用 node-cleaner 中导出的 buildRuleSet
-    const includeRules = buildRuleSet(includeLines, true);
-    const excludeRules = buildRuleSet(excludeLines);
+    const { includeRules, excludeRules } = parseFilterRuleText(ruleText);
 
     let resultNodes = nodes;
 

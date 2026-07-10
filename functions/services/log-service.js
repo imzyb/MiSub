@@ -15,6 +15,35 @@ const SUCCESS_LOG_COOLDOWN_MS = 5 * 60 * 1000;
 const ERROR_LOG_COOLDOWN_MS = 60 * 1000;
 const MAX_PERSISTED_LOGS_PER_MINUTE = 12;
 
+export function anonymizeLogToken(value, type = 'token') {
+    const text = String(value ?? '');
+    const normalizedType = type === 'profile' ? 'profile' : 'token';
+    if (!text) return '';
+    if (new RegExp(`^${normalizedType}:[a-f0-9]{12}$`).test(text)) return text;
+
+    let hash1 = 0x811c9dc5;
+    let hash2 = 0x01000193;
+    for (let i = 0; i < text.length; i += 1) {
+        const code = text.charCodeAt(i);
+        hash1 ^= code;
+        hash1 = Math.imul(hash1, 0x01000193) >>> 0;
+        hash2 ^= code + i;
+        hash2 = Math.imul(hash2, 0x811c9dc5) >>> 0;
+    }
+
+    const fingerprint = `${hash1.toString(16).padStart(8, '0')}${hash2.toString(16).padStart(8, '0')}`.slice(0, 12);
+    return `${normalizedType}:${fingerprint}`;
+}
+
+function sanitizeLogEntry(logEntry = {}) {
+    const type = logEntry?.type === 'profile' ? 'profile' : 'token';
+    return {
+        ...logEntry,
+        type,
+        token: anonymizeLogToken(logEntry?.token, type)
+    };
+}
+
 async function resolvePrimaryLogStorage(env) {
     const storageType = await StorageFactory.getStorageType(env);
     const storage = StorageFactory.createAdapter(env, storageType);
@@ -94,7 +123,7 @@ function cleanupLogBudgets(now = Date.now()) {
 
 function getLogFingerprint(logEntry) {
     const type = logEntry?.type || 'unknown';
-    const token = logEntry?.token || 'unknown';
+    const token = anonymizeLogToken(logEntry?.token || 'unknown', type);
     const format = logEntry?.format || 'unknown';
     const status = logEntry?.status || 'unknown';
     const domain = logEntry?.domain || 'unknown';
@@ -138,12 +167,13 @@ export const LogService = {
     async addLog(env, logEntry) {
         const primaryStorage = await resolvePrimaryLogStorage(env);
         if (!primaryStorage) return;
-        if (!shouldPersistLog(logEntry)) return null;
+        const sanitizedLogEntry = sanitizeLogEntry(logEntry);
+        if (!shouldPersistLog(sanitizedLogEntry)) return null;
 
         const enrichedLog = {
             id: crypto.randomUUID(),
             timestamp: Date.now(),
-            ...logEntry
+            ...sanitizedLogEntry
         };
 
         // 放入全局内存队列

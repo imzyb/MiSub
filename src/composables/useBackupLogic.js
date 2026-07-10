@@ -1,53 +1,52 @@
-import { useDataStore } from '../stores/useDataStore.js';
 import { useToastStore } from '../stores/toast.js';
-import { storeToRefs } from 'pinia';
-import { useManualNodes } from './useManualNodes.js';
+import { api } from '../lib/http.js';
+import { t } from '../i18n/index.js';
 
 /**
  * 备份和恢复逻辑 composable
- * 提供统一的数据备份和恢复功能
- * 用于设置模块、Dashboard 等所有需要备份功能的地方
+ *
+ * 本地导出/导入与 WebDAV 备份/恢复共用后端统一备份格式：
+ * - dataOnly：订阅/手动节点/订阅组/自定义规则模板
+ * - dataAndSettings：dataOnly + 设置（后端会排除 WebDAV 配置本身和运行密钥）
  */
 export function useBackupLogic() {
-    const dataStore = useDataStore();
     const { showToast } = useToastStore();
-    const { subscriptions, profiles } = storeToRefs(dataStore);
-    const { manualNodes } = useManualNodes(() => { });
+
+    const downloadJson = (data, filename) => {
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
 
     /**
-     * 导出备份
-     * 将订阅、手动节点和配置文件导出为 JSON 文件
+     * 导出本地备份。
+     * 默认导出“仅数据”，避免把设置/Token 带入普通本地备份；WebDAV UI 可单独选择范围。
      */
-    const exportBackup = () => {
+    const exportBackup = async (scope = 'dataOnly') => {
         try {
-            const backupData = {
-                subscriptions: (subscriptions.value || []).filter(item => item.url && /^https?:\/\//.test(item.url)),
-                manualNodes: (manualNodes.value || []),
-                profiles: profiles.value || [],
-            };
-
-            const jsonString = JSON.stringify(backupData, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
+            const result = await api.post('/api/backup/export', { scope });
+            if (!result?.success || !result.exportData) {
+                throw new Error(result?.message || t('backup.exportFailed'));
+            }
             const timestamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
-            a.download = `misub-backup-${timestamp}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showToast('备份已成功导出', 'success');
+            downloadJson(result.exportData, `misub-backup-${result.exportData.scope || scope}-${timestamp}.json`);
+            showToast(t('backup.exportSuccess'), 'success');
         } catch (error) {
             console.error('Backup export failed:', error);
-            showToast('备份导出失败', 'error');
+            showToast(t('backup.exportFailedWithMessage', { message: error.message }), 'error');
         }
     };
 
     /**
-     * 导入备份
-     * 从 JSON 文件恢复订阅、手动节点和配置文件
+     * 导入本地备份。
+     * 后端执行集合级恢复，不会清空整个 KV/D1；旧版本地备份格式也由后端兼容。
      */
     const importBackup = () => {
         const input = document.createElement('input');
@@ -58,22 +57,22 @@ export function useBackupLogic() {
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!data || !Array.isArray(data.subscriptions)) {
-                        throw new Error('无效的备份文件格式');
-                    }
+                    const scope = data?.scope || 'dataOnly';
+                    const scopeLabel = scope === 'dataAndSettings' ? t('backup.scopeDataAndSettings') : t('backup.scopeDataOnly');
+                    const message = t('backup.restoreConfirm', { scope: scopeLabel });
+                    if (!confirm(message)) return;
 
-                    if (confirm('确定要从备份中恢复吗？所有当前数据将被覆盖。')) {
-                        const merged = [...(data.subscriptions || []), ...(data.manualNodes || [])];
-                        dataStore.overwriteSubscriptions(merged);
-                        dataStore.overwriteProfiles(data.profiles || []);
-                        dataStore.markDirty();
-                        showToast('数据已恢复,请保存', 'success');
+                    const result = await api.post('/api/backup/restore', { payload: data, scope });
+                    if (!result?.success) {
+                        throw new Error(result?.message || t('backup.restoreFailed'));
                     }
+                    showToast(t('backup.restoreSuccess'), 'success');
+                    setTimeout(() => window.location.reload(), 800);
                 } catch (err) {
-                    showToast('导入失败: ' + err.message, 'error');
+                    showToast(t('backup.importFailedWithMessage', { message: err.message }), 'error');
                 }
             };
             reader.readAsText(file);

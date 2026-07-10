@@ -12,11 +12,54 @@ import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
  */
 export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard|naive\+https?|naive\+quic):\/\//i;
 
+function normalizeBase64(input) {
+    let normalized = String(input || '').replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    const padding = normalized.length % 4;
+    if (padding) normalized += '='.repeat(4 - padding);
+    return normalized;
+}
+
+function base64UrlSafeEncodeUtf8(str) {
+    return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlSafeDecodeUtf8(str) {
+    return decodeURIComponent(escape(atob(normalizeBase64(str))));
+}
+
+function updateSsrRemarks(link, updater) {
+    if (!link || !link.toLowerCase().startsWith('ssr://')) return link;
+    try {
+        const rawPayload = link.substring('ssr://'.length).split('#')[0];
+        const decoded = base64UrlSafeDecodeUtf8(rawPayload);
+        const queryMarker = '/?';
+        const queryIndex = decoded.indexOf(queryMarker);
+        if (queryIndex === -1) return link;
+
+        const mainPart = decoded.substring(0, queryIndex + queryMarker.length);
+        const params = new URLSearchParams(decoded.substring(queryIndex + queryMarker.length));
+        const oldRemarks = params.get('remarks') ? base64UrlSafeDecodeUtf8(params.get('remarks')) : '';
+        const newRemarks = updater(oldRemarks);
+        if (!newRemarks || newRemarks === oldRemarks) return `ssr://${base64UrlSafeEncodeUtf8(decoded)}`;
+        params.set('remarks', base64UrlSafeEncodeUtf8(newRemarks));
+        return `ssr://${base64UrlSafeEncodeUtf8(mainPart + params.toString())}`;
+    } catch (e) {
+        return link;
+    }
+}
+
 /**
  * 为节点名称添加前缀
  */
 export function prependNodeName(link, prefix) {
     if (!prefix) return link;
+
+    if (link?.toLowerCase?.().startsWith('ssr://')) {
+        return updateSsrRemarks(link, (originalName) => {
+            if (originalName.startsWith(prefix)) return originalName;
+            return originalName ? `${prefix} - ${originalName}` : prefix;
+        });
+    }
 
     const appendToFragment = (baseLink, namePrefix) => {
         const hashIndex = baseLink.lastIndexOf('#');
@@ -74,6 +117,7 @@ export function extractRegionFromNodeName(nodeName) {
  * 为节点链接添加国旗 Emoji
  */
 export function addFlagEmoji(link) {
+    if (!link) return link;
     const appendEmoji = (name) => {
         if (!name) return name;
         
@@ -86,6 +130,10 @@ export function addFlagEmoji(link) {
         
         return `${metadata.flag} ${name}`;
     };
+
+    if (link.toLowerCase().startsWith('ssr://')) {
+        return updateSsrRemarks(link, appendEmoji);
+    }
 
     if (link.startsWith('vmess://')) {
         try {

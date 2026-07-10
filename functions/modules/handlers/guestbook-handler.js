@@ -4,7 +4,7 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse, createErrorResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 import { sendTgNotification } from '../notifications.js';
 import { KV_KEY_GUESTBOOK, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 
@@ -118,7 +118,7 @@ export async function handleGuestbookPost(request, env) {
             return createErrorResponse('留言板功能未启用', 403);
         }
 
-        const body = await request.json();
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
         const { nickname, content, type } = body;
 
         // 基础验证
@@ -170,7 +170,7 @@ export async function handleGuestbookPost(request, env) {
 
     } catch (e) {
         console.error('[Guestbook Error] Post:', e);
-        return createErrorResponse('提交留言失败', 500);
+        return createErrorResponse(e.status === 413 ? e.message : '提交留言失败', e.status || 500);
     }
 }
 
@@ -203,7 +203,7 @@ export async function handleGuestbookManageGet(env) {
  */
 export async function handleGuestbookManageAction(request, env) {
     try {
-        const body = await request.json();
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
         const { action, id, replyContent } = body; // action: 'reply' | 'delete' | 'toggle' | 'update_status'
 
         const storageAdapter = await getStorageAdapter(env);
@@ -253,6 +253,6 @@ export async function handleGuestbookManageAction(request, env) {
 
     } catch (e) {
         console.error('[Guestbook Manage Error] Action:', e);
-        return createErrorResponse(`操作失败: ${e.message}`, 500);
+        return createErrorResponse(`操作失败: ${e.message}`, e.status || 500);
     }
 }

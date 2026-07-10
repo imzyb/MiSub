@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 //
 // src/lib/utils.js
 //
@@ -112,7 +113,7 @@ export function extractHostAndPort(url) {
 
     try {
         const protocolEndIndex = url.indexOf('://');
-        if (protocolEndIndex === -1) throw new Error('无效的 URL：缺少协议头');
+        if (protocolEndIndex === -1) throw new Error(t('utils.invalidUrlMissingProtocol'));
 
         const protocol = url.substring(0, protocolEndIndex);
 
@@ -190,11 +191,11 @@ export function extractHostAndPort(url) {
             return { host: serverPart, port: '' };
         }
 
-        throw new Error('自定义解析失败');
+        throw new Error(t('utils.customParseFailed'));
 
     } catch (e) {
         console.error("提取主机和端口失败:", url, e);
-        return { host: '解析失败', port: 'N/A' };
+        return { host: t('utils.parseHostFailed'), port: 'N/A' };
     }
 }
 
@@ -263,14 +264,14 @@ export function getClientInfo(userAgent) {
         ua.includes('safari') ||
         ua.includes('edge') ||
         ua.includes('mozilla')
-    ) return { name: '浏览器', className: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300' };
+    ) return { name: t('utils.browser'), className: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300' };
 
     if (
         ua.includes('curl') ||
         ua.includes('wget') ||
         ua.includes('python') ||
         ua.includes('go-http-client')
-    ) return { name: '命令行', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' };
+    ) return { name: t('utils.commandLine'), className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' };
 
     return { name: 'Other', className: 'bg-gray-50 text-gray-500 dark:bg-gray-800/50 dark:text-gray-500' };
 }

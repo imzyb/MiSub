@@ -67,6 +67,8 @@ function clashProxyToSurgeResult(proxy) {
 
     const name = sanitizeNodeName(proxy.name);
     const type = (proxy.type || '').toLowerCase();
+    if (type === 'vless') return null;
+
     const server = proxy.server;
     const port = proxy.port;
 
@@ -246,37 +248,6 @@ function clashProxyToSurgeResult(proxy) {
         // SOCKS5 的 UDP 需要手动开启
         if (proxy.udp) parts.push('udp-relay=true');
         if (type === 'socks5-tls') appendTlsParams(parts, proxy);
-    } else if (type === 'vless') {
-        // 解锁 VLESS 支持，即使原生 Surge 不直接解析，也能通过第三方模块或特定版本使用，且防止节点丢失
-        parts.push(`${name} = vless`);
-        parts.push(server);
-        parts.push(String(port));
-        parts.push(`username=${proxy.uuid || ''}`);
-
-        // TLS / Reality 支持
-        const isReality = proxy.security === 'reality' || !!proxy['reality-opts'];
-        if (proxy.tls || isReality) {
-            parts.push('tls=true');
-            if (isReality) {
-                parts.push('reality=true');
-                const realityOpts = proxy['reality-opts'] || {};
-                if (realityOpts['public-key']) parts.push(`public-key=${surgeQuote(realityOpts['public-key'])}`);
-                if (realityOpts['short-id']) parts.push(`short-id=${surgeQuote(realityOpts['short-id'])}`);
-            }
-        }
-
-        // 传输层支持 (虽然 Surge 原生支持有限，但保留元数据)
-        if (proxy.network === 'ws') {
-            parts.push('ws=true');
-            const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
-            if (wsOpts?.path) parts.push(`ws-path=${wsOpts.path}`);
-            if (wsOpts?.headers?.Host) parts.push(`ws-headers=Host:${wsOpts.headers.Host}`);
-        } else if (proxy.network === 'grpc') {
-            const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (grpcOpts?.['grpc-service-name']) parts.push(`grpc-service-name=${surgeQuote(grpcOpts['grpc-service-name'])}`);
-        }
-
-        appendTlsParams(parts, proxy);
     } else {
         // 不支持的类型
         return null;
@@ -493,10 +464,22 @@ dns-server = 119.29.29.29, 223.5.5.5, system`);
         metadata: finalResults[index].clashProxy?.metadata || {}
     }));
     
-    let abstractGroups = policyFactory(proxiesForGrouping);
-    abstractGroups = pruneProxyGroups(abstractGroups, proxiesForGrouping);
-
-    // 转换为 Surge [Proxy Group]
+    // 生成策略组
+    let abstractGroups = policyFactory(proxiesForGrouping, options);
+    if (levelKey === 'RELAY') {
+        abstractGroups = abstractGroups.map(group => group.name === '🔗 链式代理'
+            ? { ...group, type: 'relay', proxies: ['入口节点', '落地节点'] }
+            : group
+        );
+        if (!abstractGroups.some(group => group.name === '落地节点')) {
+            const proxyNames = proxiesForGrouping.map(proxy => proxy.name);
+            abstractGroups.splice(abstractGroups.findIndex(group => group.name === '入口节点') + 1, 0, {
+                name: '落地节点',
+                type: 'select',
+                proxies: ['♻️ 自动选择', '👋 手动切换', 'DIRECT', ...proxyNames]
+            });
+        }
+    }
     const proxyGroupLines = abstractGroups.map(group => {
         let type = group.type === 'url-test' ? 'url-test' : 'select';
         if (group.type === 'fallback') type = 'fallback';

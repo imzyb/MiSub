@@ -4,9 +4,11 @@ import { useUIStore } from '../../stores/ui.js';
 import { useSessionStore } from '../../stores/session.js';
 import BrandLogo from './BrandLogo.vue';
 import NavActionGroup from './NavActionGroup.vue';
+import { useI18n } from '../../i18n/index.js';
 
 const uiStore = useUIStore();
 const sessionStore = useSessionStore();
+const { t } = useI18n();
 
 const shouldHideLoginButton = computed(() => {
   if (sessionStore.sessionState === 'loading') {
@@ -47,7 +49,7 @@ const emit = defineEmits(['logout']);
       <div class="safe-top-inset">
         <div class="flex justify-between items-center h-16 md:h-[76px]">
           <BrandLogo v-if="!hideBranding" text-size-class="text-lg" :icon-size="32" />
-          <router-link v-else to="/" class="text-sm font-semibold tracking-[0.24em] uppercase text-gray-500 dark:text-gray-400">Home</router-link>
+          <router-link v-else to="/" class="text-sm font-semibold tracking-[0.24em] uppercase text-gray-500 dark:text-gray-400">{{ t('app.home') }}</router-link>
 
           <NavActionGroup
             :is-logged-in="isLoggedIn"

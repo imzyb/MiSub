@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onActivated, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from '../i18n/index.js';
 import MigrationModal from '../components/modals/MigrationModal.vue';
 import { useSettingsLogic } from '../composables/useSettingsLogic.js';
 import SettingsLayout from '../components/layout/SettingsLayout.vue';
@@ -12,10 +13,13 @@ import ServiceSettings from '../components/settings/sections/ServiceSettings.vue
 import GlobalSettings from '../components/settings/sections/GlobalSettings.vue';
 
 import SystemSettings from '../components/settings/sections/SystemSettings.vue';
+import WebdavBackupSettings from '../components/settings/sections/WebdavBackupSettings.vue';
 import ClientSettings from '../components/settings/sections/ClientSettings.vue';
 import CustomPageSettings from '../components/settings/sections/CustomPageSettings.vue';
 
 // 使用 composable 获取所有设置相关的状态和函数
+const { t } = useI18n();
+
 const {
   settings,
   disguiseConfig,
@@ -38,15 +42,15 @@ const route = useRoute();
 
 const currentTabLabel = computed(() => {
   switch (activeTab.value) {
-    case 'basic': return '基础设置';
-    case 'home': return '首页设置';
-    case 'global': return '全局设置';
-    case 'service': return '服务集成';
+    case 'basic': return t('settings.tabs.basic');
+    case 'home': return t('settings.tabs.home');
+    case 'global': return t('settings.tabs.global');
+    case 'service': return t('settings.tabs.service');
 
-    case 'client': return '客户端管理';
-    case 'system': return '系统设置';
-    case 'custom-page': return '自定义公开页';
-    default: return '设置';
+    case 'client': return t('settings.tabs.client');
+    case 'system': return t('settings.tabs.system');
+    case 'custom-page': return t('settings.tabs.customPage');
+    default: return t('settings.title');
   }
 });
 
@@ -76,7 +80,7 @@ watch(() => route.path, (path) => {
 <template>
   <div class="pt-0 pb-6 min-h-[calc(100vh-80px)]">
     <div class="mb-4 bg-white/80 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg p-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">设置</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('settings.title') }}</h1>
     </div>
     
     <SettingsLayout class="h-full">
@@ -92,17 +96,17 @@ watch(() => route.path, (path) => {
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
           </path>
         </svg>
-        <p class="text-gray-500">正在加载设置...</p>
+        <p class="text-gray-500">{{ t('settings.loading') }}</p>
       </div>
 
       <div v-else class="space-y-6 max-w-6xl w-full mx-auto">
         <div class="hidden md:flex flex-wrap items-center justify-between gap-3 p-4 bg-white/70 dark:bg-gray-900/60 border border-gray-100/80 dark:border-white/10 misub-radius-lg shadow-sm">
           <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">当前模块</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.currentModule') }}</p>
             <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ currentTabLabel }}</p>
           </div>
           <div class="text-xs text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 px-3 py-1.5 misub-radius-pill">
-            修改后记得点击右下角保存
+            {{ t('settings.saveHint') }}
           </div>
         </div>
         <BasicSettings v-show="activeTab === 'basic'" :settings="settings" :disguiseConfig="disguiseConfig" />
@@ -111,8 +115,11 @@ watch(() => route.path, (path) => {
         <ServiceSettings v-show="activeTab === 'service'" :settings="settings" />
         <ClientSettings v-show="activeTab === 'client'" />
         <CustomPageSettings v-show="activeTab === 'custom-page'" :settings="settings" />
-        <SystemSettings v-show="activeTab === 'system'" :settings="settings" :exportBackup="exportBackup"
-          :importBackup="importBackup" :handleReset="handleReset" @migrate="handleOpenMigrationModal" />
+        <div v-show="activeTab === 'system'" class="space-y-6">
+          <WebdavBackupSettings :settings="settings" />
+          <SystemSettings :settings="settings" :exportBackup="exportBackup"
+            :importBackup="importBackup" :handleReset="handleReset" @migrate="handleOpenMigrationModal" />
+        </div>
       </div>
 
       <template #footer>
@@ -126,7 +133,7 @@ watch(() => route.path, (path) => {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
             </path>
           </svg>
-          <span>{{ isSaving ? '保存中...' : '保存修改' }}</span>
+          <span>{{ isSaving ? t('settings.saving') : t('settings.saveChanges') }}</span>
         </button>
       </template>
     </SettingsLayout>

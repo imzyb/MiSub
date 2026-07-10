@@ -5,6 +5,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { useI18n } from '../../i18n/index.js';
 
 const props = defineProps({
   filters: {
@@ -46,6 +47,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:values', 'change', 'reset', 'apply', 'collapse-change']);
+
+const { t } = useI18n();
 
 const isCollapsed = ref(props.collapsed);
 const localValues = ref({ ...props.values });
@@ -240,7 +243,7 @@ const toggleCollapse = () => {
         <div class="flex items-center space-x-2">
           <h3 v-if="$slots.header || !inline" class="text-lg font-medium text-gray-900 dark:text-white">
             <slot name="header">
-              {{ inline ? '' : '过滤器' }}
+              {{ inline ? '' : t('common.filters') }}
             </slot>
           </h3>
         </div>
@@ -253,7 +256,7 @@ type="button"
 class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 @click="toggleCollapse"
 :aria-expanded="!isCollapsed"
-aria-label="展开或收起过滤器"
+:aria-label="t('common.expandFilters')"
 >
 <svg
 class="w-4 h-4 transition-transform"
@@ -274,9 +277,9 @@ type="button"
 :disabled="loading"
 class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 misub-radius-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
 @click="resetFilters"
-aria-label="重置所有过滤条件"
+:aria-label="t('common.reset')"
 >
-重置
+{{ t('common.reset') }}
 </button>
 
 <!-- 应用按钮 -->
@@ -286,9 +289,9 @@ type="button"
 :disabled="loading"
 class="px-3 py-1.5 text-sm border border-transparent misub-radius-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
 @click="applyFilters"
-aria-label="应用过滤条件"
+:aria-label="t('common.apply')"
 >
-应用
+{{ t('common.apply') }}
 </button>
         </div>
       </div>
@@ -349,7 +352,7 @@ aria-label="应用过滤条件"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 misub-radius-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50"
               @change="handleFilterChange(filter, $event.target.value)"
             >
-              <option value="">{{ filter.placeholder || '请选择...' }}</option>
+              <option value="">{{ filter.placeholder || t('common.choose') }}</option>
               <option
                 v-for="option in filter.options"
                 :key="option.value"

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import Modal from '../forms/Modal.vue';
+import { useI18n } from '@/i18n/index.js';
 
 const props = defineProps({
     show: Boolean,
@@ -10,6 +11,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+const { t } = useI18n();
 
 // 设备检测
 const detectedPlatform = ref(null);
@@ -26,10 +28,12 @@ const detectPlatform = () => {
 };
 
 // URL Scheme 映射表（内置）
+// 桌面端 Clash/Mihomo 系客户端在导入订阅时会直接拉取这里的 url。
+// 明确带上 target=clash，避免客户端/中间层使用通用 target 名称时拿到原始 Base64 节点列表。
 const urlSchemeMap = {
-    'clash-verge-rev': 'clash://install-config?url={url}&name={name}',
-    'clash-party': 'clash://install-config?url={url}&name={name}',
-    'clashbox': 'clash://install-config?url={url}&name={name}',
+    'clash-verge-rev': 'clash://install-config?url={url_clash}&name={name}',
+    'clash-party': 'mihomo://install-config?url={url_clash}&name={name}',
+    'clashbox': 'clash://install-config?url={url_clash}&name={name}',
     'v2rayn': 'v2rayng://install-config?url={url}',
     'v2rayng': 'v2rayng://install-config?url={url}',
     'shadowrocket': 'shadowrocket://add/sub://{url_base64}?remark={name}',
@@ -55,15 +59,30 @@ const getSubscriptionUrl = () => {
 };
 
 // 生成深度链接
+const withQueryParam = (url, key, value) => {
+    try {
+        const parsed = new URL(url);
+        if (!parsed.searchParams.has(key)) {
+            parsed.searchParams.set(key, value);
+        }
+        return parsed.toString();
+    } catch {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+    }
+};
+
 const generateDeepLink = (client) => {
     const subUrl = getSubscriptionUrl();
+    const clashSubUrl = withQueryParam(subUrl, 'target', 'clash');
     const scheme = urlSchemeMap[client.id];
 
     if (!scheme) return null;
 
     return scheme
+        .replace('{url_clash}', encodeURIComponent(clashSubUrl))
         .replace('{url}', encodeURIComponent(subUrl))
-        .replace('{name}', encodeURIComponent(props.profile?.name || '订阅'))
+        .replace('{name}', encodeURIComponent(props.profile?.name || t('quickImport.defaultName')))
         .replace('{url_base64}', btoa(subUrl))
         .replace('{url_encoded}', encodeURIComponent(subUrl));
 };
@@ -88,7 +107,7 @@ const groupedClients = computed(() => {
     return [...platformClients, ...otherClients];
 });
 
-// 判断客户端是否为推荐（当前平台）
+// 判断客户端是否为{{ t('quickImport.recommended') }}（当前平台）
 const isRecommended = (client) => {
     return detectedPlatform.value && client.platforms?.includes(detectedPlatform.value);
 };
@@ -129,10 +148,10 @@ onMounted(() => {
             <div class="flex items-center justify-between gap-4">
                 <div>
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-                        选择客户端导入
+                        {{ t('quickImport.title') }}
                     </h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        点击客户端图标自动打开应用并导入订阅
+                        {{ t('quickImport.subtitle') }}
                     </p>
                 </div>
                 <button @click="closeModal"
@@ -148,14 +167,14 @@ onMounted(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span class="text-sm text-indigo-700 dark:text-indigo-300">
-                    检测到您的设备为 <strong>{{ getPlatformLabel(detectedPlatform) }}</strong>，已为您优先推荐适配客户端
+                    {{ t('quickImport.detectedPrefix') }} <strong>{{ getPlatformLabel(detectedPlatform) }}</strong>{{ t('quickImport.detectedSuffix') }}
                 </span>
             </div>
         </template>
 
         <template #body>
             <div v-if="groupedClients.length === 0" class="py-12 text-center text-gray-500 dark:text-gray-400">
-                暂无支持一键导入的客户端
+                {{ t('quickImport.empty') }}
             </div>
 
             <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
@@ -166,7 +185,7 @@ onMounted(() => {
                         : 'bg-white dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:border-indigo-200 dark:hover:border-indigo-700'">
                     <div v-if="isRecommended(client)"
                         class="absolute -top-2 -right-2 px-2 py-0.5 bg-indigo-500 text-white text-[10px] font-bold rounded-full shadow-lg">
-                        推荐
+                        {{ t('quickImport.recommended') }}
                     </div>
                     <div class="w-14 h-14 misub-radius-lg flex items-center justify-center text-3xl bg-gray-50 dark:bg-gray-800 overflow-hidden"
                         :class="isRecommended(client) ? 'ring-2 ring-indigo-400' : ''">
@@ -196,12 +215,12 @@ onMounted(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <div>
-                        <p class="font-medium text-gray-700 dark:text-gray-300">使用提示：</p>
+                        <p class="font-medium text-gray-700 dark:text-gray-300">{{ t('quickImport.tipsTitle') }}</p>
                         <ul class="mt-1 space-y-1 list-disc list-inside">
-                            <li>请确保您已安装对应的客户端应用</li>
-                            <li>点击后将自动打开客户端并添加订阅</li>
-                            <li>部分浏览器可能需要您手动确认打开应用</li>
-                            <li class="font-medium text-amber-600 dark:text-amber-400">若安装了多个同类软件，系统将调用默认关联的程序打开</li>
+                            <li>{{ t('quickImport.tipInstalled') }}</li>
+                            <li>{{ t('quickImport.tipOpenApp') }}</li>
+                            <li>{{ t('quickImport.tipBrowserConfirm') }}</li>
+                            <li class="font-medium text-amber-600 dark:text-amber-400">{{ t('quickImport.tipDefaultApp') }}</li>
                         </ul>
                     </div>
                 </div>

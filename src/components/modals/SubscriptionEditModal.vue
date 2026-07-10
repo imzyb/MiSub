@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useToastStore } from '../../stores/toast.js';
+import { useI18n } from '../../i18n/index.js';
 import Modal from '../forms/Modal.vue';
 import EditForm from './SubscriptionEditModal/EditForm.vue';
 import RuleSection from './SubscriptionEditModal/RuleSection.vue';
@@ -13,6 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:show', 'confirm']);
 const { showToast } = useToastStore();
+const { t } = useI18n();
 
 
 // === 可视化规则编辑器 ===
@@ -81,7 +83,7 @@ const addCustomKeyword = () => {
 
   // 检查是否已存在
   if (selectedRules.value.some(rule => rule.pattern === keyword || rule.label === keyword)) {
-    showToast('该关键字已添加', 'warning');
+    showToast(t('subscriptions.duplicateKeyword'), 'warning');
     return;
   }
 
@@ -195,18 +197,18 @@ const excludeRuleState = computed(() => {
   const hasDivider = dividerIndex !== -1;
   const hasKeepPrefix = lines.some(line => line.toLowerCase().startsWith('keep:'));
 
-  let tag = '未设置';
+  let tagKey = 'unset';
   if (hasContent) {
-    if (hasDivider) tag = '混合';
-    else if (hasKeepPrefix) tag = '仅包含';
-    else tag = '排除';
+    if (hasDivider) tagKey = 'mixed';
+    else if (hasKeepPrefix) tagKey = 'keepOnly';
+    else tagKey = 'exclude';
   }
 
   const tagClassMap = {
-    '未设置': 'bg-gray-100 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300',
-    '排除': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-    '仅包含': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-    '混合': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200'
+    unset: 'bg-gray-100 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300',
+    exclude: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+    keepOnly: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+    mixed: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200'
   };
 
   const errors = [];
@@ -218,7 +220,7 @@ const excludeRuleState = computed(() => {
     if (line.toLowerCase().startsWith('keep:')) {
       line = line.substring('keep:'.length).trim();
       if (!line) {
-        errors.push({ line: index + 1, message: 'keep: 后内容为空' });
+        errors.push({ line: index + 1, message: t('subscriptions.keepEmptyError') });
         return;
       }
     }
@@ -229,7 +231,7 @@ const excludeRuleState = computed(() => {
         .map(p => p.trim())
         .filter(Boolean);
       if (protocols.length === 0) {
-        errors.push({ line: index + 1, message: 'proto: 后未填写协议' });
+        errors.push({ line: index + 1, message: t('subscriptions.protoEmptyError') });
       }
       return;
     }
@@ -237,15 +239,16 @@ const excludeRuleState = computed(() => {
     try {
       new RegExp(line);
     } catch (e) {
-      errors.push({ line: index + 1, message: '正则无效' });
+      errors.push({ line: index + 1, message: t('subscriptions.regexInvalid') });
     }
   });
 
   return {
-    tag,
-    tagClass: tagClassMap[tag] || tagClassMap['未设置'],
+    tagKey,
+    tag: t(`subscriptions.ruleTag.${tagKey}`),
+    tagClass: tagClassMap[tagKey] || tagClassMap.unset,
     errors,
-    errorsText: errors.map(item => `第${item.line}行：${item.message}`).join('；')
+    errorsText: errors.map(item => t('subscriptions.ruleLineError', { line: item.line, message: item.message })).join('；')
   };
 });
 
@@ -263,7 +266,7 @@ const syncExcludeRuleScroll = () => {
 
 const handleConfirm = () => {
   if (isAdvancedMode.value && excludeRuleState.value.errors.length > 0) {
-    showToast('包含/排除规则有误，请先修正', 'error');
+    showToast(t('subscriptions.ruleErrorFixFirst'), 'error');
     return;
   }
   emit('confirm');
@@ -283,7 +286,7 @@ const switchToVisual = () => {
 
 <template>
   <Modal v-if="editingSubscription" :show="show" size="2xl"
-    :confirm-disabled="isAdvancedMode && excludeRuleState.errors.length > 0" confirm-button-title="请先修正规则"
+    :confirm-disabled="isAdvancedMode && excludeRuleState.errors.length > 0" :confirm-button-title="t('subscriptions.fixRulesFirst')"
     @update:show="emit('update:show', $event)" @confirm="handleConfirm">
     <template #title>
       <div class="flex items-center gap-3">
@@ -295,9 +298,9 @@ const switchToVisual = () => {
         </div>
         <div>
           <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-            {{ isNew ? '新增订阅' : '编辑订阅' }}
+            {{ isNew ? t('subscriptions.addTitle') : t('subscriptions.editTitle') }}
           </h3>
-          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">统一管理订阅链接、筛选规则和高级转换选项。</p>
+          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('subscriptions.modalDescription') }}</p>
         </div>
       </div>
     </template>

@@ -1,11 +1,43 @@
-export function collectManualNodeGroups(nodes) {
+export function normalizeManualNodeGroupName(groupName) {
+  return typeof groupName === 'string' ? groupName.trim() : '';
+}
+
+export function collectManualNodeGroups(nodes, customOrder = []) {
   const groups = new Set();
   nodes.forEach(node => {
-    if (node.group) {
-      groups.add(node.group);
+    const group = normalizeManualNodeGroupName(node.group);
+    if (group) {
+      groups.add(group);
     }
   });
-  return Array.from(groups).sort();
+  
+  const allGroups = Array.from(groups);
+  
+  // 如果有自定义顺序，按自定义顺序排列，然后追加新出现的分组
+  if (customOrder && customOrder.length > 0) {
+    const orderedGroups = [];
+    const remaining = new Set(allGroups);
+    
+    // 先按自定义顺序添加
+    customOrder.forEach(group => {
+      if (remaining.has(group)) {
+        orderedGroups.push(group);
+        remaining.delete(group);
+      }
+    });
+    
+    // 追加新分组（保持首次出现顺序）
+    allGroups.forEach(group => {
+      if (remaining.has(group)) {
+        orderedGroups.push(group);
+      }
+    });
+    
+    return orderedGroups;
+  }
+  
+  // 默认保留首次出现顺序
+  return allGroups;
 }
 
 export function buildGroupedManualNodes(nodesToDisplay, manualNodeGroups) {
@@ -17,7 +49,7 @@ export function buildGroupedManualNodes(nodesToDisplay, manualNodeGroups) {
   groups['默认'] = []; // Default group for ungrouped nodes
 
   nodesToDisplay.forEach(node => {
-    const groupName = node.group || '默认';
+    const groupName = normalizeManualNodeGroupName(node.group) || '默认';
     if (!groups[groupName]) {
       groups[groupName] = [];
     }

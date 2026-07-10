@@ -6,9 +6,11 @@
 import { parseNodeList } from '../modules/utils/node-parser.js';
 import { parseNodeInfo } from '../modules/utils/geo-utils.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
+import { buildFetchProxyUrl } from '../utils/fetch-proxy-utils.js';
 import { prependNodeName, addFlagEmoji, removeFlagEmoji, fixNodeUrlEncoding, sanitizeNodeForYaml } from '../utils/node-utils.js';
 import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
+import { assertPublicNetworkUrl } from '../modules/security-utils.js';
 
 /**
  * 订阅获取配置常量
@@ -20,6 +22,155 @@ const FETCH_CONFIG = {
     CONCURRENCY: 4,        // 最大并发数
     RETRYABLE_STATUS: [500, 502, 503, 504, 429] // 可重试的 HTTP 状态码
 };
+
+const REAL_PROXY_PROTOCOLS = [
+    'ss://',
+    'ssr://',
+    'vmess://',
+    'vless://',
+    'trojan://',
+    'hysteria://',
+    'hysteria2://',
+    'hy2://',
+    'tuic://',
+    'anytls://',
+    'socks5://',
+    'socks://'
+];
+
+/**
+ * 判断是否是真实代理节点，排除流量/到期/公告等系统伪节点
+ */
+export function isRealProxyNode(node) {
+    if (typeof node !== 'string') return false;
+    const trimmed = node.trim().toLowerCase();
+    if (!trimmed) return false;
+    return REAL_PROXY_PROTOCOLS.some(protocol => trimmed.startsWith(protocol));
+}
+
+export function parseSubscriptionUserInfoHeader(header) {
+    if (typeof header !== 'string' || !header.trim()) return null;
+
+    const info = {};
+    header.split(';').forEach(part => {
+        const [rawKey, rawValue] = part.trim().split('=');
+        const key = rawKey?.trim();
+        const value = rawValue?.trim();
+        if (!key || value === undefined || value === '') return;
+        info[key] = /^\d+$/.test(value) ? Number(value) : value;
+    });
+
+    return Object.keys(info).length > 0 ? info : null;
+}
+
+/**
+ * 构建单机场订阅源的保护性缓存 key
+ */
+export function buildSubscriptionNodeCacheKey(sub = {}) {
+    const id = typeof sub.id === 'string' ? sub.id.trim() : '';
+    if (id) return `node_cache_subscription_${encodeURIComponent(id)}`;
+
+    const url = typeof sub.url === 'string' ? sub.url.trim() : '';
+    let hash = 0;
+    for (let i = 0; i < url.length; i++) {
+        hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+    }
+    return `node_cache_subscription_url_${Math.abs(hash).toString(36)}`;
+}
+
+async function readSubscriptionNodeCache(storage, sub) {
+    if (!storage?.get) return null;
+    try {
+        const cached = await storage.get(buildSubscriptionNodeCacheKey(sub));
+        if (!cached || !Array.isArray(cached.nodes)) return null;
+        const nodes = cached.nodes.filter(isRealProxyNode);
+        return nodes.length > 0 ? { ...cached, nodes } : null;
+    } catch (error) {
+        console.warn('[SubscriptionCache] Failed to read cache:', error);
+        return null;
+    }
+}
+
+async function writeSubscriptionNodeCache(storage, sub, nodes) {
+    if (!storage?.put) return false;
+    const realNodes = Array.isArray(nodes) ? nodes.filter(isRealProxyNode) : [];
+    if (realNodes.length === 0) return false;
+
+    try {
+        await storage.put(buildSubscriptionNodeCacheKey(sub), {
+            nodes: realNodes,
+            nodeCount: realNodes.length,
+            updatedAt: new Date().toISOString(),
+            sourceId: sub?.id || null,
+            sourceName: sub?.name || '',
+            sourceUrl: sub?.url || ''
+        });
+        return true;
+    } catch (error) {
+        console.warn('[SubscriptionCache] Failed to write cache:', error);
+        return false;
+    }
+}
+
+async function writeSubscriptionRuntimeInfo(storage, sub, runtimeInfo = {}) {
+    if (!storage || !sub?.id) return false;
+    const { nodeCount, userInfo } = runtimeInfo;
+    const hasUserInfo = Object.prototype.hasOwnProperty.call(runtimeInfo, 'userInfo');
+
+    try {
+        const applyUpdate = current => {
+            if (!current) return current;
+            return {
+                ...current,
+                nodeCount: Number.isFinite(nodeCount) ? nodeCount : current.nodeCount,
+                ...(hasUserInfo ? { userInfo } : {}),
+                lastError: null,
+                lastUpdate: new Date().toISOString()
+            };
+        };
+
+        if (typeof storage.updateSubscriptionById === 'function') {
+            return Boolean(await storage.updateSubscriptionById(sub.id, applyUpdate));
+        }
+
+        if (typeof storage.get === 'function' && typeof storage.put === 'function') {
+            const all = await storage.get('misub_subscriptions_v1');
+            if (!Array.isArray(all)) return false;
+            const index = all.findIndex(item => item?.id === sub.id);
+            if (index === -1) return false;
+            all[index] = applyUpdate(all[index]);
+            await storage.put('misub_subscriptions_v1', all);
+            return true;
+        }
+    } catch (error) {
+        console.warn('[SubscriptionRuntimeInfo] Failed to write subscription info:', error);
+    }
+
+    return false;
+}
+
+function scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo) {
+    const promise = writeSubscriptionRuntimeInfo(storage, sub, runtimeInfo);
+
+    if (context && typeof context.waitUntil === 'function') {
+        context.waitUntil(promise.catch(error => {
+            console.warn('[SubscriptionRuntimeInfo] Async update failed:', error);
+        }));
+        return;
+    }
+
+    promise.catch(error => {
+        console.warn('[SubscriptionRuntimeInfo] Async update failed:', error);
+    });
+}
+
+function recordCurrentRequestRuntimeInfo(context, sub, runtimeInfo) {
+    const key = sub?.id || sub?.url;
+    if (!context || !key) return;
+
+    context.currentSubscriptionRuntimeInfo = context.currentSubscriptionRuntimeInfo || {};
+    context.currentSubscriptionRuntimeInfo[key] = runtimeInfo;
+}
 
 /**
  * 带重试的订阅获取函数（支持网络错误和 HTTP 状态码重试）
@@ -252,6 +403,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
     const httpSubs = misubs.filter(sub => sub && sub.url && sub.url.toLowerCase().startsWith('http'));
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
+    let upstreamSuccessCount = 0; // 追踪真正从远程拉取成功的订阅数（不含 per-sub 缓存回退）
 
     /**
      * 获取单个订阅内容
@@ -259,17 +411,47 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
      * @returns {Promise<string>} - 处理后的节点列表
      */
     const fetchSingleSubscription = async (sub) => {
+        const cacheEnabled = sub?.enableNodeCache === true;
+        const storage = context?.storage;
+        const recordEmptyRuntimeInfo = () => {
+            if (cacheEnabled) return;
+            const runtimeInfo = {
+                nodeCount: 0,
+                userInfo: null
+            };
+            recordCurrentRequestRuntimeInfo(context, sub, runtimeInfo);
+            scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+        };
+        const readCachedNodes = async () => {
+            if (!cacheEnabled) return [];
+            const cached = await readSubscriptionNodeCache(storage, sub);
+            return cached?.nodes || [];
+        };
+
         try {
-            const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
+            const customUserAgent = typeof sub.customUserAgent === 'string' ? sub.customUserAgent.trim() : '';
+            const processedUserAgent = customUserAgent || getProcessedUserAgent(userAgent, sub.url);
             const requestHeaders = { 'User-Agent': processedUserAgent };
 
             // [Fetch Proxy] 获取单点订阅专属拉取代理前缀
+            assertPublicNetworkUrl(sub.url);
             let requestUrl = sub.url;
-            if (sub.fetchProxy && typeof sub.fetchProxy === 'string' && sub.fetchProxy.trim()) {
-                const proxyPrefix = sub.fetchProxy.trim();
-                // 将被代理的 URL 进行编码，拼接到代理前缀之后
-                requestUrl = `${proxyPrefix}${encodeURIComponent(sub.url)}`;
+            
+            // 只有开启保护性缓存节点时才加时间戳绕过强缓存 (如 Cloudflare Edge Cache)
+            if (cacheEnabled) {
+                try {
+                    const parsedUrl = new URL(requestUrl);
+                    parsedUrl.searchParams.set('_t', Date.now().toString());
+                    requestUrl = parsedUrl.toString();
+                } catch (e) {
+                    requestUrl += (requestUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                }
             }
+
+            if (sub.fetchProxy && typeof sub.fetchProxy === 'string' && sub.fetchProxy.trim()) {
+                requestUrl = buildFetchProxyUrl(sub.fetchProxy, sub.url, processedUserAgent);
+            }
+            requestUrl = assertPublicNetworkUrl(requestUrl).toString();
 
             const response = await fetchWithRetry(requestUrl, {
                 headers: requestHeaders,
@@ -284,7 +466,8 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             });
 
             if (!response.ok) {
-                return '';
+                recordEmptyRuntimeInfo();
+                return (await readCachedNodes()).join('\n');
             }
             const buffer = await response.arrayBuffer();
             let text = new TextDecoder('utf-8').decode(buffer);
@@ -308,6 +491,29 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             // --- 统一转换治理 (算子 + 过滤 + 组级诊断) ---
             validNodes = await applySubscriptionTransforms(validNodes, sub);
 
+            const realNodes = validNodes.filter(isRealProxyNode);
+            if (cacheEnabled && realNodes.length === 0) {
+                return (await readCachedNodes()).join('\n');
+            }
+            if (!cacheEnabled && realNodes.length === 0) {
+                recordEmptyRuntimeInfo();
+            }
+
+            if (cacheEnabled) {
+                await writeSubscriptionNodeCache(storage, sub, realNodes);
+            }
+
+            if (realNodes.length > 0) {
+                upstreamSuccessCount++;
+                const userInfo = parseSubscriptionUserInfoHeader(response.headers.get('subscription-userinfo'));
+                const runtimeInfo = {
+                    nodeCount: realNodes.length,
+                    userInfo
+                };
+                recordCurrentRequestRuntimeInfo(context, sub, runtimeInfo);
+                scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+            }
+
             // 判断是否启用订阅前缀（智能重命名启用时跳过）
             const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ?? true;
             const shouldAddSubPrefix = shouldPrependSubscriptions && !skipPrefixDueToRenaming;
@@ -316,7 +522,8 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
         } catch (e) {
-            return '';
+            recordEmptyRuntimeInfo();
+            return (await readCachedNodes()).join('\n');
         }
     };
 
@@ -408,6 +615,7 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
                 sourceCount: httpSubs.length,
                 successCount,
                 failCount,
+                upstreamSuccessCount,
                 duration: endTime - (context.startTime || Date.now())
             };
         }

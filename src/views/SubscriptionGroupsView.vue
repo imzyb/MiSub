@@ -11,10 +11,12 @@ import SubscriptionPanel from '../components/subscriptions/SubscriptionPanel.vue
 import Modal from '../components/forms/Modal.vue';
 import SubscriptionEditModal from '../components/modals/SubscriptionEditModal.vue';
 import { useToastStore } from '../stores/toast.js';
+import { useI18n } from '../i18n/index.js';
 
 const dataStore = useDataStore();
 const { showToast } = useToastStore();
 const { markDirty } = dataStore;
+const { t } = useI18n();
 
 // State
 // State
@@ -73,7 +75,7 @@ const handlePreviewSubscription = (subscriptionId) => {
   const subscription = subscriptions.value.find(s => s.id === subscriptionId);
   if (subscription) {
     previewSubscriptionId.value = subscriptionId;
-    previewSubscriptionName.value = subscription.name || '未命名订阅';
+    previewSubscriptionName.value = subscription.name || t('subscriptions.unnamed');
     previewSubscriptionUrl.value = subscription.url;
     showNodePreviewModal.value = true;
   }
@@ -92,7 +94,7 @@ const handleQRCode = (id) => {
   const sub = subscriptions.value.find(s => s.id === id);
   if (sub) {
     qrCodeUrl.value = sub.url;
-    qrCodeTitle.value = sub.name || '订阅二维码';
+    qrCodeTitle.value = sub.name || t('subscriptions.qrCodeTitle');
     showQRCodeModal.value = true;
   }
 };
@@ -134,8 +136,8 @@ const handleQRCode = (id) => {
     />
 
     <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup">
-        <template #title><h3 class="text-lg font-bold text-red-500">确认清空订阅</h3></template>
-        <template #body><p class="text-sm text-gray-400">您确定要删除所有**订阅**吗？</p></template>
+        <template #title><h3 class="text-lg font-bold text-red-500">{{ t('subscriptions.deleteAllConfirmTitle') }}</h3></template>
+        <template #body><p class="text-sm text-gray-400">{{ t('subscriptions.deleteAllConfirmBody') }}</p></template>
     </Modal>
     
     <BulkImportModal 

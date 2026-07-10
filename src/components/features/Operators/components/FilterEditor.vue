@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from '../../../../i18n/index.js';
 
 const props = defineProps({
   modelValue: {
@@ -9,6 +10,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue']);
+const { t } = useI18n();
 
 // Local working copy with defaults
 const params = computed({
@@ -50,6 +52,18 @@ const removeRule = (type, index) => {
 
 const commonProtocols = ['vless', 'vmess', 'trojan', 'ss', 'hysteria2', 'socks'];
 const commonRegions = ['香港', '美国', '日本', '新加坡', '台湾', '韩国', '英国', '德国'];
+const regionLabels = {
+  '香港': 'Hong Kong',
+  '美国': 'United States',
+  '日本': 'Japan',
+  '新加坡': 'Singapore',
+  '台湾': 'Taiwan',
+  '韩国': 'South Korea',
+  '英国': 'United Kingdom',
+  '德国': 'Germany'
+};
+const statusLabel = (enabled) => t(enabled ? 'operators.statusOn' : 'operators.statusOff');
+const regionLabel = (region) => t('operators.regionLabel', { region: regionLabels[region] || region });
 
 const toggleValue = (type, value) => {
   const current = { ...params.value[type] };
@@ -72,12 +86,12 @@ const toggleValue = (type, value) => {
         <!-- Protocol -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">协议限制</label>
+            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{{ t('operators.protocolLimit') }}</label>
             <button 
               @click="updateParam('protocols', { ...params.protocols, enabled: !params.protocols.enabled })"
               :class="['text-[10px] font-medium transition-colors', params.protocols.enabled ? 'text-indigo-600' : 'text-gray-300']"
             >
-              {{ params.protocols.enabled ? '已开启' : '关闭' }}
+              {{ statusLabel(params.protocols.enabled) }}
             </button>
           </div>
           <div v-if="params.protocols.enabled" class="flex flex-wrap gap-1.5 p-2 bg-gray-50/50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-800">
@@ -99,12 +113,12 @@ const toggleValue = (type, value) => {
         <!-- Region -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">地区限制</label>
+            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{{ t('operators.regionLimit') }}</label>
             <button 
               @click="updateParam('regions', { ...params.regions, enabled: !params.regions.enabled })"
               :class="['text-[10px] font-medium transition-colors', params.regions.enabled ? 'text-indigo-600' : 'text-gray-300']"
             >
-              {{ params.regions.enabled ? '已开启' : '关闭' }}
+              {{ statusLabel(params.regions.enabled) }}
             </button>
           </div>
           <div v-if="params.regions.enabled" class="flex flex-wrap gap-1.5 p-2 bg-gray-50/50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-700">
@@ -118,7 +132,7 @@ const toggleValue = (type, value) => {
                   : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-100 dark:border-gray-700'
               ]"
             >
-              {{ r }}
+              {{ regionLabel(r) }}
             </button>
           </div>
         </div>
@@ -128,15 +142,15 @@ const toggleValue = (type, value) => {
     <div v-for="type in ['include', 'exclude']" :key="type" class="space-y-2">
         <div class="flex items-center justify-between">
             <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">
-                {{ type === 'include' ? '包含节点 (正则)' : '排除节点 (正则)' }}
+                {{ t(type === 'include' ? 'operators.includeRegex' : 'operators.excludeRegex') }}
             </label>
             <div class="flex items-center gap-3">
-                <button v-if="params[type].enabled" @click="addRule(type)" class="text-[10px] text-indigo-600 font-bold">+ 添加</button>
+                <button v-if="params[type].enabled" @click="addRule(type)" class="text-[10px] text-indigo-600 font-bold">+ {{ t('operators.add') }}</button>
                 <button 
                     @click="updateParam(type, { ...params[type], enabled: !params[type].enabled })"
                     :class="['text-[10px] font-medium', params[type].enabled ? 'text-indigo-600' : 'text-gray-300']"
                 >
-                    {{ params[type].enabled ? '已开启' : '关闭' }}
+                    {{ statusLabel(params[type].enabled) }}
                 </button>
             </div>
         </div>
@@ -146,16 +160,16 @@ const toggleValue = (type, value) => {
                 <input 
                     v-model="rule.pattern"
                     @input="normalizeRuleFlags(type, idx)"
-                    placeholder="正则表达式 (如: 香港|HK)"
+                    :placeholder="t('operators.regexPlaceholder')"
                     class="flex-1 px-3 py-1.5 text-[11px] rounded-lg bg-gray-50 dark:bg-gray-900 border border-transparent focus:bg-white dark:focus:bg-gray-800 focus:border-indigo-500/30 transition-all outline-none"
                 />
                 <button @click="removeRule(type, idx)" class="p-1.5 text-gray-300 hover:text-rose-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            <p class="text-[10px] text-gray-400 px-1">默认忽略大小写，无需额外设置正则标志。</p>
+            <p class="text-[10px] text-gray-400 px-1">{{ t('operators.regexFlagsHint') }}</p>
             <div v-if="!params[type].rules?.length" class="text-center py-2 text-[10px] text-gray-400 italic">
-                点击上方“+ 添加”开始编写过滤规则
+                {{ t('operators.filterEmptyRules') }}
             </div>
         </div>
     </div>

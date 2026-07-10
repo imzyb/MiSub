@@ -1,4 +1,4 @@
-import { LogService } from '../../services/log-service.js';
+import { LogService, anonymizeLogToken } from '../../services/log-service.js';
 
 export function shouldSkipLogging(userAgentHeader) {
     return userAgentHeader.includes('MiSub-Backend') || userAgentHeader.includes('TelegramBot');
@@ -29,8 +29,8 @@ export function logAccessSuccess({
         userAgent: userAgentHeader || 'Unknown',
         status: 'success',
         format: targetFormat,
-        token: profileIdentifier ? (profileIdentifier) : token,
         type: profileIdentifier ? 'profile' : 'token',
+        token: anonymizeLogToken(profileIdentifier ? profileIdentifier : token, profileIdentifier ? 'profile' : 'token'),
         domain,
         persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {
@@ -74,8 +74,8 @@ export function logAccessError({
         userAgent: userAgentHeader || 'Unknown',
         status: 'error',
         format: targetFormat,
-        token: profileIdentifier ? (profileIdentifier) : token,
         type: profileIdentifier ? 'profile' : 'token',
+        token: anonymizeLogToken(profileIdentifier ? profileIdentifier : token, profileIdentifier ? 'profile' : 'token'),
         domain,
         persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {

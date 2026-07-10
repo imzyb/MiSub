@@ -5,6 +5,7 @@
 
 import * as NodeUtils from './node-transformer.js';
 import { extractNodeRegion, getRegionEmoji } from '../modules/utils/geo-utils.js';
+import { matchesDslCondition, renderDslTemplate } from './expression-dsl.js';
 
 /**
  * 辅助函数：将规则模式规范化为正则表达式数组
@@ -170,114 +171,43 @@ function opRename(nodes, params) {
 /**
  * Script Operator (The heart of Sub-Store)
  */
-async function opScript(nodes, params, context) {
-    const { code, url } = params;
-    let scriptCode = code;
+async function opScript(nodes, params = {}, context) {
+    const dsl = Array.isArray(params.dsl)
+        ? params.dsl
+        : (params.action ? [params] : []);
 
-    if (url) {
-        try {
-             // In Cloudflare Workers, we use fetch
-            const response = await fetch(url);
-            if (response.ok) {
-                scriptCode = await response.text();
-            } else {
-                console.warn(`[Operator] Failed to fetch remote script from ${url}: ${response.status}`);
-            }
-        } catch (e) {
-            console.error('[Operator] Script fetch error:', e);
+    if (!dsl.length) {
+        if (params.code || params.url) {
+            console.warn('[Operator] Legacy script code is disabled; use params.dsl instead.');
         }
+        return nodes;
     }
 
-    if (!scriptCode) return nodes;
+    let result = nodes.map(r => NodeUtils.ensureRegionInfo(r, true));
 
-    try {
-        // [审计增强] 脚本执行前自动补全地理元数据
-        const enrichedNodes = nodes.map(r => NodeUtils.ensureRegionInfo(r, true));
-        
-        const scriptEnv = {
-            $proxies: enrichedNodes,
-            $context: context,
-            $utils: {
-                decodeBase64: s => atob(s),
-                encodeBase64: s => btoa(s),
-                decodeURI: s => decodeURI(s),
-                encodeURI: s => encodeURI(s),
-                decodeURIComponent: s => decodeURIComponent(s),
-                encodeURIComponent: s => encodeURIComponent(s),
-                jsonStringify: o => JSON.stringify(o),
-                jsonParse: s => JSON.parse(s),
-                getHost: url => { try { return new URL(url).hostname; } catch(e) { return ''; } }
-            }
-        };
-
-        // 智能包装与容错
-        let finalScript = scriptCode.trim();
-        if (!finalScript.includes('function operator') && !finalScript.includes('const operator')) {
-            finalScript = `async function operator($proxies, $context) { \n ${finalScript} \n }`;
-        } else {
-            const openBraces = (finalScript.match(/\{/g) || []).length;
-            const closeBraces = (finalScript.match(/\}/g) || []).length;
-            if (openBraces > closeBraces) {
-                finalScript += '\n'.repeat(openBraces - closeBraces) + '}'.repeat(openBraces - closeBraces);
-            }
+    for (const step of dsl) {
+        const action = String(step?.action || '').toLowerCase();
+        if (action === 'filter') {
+            result = result.filter((node, index) => matchesDslCondition({ ...node, index: index + 1 }, step));
+            continue;
         }
-
-        // 尝试使用更兼容的 Function 构造器，并减少包装复杂度
-        let runner;
-        try {
-            runner = new Function('$proxies', '$context', '$utils', `
-                const operator = async ($proxies, $context) => {
-                    ${finalScript}
-                    if (typeof operator === 'function') return await operator($proxies, $context);
-                    return $proxies;
+        if (action === 'rename') {
+            const template = step.template || step.expression;
+            if (!template) continue;
+            result = result.map((node, index) => {
+                const nextName = renderDslTemplate(template, { ...node, index: index + 1, target: context?.target || '' }) || node.name;
+                if (nextName === node.name) return node;
+                return {
+                    ...node,
+                    name: nextName,
+                    url: NodeUtils.setNodeName(node.url, node.protocol, nextName),
+                    metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
                 };
-                return operator($proxies, $context);
-            `);
-        } catch (e) {
-            // 如果 Function 被彻底封死，我们尝试最后的 eval 降级
-            console.warn('[Operator] Function constructor blocked, trying eval fallback');
-            runner = ($proxies, $context, $utils) => {
-                return (async () => {
-                    // 这里是一个非常激进的尝试
-                    const fn = eval(`(async ($proxies, $context) => { ${finalScript}; return await operator($proxies, $context); })`);
-                    return await fn($proxies, $context);
-                })();
-            };
-        }
-
-        const processedNodes = enrichedNodes.map(n => {
-            if (n.name) n.name = n.name.replace(/[·•・∙]/g, '·');
-            n.regionzh = n.regionZh;
-            n.region_zh = n.regionZh;
-            return n;
-        });
-
-        // 执行脚本
-        const result = await runner(processedNodes, context, scriptEnv.$utils);
-        
-        // 核心修复：彻底信任脚本返回的结果，并强制同步到 URL
-        if (Array.isArray(result) && result.length > 0) {
-            return result.map((n) => {
-                // 脚本可能返回 Proxy 对象，我们需要提取原始数据
-                const target = n.__target || n;
-                const newName = n.name || target.name;
-                
-                if (newName) {
-                    target.name = newName;
-                    // 只要名字和初始状态不一致，就强制同步 URL
-                    if (target.name !== target.originalName) {
-                        target.url = NodeUtils.setNodeName(target.url, target.protocol, target.name);
-                        if (target.metadata) target.metadata.cleanName = target.name;
-                    }
-                }
-                return target;
             });
         }
-        return nodes;
-    } catch (e) {
-        console.error('[Operator] Script execution failed:', e);
-        return nodes;
     }
+
+    return result;
 }
 
 /**
@@ -293,6 +223,15 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
         needServerPort: true, 
         ensureRegion: false 
     });
+    const metadataByUrl = context.nodeMetadataByUrl instanceof Map
+        ? context.nodeMetadataByUrl
+        : new Map(Object.entries(context.nodeMetadataByUrl || {}));
+    if (metadataByUrl.size > 0) {
+        records = records.map(record => ({
+            ...record,
+            ...(metadataByUrl.get(record.url) || {})
+        }));
+    }
 
     const ua = (context.userAgent || '').toLowerCase();
     const platform = {

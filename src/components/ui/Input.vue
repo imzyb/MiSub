@@ -115,7 +115,7 @@ const currentSize = computed(() => sizeMap[props.size] || sizeMap.md);
         :type="type"
         :placeholder="placeholder"
         :disabled="disabled"
-        class="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:focus:border-primary-500 focus:outline-none transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="w-full bg-white dark:bg-white/[0.035] border border-gray-200 dark:border-white/10 text-gray-900 dark:text-[#f7f8f8] placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/70 dark:focus:border-primary-400/60 focus:outline-none transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
         :class="[
             currentSize.input,
             hasIcon || hasPrefix ? 'pl-9' : '',
@@ -124,7 +124,7 @@ const currentSize = computed(() => sizeMap[props.size] || sizeMap.md);
       />
       
       <!-- Focus Glow -->
-      <div class="absolute inset-0 misub-radius-lg pointer-events-none transition-opacity duration-300 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
+      <div class="absolute inset-0 misub-radius-md pointer-events-none transition-opacity duration-150 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
     </div>
     
     <p v-if="error" class="mt-1 text-xs text-red-500 ml-1">

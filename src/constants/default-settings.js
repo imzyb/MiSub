@@ -3,6 +3,8 @@
  * @author MiSub Team
  */
 
+import { DEFAULT_SUBCONVERTER_BACKEND } from './subconverter-backends.js';
+
 export const DEFAULT_SETTINGS = {
     FileName: 'MiSub',
     mytoken: 'auto',
@@ -15,6 +17,7 @@ export const DEFAULT_SETTINGS = {
     builtinLoonSkipCertVerify: false,
     enableAccessLog: false,
     accessLogPersistenceMode: 'light',
+    mergeExpireStrategy: 'max',
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
     enableTrafficNode: false,
@@ -29,6 +32,7 @@ manualNodePrefix: '\u624b\u52a8\u8282\u70b9',
 subscriptionPrefix: '',
 prependGroupName: false
 },
+    manualNodeGroupOrder: [], // 用户自定义的分组顺序
     defaultNodeTransform: {
         enabled: false,
         filter: {
@@ -69,6 +73,7 @@ prependGroupName: false
         }
     },
     nodeTransformPresets: [],
+    regionOverrides: [],
     // 公告设置
     announcement: {
         enabled: true,            // 是否启用公告
@@ -83,10 +88,36 @@ prependGroupName: false
         enabled: false,
         allowAnonymous: true
     },
+    webdavBackup: {
+        enabled: false,
+        endpoint: '',
+        username: '',
+        password: '',
+        remotePath: '/MiSub',
+        filenameTemplate: 'misub-backup-{datetime}.json',
+        backupScope: 'dataOnly',
+        autoBackup: false,
+        interval: 'daily',
+        retentionCount: 7,
+        lastCheckedAt: null,
+        lastBackupAt: null,
+        lastBackupStatus: null,
+        lastBackupMessage: '',
+        lastBackupFile: ''
+    },
+    externalApi: {
+        enabled: false,
+        tokens: [
+            {
+                name: 'default',
+                token: ''
+            }
+        ]
+    },
     // 订阅转换设置
     subconverter: {
         engineMode: 'builtin',
-        defaultBackend: "https://subapi.cmliussss.net/sub?",
+        defaultBackend: DEFAULT_SUBCONVERTER_BACKEND,
         defaultOptions: {
             udp: true,
             emoji: true,

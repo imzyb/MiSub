@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import DOMPurify from 'dompurify';
+import { useI18n } from '@/i18n/index.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
     announcement: {
@@ -17,7 +20,7 @@ const allowedContentAttrs = ['href', 'target', 'rel', 'class'];
 const sanitizedContent = computed(() => {
     const rawContent = props.announcement?.content?.trim()
         ? props.announcement.content
-        : '暂无详细内容';
+        : t('common.announcementFallbackContent');
     return DOMPurify.sanitize(rawContent, {
         ALLOWED_TAGS: allowedContentTags,
         ALLOWED_ATTR: allowedContentAttrs
@@ -126,12 +129,12 @@ const typeConfig = computed(() => {
                     <div class="flex items-center justify-between gap-4">
                         <h3 class="text-lg font-bold truncate transition-colors duration-300"
                             :class="[typeConfig.text]">
-                            {{ announcement.title || '系统公告' }}
+                            {{ announcement.title || t('common.announcementFallbackTitle') }}
                         </h3>
                         <button v-if="announcement.dismissible" 
                                 @click="dismiss"
                                 class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-                                title="不再显示">
+                                :title="t('common.dismissAnnouncement')">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -144,7 +147,7 @@ const typeConfig = computed(() => {
 
                     <div v-if="announcement.updatedAt" class="pt-2 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-2">
                         <span class="w-1 h-1 rounded-full bg-current opacity-40"></span>
-                        最后更新于 {{ new Date(announcement.updatedAt).toLocaleString() }}
+                        {{ t('common.updatedAt', { time: new Date(announcement.updatedAt).toLocaleString() }) }}
                     </div>
                 </div>
             </div>

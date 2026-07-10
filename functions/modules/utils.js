@@ -60,7 +60,9 @@ function isStorageUnavailableError(error) {
     const message = String(error?.message || error || '').toLowerCase();
     return message.includes('kv storage is paused')
         || message.includes('storage is paused')
-        || message.includes('namespace is paused');
+        || message.includes('namespace is paused')
+        || message.includes('kv put() limit exceeded')
+        || message.includes('put() limit exceeded for the day');
 }
 
 async function safeKvGet(kv, key) {
@@ -307,11 +309,24 @@ import { SYSTEM_CONSTANTS } from './config.js';
 export function getProcessedUserAgent(originalUserAgent, url = '') {
     if (!originalUserAgent) return originalUserAgent;
 
-    // CF-Workers-SUB的精华策略：
-    // 统一使用v2rayN UA获取订阅，绕过机场过滤同时保证获取完整节点
-    return SYSTEM_CONSTANTS.FETCHER_USER_AGENT;
-}
+    const rawUrl = typeof url === 'string' ? url : '';
+    try {
+        const parsedUrl = new URL(rawUrl);
+        const params = parsedUrl.searchParams;
+        if (params.has('clash') || params.get('target')?.toLowerCase() === 'clash') {
+            return 'clash-verge/v2.4.3';
+        }
+    } catch {
+        if (/[?&](?:clash(?:=|&|$)|target=clash(?:&|$))/i.test(rawUrl)) {
+            return 'clash-verge/v2.4.3';
+        }
+    }
 
+    // CF-Workers-SUB的精华策略：
+    // 默认使用 v2rayN UA 获取订阅，绕过多数机场过滤同时保证获取完整节点。
+    // 个别 Clash 专用链接（如 ?clash=2）会严格校验 UA，需要保留 Clash UA。
+    return 'v2rayN/7.23';
+}
 /**
  * 名称前缀辅助函数
  * @param {string} link - 节点链接
@@ -543,9 +558,6 @@ export function createJsonResponse(data, status = 200, headers = {}) {
         status,
         headers: {
             'Content-Type': 'application/json; charset=utf-8',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             ...headers
         }
     });
@@ -598,6 +610,38 @@ export function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+export const JSON_BODY_LIMITS = {
+    auth: 16 * 1024,
+    small: 128 * 1024,
+    normal: 1024 * 1024,
+    large: 5 * 1024 * 1024
+};
+
+export class RequestBodyTooLargeError extends Error {
+    constructor(limitBytes) {
+        super(`Request JSON body too large (max ${limitBytes} bytes)`);
+        this.name = 'RequestBodyTooLargeError';
+        this.status = 413;
+        this.code = 'REQUEST_BODY_TOO_LARGE';
+    }
+}
+
+export async function readJsonWithLimit(request, limitBytes = JSON_BODY_LIMITS.normal) {
+    const contentLength = request?.headers?.get?.('Content-Length') || request?.headers?.get?.('content-length');
+    if (contentLength) {
+        const declaredBytes = Number(contentLength);
+        if (Number.isFinite(declaredBytes) && declaredBytes > limitBytes) {
+            throw new RequestBodyTooLargeError(limitBytes);
+        }
+    }
+
+    const text = await request.text();
+    if (new TextEncoder().encode(text).length > limitBytes) {
+        throw new RequestBodyTooLargeError(limitBytes);
+    }
+    return text ? JSON.parse(text) : {};
 }
 
 /**

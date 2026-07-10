@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import { generateSubscriptionId } from '../utils/id.js';
+import { t } from '../i18n/index.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -17,9 +18,12 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             url: '',
             enabled: true,
             exclude: '',
-            customUserAgent: 'MiSub',
+            customUserAgent: '',
             fetchProxy: '',
+            enableNodeCache: false,
             plusAsSpace: false,
+            excludeTraffic: false,
+            website: '',
             notes: ''
         };
         showModal.value = true;
@@ -48,11 +52,11 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
 
     const handleSave = () => {
         if (!editingSubscription.value || !editingSubscription.value.url) {
-            showToast('订阅链接不能为空', 'error');
+            showToast(t('subscriptions.urlRequired'), 'error');
             return;
         }
-        if (!/^https?:\/\//.test(editingSubscription.value.url)) {
-            showToast('请输入有效的 http:// 或 https:// 订阅链接', 'error');
+        if (!/^https?:\/\//i.test(editingSubscription.value.url)) {
+            showToast(t('subscriptions.invalidUrl'), 'error');
             return;
         }
 

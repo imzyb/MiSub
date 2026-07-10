@@ -203,6 +203,41 @@ export function buildSafeRegex(patterns) {
     }
 }
 
+export function parseFilterRuleText(ruleText) {
+    const lines = Array.isArray(ruleText)
+        ? ruleText.map(line => String(line || '').trim()).filter(Boolean)
+        : String(ruleText || '').split('\n').map(line => line.trim()).filter(Boolean);
+
+    const includeLines = [];
+    const excludeLines = [];
+    let afterDivider = false;
+
+    for (const line of lines) {
+        if (line === '---') {
+            afterDivider = true;
+            continue;
+        }
+
+        if (line.toLowerCase().startsWith('keep:')) {
+            includeLines.push(line);
+            continue;
+        }
+
+        if (afterDivider) {
+            includeLines.push(line);
+        } else {
+            excludeLines.push(line);
+        }
+    }
+
+    return {
+        includeLines,
+        excludeLines,
+        includeRules: buildRuleSet(includeLines, true),
+        excludeRules: buildRuleSet(excludeLines)
+    };
+}
+
 /**
  * 过滤节点对象列表 (用于 preview/node-fetcher)
  * @param {Array<Object>} nodes 
@@ -225,6 +260,29 @@ export function filterNodeObjects(nodes, rules, mode = 'exclude') {
         }
         return !(protocolHit || nameHit);
     });
+}
+
+export function filterNodeUrls(nodeUrls, rules, mode = 'exclude') {
+    if (!rules || !rules.hasRules || !Array.isArray(nodeUrls)) return nodeUrls;
+
+    const nodes = nodeUrls.map(url => ({
+        url,
+        protocol: String(url || '').match(/^(.*?):\/\//)?.[1]?.toLowerCase() || '',
+        name: parseNodeUrlName(url)
+    }));
+    const keptUrls = new Set(filterNodeObjects(nodes, rules, mode).map(node => node.url));
+    return nodeUrls.filter(url => keptUrls.has(url));
+}
+
+function parseNodeUrlName(nodeUrl) {
+    if (!nodeUrl || typeof nodeUrl !== 'string') return '';
+    const hashIndex = nodeUrl.lastIndexOf('#');
+    if (hashIndex === -1) return nodeUrl;
+    try {
+        return decodeURIComponent(nodeUrl.substring(hashIndex + 1));
+    } catch {
+        return nodeUrl.substring(hashIndex + 1);
+    }
 }
 
 /**
@@ -286,27 +344,23 @@ export function applyFilterRules(validNodes, sub) {
 
     // 1. 包含关键词 (Include)
     if (sub.filterInclude && sub.filterInclude.trim() !== '') {
-        const includeRules = buildRuleSet(sub.filterInclude); // Reuse exported
-        if (includeRules.hasRules) { // Reuse object structure
-            const regex = includeRules.nameRegex;
-            if (regex) {
-                // Note: applyFilterRules historically only supported REGEX string matching for Include/Exclude fields in Subscription object.
-                // But buildRuleSet now supports 'proto:'.
-                // For validNodes (which are strings), checking protocol is harder without parsing.
-                // Keep it simple: use regex only for string nodes.
-                filteredNodes = filteredNodes.filter(node => regex.test(node));
-            }
+        const { includeRules, excludeRules } = parseFilterRuleText(sub.filterInclude);
+        if (includeRules.hasRules) {
+            filteredNodes = filterNodeUrls(filteredNodes, includeRules, 'include');
+        }
+        if (excludeRules.hasRules) {
+            filteredNodes = filterNodeUrls(filteredNodes, excludeRules, 'exclude');
         }
     }
 
     // 2. 排除关键词 (Exclude)
     if (sub.filterExclude && sub.filterExclude.trim() !== '') {
-        const excludeRules = buildRuleSet(sub.filterExclude);
+        const { includeRules, excludeRules } = parseFilterRuleText(sub.filterExclude);
+        if (includeRules.hasRules) {
+            filteredNodes = filterNodeUrls(filteredNodes, includeRules, 'include');
+        }
         if (excludeRules.hasRules) {
-            const regex = excludeRules.nameRegex;
-            if (regex) {
-                filteredNodes = filteredNodes.filter(node => !regex.test(node));
-            }
+            filteredNodes = filterNodeUrls(filteredNodes, excludeRules, 'exclude');
         }
     }
 

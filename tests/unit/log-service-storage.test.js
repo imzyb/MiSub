@@ -83,10 +83,11 @@ describe('LogService storage selection', () => {
     const logs = await LogService.getLogs({ MISUB_DB: {}, MISUB_KV: {} });
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({
-      token: 'profile-token',
+      token: expect.stringMatching(/^profile:[a-f0-9]{12}$/),
       format: 'builtin-clash',
       domain: 'sub.example.com'
     });
+    expect(JSON.stringify(logs)).not.toContain('profile-token');
   });
 
   it('clears both D1 logs and legacy KV log buckets in d1 mode', async () => {

@@ -100,6 +100,23 @@ export function convertHysteriaToUrl(proxy) {
             params.set('lazy', proxy.lazy ? '1' : '0');
         }
 
+        // Mihomo Hysteria2 realm 配置
+        if (isHysteria2 && proxy['realm-opts']) {
+            const realmOpts = proxy['realm-opts'];
+            if (realmOpts['realm-id']) {
+                params.set('realm-id', realmOpts['realm-id']);
+            }
+            if (realmOpts.token) {
+                params.set('realm-token', realmOpts.token);
+            }
+            if (realmOpts['server-url']) {
+                params.set('realm-server', realmOpts['server-url']);
+            }
+            if (Array.isArray(realmOpts['stun-servers']) && realmOpts['stun-servers'].length > 0) {
+                params.set('stun-servers', realmOpts['stun-servers'].join(','));
+            }
+        }
+
         // 添加参数
         const paramsStr = params.toString();
         if (paramsStr) {

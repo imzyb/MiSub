@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { api, APIError } from '../../../lib/http.js';
 import { useToastStore } from '../../../stores/toast.js';
 import { useDataStore } from '../../../stores/useDataStore.js';
+import { useManualNodes } from '../../../composables/useManualNodes.js';
+import { useI18n } from '../../../i18n/index.js';
 import Modal from '../../forms/Modal.vue';
 import NodeFilters from './components/NodeFilters.vue';
 import NodeList from './components/NodeList.vue';
@@ -10,6 +12,7 @@ import NodeCard from './components/NodeCard.vue';
 import NodePagination from './components/NodePagination.vue';
 
 const isDev = import.meta.env.DEV;
+const { t } = useI18n();
 
 const props = defineProps({
   show: Boolean,
@@ -87,10 +90,11 @@ const clearSelection = () => {
 
 const { showToast } = useToastStore();
 const dataStore = useDataStore();
+const { addNodesFromBulk } = useManualNodes(dataStore.markDirty);
 
 const handleSaveSelection = async () => {
   if (selectedUrls.value.size === 0) {
-    showToast('请先选择至少一个节点', 'warning');
+    showToast(t('nodePreview.selectAtLeastOne'), 'warning');
     return;
   }
 
@@ -110,20 +114,10 @@ const handleSaveSelection = async () => {
         };
     });
 
-    dataStore.addNodes(nodesToAdd);
+    addNodesFromBulk(nodesToAdd);
     
-    // If we are in profile mode, we might want to also add these new nodes to the profile
-    if (props.profileId) {
-        const profile = dataStore.profiles.find(p => p.id === props.profileId || p.customId === props.profileId);
-        if (profile) {
-            // Wait for nodes to be added to get their IDs (or we generate them)
-            // Since dataStore.addNodes generates IDs, we need to be careful.
-            // Simplified: showToast and guide user to save.
-            showToast(`已成功提取 ${urls.length} 个节点至手动列表，请手动在订阅组中勾选或保存。`, 'success');
-        }
-    } else {
-        showToast(`已成功提取 ${urls.length} 个节点至手动列表，请记得保存更改。`, 'success');
-    }
+    // Add nodes to the manual list. Profile association remains an explicit follow-up action.
+    showToast(`已成功提取 ${urls.length} 个节点至手动列表，请记得保存更改。`, 'success');
     
     pickingMode.value = false;
     selectedUrls.value.clear();
@@ -141,7 +135,7 @@ const title = computed(() => {
 });
 
 const subtitle = computed(() => {
-  return props.profileId ? '订阅组节点预览' : '单点订阅预览结果';
+  return props.profileId ? t('nodePreview.profileSubtitle') : t('nodePreview.subscriptionSubtitle');
 });
 
 // 过滤后的节点
@@ -492,7 +486,7 @@ const goToPage = (page) => {
             class="px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95"
             :class="pickingMode ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200'"
           >
-            {{ pickingMode ? '退出挑选' : '挑选节点' }}
+            {{ pickingMode ? t('nodePreview.exitPicking') : t('nodePreview.pickNodes') }}
           </button>
           <button
             @click="closeModal"
@@ -568,11 +562,11 @@ const goToPage = (page) => {
         <!-- 移动端统计布局 (Compact Cards) -->
         <div class="grid grid-cols-2 gap-3 lg:hidden">
             <div class="flex flex-col gap-1 rounded-2xl bg-indigo-50/50 p-4 dark:bg-indigo-500/10">
-                <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">总节点数</span>
+                <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">{{ t('nodePreview.nodesTotal') }}</span>
                 <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ allNodes.length }}</span>
             </div>
             <div class="flex flex-col gap-1 rounded-2xl bg-purple-50/50 p-4 dark:bg-purple-500/10">
-                <span class="text-[10px] font-bold text-purple-400 uppercase tracking-wider">协议类型</span>
+                <span class="text-[10px] font-bold text-purple-400 uppercase tracking-wider">{{ t('nodePreview.protocolTypes') }}</span>
                 <span class="text-2xl font-black text-purple-600 dark:text-purple-400">{{ Object.keys(protocolStats).length }}</span>
             </div>
         </div>
@@ -605,7 +599,7 @@ const goToPage = (page) => {
           <div v-if="loading" class="flex h-64 items-center justify-center">
             <div class="rounded-xl border border-gray-200/70 bg-white px-8 py-8 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">正在加载节点信息...</p>
+              <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ t('nodePreview.loadingNodes') }}</p>
             </div>
           </div>
 
@@ -620,7 +614,7 @@ const goToPage = (page) => {
                 @click="loadNodes"
                 class="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
               >
-                重试
+                {{ t('common.retry') }}
               </button>
             </div>
           </div>
@@ -631,7 +625,7 @@ const goToPage = (page) => {
               <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
-              <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">未找到符合条件的节点</p>
+              <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ t('nodePreview.noMatchingNodes') }}</p>
             </div>
           </div>
 
@@ -682,14 +676,14 @@ const goToPage = (page) => {
     <div v-if="show && pickingMode" class="fixed bottom-4 left-1/2 z-50 w-[94%] max-w-2xl -translate-x-1/2 sm:bottom-6">
       <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/20 bg-indigo-600 p-4 text-white shadow-2xl backdrop-blur-md">
         <div class="flex flex-col">
-          <span class="text-xs opacity-80 tracking-widest font-bold">挑选模式</span>
-          <span class="text-sm font-medium">已选择 <span class="text-lg font-black">{{ selectedUrls.size }}</span> 个节点</span>
+          <span class="text-xs opacity-80 tracking-widest font-bold">{{ t('nodePreview.pickingMode') }}</span>
+          <span class="text-sm font-medium">{{ t('nodePreview.selectedNodesPrefix') }} <span class="text-lg font-black">{{ selectedUrls.size }}</span> {{ t('nodePreview.selectedNodesSuffix') }}</span>
         </div>
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <button @click="selectAll" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">全选</button>
-          <button @click="clearSelection" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">清空</button>
+          <button @click="selectAll" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">{{ t('actions.selectAll') }}</button>
+          <button @click="clearSelection" class="rounded-xl bg-white/10 px-3 py-1.5 text-xs transition-colors hover:bg-white/20">{{ t('common.clear') }}</button>
           <button @click="handleSaveSelection" class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-indigo-600 shadow-lg transition-all hover:bg-indigo-50 active:scale-95">
-            保存选择
+            {{ t('nodePreview.saveSelection') }}
           </button>
         </div>
       </div>

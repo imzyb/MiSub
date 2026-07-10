@@ -42,11 +42,11 @@ const emit = defineEmits(['click']);
 
 const variantClasses = computed(() => {
   const variants = {
-    primary: 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm shadow-primary-500/20 active:scale-95 transition-all text-sm font-medium',
-    secondary: 'bg-white/80 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700/70 text-gray-800 dark:text-gray-200 border border-gray-200/80 dark:border-white/10',
-    danger: 'bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 border border-white/20',
-    ghost: 'hover:bg-white/20 dark:hover:bg-white/5 text-gray-600 dark:text-gray-300',
-    outline: 'bg-transparent hover:bg-primary-50 dark:hover:bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/50 dark:border-primary-400/50'
+    primary: 'bg-primary-600 hover:bg-primary-500 text-white border border-primary-500/70 active:scale-[0.98]',
+    secondary: 'bg-white dark:bg-white/[0.04] hover:bg-gray-50 dark:hover:bg-white/[0.055] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-white/10',
+    danger: 'bg-red-500 hover:bg-red-400 text-white border border-red-400/70 active:scale-[0.98]',
+    ghost: 'bg-transparent hover:bg-gray-100 dark:hover:bg-white/[0.055] text-gray-600 dark:text-gray-300',
+    outline: 'bg-transparent hover:bg-primary-50 dark:hover:bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/40 dark:border-primary-400/40'
   };
   return variants[props.variant];
 });
@@ -81,20 +81,12 @@ const handleClick = (event) => {
     :disabled="disabled || loading"
     :aria-label="ariaLabel"
     @click="handleClick"
-    class="relative inline-flex items-center justify-center font-medium smooth-all misub-radius-lg tap-effect disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group tracking-wide transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+    class="relative inline-flex items-center justify-center rounded-[var(--misub-radius-md)] font-medium tap-effect disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group tracking-normal transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
     :class="[
       variantClasses,
       sizeClasses
     ]"
   >
-    <div
-      v-if="variant === 'primary' && !disabled"
-      class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-    >
-      <div class="absolute inset-0 bg-gradient-to-r from-cyan-400/20 via-purple-500/20 to-indigo-500/20 mix-blend-overlay"></div>
-    </div>
-
-    <div class="absolute inset-0 misub-radius-lg ring-1 ring-inset ring-white/20 pointer-events-none"></div>
 
     <svg
       v-if="loading"
@@ -108,7 +100,7 @@ const handleClick = (event) => {
 
     <svg
       v-else-if="icon"
-      class="w-4 h-4 relative z-10 transition-transform group-hover:scale-110"
+      class="w-4 h-4 relative z-10"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"

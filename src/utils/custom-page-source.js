@@ -42,7 +42,7 @@ export function parseCustomPageSource(content, css = '') {
     .filter(Boolean)
     .map(normalizeUrl);
 
-  const linkImports = stylesheetLinks.map(href => `@import url("${href}");`);
+  const linkImports = [];
 
   const scriptNodes = Array.from(doc.querySelectorAll('script'));
   const scripts = scriptNodes.map(node => ({

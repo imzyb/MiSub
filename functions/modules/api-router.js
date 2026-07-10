@@ -5,14 +5,24 @@
 
 import { StorageFactory, DataMigrator } from '../storage-adapter.js';
 import { KV_KEY_SUBS } from './config.js';
-import { createJsonResponse, createErrorResponse, getAuthDebugInfo } from './utils.js';
+import { createJsonResponse, createErrorResponse, getAuthDebugInfo, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
 import { authMiddleware, handleLogin, handleLogout, getAuthSessionDiagnostic, getLoginPasswordDiagnostic } from './auth-middleware.js';
 import { handleDataRequest, handleMisubsSave, handleSettingsGet, handleSettingsSave, handleSettingsReset, handlePublicProfilesRequest, handlePublicConfig, handleUpdatePassword } from './api-handler.js';
+import { handleRuleTemplatesRequest } from './rule-template-handler.js';
 import { handleCronTrigger } from './notifications.js';
 import {
     handleSubscriptionNodesRequest,
     handlePublicPreviewRequest
 } from './subscription-handler.js';
+import {
+    handleWebdavBackupStatus,
+    handleWebdavBackupTest,
+    handleManualWebdavBackup,
+    handleWebdavBackupList,
+    handleWebdavRestore,
+    handleBackupExport,
+    handleBackupRestore
+} from './webdav-backup-handler.js';
 import {
     handleDebugSubscriptionRequest,
     handleSystemInfoRequest,
@@ -37,10 +47,18 @@ import {
 } from './handlers/guestbook-handler.js';
 import { handleGithubReleaseRequest } from './handlers/github-proxy-handler.js'; // [NEW] Import handler
 import { handleParseSubscription } from './parse-subscription-handler.js';
+import { safeFetchPublicUrl, validatePublicFetchUrl, redactUrl } from './security-utils.js';
+import { normalizeSubconverterBackend } from './subscription/main-handler.js';
+import { maybeRunScheduledTasks } from './scheduled-task-runner.js';
+import { handleExternalNodesCallbackRequest } from '../services/external-nodes-callback-service.js';
+import { handleExternalApiRequest } from './external-api-router.js';
 
 // 常量定义
 const OLD_KV_KEY = 'misub_data_v1';
 const KV_KEY_PROFILES = 'misub_profiles_v1'; // Ensure this is defined if used
+function isAuthDiagnosticsEnabled(env) {
+    return String(env?.ENABLE_AUTH_DIAGNOSTICS || '').toLowerCase() === 'true';
+}
 
 /**
  * 处理主要的API请求
@@ -48,9 +66,17 @@ const KV_KEY_PROFILES = 'misub_profiles_v1'; // Ensure this is defined if used
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleApiRequest(request, env) {
+export async function handleApiRequest(request, env, context = null) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api/, '');
+
+    if (path === '/external-nodes-callback') {
+        return handleExternalNodesCallbackRequest(request, env);
+    }
+
+    if (path.startsWith('/ext/v1')) {
+        return await handleExternalApiRequest(request, env);
+    }
 
     // [新增] 数据存储迁移接口 (KV -> D1)
     if (path === '/migrate_to_d1') {
@@ -209,7 +235,7 @@ export async function handleApiRequest(request, env) {
         }
 
 
-        return await handleDataRequest(env);
+        return await handleDataRequest(env, context || { env });
     }
 
     // [New] GitHub Proxy Route (Public)
@@ -222,8 +248,11 @@ export async function handleApiRequest(request, env) {
         return await handleLogout(request);
     }
 
-    // 认证调试端点（公开，不返回敏感值）
+    // 认证调试端点（默认关闭，不返回敏感值）
     if (path === '/auth_debug') {
+        if (!isAuthDiagnosticsEnabled(env)) {
+            return createErrorResponse('Not Found', 404);
+        }
         const debugInfo = await getAuthDebugInfo(env);
         const authDiagnostic = await getAuthSessionDiagnostic(request, env);
 
@@ -234,8 +263,11 @@ export async function handleApiRequest(request, env) {
         });
     }
 
-    // 登录密码调试端点（公开，不返回敏感值）
+    // 登录密码调试端点（默认关闭，不返回敏感值）
     if (path === '/auth_check') {
+        if (!isAuthDiagnosticsEnabled(env)) {
+            return createErrorResponse('Not Found', 404);
+        }
         if (request.method !== 'POST') {
             return createJsonResponse({ error: 'Method Not Allowed' }, 405);
         }
@@ -335,6 +367,30 @@ export async function handleApiRequest(request, env) {
         case '/misubs':
             return await handleMisubsSave(request, env);
 
+        case '/rule_templates':
+            return await handleRuleTemplatesRequest(request, env);
+
+        case '/backup/export':
+            return await handleBackupExport(request, env);
+
+        case '/backup/restore':
+            return await handleBackupRestore(request, env);
+
+        case '/backup/webdav/status':
+            return await handleWebdavBackupStatus(env);
+
+        case '/backup/webdav/test':
+            return await handleWebdavBackupTest(request, env);
+
+        case '/backup/webdav/run':
+            return await handleManualWebdavBackup(request, env);
+
+        case '/backup/webdav/list':
+            return await handleWebdavBackupList(request, env);
+
+        case '/backup/webdav/restore':
+            return await handleWebdavRestore(request, env);
+
         case '/node_count':
             return await handleLegacyNodeCountRequest(request, env);
 
@@ -345,7 +401,7 @@ export async function handleApiRequest(request, env) {
             return await handleCleanNodesRequest(request, env);
 
         case '/fetch_external_url':
-            return await handleExternalFetchRequest(request);
+            return await handleExternalFetchRequest(request, env);
 
         case '/batch_update_nodes':
             return await handleBatchUpdateNodesRequest(request, env);
@@ -370,6 +426,9 @@ export async function handleApiRequest(request, env) {
 
         case '/parse_subscription':
             return await handleParseSubscription(request, env);
+
+        case '/subconverter/test':
+            return await handleSubconverterTestRequest(request, env);
 
         case '/logs':
             if (request.method === 'GET') {
@@ -430,27 +489,115 @@ export async function handleApiRequest(request, env) {
     }
 }
 
-/**
- * 处理外部URL获取请求
- * @param {Object} request - HTTP请求对象
- * @param {Object} env - Cloudflare环境对象
- * @returns {Promise<Response>} HTTP响应
- */
-async function handleExternalFetchRequest(request, env) {
+export async function handleSubconverterTestRequest(request, env) {
     if (request.method !== 'POST') {
         return createErrorResponse('Method Not Allowed', 405);
     }
 
     let requestData;
     try {
-        requestData = await request.json();
+        requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
     } catch (e) {
-        return createErrorResponse('Invalid JSON format', 400);
+        return createErrorResponse(e.status === 413 ? e.message : 'Invalid JSON format', e.status || 400);
+    }
+
+    const { backend, target = 'clash', timeout = 15000 } = requestData || {};
+    let endpoint;
+    try {
+        endpoint = normalizeSubconverterBackend(backend);
+    } catch (error) {
+        return createJsonResponse({
+            success: false,
+            error: '转换后端地址无效，请填写域名或 http(s) URL。',
+            details: error.message
+        }, 400);
+    }
+
+    const safeTarget = /^[a-z0-9_-]{2,32}$/i.test(String(target || '')) ? String(target).toLowerCase() : 'clash';
+    const controller = new AbortController();
+    const normalizedTimeout = Math.min(Math.max(Number(timeout) || 15000, 3000), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), normalizedTimeout);
+
+    try {
+        // 使用公开测试节点内容直接传给后端，避免探测时依赖用户订阅链接或 MiSub 回调 URL。
+        endpoint.searchParams.set('target', safeTarget);
+        endpoint.searchParams.set('url', 'trojan://password@example.com:443?allowInsecure=1&sni=example.com#MiSub-Test-Node');
+        endpoint.searchParams.set('insert', 'false');
+        endpoint.searchParams.set('emoji', 'false');
+        endpoint.searchParams.set('list', 'false');
+        endpoint.searchParams.set('udp', 'true');
+        endpoint.searchParams.set('tfo', 'false');
+        endpoint.searchParams.set('scv', 'true');
+        endpoint.searchParams.set('sort', 'false');
+
+        const startedAt = Date.now();
+        const response = await fetch(new Request(endpoint.toString(), {
+            method: 'GET',
+            headers: {
+                'User-Agent': 'MiSub/Backend-Test',
+                'Accept': '*/*',
+                'Cache-Control': 'no-cache'
+            },
+            signal: controller.signal
+        }));
+        const elapsedMs = Date.now() - startedAt;
+        clearTimeout(timeoutId);
+
+        const text = await response.text();
+        const sample = text.slice(0, 200);
+        const hasUsableOutput = response.ok && /MiSub-Test-Node|proxies:|proxy-groups:|trojan/i.test(text);
+
+        return createJsonResponse({
+            success: hasUsableOutput,
+            available: hasUsableOutput,
+            status: response.status,
+            statusText: response.statusText,
+            endpoint: `${endpoint.origin}${endpoint.pathname}`,
+            elapsedMs,
+            sample,
+            message: hasUsableOutput
+                ? `第三方转换后端可用，响应 ${response.status}，耗时 ${elapsedMs}ms。`
+                : `后端已响应但未返回有效转换结果（HTTP ${response.status}）。`
+        }, response.ok ? 200 : 502);
+    } catch (error) {
+        clearTimeout(timeoutId);
+        const isTimeout = error.name === 'AbortError';
+        console.error('[Subconverter Test] Error:', {
+            backend: endpoint ? `${endpoint.origin}${endpoint.pathname}` : '[invalid]',
+            error: error.message,
+            type: isTimeout ? 'timeout' : 'network'
+        });
+        return createJsonResponse({
+            success: false,
+            available: false,
+            endpoint: endpoint ? `${endpoint.origin}${endpoint.pathname}` : null,
+            error: isTimeout ? `测试超时（${normalizedTimeout}ms）` : `无法连接转换后端：${error.message}`,
+            errorType: isTimeout ? 'timeout' : 'network'
+        }, 502);
+    }
+}
+
+/**
+ * 处理外部URL获取请求
+ * @param {Object} request - HTTP请求对象
+ * @param {Object} env - Cloudflare环境对象
+ * @returns {Promise<Response>} HTTP响应
+ */
+export async function handleExternalFetchRequest(request, env) {
+    if (request.method !== 'POST') {
+        return createErrorResponse('Method Not Allowed', 405);
+    }
+
+    let requestData;
+    try {
+        requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
+    } catch (e) {
+        return createErrorResponse(e.status === 413 ? e.message : 'Invalid JSON format', e.status || 400);
     }
 
     const { url: externalUrl, timeout = 15000 } = requestData;
 
-    if (!externalUrl || typeof externalUrl !== 'string' || !/^https?:\/\/.+/.test(externalUrl)) {
+    if (!externalUrl || typeof externalUrl !== 'string') {
         return createErrorResponse('Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.', 400);
     }
 
@@ -459,22 +606,25 @@ async function handleExternalFetchRequest(request, env) {
         return createErrorResponse('URL too long (max 2048 characters)', 400);
     }
 
+    const urlValidation = validatePublicFetchUrl(externalUrl);
+    if (!urlValidation.ok) {
+        return createErrorResponse(urlValidation.error, 400);
+    }
 
     try {
         // 创建带超时的请求
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(new Request(externalUrl, {
+        const response = await safeFetchPublicUrl(urlValidation.url.toString(), {
             method: 'GET',
             headers: {
                 'User-Agent': 'v2rayN/7.23',
                 'Accept': '*/*',
                 'Cache-Control': 'no-cache'
             },
-            redirect: "follow",
             signal: controller.signal
-        }));
+        });
 
         clearTimeout(timeoutId);
 
@@ -541,7 +691,7 @@ async function handleExternalFetchRequest(request, env) {
         }
 
         console.error(`[External Fetch] Error:`, {
-            url: externalUrl,
+            url: redactUrl(externalUrl),
             error: error.message,
             errorType: errorDetails.type
         });
@@ -673,10 +823,17 @@ async function handleCronTriggerRequest(env) {
             console.warn('[Cron Trigger] Failed to save execution status:', error);
         }
 
+        const scheduledTasks = await maybeRunScheduledTasks({ env }, {
+            source: 'external-cron',
+            forceCheck: true,
+            awaitRun: true
+        }).catch(error => ({ success: false, error: error?.message || String(error) }));
+
         return createJsonResponse({
             success: true,
             message: 'Cron triggered successfully',
             result,
+            scheduledTasks,
             timestamp: new Date().toISOString()
         });
 

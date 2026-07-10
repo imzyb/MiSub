@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue';
+import { t } from '../../i18n/index.js';
 
 const props = defineProps({
   teleportToBody: {
@@ -106,7 +107,7 @@ onUnmounted(() => {
 
 <template>
   <div ref="triggerRef" class="relative shrink-0">
-    <button @click="toggleMenu" @keydown="handleTriggerKeydown" :aria-expanded="isOpen" aria-haspopup="menu" :aria-controls="menuId" class="p-2.5 misub-radius-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+    <button @click="toggleMenu" @keydown="handleTriggerKeydown" :aria-expanded="isOpen" aria-haspopup="menu" :aria-label="t('actions.bulkActions')" :aria-controls="menuId" class="p-2.5 misub-radius-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
     </button>
 

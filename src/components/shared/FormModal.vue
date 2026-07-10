@@ -5,6 +5,8 @@
 
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue';
+import { t } from '../../i18n/index.js';
+import { useBackdropDismiss } from '../../composables/useBackdropDismiss.js';
 
 const props = defineProps({
   show: {
@@ -42,11 +44,11 @@ const props = defineProps({
   },
   confirmText: {
     type: String,
-    default: '确认'
+    default: ''
   },
   cancelText: {
     type: String,
-    default: '取消'
+    default: ''
   },
   confirmDisabled: {
     type: Boolean,
@@ -89,7 +91,7 @@ const sizeClasses = {
 
 // 计算样式
 const modalClasses = computed(() => [
-  'relative transform overflow-hidden misub-radius-md bg-white dark:bg-gray-800 text-left shadow-xl transition-all',
+  'relative transform overflow-hidden rounded-[var(--misub-radius-lg)] bg-white dark:bg-[#0f1011] text-left shadow-xl border border-gray-200 dark:border-white/10 transition-opacity duration-150',
   sizeClasses[props.size] || sizeClasses.medium,
   props.maxWidth ? `max-w-[${props.maxWidth}]` : ''
 ]);
@@ -101,6 +103,9 @@ const contentStyle = computed(() => {
   }
   return styles;
 });
+
+const resolvedConfirmText = computed(() => props.confirmText || t('actions.confirm'));
+const resolvedCancelText = computed(() => props.cancelText || t('actions.cancel'));
 
 // 监听显示状态变化
 watch(() => props.show, async (newVal) => {
@@ -127,11 +132,13 @@ const handleClose = () => {
 };
 
 // 处理遮罩点击
-const handleMaskClick = () => {
-  if (props.maskClosable && !props.disabled && !props.loading) {
-    handleClose();
-  }
-};
+const {
+  handleBackdropPointerDown: handleMaskPointerDown,
+  handleBackdropClick: handleMaskClick
+} = useBackdropDismiss(
+  handleClose,
+  () => props.maskClosable && !props.disabled && !props.loading
+);
 
 // 处理确认
 const handleConfirm = () => {
@@ -190,7 +197,8 @@ defineExpose({
       <!-- 遮罩层 -->
       <div
         class="flex min-h-full items-center justify-center p-4 text-center sm:p-0"
-        :class="{ 'bg-black bg-opacity-50': show }"
+        :class="{ 'bg-black/60 backdrop-blur-sm': show }"
+        @pointerdown.capture="handleMaskPointerDown"
         @click="handleMaskClick"
       >
         <!-- 模态框 -->
@@ -202,7 +210,7 @@ defineExpose({
           <!-- 头部 -->
           <div
             v-if="title || closable"
-            class="border-b border-gray-200 dark:border-gray-700 px-6 py-4"
+            class="border-b border-gray-200 dark:border-white/10 px-6 py-4"
           >
             <div class="flex items-center justify-between">
               <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">
@@ -214,7 +222,7 @@ defineExpose({
                 v-if="closable"
                 type="button"
                 :disabled="disabled || loading"
-                class="misub-radius-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed p-2"
+                class="rounded-[var(--misub-radius-md)] bg-transparent text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/[0.055] focus:outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-50 disabled:cursor-not-allowed p-2 transition-colors duration-150"
                 @click="handleClose"
               >
                 <span class="sr-only">关闭</span>
@@ -238,7 +246,7 @@ defineExpose({
           <!-- 底部按钮 -->
           <div
             v-if="showFooter || $slots.footer"
-            class="border-t border-gray-200 dark:border-gray-700 px-6 py-4 bg-gray-50 dark:bg-gray-800/50"
+            class="border-t border-gray-200 dark:border-white/10 px-6 py-4 bg-gray-50 dark:bg-white/[0.02]"
           >
             <!-- 自定义底部插槽 -->
             <slot name="footer">
@@ -248,17 +256,17 @@ defineExpose({
                   type="button"
                   :disabled="disabled || loading"
                   :class="cancelButtonClass"
-                  class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium misub-radius-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-white/10 text-sm font-medium rounded-[var(--misub-radius-md)] text-gray-700 dark:text-gray-300 bg-white dark:bg-white/[0.04] hover:bg-gray-50 dark:hover:bg-white/[0.055] focus:outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
                   @click="handleCancel"
                 >
-                  {{ cancelText }}
+                  {{ resolvedCancelText }}
                 </button>
 
                 <button
                   type="button"
                   :disabled="disabled || loading || confirmDisabled"
                   :class="[confirmButtonClass, { 'opacity-50 cursor-not-allowed': confirmDisabled }]"
-                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium misub-radius-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  class="inline-flex items-center px-4 py-2 border border-primary-500/70 text-sm font-medium rounded-[var(--misub-radius-md)] text-white bg-primary-600 hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
                   @click="handleConfirm"
                 >
                   <!-- 加载图标 -->
@@ -272,7 +280,7 @@ defineExpose({
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
 
-                  {{ confirmText }}
+                  {{ resolvedConfirmText }}
                 </button>
               </div>
             </slot>

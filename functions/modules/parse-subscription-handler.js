@@ -4,7 +4,7 @@
  */
 
 import { parseNodeList } from './utils/node-parser.js';
-import { createJsonResponse, createErrorResponse } from './utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
 
 /**
  * 处理订阅内容解析请求
@@ -14,7 +14,7 @@ import { createJsonResponse, createErrorResponse } from './utils.js';
  */
 export async function handleParseSubscription(request, env) {
     try {
-        const { content } = await request.json();
+        const { content } = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
 
         if (!content || typeof content !== 'string') {
             return createJsonResponse({

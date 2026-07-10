@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { formatBytes } from '../../lib/utils.js';
 import { TIMING } from '../../constants/timing.js';
 import Switch from './Switch.vue';
+import { useI18n } from '@/i18n/index.js';
 
 const props = defineProps({
   misub: {
@@ -12,6 +13,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['delete', 'change', 'update', 'edit', 'preview', 'qrcode']);
+const { t } = useI18n();
 
 const getProtocol = (url) => {
   try {
@@ -77,10 +79,37 @@ const expiryInfo = computed(() => {
     else if (diffDays <= 7) style = 'text-orange-500 font-semibold';
     return {
         date: expiryDate.toLocaleDateString(),
-        daysRemaining: diffDays < 0 ? '已过期' : (diffDays === 0 ? '今天到期' : `${diffDays} 天后`),
+        daysRemaining: diffDays < 0 ? t('subscriptions.expired') : (diffDays === 0 ? t('subscriptions.expiresToday') : t('subscriptions.expiresInDays', { count: diffDays })),
         style: style
     };
 });
+
+const normalizeWebsiteUrl = (value) => {
+  const website = (value || '').trim();
+  if (!website) return null;
+  if (/^https?:\/\//i.test(website)) return website;
+  return `https://${website}`;
+};
+
+const websiteUrl = computed(() => {
+  const explicitWebsite = normalizeWebsiteUrl(props.misub.website);
+  if (explicitWebsite) return explicitWebsite;
+
+  const notes = props.misub.notes;
+  if (!notes) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const matches = notes.match(urlRegex);
+  return matches ? matches[0] : null;
+});
+
+const noteWithoutUrl = computed(() => {
+  const notes = props.misub.notes;
+  if (!notes) return '';
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return notes.replace(urlRegex, '').trim();
+});
+
+const hasFooterMeta = computed(() => Boolean(noteWithoutUrl.value || websiteUrl.value));
 </script>
 
 <template>
@@ -102,26 +131,26 @@ const expiryInfo = computed(() => {
               {{ expiryInfo.daysRemaining }}
             </span>
           </div>
-          <h3 class="truncate text-lg font-semibold leading-tight text-gray-900 dark:text-white" :title="misub.name || '未命名订阅'">
-            {{ misub.name || '未命名订阅' }}
+          <h3 class="truncate text-lg font-semibold leading-tight text-gray-900 dark:text-white" :title="misub.name || t('subscriptions.unnamed')">
+            {{ misub.name || t('subscriptions.unnamed') }}
           </h3>
         </div>
         
 	<!-- Action Buttons (Visible on Hover/Touch) -->
 	<div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
-		<button @click.stop="emit('preview')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" title="预览节点" aria-label="预览节点">
+		<button @click.stop="emit('preview')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" :title="t('actions.previewNodes')" :aria-label="t('actions.previewNodes')">
 			<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
 		</button>
-		<button @click.stop="emit('qrcode')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" title="显示二维码" aria-label="显示二维码">
+		<button @click.stop="emit('qrcode')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" :title="t('actions.showQrCode')" :aria-label="t('actions.showQrCode')">
 			<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
 				<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
 			</svg>
 		</button>
-		<button @click.stop="emit('edit')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" title="编辑" aria-label="编辑订阅">
+		<button @click.stop="emit('edit')" class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" :title="t('actions.edit')" :aria-label="t('actions.edit')">
 			<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
 		</button>
-		<button @click.stop="emit('delete')" class="p-2.5 rounded-full hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" title="删除" aria-label="删除订阅">
+		<button @click.stop="emit('delete')" class="p-2.5 rounded-full hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center" :title="t('actions.delete')" :aria-label="t('actions.delete')">
 			<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
 		</button>
 	</div>
@@ -138,7 +167,7 @@ const expiryInfo = computed(() => {
       <div class="grid gap-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-white/5">
         <div v-if="trafficInfo" class="space-y-2">
           <div class="flex items-end justify-between text-xs">
-            <span class="text-gray-500 dark:text-gray-400">已用 <span class="font-semibold text-gray-700 dark:text-gray-200">{{ trafficInfo.used }}</span></span>
+            <span class="text-gray-500 dark:text-gray-400">{{ t('subscriptions.usedTraffic') }} <span class="font-semibold text-gray-700 dark:text-gray-200">{{ trafficInfo.used }}</span></span>
             <span class="text-gray-400">{{ trafficInfo.total }}</span>
           </div>
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
@@ -146,12 +175,12 @@ const expiryInfo = computed(() => {
           </div>
         </div>
         <div v-else class="text-xs text-gray-400">
-          暂无流量数据
+          {{ t('subscriptions.noTrafficData') }}
         </div>
         <div class="flex items-center justify-between text-xs">
-          <span class="text-gray-500 dark:text-gray-400">节点数量</span>
+          <span class="text-gray-500 dark:text-gray-400">{{ t('subscriptions.nodeCountLabel') }}</span>
           <span class="font-semibold text-gray-700 dark:text-gray-200">
-            {{ misub.isUpdating ? '更新中...' : `${misub.nodeCount || 0} 个节点` }}
+            {{ misub.isUpdating ? t('subscriptions.updating') : t('subscriptions.nodeCount', { count: misub.nodeCount || 0 }) }}
           </span>
         </div>
       </div>
@@ -165,7 +194,7 @@ const expiryInfo = computed(() => {
         />
 
         <div class="flex items-center gap-3">
-          <button @click.stop="emit('update')" :disabled="misub.isUpdating" class="p-1.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors disabled:opacity-50" :title="misub.isUpdating ? '更新中' : '更新节点信息'">
+          <button @click.stop="emit('update')" :disabled="misub.isUpdating" class="p-1.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-400 hover:text-primary-500 transition-colors disabled:opacity-50" :title="misub.isUpdating ? t('subscriptions.updating') : t('subscriptions.updateNodeInfo')">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" :class="{'animate-spin text-primary-500': misub.isUpdating}" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
             </svg>
@@ -174,13 +203,25 @@ const expiryInfo = computed(() => {
 
       </div>
 
-      <!-- Notes (Collapsible or Small) -->
-      <div v-if="misub.notes" class="mt-3 flex items-center gap-1 truncate text-[10px] text-gray-400">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
-        {{ misub.notes }}
+      <!-- Notes / Website -->
+      <div v-if="hasFooterMeta" data-testid="subscription-footer-meta" class="mt-3 flex items-center gap-1 truncate text-[10px] text-gray-400">
+        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+        <a
+          v-if="websiteUrl"
+          data-testid="subscription-website-link"
+          :href="websiteUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click.stop
+          class="flex items-center gap-0.5 text-primary-500 hover:text-primary-600 font-medium transition-colors cursor-pointer"
+          :title="t('subscriptions.visitWebsite')"
+        >
+          {{ t('subscriptions.website') }}
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+        </a>
+        <span v-if="noteWithoutUrl" data-testid="subscription-notes" class="truncate">{{ noteWithoutUrl }}</span>
       </div>
 
     </div>
   </div>
 </template>
-

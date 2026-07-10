@@ -6,15 +6,15 @@
 
 import { urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { clashFix } from '../../utils/format-utils.js';
-import { 
-    POLICY_GROUPS, 
-    RULE_SETS, 
-    getBuiltinRules, 
-    getRemoteProviderDefinitions, 
-    DEFAULT_SELECT_GROUP, 
-    DEFAULT_RELAY_GROUP, 
-    pruneProxyGroups 
+import { isMetaCore } from './user-agent-utils.js';
+import {
+    POLICY_GROUPS,
+    RULE_SETS,
+    getBuiltinRules,
+    getRemoteProviderDefinitions,
+    DEFAULT_SELECT_GROUP,
+    DEFAULT_RELAY_GROUP,
+    pruneProxyGroups
 } from './builtin-rules-provider.js';
 import yaml from 'js-yaml';
 
@@ -69,6 +69,61 @@ function deduplicateNames(proxies) {
 }
 
 /**
+ * 移除仅供内部分组使用、不能输出到 Clash/Mihomo 配置的字段。
+ * @param {Object[]} proxies
+ * @returns {Object[]}
+ */
+function stripInternalProxyFields(proxies) {
+    return proxies.map(proxy => {
+        const { metadata, ...publicProxy } = proxy;
+        return publicProxy;
+    });
+}
+
+/**
+ * 为 Mihomo/Meta 生成链式代理节点。
+ * 当前 Meta 内核不再支持 relay 策略组语义，应通过 dialer-proxy 让落地节点经由入口节点拨号。
+ * @param {Object[]} proxies 原始代理对象（保留内部 metadata）
+ * @param {Object[]} publicProxies 输出用代理对象（不含内部字段）
+ * @param {Object[]} proxyGroups 策略组定义
+ * @returns {{proxies: Object[], proxyGroups: Object[]}}
+ */
+function applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups) {
+    const relayGroup = proxyGroups.find(group => group.name === '🔗 链式代理');
+    if (!relayGroup) {
+        return { proxies: publicProxies, proxyGroups };
+    }
+
+    const chainProxies = publicProxies.map(proxy => ({
+        ...proxy,
+        name: `🔗 链式代理 - ${proxy.name}`,
+        'dialer-proxy': '入口节点'
+    }));
+    const chainNames = chainProxies.map(proxy => proxy.name);
+
+    const nextProxyGroups = proxyGroups.map(group => {
+        if (group.name === '🔗 链式代理') {
+            return {
+                ...group,
+                // Meta/Mihomo 不再使用 relay group。保持上一版可用结构：
+                // “链式代理”直接选择带 dialer-proxy 的落地副本；同时隐藏“落地节点”分组，避免多一层选择造成误解。
+                type: 'select',
+                proxies: chainNames
+            };
+        }
+        if (group.name === '落地节点') {
+            return null;
+        }
+        return group;
+    }).filter(Boolean);
+
+    return {
+        proxies: [...publicProxies, ...chainProxies],
+        proxyGroups: pruneProxyGroups(nextProxyGroups, [...proxies, ...chainProxies])
+    };
+}
+
+/**
  * 生成内置 Clash 配置
  * @param {string} nodeList - 节点列表（换行分隔的 URL）
  * @param {Object} options - 配置选项
@@ -80,8 +135,12 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         enableUdp = true,
         enableTfo = false,
         skipCertVerify = false,
-        ruleLevel = 'std' // [New] 支持 base, std, full
+        ruleLevel = 'std', // [New] 支持 base, std, full
+        userAgent = '',
+        hiddifyCompatible = false
     } = options;
+    const enableMihomoSyntax = Boolean(options.isMeta) || isMetaCore(userAgent, options.searchParams);
+    const isHiddifyClient = hiddifyCompatible || /hiddify/i.test(userAgent || '');
 
     // 解析节点 URL 列表（先清理控制字符）
     const cleanedNodeList = cleanControlChars(nodeList);
@@ -109,22 +168,32 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
     // 生成 YAML
     try {
         const levelKey = (ruleLevel || 'std').toUpperCase();
-        const rawRules = getBuiltinRules(levelKey, 'clash');
+        const rawRules = isHiddifyClient
+            ? ['MATCH,🚀 节点选择']
+            : getBuiltinRules(levelKey, 'clash');
 
         // 生成策略组并执行引用修剪
         const policyGroupsFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
-        let proxyGroups = policyGroupsFactory(proxies);
+        let proxyGroups = policyGroupsFactory(proxies, options);
         proxyGroups = pruneProxyGroups(proxyGroups, proxies);
         
-        // 提取远程 Provider 定义
-        const ruleProviders = getRemoteProviderDefinitions('clash', rawRules);
-        
+        // 提取远程 Provider 定义。Hiddify 4.x 的 Clash 转 sing-box 解析对 rule-providers 兼容性较差，
+        // 自动识别为 Hiddify 时降级为纯 MATCH 规则，避免导入时报 unable to determine config format。
+        const ruleProviders = isHiddifyClient ? {} : getRemoteProviderDefinitions('clash', rawRules);
+
         // 转换规则行为最终字符串
         const clashRules = rawRules.map(r => {
             if (typeof r === 'string') return r;
             if (r.type === 'rule-provider') return `RULE-SET,${r.provider},${r.target}`;
             return null;
         }).filter(Boolean);
+
+        let publicProxies = stripInternalProxyFields(proxies);
+        if (levelKey === 'RELAY' && enableMihomoSyntax) {
+            const relayConfig = applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups);
+            publicProxies = relayConfig.proxies;
+            proxyGroups = relayConfig.proxyGroups;
+        }
 
         // 基础配置
         const config = {
@@ -147,14 +216,14 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
                 ]
             },
 
-            'proxies': proxies,
+            'proxies': publicProxies,
             'profile': {
                 'store-selected': true,
                 'subscription-url': options.managedConfigUrl || ''
             },
 
             'proxy-groups': proxyGroups,
-            'rule-providers': ruleProviders,
+            ...(Object.keys(ruleProviders).length ? { 'rule-providers': ruleProviders } : {}),
             'rules': clashRules
         };
 
@@ -166,15 +235,12 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             forceQuotes: false
         });
 
-        // 应用 WireGuard 修复
-        yamlStr = clashFix(yamlStr);
-
         // 最终清理，确保输出没有控制字符
         return cleanControlChars(yamlStr);
     } catch (e) {
         console.error('[BuiltinClash] Generation failed:', e);
         // Fallback: 至少返回包含节点的有效 YAML 结构，而不是传回会导致 Clash 报错的 Base64
-        const fallbackProxies = Array.isArray(proxies) ? proxies : [];
+        const fallbackProxies = Array.isArray(proxies) ? stripInternalProxyFields(proxies) : [];
         const selectGroup = (ruleLevel || '').toUpperCase() === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP;
         const fallbackYaml = `proxies:\n${fallbackProxies.map(p => `  - ${JSON.stringify(p)}`).join('\n')}\n` +
                              `proxy-groups:\n  - name: ${selectGroup}\n    type: select\n    proxies: ${JSON.stringify(fallbackProxies.map(p => p.name))}\n` +
@@ -204,17 +270,16 @@ export function generateProxiesOnly(nodeList) {
     deduplicateNames(proxies);
 
     try {
-        let yamlStr = yaml.dump({ proxies }, {
+        const publicProxies = stripInternalProxyFields(proxies);
+        let yamlStr = yaml.dump({ proxies: publicProxies }, {
             indent: 2,
             lineWidth: -1,
             noRefs: true
         });
 
-        // 应用 WireGuard 修复
-        yamlStr = clashFix(yamlStr);
-
         return cleanControlChars(yamlStr);
     } catch (e) {
-        return `proxies:\n${proxies.map(p => `  - ${JSON.stringify(p)}`).join('\n')}\n`;
+        const fallbackProxies = Array.isArray(proxies) ? stripInternalProxyFields(proxies) : [];
+        return `proxies:\n${fallbackProxies.map(p => `  - ${JSON.stringify(p)}`).join('\n')}\n`;
     }
 }

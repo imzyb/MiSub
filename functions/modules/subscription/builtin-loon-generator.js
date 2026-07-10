@@ -325,7 +325,21 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
-    let abstractGroups = policyFactory(proxiesWithMetadata);
+    let abstractGroups = policyFactory(proxiesWithMetadata, options);
+    if (levelKey === 'RELAY') {
+        abstractGroups = abstractGroups.map(group => group.name === '🔗 链式代理'
+            ? { ...group, type: 'relay', proxies: ['入口节点', '落地节点'] }
+            : group
+        );
+        if (!abstractGroups.some(group => group.name === '落地节点')) {
+            const proxyNames = proxiesWithMetadata.map(proxy => proxy.name);
+            abstractGroups.splice(abstractGroups.findIndex(group => group.name === '入口节点') + 1, 0, {
+                name: '落地节点',
+                type: 'select',
+                proxies: ['♻️ 自动选择', '👋 手动切换', 'DIRECT', ...proxyNames]
+            });
+        }
+    }
     abstractGroups = pruneProxyGroups(abstractGroups, proxiesWithMetadata);
 
     const iconRepo = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';

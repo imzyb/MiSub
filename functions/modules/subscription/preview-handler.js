@@ -1,5 +1,5 @@
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse, createErrorResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 import { KV_KEY_PROFILES } from '../config.js';
 import { handleProfileMode } from './profile-handler.js';
 import { handleSingleSubscriptionMode, handleDirectUrlMode } from './single-subscription.js';
@@ -32,7 +32,7 @@ export async function handlePublicPreviewRequest(request, env) {
     }
 
     try {
-        const requestData = await request.json();
+        const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const { profileId, userAgent = 'MiSub-Public-Preview/1.0' } = requestData;
 
         if (!profileId) {
@@ -63,7 +63,7 @@ export async function handlePublicPreviewRequest(request, env) {
         return createJsonResponse(result);
 
     } catch (e) {
-        return createErrorResponse(`Preview failed: ${e.message}`, 500);
+        return createErrorResponse(`Preview failed: ${e.message}`, e.status || 500);
     }
 }
 
@@ -79,7 +79,7 @@ export async function handleSubscriptionNodesRequest(request, env) {
     }
 
     try {
-        const requestData = await request.json();
+        const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const {
             url: subscriptionUrl,
             subscriptionId,
@@ -123,6 +123,6 @@ export async function handleSubscriptionNodesRequest(request, env) {
     } catch (e) {
         return createJsonResponse({
             error: `获取节点列表失败: ${e.message}`
-        }, 500);
+        }, e.status || 500);
     }
 }

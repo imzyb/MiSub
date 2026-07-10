@@ -71,6 +71,27 @@ MATCH,节点选择
         expect(autoSelectGroup.proxies).not.toContain('DIRECT');
     });
 
+    it('should keep Clash template relay-like groups as plain select without dialer-proxy', () => {
+        const rendered = renderClashFromIniTemplate(`
+[Proxy Group]
+🔗 链式代理 = select, 入口节点, HK-01, DIRECT
+入口节点 = select, HK-01, DIRECT
+
+[Rule]
+MATCH,🔗 链式代理
+        `, {
+            proxies: [
+                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' }
+            ]
+        });
+
+        const parsed = yaml.load(rendered);
+        const relayLikeGroup = parsed['proxy-groups'].find(group => group.name === '🔗 链式代理');
+        expect(relayLikeGroup.type).toBe('select');
+        expect(relayLikeGroup.proxies).toEqual(['入口节点', 'HK-01', 'DIRECT']);
+        expect(relayLikeGroup['dialer-proxy']).toBeUndefined();
+    });
+
     it('should merge duplicate proxy groups with the same name before rendering', () => {
         const rendered = renderClashFromIniTemplate(`
 [Proxy Group]
@@ -166,7 +187,7 @@ MATCH,节点选择
         expect(loonRendered).toContain('grpc-service-name=edge');
         expect(loonRendered).toContain('reality=true');
         expect(loonRendered).toContain('WG-01 = wireguard');
-        expect(loonRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 OpenAi');
+        expect(loonRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 AI 服务');
         expect(loonRendered).toContain('🚀 节点选择 = select');
         expect(quanxRendered).toContain('[server_local]');
         expect(quanxRendered).toContain('[policy]');
@@ -174,11 +195,11 @@ MATCH,节点选择
         expect(quanxRendered).toContain('[filter_local]');
         expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=wss, obfs-uri=/ws, obfs-host=example.com, tag=🇺🇸 US-01');
         expect(quanxRendered).not.toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=ws,');
-        expect(quanxRendered).toContain('filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list, tag=🤖 OpenAi, force-policy=🤖 OpenAi, update-interval=86400, enabled=true');
-        expect(quanxRendered).toContain('🚀 节点选择 = select');
+        expect(quanxRendered).toContain('filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list, tag=🤖 AI 服务, force-policy=🤖 AI 服务, update-interval=86400, enabled=true');
+        expect(quanxRendered).toContain('static=🚀 节点选择');
         expect(surgeRendered).not.toContain('SG-01 = vless');
         expect(surgeRendered).toContain('WG-01 = wireguard');
-        expect(surgeRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 OpenAi');
+        expect(surgeRendered).toContain('RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/OpenAi.list,🤖 AI 服务');
         expect(surgeRendered).toContain('🚀 节点选择 = select');
     });
 
@@ -246,6 +267,22 @@ custom_proxy_group=TestGroup`, {
         expect(surgeRendered).not.toContain('reality=true');
     });
 
+    it('should render QuanX DNS using syntax accepted by Quantumult X', () => {
+        const quanxRendered = renderQuanxFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'quanx'
+        });
+
+        expect(quanxRendered).toContain('[dns]');
+        expect(quanxRendered).toContain('no-ipv6');
+        expect(quanxRendered).toContain('server = 223.5.5.5');
+        expect(quanxRendered).toContain('server = 114.114.114.114');
+        expect(quanxRendered).not.toContain('prefer-ipv4=true');
+        expect(quanxRendered).not.toContain('server=223.5.5.5');
+    });
+
     it('should render QuanX tuic and anytls syntax while skipping unsupported hysteria2', () => {
         const quanxRendered = renderQuanxFromIniTemplate(`
 [Proxy]
@@ -260,7 +297,26 @@ custom_proxy_group=TestGroup`, {
 
         expect(quanxRendered).not.toContain('hysteria2=');
         expect(quanxRendered).toContain('tuic=5.45.102.158:39689, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUIC-QX');
-        expect(quanxRendered).toContain('anytls=156.239.232.67:443, password=9d6c62f6-e38d-4146-ab3e-d40568555f89, sni=xkhkfree.99887766.best, alpn=h2,h3, tls-verification=false, tag=🌍 AnyTLS-QX');
+        expect(quanxRendered).toContain('anytls=156.239.232.67:443, password=9d6c62f6-e38d-4146-ab3e-d40568555f89, over-tls=true, tls-verification=false, tls-host=xkhkfree.99887766.best, fast-open=false, udp-relay=true, tag=🌍 AnyTLS-QX');
+    });
+
+    it('should render QuanX VLESS TLS, REALITY and XTLS Vision syntax from templates', () => {
+        const quanxRendered = renderQuanxFromIniTemplate(`
+[Proxy]
+custom_proxy_group=TestGroup`, {
+            nodeList: [
+                'vless://11111111-1111-4111-8111-111111111111@tls.example.com:443?security=tls&sni=tls.example.com&type=tcp#VLESS-TLS',
+                'vless://22222222-2222-4222-8222-222222222222@reality.example.com:443?security=reality&sni=addons.mozilla.org&pbk=testpublickey&sid=abcdef&type=tcp#VLESS-Reality',
+                'vless://33333333-3333-4333-8333-333333333333@vision.example.com:443?security=tls&sni=vision.example.com&flow=xtls-rprx-vision&type=tcp#VLESS-Vision'
+            ].join('\n'),
+            targetFormat: 'quanx'
+        });
+
+        expect(quanxRendered).toContain('vless=tls.example.com:443, password=11111111-1111-4111-8111-111111111111, method=none, obfs=over-tls, obfs-host=tls.example.com, tag=🌍 VLESS-TLS');
+        expect(quanxRendered).toContain('vless=reality.example.com:443, password=22222222-2222-4222-8222-222222222222, method=none, obfs=over-tls, obfs-host=addons.mozilla.org, reality-base64-pubkey=testpublickey, reality-hex-shortid=abcdef, tag=🌍 VLESS-Reality');
+        expect(quanxRendered).toContain('vless=vision.example.com:443, password=33333333-3333-4333-8333-333333333333, method=none, obfs=over-tls, obfs-host=vision.example.com, vless-flow=xtls-rprx-vision, tag=🌍 VLESS-Vision');
+        expect(quanxRendered).not.toContain('over-tls=true');
+        expect(quanxRendered).not.toContain('tls-host=vision.example.com');
     });
 
     it('should render QuanX vmess ws tls tag at the end in template output', () => {
@@ -306,6 +362,7 @@ custom_proxy_group=TestGroup`;
         expect(quanxRendered).toContain('obfs=ws');
         expect(quanxRendered).toContain('obfs-uri=/?enc=2022-blake3-aes-256-gcm');
         expect(quanxRendered).toContain('obfs-host=ss.2227tsj.workers.dev');
+        expect(quanxRendered).not.toContain('over-tls=true');
 
         expect(ssOutbound?.method).toBe('2022-blake3-aes-256-gcm');
         expect(ssOutbound?.transport?.type).toBe('ws');
@@ -332,6 +389,153 @@ custom_proxy_group=TestGroup`;
         expect(providerUrls.length).toBeGreaterThan(0);
         expect(providerUrls.some(url => String(url).includes('/Clash/Providers/Ruleset/YouTube.yaml'))).toBe(true);
         expect(providerUrls.some(url => String(url).includes('/Clash/Providers/ProxyGFWlist.yaml'))).toBe(true);
-        expect(providerUrls.every(url => !String(url).endsWith('.list'))).toBe(true);
+        expect(providerUrls.some(url => String(url).includes('/Clash/BanAD.list'))).toBe(true);
+        expect(Object.values(providers).some(provider => provider.url.includes('/Clash/BanAD.list') && provider.format === 'text')).toBe(true);
+    });
+
+    it('should map only ACL4SSR lists with existing provider YAML files to provider URLs', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=📲 电报消息,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Telegram.list
+ruleset=🚀 节点选择,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ProxyGFWlist.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/Telegram.yaml');
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/ProxyGFWlist.yaml');
+    });
+
+    it('keeps ACL4SSR root list rules inline when provider YAML files are missing', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list
+ruleset=🛑 广告拦截,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+
+        const localAreaProvider = Object.values(parsed['rule-providers'] || {}).find(provider => provider.url.includes('/Clash/LocalAreaNetwork.list'));
+        const banAdProvider = Object.values(parsed['rule-providers'] || {}).find(provider => provider.url.includes('/Clash/BanAD.list'));
+
+        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/LocalAreaNetwork.yaml');
+        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Ruleset/BanAD.yaml');
+        expect(localAreaProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/localareanetwork_0.list' });
+        expect(banAdProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/banad_1.list' });
+        expect(parsed.rules).toContain('RULE-SET,localareanetwork_0,🎯 全球直连');
+        expect(parsed.rules).toContain('RULE-SET,banad_1,🛑 广告拦截');
+    });
+
+    it('maps ACL4SSR root IP lists to matching ipcidr provider YAML files', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaCompanyIp.list
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaIp.list
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaIpV6.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providers = Object.values(parsed['rule-providers'] || {});
+        const providerUrls = providers.map(provider => provider.url);
+
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/ChinaCompanyIp.yaml');
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/ChinaIp.yaml');
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/ChinaIpV6.yaml');
+        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaCompanyIp.list');
+
+        for (const provider of providers) {
+            expect(provider).toMatchObject({ behavior: 'ipcidr' });
+            expect(provider.path).toMatch(/\.yaml$/);
+            expect(provider.format).toBeUndefined();
+        }
+    });
+
+    it('keeps ACL4SSR Download list as a text provider because YAML comments out most rules', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=📥 下载服务,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Download.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+custom_proxy_group=📥 下载服务\`select\`[]🚀 节点选择\`[]DIRECT
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providers = parsed['rule-providers'] || {};
+        const downloadProvider = Object.values(providers).find(provider => provider.url.includes('/Clash/Download.list'));
+
+        expect(Object.values(providers).map(provider => provider.url)).not.toContain('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Providers/Download.yaml');
+        expect(downloadProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/download_0.list' });
+        expect(parsed.rules).toContain('RULE-SET,download_0,📥 下载服务');
+    });
+
+    it('keeps non-ACL4SSR raw GitHub rule URLs unchanged', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Apple.list
+ruleset=🎯 全球直连,https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Microsoft.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Apple.list');
+        expect(providerUrls).toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Microsoft.list');
+        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Providers/Apple.yaml');
+        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Providers/Ruleset/Microsoft.yaml');
+        expect(Object.values(parsed['rule-providers'] || {})).toEqual(expect.arrayContaining([
+            expect.objectContaining({ format: 'text', path: './ruleset/apple_0.list' }),
+            expect.objectContaining({ format: 'text', path: './ruleset/microsoft_1.list' })
+        ]));
+    });
+
+    it('uses short ACL4SSR file names as rule-provider name hints instead of rs fallback names', () => {
+        const rendered = renderClashFromIniTemplate(`
+[custom]
+ruleset=🤖 AI 服务,https://rules.example.test/AI.list
+ruleset=🐟 漏网之鱼,[]FINAL
+custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
+custom_proxy_group=🤖 AI 服务\`select\`[]🚀 节点选择\`[]DIRECT
+`, {
+            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+            targetFormat: 'clash'
+        });
+
+        const parsed = yaml.load(rendered);
+        const providers = parsed['rule-providers'] || {};
+
+        expect(Object.keys(providers)).toContain('ai_0');
+        expect(Object.keys(providers)).not.toContain('rs_0');
+        expect(providers.ai_0).toMatchObject({
+            behavior: 'classical',
+            format: 'text',
+            url: 'https://rules.example.test/AI.list',
+            path: './ruleset/ai_0.list'
+        });
+        expect(parsed.rules).toContain('RULE-SET,ai_0,🤖 AI 服务');
     });
 });

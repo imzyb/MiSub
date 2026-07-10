@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue';
+import { useI18n } from '../../../i18n/index.js';
 import FilterEditor from './components/FilterEditor.vue';
 import RenameEditor from './components/RenameEditor.vue';
 import SortEditor from './components/SortEditor.vue';
 import DedupEditor from './components/DedupEditor.vue';
+import Input from '../../ui/Input.vue';
 
 const props = defineProps({
   modelValue: {
@@ -17,6 +19,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue']);
+const { t } = useI18n();
 
 // Migration Logic
 const canMigrate = computed(() => {
@@ -92,7 +95,7 @@ const getInitialParams = (type) => {
     case 'filter': return { include: { enabled: false, rules: [] }, exclude: { enabled: false, rules: [] }, protocols: { enabled: false, values: [] }, regions: { enabled: false, values: [] } };
     case 'rename': return { regex: { enabled: false, rules: [] }, template: { enabled: false, template: '' } };
     case 'script': return { code: '', url: '' };
-    case 'sort': return { keys: [{ key: 'region', order: 'asc', customOrder: [] }] };
+    case 'sort': return { keys: [{ key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] }] };
     case 'dedup': return { mode: 'serverPort', includeProtocol: true, prefer: { protocolOrder: [] } };
     default: return {};
   }
@@ -123,13 +126,8 @@ const toggleOperator = (event, index) => {
   emit('update:modelValue', newList);
 };
 
-const operatorLabels = {
-  filter: '过滤节点',
-  rename: '正则命名',
-  script: '脚本执行',
-  sort: '节点排序',
-  dedup: '智能去重'
-};
+const operatorLabel = (type) => t(`operators.${type}`);
+const operatorTypes = ['filter', 'rename', 'script', 'sort', 'dedup'];
 
 const getOperatorIcon = (type) => {
     switch (type) {
@@ -159,12 +157,12 @@ const updateOperatorParams = (index, params) => {
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 </div>
                 <div>
-                    <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">发现旧版配置</h4>
-                    <p class="mt-0.5 text-[10px] text-amber-700/70 dark:text-amber-400/60">检测到您有旧版的“节点净化”规则，建议一键迁移至新的操作符链以获得更好的体验。</p>
+                    <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">{{ t('operators.legacyConfigFound') }}</h4>
+                    <p class="mt-0.5 text-[10px] text-amber-700/70 dark:text-amber-400/60">{{ t('operators.legacyConfigDesc') }}</p>
                 </div>
             </div>
             <button @click="migrateFromLegacy" class="whitespace-nowrap rounded-xl bg-amber-500 px-5 py-2 text-[11px] font-bold text-white shadow-md shadow-amber-500/20 transition-all hover:bg-amber-600 active:scale-95">
-                立即迁移
+                {{ t('operators.migrateNow') }}
             </button>
         </div>
         <!-- Decorative bg -->
@@ -177,8 +175,8 @@ const updateOperatorParams = (index, params) => {
       <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
       </div>
-      <h3 class="text-sm font-bold text-gray-900 dark:text-white">开始链式处理</h3>
-      <p class="mt-1 text-[10px] text-gray-500">添加操作符来定制您的订阅节点处理工作流。</p>
+      <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('operators.emptyTitle') }}</h3>
+      <p class="mt-1 text-[10px] text-gray-500">{{ t('operators.emptyDesc') }}</p>
     </div>
 
     <div v-else class="space-y-2">
@@ -204,11 +202,11 @@ const updateOperatorParams = (index, params) => {
              </div>
              <div>
                  <div class="flex items-center gap-2">
-                     <h4 class="font-bold text-sm text-gray-900 dark:text-white">{{ operatorLabels[op.type] }}</h4>
-                    <span v-if="!op.enabled" class="rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-400 dark:border-gray-700 dark:bg-gray-900">已暂停</span>
+                     <h4 class="font-bold text-sm text-gray-900 dark:text-white">{{ operatorLabel(op.type) }}</h4>
+                    <span v-if="!op.enabled" class="rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-400 dark:border-gray-700 dark:bg-gray-900">{{ t('operators.paused') }}</span>
                  </div>
                  <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400 sm:hidden">
-                   {{ op.enabled ? '启用中' : '未启用' }}
+                   {{ op.enabled ? t('operators.enabled') : t('operators.disabled') }}
                  </p>
               </div>
            </div>
@@ -260,7 +258,8 @@ const updateOperatorParams = (index, params) => {
                 <Input 
                   :modelValue="op.params.url"
                   @update:modelValue="(val) => updateOperatorParams(index, { ...op.params, url: val })"
-                  placeholder="远程脚本 URL (GitGist/Raw 链接)" 
+                  :label="t('operators.scriptUrlLabel')"
+                  :placeholder="t('operators.scriptUrlPlaceholder')"
                 />
                 <textarea
                   :value="op.params.code"
@@ -279,11 +278,11 @@ const updateOperatorParams = (index, params) => {
     <!-- Add Control (Segmented Style) -->
     <div class="pt-6">
         <div class="grid grid-cols-2 gap-2 rounded-2xl border border-gray-200 bg-gray-100/50 p-1 dark:border-gray-800 dark:bg-gray-900/50 sm:inline-flex sm:flex-wrap">
-            <button v-for="(label, type) in operatorLabels" :key="type" 
+            <button v-for="type in operatorTypes" :key="type"
                 @click="addOperator(type)"
                 class="rounded-xl px-4 py-2 text-xs font-bold text-gray-500 transition-all hover:bg-white hover:text-indigo-600 dark:hover:bg-gray-800 whitespace-nowrap"
             >
-                + {{ label.split(' ')[0] }}
+                + {{ operatorLabel(type) }}
             </button>
         </div>
     </div>

@@ -21,7 +21,7 @@
 import { handleMisubRequest } from './modules/subscription-handler.js';
 import { handleApiRequest } from './modules/api-router.js';
 import { createJsonResponse, migrateConfigSettings } from './modules/utils.js';
-import { corsMiddleware, securityHeadersMiddleware } from './middleware/cors.js';
+import { corsMiddleware, csrfOriginMiddleware, securityHeadersMiddleware } from './middleware/cors.js';
 import { handleDisguiseRequest } from './modules/handlers/disguise-handler.js';
 import { createDisguiseResponse } from './modules/disguise-page.js';
 
@@ -161,11 +161,8 @@ export async function onRequest(context) {
                 return applyNoStoreToHtmlResponse(await fetchStaticAsset(request, env, next));
             }
 
-            // [新增] 动态识别订阅路由
-            // 只要路径以 /sub/, /s/, /sam/ 开头，或者是用户自定义的 mytoken/profileToken，就转交给 handleMisubRequest
-            const isExplicitSubRoute = url.pathname.startsWith('/sub/') || 
-                                     url.pathname.startsWith('/s/') || 
-                                     url.pathname.startsWith('/sam/');
+            // 动态识别订阅路由：仅保留 /sub/ 显式前缀，以及用户自定义 mytoken/profileToken 短链
+            const isExplicitSubRoute = url.pathname.startsWith('/sub/');
             
             const firstSeg = url.pathname.split('/').filter(Boolean)[0];
             const isCustomTokenRoute = firstSeg && (firstSeg === config.mytoken || firstSeg === config.profileToken);
@@ -173,7 +170,7 @@ export async function onRequest(context) {
             // 路由分发
             if (url.pathname.startsWith('/api/')) {
                 // API 路由
-                return await handleApiRequest(request, env);
+                return await handleApiRequest(request, env, context);
             } else if (isExplicitSubRoute || isCustomTokenRoute) {
                 // MiSub 订阅路由
                 return await handleMisubRequest(context);
@@ -230,10 +227,13 @@ export async function onRequest(context) {
 
                 const customLoginPath = normalizeLoginPath(settings?.customLoginPath);
                 const defaultLoginPath = '/login';
+                const hasCustomLoginPath = customLoginPath !== defaultLoginPath;
 
                 // SPA 路由白名单：这些请求应该交由前端路由处理，而不是作为订阅请求
                 // [修复] 增加更多可能的SPA路由，防止被误判为订阅请求
                 // [新增] 动态包含自定义登录路径
+                // [Fix #400] 当设置了自定义登录路径时，/login 不再作为 SPA 路由，
+                // 应直接返回 404 / disguise 页面以避免暴露自定义路径。
                 const isSpaRoute = [
                     '/',
                     '/dashboard',
@@ -248,6 +248,13 @@ export async function onRequest(context) {
                     return url.pathname === route || url.pathname.startsWith(route + '/');
                 });
 
+                // [Fix #400] 设置了自定义路径后，/login 不再是有效 SPA 路由
+                const isLoginPath = url.pathname === '/login';
+                if (hasCustomLoginPath && isLoginPath) {
+                    return createDisguiseResponse(settings?.disguise, request.url)
+                        || new Response('Not Found', { status: 404 });
+                }
+
                 const isProtectedSpaRoute = isSpaRoute
                     && url.pathname !== '/'
                     && url.pathname !== '/login'
@@ -258,12 +265,9 @@ export async function onRequest(context) {
                 // If accessing a protected route without auth, redirect to login
                 // [Fix] Exclude /explore from auth check
                 // [Fix] Skip auth check on localhost to avoid port 8787/5173 sync issues during dev
-                if (customLoginPath !== defaultLoginPath && url.pathname === defaultLoginPath && !isLocalhost) {
-                    return new Response(null, {
-                        status: 302,
-                        headers: { Location: customLoginPath }
-                    });
-                }
+                // [Fix #400] When custom login path is set, accessing /login should NOT
+                // redirect to the custom path (that would expose the hidden admin URL).
+                // Instead return 404 so the custom path stays concealed.
 
                 if (isProtectedSpaRoute && !isLocalhost) {
                     const isAuthenticated = await authMiddleware(request, env);
@@ -335,7 +339,15 @@ export async function onRequest(context) {
             origins: parseCorsOrigins(env, url),
             allowCredentials: true
         };
-        return await corsMiddleware(request, () => securityHeadersMiddleware(request, handleRequest), corsOptions);
+        return await corsMiddleware(
+            request,
+            () => csrfOriginMiddleware(
+                request,
+                () => securityHeadersMiddleware(request, handleRequest),
+                corsOptions
+            ),
+            corsOptions
+        );
     } catch (error) {
         // 全局错误处理
         console.error('[Main Handler Error]', error);

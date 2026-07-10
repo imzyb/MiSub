@@ -7,10 +7,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineAsyncComponent, watch } from 'vue';
+import { ref, computed, onMounted, defineAsyncComponent, watch, markRaw } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '../stores/session';
 import { storeToRefs } from 'pinia';
+import { isValidCustomLoginPath } from '../utils/login-path.js';
 
 // Lazy load components
 const Login = defineAsyncComponent(() => import('../components/modals/Login.vue'));
@@ -44,16 +45,6 @@ watch(() => sessionStore.sessionState, () => {
     checkPath();
 });
 
-/**
- * 判断 customLoginPath 是否为有效的自定义路径
- * 空字符串、纯斜杠、'login' 均视为无效（等同于使用默认 /login）
- */
-function isValidCustomLoginPath(raw) {
-    if (!raw || typeof raw !== 'string') return false;
-    const normalized = raw.trim().replace(/^\/+/, '');
-    return normalized.length > 0 && normalized !== 'login';
-}
-
 function checkPath() {
     // 在 session 还在 loading 时，publicConfig 尚未从 API 加载，不做判断
     if (sessionStore.sessionState === 'loading') {
@@ -72,15 +63,15 @@ function checkPath() {
 
     if (currentPath === configuredPath) {
         // 匹配到配置的登录路径（自定义或默认 /login）
-        activeComponent.value = Login;
+        activeComponent.value = markRaw(Login);
         componentProps.value = { login: sessionStore.login };
     } else if (currentPath === '/login' && !hasCustomPath) {
         // 没有自定义路径时，/login 也是有效的登录入口
-        activeComponent.value = Login;
+        activeComponent.value = markRaw(Login);
         componentProps.value = { login: sessionStore.login };
     } else {
         // 不匹配任何登录路径 → 显示 404
-        activeComponent.value = NotFound;
+        activeComponent.value = markRaw(NotFound);
     }
 }
 

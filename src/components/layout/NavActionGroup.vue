@@ -5,7 +5,9 @@ import BaseIcon from '../ui/BaseIcon.vue';
 import ThemeToggle from '../features/ThemeToggle.vue';
 import LoginEntryButton from './LoginEntryButton.vue';
 import ExternalRepoButton from './ExternalRepoButton.vue';
+import LanguageSwitcher from './LanguageSwitcher.vue';
 import { NAV_ICONS } from '../../constants/navigation.js';
+import { useI18n } from '../../i18n/index.js';
 
 const props = defineProps({
   isLoggedIn: {
@@ -44,6 +46,7 @@ const props = defineProps({
 
 const emit = defineEmits(['openSettings', 'toggleLayout', 'logout']);
 const route = useRoute();
+const { t } = useI18n();
 const showPublicFeedback = computed(() => !props.isLoggedIn && (route.name === 'Home' || route.name === 'Explore'));
 const canShowExplore = computed(() => props.showExplore);
 const isExploreActive = computed(() => route.path === '/explore');
@@ -82,8 +85,8 @@ function buildBtnClass(type) {
       v-if="canShowExplore"
       to="/explore"
       :class="exploreBtnClass"
-      title="公开页"
-      aria-label="公开页"
+      :title="t('nav.explore')"
+      :aria-label="t('nav.explore')"
     >
       <BaseIcon :path="NAV_ICONS.explore" className="h-5 w-5" />
     </router-link>
@@ -92,11 +95,13 @@ function buildBtnClass(type) {
       v-if="showPublicFeedback"
       @click="handlePublicFeedback"
       :class="buildBtnClass('neutral')"
-      title="反馈建议"
-      aria-label="反馈建议"
+      :title="t('nav.feedback')"
+      :aria-label="t('nav.feedback')"
     >
       <BaseIcon :path="NAV_ICONS.feedback" className="h-5 w-5" />
     </button>
+
+    <LanguageSwitcher />
 
     <ThemeToggle />
 
@@ -107,8 +112,8 @@ function buildBtnClass(type) {
         v-if="showSettings"
         @click="emit('openSettings')"
         :class="buildBtnClass('neutral')"
-        title="设置"
-        aria-label="打开设置"
+        :title="t('nav.settings')"
+        :aria-label="t('actions.openSettings')"
       >
         <BaseIcon :path="NAV_ICONS.settings" className="h-5 w-5" />
       </button>
@@ -116,8 +121,8 @@ function buildBtnClass(type) {
       <button
         @click="emit('toggleLayout')"
         :class="buildBtnClass('neutral')"
-        title="切换布局"
-        aria-label="切换布局"
+        :title="t('actions.toggleLayout')"
+        :aria-label="t('actions.toggleLayout')"
       >
         <BaseIcon :path="NAV_ICONS.layout" className="h-5 w-5" />
       </button>
@@ -125,8 +130,8 @@ function buildBtnClass(type) {
       <button
         @click="emit('logout')"
         :class="buildBtnClass('danger')"
-        title="退出登录"
-        aria-label="退出登录"
+        :title="t('actions.logout')"
+        :aria-label="t('actions.logout')"
       >
         <BaseIcon :path="NAV_ICONS.logout" className="h-5 w-5" />
       </button>

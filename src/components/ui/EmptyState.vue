@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from '@/i18n/index.js';
 
 const props = defineProps({
   filteredCount: {
@@ -25,25 +26,26 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['reset', 'refresh']);
+const { t } = useI18n();
 
 const displayTitle = computed(() => {
   if (props.title) return props.title;
   if (props.totalCount === 0) {
-    return '暂无数据';
+    return t('common.emptyNoData');
   } else if (props.filteredCount === 0) {
-    return '没有符合条件的结果';
+    return t('common.emptyNoResults');
   }
-  return '暂无内容';
+  return t('common.emptyNoContent');
 });
 
 const displayDescription = computed(() => {
   if (props.description) return props.description;
   if (props.totalCount === 0) {
-    return '当前还没有可用的数据，尝试添加新的订阅或节点。';
+    return t('common.emptyNoDataDesc');
   } else if (props.filteredCount === 0) {
-    return '调整筛选条件或重置过滤器以查看全部内容。';
+    return t('common.emptyNoResultsDesc');
   }
-  return '暂无可展示的内容，请稍后重试。';
+  return t('common.emptyNoContentDesc');
 });
 
 const showResetButton = computed(() => {
@@ -95,31 +97,30 @@ const iconPaths = {
         v-if="showResetButton"
         @click="emit('reset')"
         class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
-        aria-label="重置过滤条件"
+        :aria-label="t('common.resetFiltersAria')"
       >
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        重置过滤
+        {{ t('common.resetFilters') }}
       </button>
 
       <button
         v-else
         @click="emit('refresh')"
         class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-        aria-label="刷新列表"
+        :aria-label="t('common.refreshListAria')"
       >
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        刷新列表
+        {{ t('common.refreshList') }}
       </button>
     </div>
 
     <div v-if="totalCount > 0" class="mt-6 rounded-full border border-gray-200/70 bg-gray-50 px-4 py-2 text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
       <p>
-        共 <span class="font-semibold text-gray-700 dark:text-gray-300">{{ totalCount }}</span> 项，
-        已过滤 <span class="font-semibold text-gray-700 dark:text-gray-300">{{ filteredCount }}</span> 项
+        {{ t('common.filteredSummary', { total: totalCount, filtered: filteredCount }) }}
       </p>
     </div>
   </div>

@@ -4,10 +4,11 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse, createErrorResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 import { handleSubscriptionNodesRequest } from '../subscription-handler.js';
 import { debugTgNotification } from '../../services/notification-service.js';
 import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
+import { redactSensitiveObject, redactUrl, safeFetchPublicUrl, validatePublicFetchUrl } from '../security-utils.js';
 
 /**
  * 调试订阅信息和节点内容
@@ -21,7 +22,7 @@ export async function handleDebugSubscriptionRequest(request, env) {
     }
 
     try {
-        const requestData = await request.json();
+        const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const {
             url: subscriptionUrl,
             subscriptionId,
@@ -70,7 +71,7 @@ export async function handleDebugSubscriptionRequest(request, env) {
             },
             detailedSubscriptions: nodeResult.subscriptions?.map(sub => ({
                 name: sub.subscriptionName,
-                url: sub.url,
+                url: redactUrl(sub.url),
                 success: sub.success,
                 nodeCount: sub.nodes?.length || 0,
                 error: sub.error,
@@ -82,14 +83,13 @@ export async function handleDebugSubscriptionRequest(request, env) {
                 name: node.name,
                 protocol: node.protocol,
                 region: node.region,
-                url: node.url.replace(/^(.+?):\/\/.+@/, '$1://***@') // 隐藏敏感信息
+                url: redactUrl(node.url) // 隐藏敏感信息
             }))
         };
 
         return createJsonResponse({
             success: true,
-            debugInfo,
-            fullResult: nodeResult
+            debugInfo
         });
     } catch (e) {
         return createJsonResponse({
@@ -254,7 +254,7 @@ export async function handleExportDataRequest(request, env) {
     }
 
     try {
-        const requestData = await request.json();
+        const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const { includeSubscriptions = true, includeProfiles = true, includeSettings = false } = requestData;
 
         const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
@@ -269,17 +269,17 @@ export async function handleExportDataRequest(request, env) {
 
         if (includeSubscriptions) {
             const subscriptions = await storageAdapter.get('misub_subscriptions_v1') || [];
-            exportData.data.subscriptions = subscriptions;
+            exportData.data.subscriptions = redactSensitiveObject(subscriptions);
         }
 
         if (includeProfiles) {
             const profiles = await storageAdapter.get('misub_profiles_v1') || [];
-            exportData.data.profiles = profiles;
+            exportData.data.profiles = redactSensitiveObject(profiles);
         }
 
         if (includeSettings) {
             const settings = await storageAdapter.get('misub_settings_v1') || {};
-            exportData.data.settings = settings;
+            exportData.data.settings = redactSensitiveObject(settings);
         }
 
         const exportSize = JSON.stringify(exportData).length;
@@ -311,7 +311,7 @@ export async function handlePreviewContentRequest(request, env) {
     }
 
     try {
-        const requestData = await request.json();
+        const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const { url, userAgent = 'MiSub-Preview/1.0', maxLength = 5000 } = requestData;
 
         if (!url) {
@@ -320,10 +320,14 @@ export async function handlePreviewContentRequest(request, env) {
             }, 400);
         }
 
-        const response = await fetch(new Request(url, {
-            headers: { 'User-Agent': userAgent },
-            redirect: "follow"
-        }), { cf: { insecureSkipVerify: true } });
+        const urlValidation = validatePublicFetchUrl(url);
+        if (!urlValidation.ok) {
+            return createErrorResponse(urlValidation.error, 400);
+        }
+
+        const response = await safeFetchPublicUrl(urlValidation.url.toString(), {
+            headers: { 'User-Agent': userAgent }
+        });
 
         if (!response.ok) {
             return createJsonResponse({
@@ -381,7 +385,7 @@ export async function handlePreviewContentRequest(request, env) {
             fullContent: request.fullExport ? decodedContent : null
         });
     } catch (e) {
-        return createErrorResponse(`内容预览失败: ${e.message}`, 500);
+        return createErrorResponse(`内容预览失败: ${e.message}`, e.status || 500);
     }
 }
 
@@ -397,7 +401,7 @@ export async function handleTestNotificationRequest(request, env) {
     }
 
     try {
-        const { botToken, chatId } = await request.json();
+        const { botToken, chatId } = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
         const settings = { BotToken: botToken, ChatID: chatId };
 
         const result = await debugTgNotification(settings, '🔔 <b>通知测试</b> 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。');
@@ -409,6 +413,6 @@ export async function handleTestNotificationRequest(request, env) {
         }
 
     } catch (e) {
-        return createErrorResponse(e.message, 500);
+        return createErrorResponse(e.message, e.status || 500);
     }
 }

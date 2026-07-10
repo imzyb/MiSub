@@ -75,9 +75,22 @@ export function isValidBase64(str) {
 export function getProcessedUserAgent(originalUserAgent, url = '') {
     if (!originalUserAgent) return originalUserAgent;
 
+    const rawUrl = typeof url === 'string' ? url : '';
+    try {
+        const parsedUrl = new URL(rawUrl);
+        const params = parsedUrl.searchParams;
+        if (params.has('clash') || params.get('target')?.toLowerCase() === 'clash') {
+            return 'clash-verge/v2.4.3';
+        }
+    } catch {
+        if (/[?&](?:clash(?:=|&|$)|target=clash(?:&|$))/i.test(rawUrl)) {
+            return 'clash-verge/v2.4.3';
+        }
+    }
+
     // CF-Workers-SUB的精华策略：
-    // 统一使用v2rayN UA获取订阅，绕过机场过滤同时保证获取完整节点
-    // 不需要复杂的客户端判断，简单而有效
+    // 默认使用 v2rayN UA 获取订阅，绕过多数机场过滤同时保证获取完整节点。
+    // 个别 Clash 专用链接（如 ?clash=2）会严格校验 UA，需要保留 Clash UA。
     return 'v2rayN/7.23';
 }
 
@@ -102,7 +115,7 @@ export function determineFormatByUserAgent(userAgentHeader) {
         ['egern', 'clash'],
         ['nekoray', 'clash'],
         ['sing-box', 'singbox'],
-        ['shadowrocket', 'base64'],
+        ['shadowrocket', 'clash'],
         ['v2rayn', 'base64'],
         ['v2rayng', 'base64'],
         ['surge', 'surge'],

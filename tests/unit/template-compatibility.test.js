@@ -36,13 +36,14 @@ describe('Template compatibility', () => {
         expect(TEMPLATE_COMPATIBILITY.quanx.description).toContain('Quantumult X');
     });
 
-    it('should only allow external templates for compatible clients', () => {
+    it('should only allow built-in template rendering for compatible ini templates', () => {
         expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.ini')).toBe(true);
         expect(shouldApplyExternalTemplateForTarget('surge&ver=4', 'https://example.com/preset.ini')).toBe(true);
         expect(shouldApplyExternalTemplateForTarget('loon', 'https://example.com/preset.ini')).toBe(true);
         expect(shouldApplyExternalTemplateForTarget('quanx', 'https://example.com/preset.ini')).toBe(true);
         expect(shouldApplyExternalTemplateForTarget('singbox', 'https://example.com/preset.ini')).toBe(true);
         expect(shouldApplyExternalTemplateForTarget('singbox', 'https://example.com/preset.json')).toBe(false);
-        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.ini?token=abc')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/preset.ini?rev=1')).toBe(true);
+        expect(shouldApplyExternalTemplateForTarget('clash', 'https://example.com/subconverter-shellcrash-needs.yaml')).toBe(false);
     });
 });

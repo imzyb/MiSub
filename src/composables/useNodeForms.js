@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import { extractNodeName } from '../lib/utils.js';
 import { generateNodeId } from '../utils/id.js';
+import { t } from '../i18n/index.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -49,7 +50,7 @@ export function useNodeForms({ addNode, updateNode }) {
 
     const handleSave = () => {
         if (!editingNode.value || !editingNode.value.url) {
-            showToast('节点链接不能为空', 'error');
+            showToast(t('manualNodes.urlRequired'), 'error');
             return;
         }
 

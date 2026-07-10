@@ -35,18 +35,40 @@ export const REGION_GROUP_PATTERNS = [
     { name: '🇦🇺 澳洲节点', pattern: /澳|AU|Australia/i }
 ];
 
-export function groupNodeLinesByRegion(nodes = []) {
+function normalizeRegionOverrides(overrides = []) {
+    if (!Array.isArray(overrides)) return [];
+    return overrides
+        .map(rule => {
+            if (!rule || !rule.pattern || !rule.region) return null;
+            try {
+                return {
+                    pattern: new RegExp(rule.pattern, rule.flags || 'i'),
+                    region: String(rule.region).trim()
+                };
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean);
+}
+
+export function groupNodeLinesByRegion(nodes = [], options = {}) {
     const groups = new Map();
+    const regionOverrides = normalizeRegionOverrides(options.regionOverrides);
 
     nodes.forEach(node => {
         const tagName = node.tag || node.name;
         let region = '其他';
+        const override = regionOverrides.find(rule => rule.pattern.test(tagName));
 
-        // 1. 优先使用预提取的元数据
-        if (node.metadata && node.metadata.region && node.metadata.region !== '其他') {
+        // 1. 用户自定义规则优先，用于修正自动地区识别误判
+        if (override) {
+            region = override.region;
+        } else if (node.metadata && node.metadata.region && node.metadata.region !== '其他') {
+            // 2. 使用预提取的元数据
             region = node.metadata.region;
         } else {
-            // 2. 回退到正则匹配逻辑
+            // 3. 回退到正则匹配逻辑
             for (const { name: groupName, pattern } of REGION_GROUP_PATTERNS) {
                 if (pattern.test(tagName)) {
                     // [核心修复] 增强提取能力：直接由预设名称提取中文核心地名，解决 split 导致的问题
@@ -61,7 +83,7 @@ export function groupNodeLinesByRegion(nodes = []) {
             region = '其他';
         }
 
-        // 3. 构造标准的展示组名
+        // 4. 构造标准的展示组名
         const config = REGION_DISPLAY_CONFIG[region] || { flag: '🌍', name: `${region}节点` };
         const groupName = `${config.flag} ${config.name}`;
 

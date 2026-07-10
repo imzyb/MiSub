@@ -14,6 +14,7 @@ import GlobalSettings from '../settings/sections/GlobalSettings.vue';
 
 import ClientSettings from '../settings/sections/ClientSettings.vue';
 import SystemSettings from '../settings/sections/SystemSettings.vue';
+import WebdavBackupSettings from '../settings/sections/WebdavBackupSettings.vue';
 
 const {
   settings,
@@ -84,6 +85,7 @@ defineExpose({ handleSave: handleSaveAndReturnStatus });
         <ServiceSettings v-show="activeTab === 'service'" :settings="settings" />
         <ClientSettings v-show="activeTab === 'client'" />
         <div v-show="activeTab === 'system'" class="space-y-6">
+          <WebdavBackupSettings :settings="settings" />
           <SystemSettings 
             :settings="settings" 
             :exportBackup="exportBackup" 

@@ -1,5 +1,7 @@
 <script setup>
-import { ref, watch, nextTick, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onUnmounted, computed } from 'vue';
+import { useI18n } from '@/i18n/index.js';
+import { useBackdropDismiss } from '@/composables/useBackdropDismiss.js';
 
 const props = defineProps({
   show: Boolean,
@@ -14,7 +16,7 @@ const props = defineProps({
   },
   confirmButtonTitle: {
     type: String,
-    default: '确认'
+    default: ''
   },
   closeOnConfirm: {
     type: Boolean,
@@ -22,15 +24,19 @@ const props = defineProps({
   },
   confirmText: {
     type: String,
-    default: '确认'
+    default: ''
   },
   cancelText: {
     type: String,
-    default: '取消'
+    default: ''
   }
 });
 
 const emit = defineEmits(['update:show', 'confirm']);
+const { t } = useI18n();
+const confirmLabel = computed(() => props.confirmText || t('actions.confirm'));
+const cancelLabel = computed(() => props.cancelText || t('actions.cancel'));
+const confirmTitle = computed(() => props.confirmButtonTitle || t('actions.confirm'));
 
 const confirmInput = ref('');
 const modalPanelRef = ref(null);
@@ -111,12 +117,17 @@ const handleConfirm = async () => {
     emit('update:show', false);
   }
 };
+
+const {
+  handleBackdropPointerDown,
+  handleBackdropClick
+} = useBackdropDismiss(() => emit('update:show', false));
 </script>
 
 <template>
   <Transition name="modal-fade">
     <div v-if="show" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-      @click="emit('update:show', false)" role="dialog" aria-modal="true" :aria-labelledby="titleId">
+      @pointerdown.capture="handleBackdropPointerDown" @click="handleBackdropClick" role="dialog" aria-modal="true" :aria-labelledby="titleId">
       <Transition name="modal-inner">
         <div v-if="show"
           ref="modalPanelRef"
@@ -135,13 +146,13 @@ const handleConfirm = async () => {
           }" @click.stop>
           <div :id="titleId" class="p-6 pb-4 shrink-0">
             <slot name="title">
-              <h3 class="text-lg font-bold text-gray-900 dark:text-white">确认操作</h3>
+              <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ t('common.confirmAction') }}</h3>
             </slot>
           </div>
 
           <div class="px-6 pb-6 grow overflow-y-auto">
             <slot name="body">
-              <p class="text-sm text-gray-500 dark:text-gray-400">你确定要继续吗？</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('common.confirmContinue') }}</p>
             </slot>
           </div>
 
@@ -149,12 +160,12 @@ const handleConfirm = async () => {
             <slot name="footer">
               <button @click="emit('update:show', false)"
                 class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold text-sm misub-radius-lg transition-colors">{{
-                cancelText }}</button>
+                cancelLabel }}</button>
               <button @click="handleConfirm"
                 :disabled="confirmDisabled || (confirmKeyword && confirmInput !== confirmKeyword)"
-                :title="confirmDisabled ? confirmButtonTitle : '确认'"
+                :title="confirmDisabled ? confirmTitle : t('actions.confirm')"
                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm misub-radius-lg transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:opacity-70 disabled:cursor-not-allowed">{{
-                confirmText }}</button>
+                confirmLabel }}</button>
             </slot>
           </div>
         </div>

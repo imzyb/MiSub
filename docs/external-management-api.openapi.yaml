@@ -1,0 +1,1400 @@
+openapi: 3.1.0
+info:
+  title: MiSub External Management API
+  version: 1.0.0
+  description: |
+    MiSub 对外暴露的受控管理接口。当前版本覆盖订阅源、手动节点、订阅组与轻量预览能力。
+
+    认证方式：
+    - 需要在 MiSub 设置页启用 `externalApi.enabled`
+    - 所有请求都必须携带 `Authorization: Bearer <token>`
+
+servers:
+  - url: /api/ext/v1
+    description: Relative path on the current MiSub deployment
+
+tags:
+  - name: Subscriptions
+    description: 远程订阅源（仅 http/https）
+  - name: Manual Nodes
+    description: 手动节点（仅节点协议 URL）
+  - name: Profiles
+    description: 订阅组与引用关系管理
+  - name: Preview
+    description: 订阅组轻量预览
+
+security:
+  - bearerAuth: []
+
+paths:
+  /subscriptions:
+    get:
+      tags: [Subscriptions]
+      summary: 列出远程订阅源
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: group
+          in: query
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Subscription'
+                      meta:
+                        $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Subscriptions]
+      summary: 创建远程订阅源
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCreateInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /subscriptions/{subscriptionId}:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    get:
+      tags: [Subscriptions]
+      summary: 获取单个远程订阅源
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Subscription'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/SubscriptionNotFound'
+    patch:
+      tags: [Subscriptions]
+      summary: 更新远程订阅源
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPatchInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/SubscriptionNotFound'
+    delete:
+      tags: [Subscriptions]
+      summary: 删除远程订阅源并清理 profile 引用
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeleteWithProfileRefsResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/SubscriptionNotFound'
+
+  /subscriptions/validate:
+    post:
+      tags: [Subscriptions]
+      summary: 校验候选远程订阅源并返回节点诊断信息
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionValidateInput'
+      responses:
+        '200':
+          description: 校验成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SubscriptionValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /subscriptions/{subscriptionId}/refresh:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Subscriptions]
+      summary: 刷新单个已存储远程订阅源并持久化运行时字段
+      responses:
+        '200':
+          description: 刷新完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SubscriptionRefreshResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/SubscriptionNotFound'
+
+  /subscriptions/batch-refresh:
+    post:
+      tags: [Subscriptions]
+      summary: 批量刷新多个已存储远程订阅源
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionIds]
+              properties:
+                subscriptionIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 刷新完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SubscriptionBatchRefreshResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/SubscriptionNotFound'
+
+  /manual-nodes:
+    get:
+      tags: [Manual Nodes]
+      summary: 列出手动节点
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: group
+          in: query
+          schema:
+            type: string
+        - name: protocol
+          in: query
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ManualNode'
+                      meta:
+                        $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Manual Nodes]
+      summary: 创建手动节点
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualNodeCreateInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ManualNode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /manual-nodes/{manualNodeId}:
+    parameters:
+      - $ref: '#/components/parameters/ManualNodeId'
+    get:
+      tags: [Manual Nodes]
+      summary: 获取单个手动节点
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ManualNode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ManualNodeNotFound'
+    patch:
+      tags: [Manual Nodes]
+      summary: 更新手动节点
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualNodePatchInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ManualNode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ManualNodeNotFound'
+    delete:
+      tags: [Manual Nodes]
+      summary: 删除手动节点并清理 profile 引用
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeleteWithProfileRefsResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ManualNodeNotFound'
+
+  /manual-nodes/validate:
+    post:
+      tags: [Manual Nodes]
+      summary: 校验候选手动节点并返回本地解析结果
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualNodeValidateInput'
+      responses:
+        '200':
+          description: 校验成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ManualNodeValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /profiles:
+    get:
+      tags: [Profiles]
+      summary: 列出订阅组
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Profile'
+                      meta:
+                        $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Profiles]
+      summary: 创建订阅组
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileCreateInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /profiles/{profileId}:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    get:
+      tags: [Profiles]
+      summary: 获取单个订阅组
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+    patch:
+      tags: [Profiles]
+      summary: 更新订阅组
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfilePatchInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+    delete:
+      tags: [Profiles]
+      summary: 删除订阅组
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeleteResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /profiles/{profileId}/subscriptions:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    post:
+      tags: [Profiles]
+      summary: 向订阅组追加订阅源引用（自动去重）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionIds]
+              properties:
+                subscriptionIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+    delete:
+      tags: [Profiles]
+      summary: 从订阅组移除订阅源引用
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionIds]
+              properties:
+                subscriptionIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /profiles/{profileId}/manual-nodes:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    post:
+      tags: [Profiles]
+      summary: 向订阅组追加手动节点引用（自动去重）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manualNodeIds]
+              properties:
+                manualNodeIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+    delete:
+      tags: [Profiles]
+      summary: 从订阅组移除手动节点引用
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manualNodeIds]
+              properties:
+                manualNodeIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /profiles/{profileId}/preview:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    post:
+      tags: [Preview]
+      summary: 获取订阅组轻量预览
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProfilePreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /profiles/{profileId}/refresh:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    post:
+      tags: [Profiles]
+      summary: 刷新订阅组内引用的远程订阅源并返回聚合结果
+      responses:
+        '200':
+          description: 刷新完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProfileRefreshResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque token
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema:
+        type: string
+    ManualNodeId:
+      name: manualNodeId
+      in: path
+      required: true
+      schema:
+        type: string
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: 缺少或错误的 Bearer Token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error:
+              code: unauthorized
+              message: Invalid or missing bearer token
+    Forbidden:
+      description: External API 未启用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error:
+              code: forbidden
+              message: External API is disabled
+    BadRequest:
+      description: 参数或请求体不合法
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    SubscriptionNotFound:
+      description: 订阅源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error:
+              code: subscription_not_found
+              message: Subscription not found
+    ManualNodeNotFound:
+      description: 手动节点不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error:
+              code: manual_node_not_found
+              message: Manual node not found
+    ProfileNotFound:
+      description: 订阅组不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error:
+              code: profile_not_found
+              message: Profile not found
+
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data: {}
+        meta:
+          $ref: '#/components/schemas/ListMeta'
+    ErrorEnvelope:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details: {}
+    ListMeta:
+      type: object
+      required: [page, pageSize, total, requestId]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        requestId:
+          type: string
+    Subscription:
+      type: object
+      required: [id, type, name, url, enabled, group, tags, userAgent, proxy, sortIndex, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          const: subscription
+        name:
+          type: string
+        url:
+          type: string
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        userAgent:
+          type: string
+        proxy:
+          type: string
+        nodeCount:
+          type: integer
+        userInfo:
+          $ref: '#/components/schemas/SubscriptionUserInfo'
+        lastError:
+          type: string
+        lastUpdate:
+          type: [string, 'null']
+        sortIndex:
+          type: integer
+        createdAt:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+    SubscriptionCreateInput:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          description: 必须是 http:// 或 https:// URL
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        userAgent:
+          type: string
+        proxy:
+          type: string
+        sortIndex:
+          type: integer
+    SubscriptionPatchInput:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        userAgent:
+          type: string
+        proxy:
+          type: string
+        sortIndex:
+          type: integer
+    SubscriptionValidateInput:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: 必须是 http:// 或 https:// URL
+        userAgent:
+          type: string
+        proxy:
+          type: string
+    SubscriptionUserInfo:
+      type: [object, 'null']
+      properties:
+        upload:
+          type: integer
+        download:
+          type: integer
+        total:
+          type: integer
+        expire:
+          type: integer
+    SubscriptionValidationResult:
+      type: object
+      required: [valid, requestedUrl, effectiveUserAgent, fetchProxyUsed, nodeCount, checkedAt]
+      properties:
+        valid:
+          type: boolean
+          const: true
+        requestedUrl:
+          type: string
+        effectiveUserAgent:
+          type: string
+        fetchProxyUsed:
+          type: string
+        nodeCount:
+          type: integer
+        userInfo:
+          $ref: '#/components/schemas/SubscriptionUserInfo'
+        checkedAt:
+          type: string
+    SubscriptionRefreshResult:
+      type: object
+      required: [subscription, refreshedAt]
+      properties:
+        subscription:
+          $ref: '#/components/schemas/Subscription'
+        refreshedAt:
+          type: string
+    SubscriptionBatchRefreshItem:
+      type: object
+      required: [id, success, nodeCount, lastError, refreshedAt]
+      properties:
+        id:
+          type: string
+        success:
+          type: boolean
+        nodeCount:
+          type: integer
+        userInfo:
+          $ref: '#/components/schemas/SubscriptionUserInfo'
+        lastError:
+          type: string
+        refreshedAt:
+          type: string
+    SubscriptionBatchRefreshResult:
+      type: object
+      required: [results, summary]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionBatchRefreshItem'
+        summary:
+          type: object
+          required: [total, succeeded, failed, totalNodes]
+          properties:
+            total:
+              type: integer
+            succeeded:
+              type: integer
+            failed:
+              type: integer
+            totalNodes:
+              type: integer
+    ManualNode:
+      type: object
+      required: [id, type, name, url, protocol, enabled, group, tags, remarks, sortIndex, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          const: manual_node
+        name:
+          type: string
+        url:
+          type: string
+        protocol:
+          type: string
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        remarks:
+          type: string
+        sortIndex:
+          type: integer
+        createdAt:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+    ManualNodeCreateInput:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          description: 必须是受支持的节点协议 URL，如 vless://、trojan://、ss://
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        remarks:
+          type: string
+        sortIndex:
+          type: integer
+    ManualNodePatchInput:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        enabled:
+          type: boolean
+        group:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        remarks:
+          type: string
+        sortIndex:
+          type: integer
+    ManualNodeValidateInput:
+      type: object
+      required: [url]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          description: 必须是受支持的节点协议 URL，如 vless://、trojan://、ss://
+    ParsedManualNode:
+      type: object
+      required: [url, protocol, name]
+      properties:
+        url:
+          type: string
+        protocol:
+          type: string
+        name:
+          type: string
+        warning:
+          type: [object, 'null']
+        metadata:
+          type: [object, 'null']
+    ManualNodeValidationResult:
+      type: object
+      required: [valid, requestedName, requestedUrl, protocol, nodeCount, parsedNode, checkedAt]
+      properties:
+        valid:
+          type: boolean
+          const: true
+        requestedName:
+          type: string
+        requestedUrl:
+          type: string
+        protocol:
+          type: string
+        nodeCount:
+          type: integer
+        parsedNode:
+          $ref: '#/components/schemas/ParsedManualNode'
+        checkedAt:
+          type: string
+    Profile:
+      type: object
+      required: [id, name, description, enabled, isPublic, customId, subscriptionIds, manualNodeIds, target, sortIndex, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        isPublic:
+          type: boolean
+        customId:
+          type: string
+        subscriptionIds:
+          type: array
+          items:
+            type: string
+        manualNodeIds:
+          type: array
+          items:
+            type: string
+        target:
+          type: string
+        sortIndex:
+          type: integer
+        createdAt:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+    ProfileCreateInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        isPublic:
+          type: boolean
+        customId:
+          type: string
+        subscriptionIds:
+          type: array
+          items:
+            type: string
+        manualNodeIds:
+          type: array
+          items:
+            type: string
+        target:
+          type: string
+          default: clash
+        sortIndex:
+          type: integer
+    ProfilePatchInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        isPublic:
+          type: boolean
+        customId:
+          type: string
+        subscriptionIds:
+          type: array
+          items:
+            type: string
+        manualNodeIds:
+          type: array
+          items:
+            type: string
+        target:
+          type: string
+        sortIndex:
+          type: integer
+    ProfileRefreshItem:
+      type: object
+      required: [id, name, success, nodeCount, lastError, lastUpdated]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        success:
+          type: boolean
+        nodeCount:
+          type: integer
+        userInfo:
+          $ref: '#/components/schemas/SubscriptionUserInfo'
+        lastError:
+          type: string
+        lastUpdated:
+          type: [string, 'null']
+    ProfileRefreshResult:
+      type: object
+      required: [profile, results, summary]
+      properties:
+        profile:
+          $ref: '#/components/schemas/Profile'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileRefreshItem'
+        summary:
+          type: object
+          required: [totalSubscriptions, refreshedSubscriptions, failedSubscriptions, manualNodes, totalNodes]
+          properties:
+            totalSubscriptions:
+              type: integer
+            refreshedSubscriptions:
+              type: integer
+            failedSubscriptions:
+              type: integer
+            manualNodes:
+              type: integer
+            totalNodes:
+              type: integer
+    DeleteResult:
+      type: object
+      required: [deleted, id]
+      properties:
+        deleted:
+          type: boolean
+          const: true
+        id:
+          type: string
+    DeleteWithProfileRefsResult:
+      allOf:
+        - $ref: '#/components/schemas/DeleteResult'
+        - type: object
+          required: [removedFromProfiles]
+          properties:
+            removedFromProfiles:
+              type: array
+              items:
+                type: string
+    PreviewSourceSubscription:
+      type: object
+      required: [id, type, name, url]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          const: subscription
+        name:
+          type: string
+        url:
+          type: string
+    PreviewSourceManualNode:
+      type: object
+      required: [id, type, name, protocol, nodeCount, url]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          const: manual_node
+        name:
+          type: string
+        protocol:
+          type: string
+        nodeCount:
+          type: integer
+          const: 1
+        url:
+          type: string
+    ProfilePreview:
+      type: object
+      required: [profile, counts, byProtocol, sources]
+      properties:
+        profile:
+          $ref: '#/components/schemas/Profile'
+        counts:
+          type: object
+          required: [subscriptions, manualNodes, totalNodes]
+          properties:
+            subscriptions:
+              type: integer
+            manualNodes:
+              type: integer
+            totalNodes:
+              type: integer
+        byProtocol:
+          type: object
+          additionalProperties:
+            type: integer
+        sources:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/PreviewSourceSubscription'
+              - $ref: '#/components/schemas/PreviewSourceManualNode'

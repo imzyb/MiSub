@@ -1,3 +1,5 @@
+import { t } from '@/i18n/index.js';
+
 /**
  * 纯前端的代理节点连通性测试工具
  * 利用浏览器的 Fetch API 发送无 CORS 请求触发目标端口 TLS 握手或 TCP 连接。
@@ -12,7 +14,7 @@
  */
 export async function pingNode(host, port, timeoutMs = 3000) {
     if (!host || !port) {
-        return { status: 'error', latency: -1, message: '无效的地址或端口' };
+        return { status: 'error', latency: -1, message: t('utils.invalidAddressOrPort') };
     }
 
     return new Promise((resolve) => {

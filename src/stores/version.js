@@ -11,12 +11,13 @@ export const useVersionStore = defineStore('version', () => {
     const showUpdateNotice = ref(false);
     const upstreamRepo = 'imzyb/MiSub';
 
-    // 本地更新日志 (v2.6.4)
-    const localChangelog = `✨ **推送 Bot 深度兼容 & UI 视觉对齐**
-- **Telegram Bot 存储重构**：针对 D1 数据库行级存储模式进行了深度重构。解决了 Bot 无法获取订阅组进行绑定的顽固故障，确保 Bot 与 Web 端数据 100% 同步。
-- **设置面板 UI 视觉对齐**：统一了全局设置页面的所有表单高度、Label 字阶及内容字号。
-- **布局逻辑优化**：将“通用节点设置”重组为 2x2 网格布局，优化了移动端与 PC 端的视觉重心分布。
-- **协议稳定性提升**：改进了手动节点前缀与国旗 EMOJI 的处理逻辑，增强了配置生成的健壮性。`;
+    // 本地更新日志 (v2.7.0)
+    const localChangelog = `✨ **订阅生成链路、内置模板与安全兼容性增强**
+- **第三方转换链路修复**：第三方后端模式会先由 MiSub 完成节点预处理，再以内联节点发送给转换后端，避免外部服务回调 MiSub 链接时出现 \`No nodes were found!\`。
+- **多节点外部转换兼容**：多节点内联统一使用 \`|\` 分隔，提升 FatSheep / subconverter 兼容性。
+- **内置模板与规则集增强**：补强 ACL4SSR provider、远程规则集、Sing-Box 规则源、Hysteria2 realm 等输出细节。
+- **服务集成 Cron 兼容恢复**：\`/cron?secret=[REDACTED]\` 兼容链接与 Bearer Token Header 推荐方式均可使用。
+- **UI 与导入体验优化**：优化模板变量提示、自定义规则模板、客户端导入链接和节点刷新错误提示。`;
 
     // --- Getters ---
     const hasUpdate = computed(() => {

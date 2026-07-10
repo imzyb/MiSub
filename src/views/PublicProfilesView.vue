@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, nextTick, computed, watch } from 'vue';
 import { useToastStore } from '../stores/toast.js';
+import { useI18n } from '../i18n/index.js';
 import QRCode from 'qrcode';
 import { api } from '../lib/http.js';
 import ProfileGrid from '../components/public/ProfileGrid.vue';
@@ -19,12 +20,13 @@ const publicProfiles = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const { showToast } = useToastStore();
+const { t } = useI18n();
 const config = ref({});
 const announcement = computed(() => config.value.announcement);
 const heroConfig = computed(() => config.value.hero || {
-    title1: '发现',
-    title2: '优质订阅',
-    description: '浏览并获取由管理员分享的精选订阅组合，一键导入到您的客户端。'
+    title1: t('publicProfiles.heroTitle1'),
+    title2: t('publicProfiles.heroTitle2'),
+    description: t('publicProfiles.heroDescription')
 });
 const guestbookConfig = computed(() => config.value.guestbook || {});
 const customPageConfig = computed(() => config.value.customPage || {});
@@ -80,7 +82,7 @@ const selectedProfileForImport = ref(null);
 
 const handleGuestbookTrigger = () => {
     if (guestbookConfig.value && guestbookConfig.value.enabled === false) {
-        showToast('留言板功能已关闭', 'warning');
+        showToast(t('publicProfiles.guestbookDisabled'), 'warning');
         return;
     }
     showGuestbookModal.value = true;
@@ -98,7 +100,7 @@ const fetchPublicProfiles = async () => {
             publicProfiles.value = data.data;
             config.value = data.config || {};
         } else {
-            error.value = data.message || '获取数据失败';
+            error.value = data.message || t('publicProfiles.fetchFailed');
         }
     } catch (err) {
         error.value = err.message;
@@ -116,9 +118,9 @@ const copyLink = async (profile) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
             await navigator.clipboard.writeText(link);
-            showToast('订阅链接已复制', 'success');
+            showToast(t('publicProfiles.linkCopied'), 'success');
         } catch (e) {
-            showToast('复制失败，请手动复制', 'error');
+            showToast(t('publicProfiles.copyFailedManual'), 'error');
         }
     } else {
         const textArea = document.createElement("textarea");
@@ -130,9 +132,9 @@ const copyLink = async (profile) => {
         textArea.select();
         try {
             document.execCommand('copy');
-            showToast('订阅链接已复制', 'success');
+            showToast(t('publicProfiles.linkCopied'), 'success');
         } catch (err) {
-            showToast('复制失败，请手动复制', 'error');
+            showToast(t('publicProfiles.copyFailedManual'), 'error');
         }
         document.body.removeChild(textArea);
     }
@@ -178,8 +180,8 @@ const getPlatformLabel = (p) => {
 
 const getClientVersionLabel = (client) => {
     if (client.version) return client.version;
-    if (!client.repo && client.platforms?.includes('ios')) return 'App Store 版';
-    return '稳定版';
+    if (!client.repo && client.platforms?.includes('ios')) return t('publicProfiles.appStoreVersion');
+    return t('publicProfiles.stableVersion');
 };
 
 const showPreviewModal = ref(false);
@@ -241,7 +243,7 @@ const downloadQRCode = (profile) => {
     link.download = `${profile.name || 'subscription'}-qrcode.png`;
     link.href = url;
     link.click();
-    showToast('二维码已下载', 'success');
+    showToast(t('publicProfiles.qrDownloaded'), 'success');
 };
 
 const getPlatformStyle = (p) => {
@@ -318,7 +320,7 @@ onUnmounted(() => {
             v-else-if="config.customPage?.enabled"
             :class="customPageConfig.useDefaultLayout !== false
                 ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-12'
-                : ''"
+                : 'min-h-[100dvh] w-full'"
             :content="config.customPage.content"
             :css="config.customPage.css"
             :config="config"
@@ -355,7 +357,7 @@ onUnmounted(() => {
             </template>
 
             <template #guestbook>
-                <button v-if="guestbookConfig?.enabled !== false" @click="handleGuestbookTrigger" class="px-6 py-2 bg-indigo-500 text-white rounded-lg">留言板</button>
+                <button v-if="guestbookConfig?.enabled !== false" @click="handleGuestbookTrigger" class="px-6 py-2 bg-indigo-500 text-white rounded-lg">{{ t('publicProfiles.guestbook') }}</button>
             </template>
         </CustomPublicRenderer>
 
@@ -372,7 +374,7 @@ onUnmounted(() => {
                               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
                               <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
                             </span>
-                            <span class="text-xs font-bold text-primary-700 dark:text-primary-300 tracking-widest uppercase">Cosmic Selection</span>
+                            <span class="text-xs font-bold text-primary-700 dark:text-primary-300 tracking-widest uppercase">{{ t('publicProfiles.badge') }}</span>
                         </div>
 
                         <div v-if="isInitialLoading" class="max-w-5xl space-y-4 animate-pulse">
@@ -428,11 +430,11 @@ onUnmounted(() => {
                         <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 mb-6">
                             <BaseIcon :path="ICONS.error" className="w-10 h-10 text-red-500 dark:text-red-400" />
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">加载失败</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{{ t('publicProfiles.loadFailed') }}</h3>
                         <p class="text-gray-500 dark:text-gray-400 mb-6">{{ error }}</p>
                         <button @click="fetchPublicProfiles"
                             class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium misub-radius-lg shadow-lg shadow-primary-600/20 transition-all active:scale-95">
-                            重试
+                            {{ t('publicProfiles.retry') }}
                         </button>
                     </div>
 
@@ -450,12 +452,12 @@ onUnmounted(() => {
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="text-center mb-16 relative">
                             <div class="relative inline-flex flex-col items-center">
-                                <span class="text-sm font-bold tracking-widest text-primary-600 dark:text-primary-400 uppercase mb-2">Essential Tools</span>
+                                <span class="text-sm font-bold tracking-widest text-primary-600 dark:text-primary-400 uppercase mb-2">{{ t('publicProfiles.clientsEyebrow') }}</span>
                                 <h2 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-                                    必备客户端
+                                    {{ t('publicProfiles.clientsTitle') }}
                                 </h2>
                                 <p class="mt-4 text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-                                    为了获得最佳体验，请下载我们推荐的客户端软件。覆盖全平台，简单易用。
+                                    {{ t('publicProfiles.clientsDescription') }}
                                 </p>
                             </div>
                         </div>
@@ -502,7 +504,7 @@ onUnmounted(() => {
 
                                     <a :href="client.url" target="_blank"
                                         class="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 group/link">
-                                        获取下载
+                                        {{ t('publicProfiles.download') }}
                                         <BaseIcon :path="ICONS.download" className="w-4 h-4 transform group-hover/link:translate-x-0.5 transition-transform" />
                                     </a>
                                 </div>

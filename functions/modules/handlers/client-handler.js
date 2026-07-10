@@ -1,7 +1,7 @@
 
 
 
-import { createJsonResponse, createErrorResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 
 const KV_KEY_CLIENTS = 'misub_clients_v1';
 const MAX_ICON_DATA_URL_BYTES = 200 * 1024;
@@ -333,9 +333,9 @@ export async function handleClientRequest(request, env) {
 
             let body;
             try {
-                body = await request.json();
+                body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
             } catch (e) {
-                return createErrorResponse('Invalid JSON body', 400);
+                return createErrorResponse(e?.status === 413 ? e.message : 'Invalid JSON body', e?.status || 400);
             }
 
             let clients = await kv.get(KV_KEY_CLIENTS).then(r => r ? JSON.parse(r) : null) || [];

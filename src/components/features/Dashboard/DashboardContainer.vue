@@ -9,6 +9,7 @@ import { saveMisubs } from '../../../lib/api.js';
 import { useToastStore } from '../../../stores/toast.js';
 import { useUIStore } from '../../../stores/ui.js';
 import { TIMING } from '../../../constants/timing.js';
+import { useI18n } from '@/i18n/index.js';
 
 // 子组件
 import SubscriptionManager from './SubscriptionManager.vue';
@@ -28,6 +29,7 @@ import { useProfiles } from '../composables/useProfiles.js';
 
 // Props
 const props = defineProps({ data: Object });
+const { t } = useI18n();
 
 // Store
 const { showToast } = useToastStore();
@@ -113,14 +115,14 @@ const handleSave = async () => {
     await saveMisubs(subscriptions.value, profiles.value);
     dirty.value = false;
     saveState.value = 'success';
-    showToast('保存成功', 'success');
+    showToast(t('store.dataSaved'), 'success');
     setTimeout(() => {
       saveState.value = 'idle';
     }, 2000);
   } catch (error) {
-    console.error('保存失败:', error);
+    console.error('Save failed:', error);
     saveState.value = 'error';
-    showToast('保存失败: ' + error.message, 'error');
+    showToast(t('store.saveDataFailed', { message: error.message }), 'error');
     setTimeout(() => {
       saveState.value = 'idle';
     }, TIMING.TOAST_DURATION_MS);
@@ -142,7 +144,7 @@ const handlePreviewProfile = (profile) => {
 
 const handleBulkImport = (importedSubscriptions) => {
   addSubscriptionsFromBulk(importedSubscriptions);
-  showToast(`成功导入 ${importedSubscriptions.length} 个订阅`, 'success');
+  showToast(t('subscriptions.importedCount', { count: importedSubscriptions.length }), 'success');
 };
 
 const handleDeleteAllSubscriptionsWithCleanup = () => {
@@ -213,33 +215,33 @@ onUnmounted(() => {
 
     <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup">
       <template #title>
-        <h3 class="text-lg font-bold text-red-500">确认清空订阅</h3>
+        <h3 class="text-lg font-bold text-red-500">{{ t('subscriptions.deleteAllConfirmTitle') }}</h3>
       </template>
       <template #body>
         <p class="text-sm text-gray-400">
-          您确定要删除所有**订阅**吗？此操作将标记为待保存，不会影响手动节点。
+          {{ t('subscriptions.deleteAllConfirmBody') }}
         </p>
       </template>
     </Modal>
 
     <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
       <template #title>
-        <h3 class="text-lg font-bold text-red-500">确认清空节点</h3>
+        <h3 class="text-lg font-bold text-red-500">{{ t('manualNodes.deleteAllConfirmTitle') }}</h3>
       </template>
       <template #body>
         <p class="text-sm text-gray-400">
-          您确定要删除所有**手动节点**吗？此操作将标记为待保存，不会影响订阅。
+          {{ t('manualNodes.deleteAllConfirmBody') }}
         </p>
       </template>
     </Modal>
 
     <Modal v-model:show="showDeleteProfilesModal" @confirm="handleDeleteAllProfiles">
       <template #title>
-        <h3 class="text-lg font-bold text-red-500">确认清空订阅组</h3>
+        <h3 class="text-lg font-bold text-red-500">{{ t('subscriptions.deleteAllConfirmTitle') }}组</h3>
       </template>
       <template #body>
         <p class="text-sm text-gray-400">
-          您确定要删除所有**订阅组**吗？此操作不可逆。
+          {{ t('profiles.deleteAllConfirmBody') }}
         </p>
       </template>
     </Modal>

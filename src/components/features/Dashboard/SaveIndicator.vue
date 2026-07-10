@@ -4,7 +4,11 @@
  */
 
 <script setup>
-defineProps({
+import { computed, toRefs } from 'vue';
+import { useI18n } from '@/i18n/index.js';
+
+const { t } = useI18n();
+const props = defineProps({
   dirty: {
     type: Boolean,
     required: true
@@ -16,18 +20,20 @@ defineProps({
   }
 });
 
+const { dirty, saveState } = toRefs(props);
+
 defineEmits(['save']);
 
 const saveButtonText = computed(() => {
   switch (saveState.value) {
     case 'saving':
-      return '保存中...';
+      return t('dashboard.saveInProgress');
     case 'success':
-      return '已保存';
+      return t('dashboard.savedStatus');
     case 'error':
-      return '保存失败';
+      return t('dashboard.saveFailedStatus');
     default:
-      return '保存更改';
+      return t('dashboard.saveChanges');
   }
 });
 
@@ -93,10 +99,10 @@ const saveButtonClass = computed(() => {
 
         <!-- Status Text -->
         <div class="text-sm text-gray-600 dark:text-gray-300">
-          <span v-if="saveState === 'saving'">正在保存...</span>
-          <span v-else-if="saveState === 'success'">保存成功</span>
-          <span v-else-if="saveState === 'error'">保存失败</span>
-          <span v-else>有待保存的更改</span>
+          <span v-if="saveState === 'saving'">{{ t('dashboard.saveInProgress') }}</span>
+          <span v-else-if="saveState === 'success'">{{ t('dashboard.saveSuccessStatus') }}</span>
+          <span v-else-if="saveState === 'error'">{{ t('dashboard.saveFailedStatus') }}</span>
+          <span v-else>{{ t('dashboard.unsavedPending') }}</span>
         </div>
 
         <!-- Save Button -->

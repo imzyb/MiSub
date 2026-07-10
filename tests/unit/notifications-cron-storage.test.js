@@ -20,7 +20,11 @@ vi.mock('../../functions/services/notification-service.js', () => ({
 }));
 
 describe('notifications cron storage helper usage', () => {
+  let infoSpy;
+
   beforeEach(() => {
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
     getAllSubscriptions.mockReset();
     get.mockReset();
     putAllSubscriptions.mockReset();
@@ -58,6 +62,7 @@ describe('notifications cron storage helper usage', () => {
   });
 
   afterEach(() => {
+    infoSpy.mockRestore();
     vi.unstubAllGlobals();
   });
 
@@ -96,5 +101,15 @@ describe('notifications cron storage helper usage', () => {
         }
       })
     ]);
+    expect(infoSpy).toHaveBeenCalledWith('[Cron] Starting parallel update for 1 subscriptions');
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/^\[Cron\] Completed in \d+ms:$/),
+      expect.objectContaining({
+        total: 1,
+        updated: 1,
+        failed: 0,
+        changes: true
+      })
+    );
   });
 });

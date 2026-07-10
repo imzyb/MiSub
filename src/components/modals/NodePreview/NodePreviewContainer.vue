@@ -17,6 +17,7 @@ import EmptyState from './EmptyState.vue';
 
 // Composables
 import { useNodePreview } from '@/composables/useNodePreview.js';
+import { useBackdropDismiss } from '@/composables/useBackdropDismiss.js';
 
 const props = defineProps({
   show: Boolean,
@@ -64,6 +65,11 @@ const handleClose = () => {
   emit('update:show', false);
 };
 
+const {
+  handleBackdropPointerDown,
+  handleBackdropClick
+} = useBackdropDismiss(handleClose);
+
 // 自动加载数据
 onMounted(() => {
   if (props.show) {
@@ -78,7 +84,8 @@ onMounted(() => {
     v-if="show"
     class="fixed inset-0 z-50 overflow-y-auto"
     :class="{ 'bg-black bg-opacity-50': show }"
-    @click.self="handleClose"
+    @pointerdown.capture="handleBackdropPointerDown"
+    @click.self="handleBackdropClick"
   >
     <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
       <div class="relative transform overflow-hidden misub-radius-md bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-6xl">

@@ -24,7 +24,7 @@
 
 import { StorageFactory } from '../../storage-adapter.js';
 import { clearAllNodeCaches } from '../../services/node-cache-service.js';
-import { createJsonResponse, escapeHtml } from '../utils.js';
+import { createJsonResponse, escapeHtml, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS } from '../config.js';
 
 // ==================== 存储与配置 ====================
@@ -477,7 +477,7 @@ async function handleHelpCommand(chatId, env) {
         '<b>📤 添加节点</b>\n' +
         '直接发送节点链接（支持批量）\n\n' +
         '<b>📋 查看</b>\n' +
-        '/list - 节点列表\n' +
+        '/list - 选择节点列表 / 机场列表\n' +
         '/stats - 统计信息\n' +
         '/info [序号] - 节点详情\n' +
         '/search [词] - 搜索节点\n\n' +
@@ -505,7 +505,7 @@ async function handleMenuCommand(chatId, env, messageId = null, requestCache = n
         inline_keyboard: [
             [
                 { text: '\uD83D\uDE80 节点列表', callback_data: 'cmd_list_node' }, // 🚀
-                { text: '\uD83D\uDCE1 订阅列表', callback_data: 'cmd_list_sub' },  // 📡
+                { text: '\uD83D\uDCE1 机场列表', callback_data: 'cmd_list_sub' },  // 📡
                 { text: '\uD83D\uDCCA 统计', callback_data: 'cmd_stats' }      // 📊
             ],
             [
@@ -555,7 +555,7 @@ async function handleListCommand(chatId, userId, env, page = 0, type = 'all', me
             title = '\uD83D\uDE80 节点列表'; // 🚀
         } else if (type === 'sub') {
             userNodes = allNodes.filter(n => /^https?:\/\//i.test(n.url || ''));
-            title = '\uD83D\uDCE1 订阅列表'; // 📡
+            title = '\uD83D\uDCE1 机场列表'; // 📡
         }
 
         // 获取当前绑定的订阅组
@@ -566,8 +566,8 @@ async function handleListCommand(chatId, userId, env, page = 0, type = 'all', me
         const boundNodeIds = new Set(boundProfile?.manualNodes || []);
 
         if (userNodes.length === 0) {
-            let emptyMsg = `\uD83D\uDCCB <b>暂无${type === 'sub' ? '订阅' : (type === 'node' ? '节点' : '资源')}</b>\n\n`; // 📋
-            if (type === 'sub') emptyMsg += '发送包含 http/https 的链接即可添加订阅';
+            let emptyMsg = `\uD83D\uDCCB <b>暂无${type === 'sub' ? '机场订阅' : (type === 'node' ? '节点' : '资源')}</b>\n\n`; // 📋
+            if (type === 'sub') emptyMsg += '发送包含 http/https 的链接即可添加机场订阅';
             else emptyMsg += '直接发送 ss/vless 等链接即可添加节点';
 
             if (messageId) {
@@ -677,6 +677,28 @@ async function handleListCommand(chatId, userId, env, page = 0, type = 'all', me
     } catch (error) {
         console.error('[Telegram Push] List command failed:', error);
         await sendTelegramMessage(chatId, `\u274C 获取列表失败: ${error.message}`, env); // ❌
+    }
+}
+
+async function handleListTypeSelector(chatId, env, messageId = null, requestCache = null) {
+    const message = '📋 <b>请选择列表类型</b>\n\n' +
+        '🚀 节点列表：手动添加的代理节点\n' +
+        '📡 机场列表：HTTP/HTTPS 机场订阅源\n\n' +
+        '节点和机场订阅分开管理，避免序号混淆。';
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '🚀 节点列表', callback_data: 'cmd_list_node' },
+                { text: '📡 机场列表', callback_data: 'cmd_list_sub' }
+            ],
+            [{ text: '🔙 返回菜单', callback_data: 'cmd_menu' }]
+        ]
+    };
+
+    if (messageId) {
+        await editTelegramMessage(chatId, messageId, message, env, { requestCache, reply_markup: keyboard });
+    } else {
+        await sendTelegramMessage(chatId, message, env, { requestCache, reply_markup: keyboard });
     }
 }
 
@@ -1969,7 +1991,13 @@ async function handleCommand(chatId, text, userId, env, request, requestCache = 
             break;
 
         case '/list':
-            await handleListCommand(chatId, userId, env, 0, 'all', null, requestCache);
+            if (args[0]?.toLowerCase() === 'node' || args[0] === '节点') {
+                await handleListCommand(chatId, userId, env, 0, 'node', null, requestCache);
+            } else if (['sub', 'airport', 'subscription', '订阅', '机场'].includes(args[0]?.toLowerCase())) {
+                await handleListCommand(chatId, userId, env, 0, 'sub', null, requestCache);
+            } else {
+                await handleListTypeSelector(chatId, env, null, requestCache);
+            }
             break;
 
         case '/stats':
@@ -2232,6 +2260,20 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                         targetList = fullList.filter(n => !/^https?:\/\//i.test(n.url || ''));
                     }
 
+                    let actionIdx = idx;
+                    if ((idx < 0 || idx >= targetList.length) && fullList[idx]) {
+                        const fallbackItem = fullList[idx];
+                        const fallbackIsSub = /^https?:\/\//i.test(fallbackItem.url || '');
+                        if ((type === 'sub' && fallbackIsSub) || (type === 'node' && !fallbackIsSub)) {
+                            actionIdx = targetList.findIndex(item => (
+                                fallbackItem.id
+                                    ? item.id === fallbackItem.id
+                                    : item === fallbackItem || item.url === fallbackItem.url
+                            ));
+                            targetList = fullList;
+                        }
+                    }
+
                     const profiles = await storageAdapter.getAllProfiles();
                     const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
                     const config = settings.telegram_push_config || {};
@@ -2274,8 +2316,8 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     const buttons = [];
 
                     // 第一行：启用/禁用，复制
-                    const toggleCmd = type === 'sub' ? `toggle_sub_${idx}` : `toggle_node_${idx}`;
-                    const copyCmd = type === 'sub' ? `copy_sub_${idx}` : `copy_node_${idx}`;
+                    const toggleCmd = type === 'sub' ? `toggle_sub_${actionIdx}` : `toggle_node_${actionIdx}`;
+                    const copyCmd = type === 'sub' ? `copy_sub_${actionIdx}` : `copy_node_${actionIdx}`;
 
                     buttons.push([
                         { text: node.enabled ? '⛔ 禁用' : '✅ 启用', callback_data: toggleCmd },
@@ -2284,8 +2326,8 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
 
                     // 如果有绑定的订阅组，添加关联/取消关联按钮
                     if (boundProfile) {
-                        const linkCmd = type === 'sub' ? `link_sub_${idx}` : `link_node_${idx}`;
-                        const unlinkCmd = type === 'sub' ? `unlink_sub_${idx}` : `unlink_node_${idx}`;
+                        const linkCmd = type === 'sub' ? `link_sub_${actionIdx}` : `link_node_${actionIdx}`;
+                        const unlinkCmd = type === 'sub' ? `unlink_sub_${actionIdx}` : `unlink_node_${actionIdx}`;
                         buttons.push([{
                             text: isInProfile ? '➖ 从订阅组移除' : '➕ 添加到订阅组',
                             callback_data: isInProfile ? unlinkCmd : linkCmd
@@ -2293,8 +2335,8 @@ async function handleCallbackQuery(callbackQuery, env, request, requestCache = n
                     }
 
                     // 第二行：重命名，删除
-                    const renameCmd = type === 'sub' ? `prompt_rename_sub_${idx}` : `prompt_rename_node_${idx}`;
-                    const deleteCmd = type === 'sub' ? `confirm_delete_sub_${idx}` : `confirm_delete_node_${idx}`;
+                    const renameCmd = type === 'sub' ? `prompt_rename_sub_${actionIdx}` : `prompt_rename_node_${actionIdx}`;
+                    const deleteCmd = type === 'sub' ? `confirm_delete_sub_${actionIdx}` : `confirm_delete_node_${actionIdx}`;
 
                     buttons.push([
                         { text: '✏️ 重命名', callback_data: renameCmd },
@@ -2698,7 +2740,7 @@ export async function handleTelegramWebhook(request, env) {
         }
 
         // 解析 Telegram Update
-        const update = await request.json();
+        const update = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
 
         // 处理 Callback Query（按钮回调）
         if (update.callback_query) {
@@ -2742,6 +2784,6 @@ export async function handleTelegramWebhook(request, env) {
 
     } catch (error) {
         console.error('[Telegram Push] Webhook handler error:', error);
-        return createJsonResponse({ error: 'Internal server error' }, 500);
+        return createJsonResponse({ error: error.status === 413 ? error.message : 'Internal server error' }, error.status || 500);
     }
 }

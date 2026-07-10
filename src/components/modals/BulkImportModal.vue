@@ -4,7 +4,9 @@ import Modal from '../forms/Modal.vue';
 import GroupSelector from '../ui/GroupSelector.vue'; // Added
 import { useManualNodes } from '../../composables/useManualNodes.js';
 import { useDataStore } from '../../stores/useDataStore.js';
+import { useI18n } from '@/i18n/index.js';
 
+const { t } = useI18n();
 const { manualNodeGroups } = useManualNodes(useDataStore().markDirty);
 
 const props = defineProps({
@@ -38,9 +40,9 @@ const handleConfirm = () => {
         </div>
         <div>
           <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-            批量导入
+            {{ t('bulkImport.title') }}
           </h3>
-          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">支持一次导入订阅链接或分享节点，并可统一分配到指定分组。</p>
+          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('bulkImport.description') }}</p>
         </div>
       </div>
     </template>
@@ -52,12 +54,12 @@ const handleConfirm = () => {
         <div class="relative">
           <div class="flex flex-col gap-1.5">
             <label for="import-group" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-              自动分配分组 (可选)
+              {{ t('bulkImport.groupLabel') }}
             </label>
             <GroupSelector
               v-model="selectedGroup"
               :groups="manualNodeGroups"
-              placeholder="选择或输入分组..."
+              :placeholder="t('ui.groupSelector.placeholder')"
             />
           </div>
         </div>
@@ -89,7 +91,7 @@ const handleConfirm = () => {
             <!-- Focus Glow -->
             <div class="absolute inset-0 misub-radius-lg pointer-events-none transition-opacity duration-300 opacity-0 group-focus-within:opacity-100 ring-1 ring-primary-500/20"></div>
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400">每行一个链接。系统会自动识别协议类型，并尽量提取节点名称。</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('bulkImport.helper') }}</p>
         </div>
       </div>
     </template>

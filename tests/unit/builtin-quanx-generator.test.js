@@ -113,7 +113,7 @@ describe('Quantumult X 内置生成器', () => {
 
         expect(generated).not.toContain('hysteria2=');
         expect(generated).toContain('tuic=tuic.example.com:443, uuid-tuic, pass-tuic, sni=tuic.example.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUICNode');
-        expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, sni=anytls.example.com, alpn=h2,h3, tls-verification=false, tag=🌍 AnyTLSNode');
+        expect(generated).toContain('anytls=anytls.example.com:443, password=pass-anytls, over-tls=true, tls-verification=false, tls-host=anytls.example.com, fast-open=false, udp-relay=true, tag=🌍 AnyTLSNode');
 
         const parsed = parseQuantumultXConfig(generated);
         expect(parsed.some(node => node.protocol === 'hysteria2')).toBe(false);
@@ -174,4 +174,43 @@ describe('Quantumult X 内置生成器', () => {
         expect(line).not.toContain('over-tls=true');
         expect(line).not.toContain('tls-host=');
     });
+
+    it('should render Shadowsocks v2ray-plugin TLS websocket as wss without over-tls', () => {
+        const generated = generateBuiltinQuanxConfig('ss://YWVzLTEyOC1nY206OGI1NDBmNWMtNjJjMS00NDkyLTgzZjYtOTQ0ZjUzNGFkMDI2@79.137.195.150:444?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dfofo.sinemp.nyc.mn%3Bpath%3D%2Fproxyip%3Dproxyip.cmliussss.net%3Fenc%3Daes-128-gcm%3Bmux%3Dfalse%3Btls#DE');
+        const line = generated.split('\n').find(item => item.startsWith('shadowsocks='));
+
+        expect(line).toBe('shadowsocks=79.137.195.150:444, method=aes-128-gcm, password=8b540f5c-62c1-4492-83f6-944f534ad026, obfs=wss, obfs-uri=/proxyip=proxyip.cmliussss.net?enc=aes-128-gcm, obfs-host=fofo.sinemp.nyc.mn, tag=🇩🇪 DE');
+        expect(line).not.toContain('obfs=ws,');
+        expect(line).not.toContain('over-tls=true');
+    });
+
+    it('should document Quantumult X 1.6.0 AnyTLS support in builtin output and parser round-trip', () => {
+        const generated = generateBuiltinQuanxConfig('anytls://pass-anytls@anytls.example.com:443/?sni=anytls.example.com&alpn=h2,h3&allowInsecure=1#AnyTLS-v1.6.0');
+        const line = generated.split('\n').find(item => item.startsWith('anytls='));
+
+        expect(line).toBe('anytls=anytls.example.com:443, password=pass-anytls, over-tls=true, tls-verification=false, tls-host=anytls.example.com, fast-open=false, udp-relay=true, tag=🌍 AnyTLS-v1.6.0');
+
+        const parsed = parseQuantumultXConfig(generated);
+        const anytls = parsed.find(node => node.protocol === 'anytls');
+        expect(anytls?.url).toBe('anytls://pass-anytls@anytls.example.com:443?allowInsecure=1&sni=anytls.example.com#%F0%9F%8C%8D%20AnyTLS-v1.6.0');
+    });
+
+    it('should document Quantumult X 1.5.5 VLESS TLS, REALITY and XTLS Vision support in builtin output', () => {
+        const generated = generateBuiltinQuanxConfig([
+            'vless://11111111-1111-4111-8111-111111111111@tls.example.com:443?security=tls&sni=tls.example.com&type=tcp#VLESS-TLS',
+            'vless://22222222-2222-4222-8222-222222222222@reality.example.com:443?security=reality&sni=addons.mozilla.org&pbk=testpublickey&sid=abcdef&type=tcp#VLESS-Reality',
+            'vless://33333333-3333-4333-8333-333333333333@vision.example.com:443?security=tls&sni=vision.example.com&flow=xtls-rprx-vision&type=tcp#VLESS-Vision'
+        ].join('\n'));
+
+        expect(generated).toContain('vless=tls.example.com:443, password=11111111-1111-4111-8111-111111111111, method=none, obfs=over-tls, obfs-host=tls.example.com, tag=🌍 VLESS-TLS');
+        expect(generated).toContain('vless=reality.example.com:443, password=22222222-2222-4222-8222-222222222222, method=none, obfs=over-tls, obfs-host=addons.mozilla.org, reality-base64-pubkey=testpublickey, reality-hex-shortid=abcdef, tag=🌍 VLESS-Reality');
+        expect(generated).toContain('vless=vision.example.com:443, password=33333333-3333-4333-8333-333333333333, method=none, obfs=over-tls, obfs-host=vision.example.com, vless-flow=xtls-rprx-vision, tag=🌍 VLESS-Vision');
+        expect(generated).not.toContain('over-tls=true');
+        expect(generated).not.toContain('tls-host=vision.example.com');
+
+        const parsed = parseQuantumultXConfig(generated);
+        expect(parsed.filter(node => node.protocol === 'vless')).toHaveLength(3);
+        expect(parsed.some(node => node.url.includes('flow=xtls-rprx-vision'))).toBe(true);
+    });
+
 });

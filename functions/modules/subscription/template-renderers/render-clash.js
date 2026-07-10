@@ -19,21 +19,76 @@ function filterAutoSelectMembers(group) {
     return members.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()));
 }
 
+const ACL4SSR_ROOT_PROVIDER_FILES = new Set([
+    'apple',
+    'banad',
+    'baneasylist',
+    'baneasylistchina',
+    'baneasyprivacy',
+    'banprogramad',
+    'chinacompanyip',
+    'chinadomain',
+    'chinaip',
+    'chinaipv6',
+    'chinamedia',
+    'download',
+    'localareanetwork',
+    'mjj',
+    'proxylite',
+    'proxygfwlist',
+    'proxymedia',
+    'unban'
+]);
+
+const ACL4SSR_IPCIDR_PROVIDER_FILES = new Set([
+    'amazonip',
+    'chinacompanyip',
+    'chinaip',
+    'chinaipv6',
+    'netflixip'
+]);
+
+// ACL4SSR root list files that should stay as text providers because their YAML provider is missing
+// or does not preserve the effective raw .list rule coverage.
+const ACL4SSR_ROOT_LIST_ONLY_FILES = new Set([
+    'localareanetwork',
+    'banad',
+    'banprogramad',
+    'chinamedia',
+    'proxymedia',
+    'chinadomain',
+    'download',
+    'unban'
+]);
+
 function toClashRuleProviderUrl(sourceUrl) {
     if (!/^https?:\/\//i.test(String(sourceUrl || ''))) return sourceUrl;
 
     try {
         const url = new URL(sourceUrl);
         if (!/raw\.githubusercontent\.com$/i.test(url.hostname)) return sourceUrl;
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        const owner = pathParts[0] || '';
+        const repo = pathParts[1] || '';
+        if (owner.toLowerCase() !== 'acl4ssr' || repo.toLowerCase() !== 'acl4ssr') return sourceUrl;
         if (!/\/Clash\/.*\.(list|txt)$/i.test(url.pathname)) return sourceUrl;
+
+        const fileName = url.pathname.split('/').pop()?.replace(/\.(list|txt)$/i, '') || '';
+        if (/\/Clash\/[^/]+\.(list|txt)$/i.test(url.pathname) && ACL4SSR_ROOT_LIST_ONLY_FILES.has(fileName.toLowerCase())) {
+            return sourceUrl;
+        }
 
         if (/\/Clash\/Ruleset\//i.test(url.pathname)) {
             url.pathname = url.pathname
                 .replace(/\/Clash\/Ruleset\//i, '/Clash/Providers/Ruleset/')
                 .replace(/\.(list|txt)$/i, '.yaml');
-        } else {
+        } else if (ACL4SSR_ROOT_PROVIDER_FILES.has(fileName.toLowerCase())) {
             url.pathname = url.pathname
                 .replace(/\/Clash\//i, '/Clash/Providers/')
+                .replace(/\.(list|txt)$/i, '.yaml');
+        } else {
+            url.pathname = url.pathname
+                .replace(/\/Clash\//i, '/Clash/Providers/Ruleset/')
                 .replace(/\.(list|txt)$/i, '.yaml');
         }
 
@@ -41,6 +96,16 @@ function toClashRuleProviderUrl(sourceUrl) {
     } catch {
         return sourceUrl;
     }
+}
+
+function getRuleProviderBehavior(providerUrl) {
+    try {
+        const fileName = new URL(providerUrl).pathname.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
+        if (ACL4SSR_IPCIDR_PROVIDER_FILES.has(fileName.toLowerCase())) return 'ipcidr';
+    } catch {
+        // ignore invalid provider url shapes and keep default behavior
+    }
+    return 'classical';
 }
 
 function mapRule(rule, ruleProviderMap) {
@@ -73,7 +138,7 @@ export function renderClashFromTemplateModel(model) {
         try {
             const urlPath = new URL(providerUrl).pathname;
             const fileName = urlPath.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
-            if (fileName && fileName.length > 2) {
+            if (fileName) {
                 nameHint = fileName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             }
         } catch {
@@ -82,12 +147,14 @@ export function renderClashFromTemplateModel(model) {
 
         const providerName = `${nameHint}_${providerCounter++}`;
         ruleProviderMap.set(providerUrl, providerName);
+        const usesTextList = /\.(list|txt)$/i.test(providerUrl);
         ruleProviders[providerName] = {
             type: 'http',
-            behavior: 'classical',
+            behavior: getRuleProviderBehavior(providerUrl),
             url: providerUrl,
-            path: `./ruleset/${providerName}.yaml`,
-            interval: 86400
+            path: `./ruleset/${providerName}.${usesTextList ? 'list' : 'yaml'}`,
+            interval: 86400,
+            ...(usesTextList ? { format: 'text' } : {})
         };
     });
 
@@ -97,6 +164,18 @@ export function renderClashFromTemplateModel(model) {
         'mode': 'rule',
         'log-level': 'info',
         'external-controller': ':9090',
+        'dns': {
+            'enable': true,
+            'listen': '0.0.0.0:1053',
+            'default-nameserver': ['223.5.5.5', '1.1.1.1'],
+            'enhanced-mode': 'fake-ip',
+            'fake-ip-range': '198.18.0.1/16',
+            'fake-ip-filter': ['*.lan', '*.localhost'],
+            'nameserver': [
+                'https://dns.alidns.com/dns-query',
+                'https://doh.pub/dns-query'
+            ]
+        },
         'proxies': normalizedModel.proxies,
         'proxy-groups': normalizedModel.groups
             .filter(group =>
@@ -104,20 +183,6 @@ export function renderClashFromTemplateModel(model) {
                 (Array.isArray(group.filters) && group.filters.length > 0)
             )
             .map(group => {
-                const rawType = String(group.type || '').trim().toLowerCase();
-                const isRelayGroup = rawType === 'relay' || (group.name?.includes('链式代理') && Array.isArray(group.proxies) && group.proxies.length >= 2);
-
-                if (isRelayGroup && Array.isArray(group.proxies) && group.proxies.length >= 2) {
-                    const members = filterAutoSelectMembers(group);
-                    return {
-                        name: group.name,
-                        type: 'select',
-                        proxies: members.slice(1),
-                        'dialer-proxy': members[0],
-                        ...group.options
-                    };
-                }
-
                 return {
                     name: group.name,
                     type: mapGroupType(group.type),

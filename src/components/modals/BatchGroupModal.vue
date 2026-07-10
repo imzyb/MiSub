@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import Modal from '../forms/Modal.vue';
 import GroupSelector from '../ui/GroupSelector.vue'; // New import
+import { useI18n } from '../../i18n/index.js';
 
 const props = defineProps({
   show: Boolean,
@@ -12,6 +13,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:show', 'confirm']);
+const { t } = useI18n();
 
 const groupName = ref('');
 
@@ -43,7 +45,7 @@ const handleConfirm = () => {
           </svg>
         </div>
         <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-          批量移动分组
+          {{ t('manualNodes.batchMoveGroupTitle') }}
         </h3>
       </div>
     </template>
@@ -51,18 +53,18 @@ const handleConfirm = () => {
     <template #body>
       <div class="space-y-4 py-2">
         <p class="text-sm text-gray-500 dark:text-gray-400">
-          请输入要移动到的分组名称。留空将移动到"未分组"。
+          {{ t('manualNodes.batchMoveGroupDesc') }}
         </p>
         
         <div class="relative">
           <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-              分组名称
+              {{ t('manualNodes.groupName') }}
             </label>
             <GroupSelector
               v-model="groupName"
               :groups="groups"
-              placeholder="选择或输入新分组..."
+              :placeholder="t('manualNodes.groupPlaceholder')"
             />
           </div>
         </div>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { useI18n } from '../../../i18n/index.js';
 import { useToastStore } from '../../../stores/toast';
 import Modal from '../../forms/Modal.vue';
 import { api } from '../../../lib/http.js';
@@ -8,6 +9,7 @@ import SectionHeader from '../SectionHeader.vue';
 const clients = ref([]);
 const loading = ref(false);
 const { showToast } = useToastStore();
+const { t } = useI18n();
 
 const showEditModal = ref(false);
 const editingClient = ref({});
@@ -49,13 +51,13 @@ const handleIconFileSelect = (event) => {
 
     const allowedTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-        showToast('请选择 SVG、PNG、JPG、GIF 或 WebP 格式的图片', 'error');
+        showToast(t('settings.clientIconInvalidType'), 'error');
         return;
     }
 
     const maxSize = 200 * 1024;
     if (file.size > maxSize) {
-        showToast('图片大小不能超过 200KB', 'error');
+        showToast(t('settings.clientIconTooLarge'), 'error');
         return;
     }
 
@@ -72,7 +74,7 @@ const handleIconFileSelect = (event) => {
         uploadingIcon.value = false;
     };
     reader.onerror = () => {
-        showToast('读取图片失败', 'error');
+        showToast(t('settings.clientIconReadFailed'), 'error');
         uploadingIcon.value = false;
     };
     reader.readAsDataURL(file);
@@ -98,10 +100,10 @@ const fetchClients = async () => {
         if (data.success) {
             clients.value = data.data || [];
         } else {
-            showToast('获取客户端列表失败', 'error');
+            showToast(t('settings.clientFetchFailed'), 'error');
         }
     } catch (e) {
-        showToast('网络错误', 'error');
+        showToast(t('settings.networkError'), 'error');
     } finally {
         loading.value = false;
     }
@@ -119,10 +121,10 @@ const executeReset = async () => {
         const data = await api.post('/api/clients/init');
         if (data.success) {
             clients.value = data.data;
-            showToast('重置成功', 'success');
+            showToast(t('settings.clientResetSuccess'), 'success');
         }
     } catch (e) {
-        showToast('重置失败', 'error');
+        showToast(t('settings.clientResetFailed'), 'error');
     } finally {
         loading.value = false;
     }
@@ -155,12 +157,12 @@ const saveClientOrder = async () => {
         const data = await api.post('/api/clients', clients.value);
         if (data.success) {
             clients.value = data.data;
-            showToast('排序已保存', 'success');
+            showToast(t('settings.clientOrderSaved'), 'success');
         } else {
-            showToast(data.message || '保存排序失败', 'error');
+            showToast(data.message || t('settings.clientOrderSaveFailed'), 'error');
         }
     } catch (e) {
-        showToast('保存排序失败: ' + e.message, 'error');
+        showToast(t('settings.clientOrderSaveFailedWithMessage', { message: e.message }), 'error');
     } finally {
         ordering.value = false;
     }
@@ -178,22 +180,22 @@ const moveClient = async (index, direction) => {
 };
 
 const handleSave = async () => {
-    if (!editingClient.value.name) return showToast('请输入名称', 'error');
+    if (!editingClient.value.name) return showToast(t('settings.clientNameRequired'), 'error');
 
     saving.value = true;
     try {
         const data = await api.post('/api/clients', editingClient.value);
         if (data.success) {
-            showToast('保存成功', 'success');
+            showToast(t('settings.clientSaveSuccess'), 'success');
             showEditModal.value = false;
             // Update local list (server returns full list or we refetch)
             // API handler currently returns full list
             clients.value = data.data;
         } else {
-            showToast(data.message || '保存失败', 'error');
+            showToast(data.message || t('settings.clientSaveFailed'), 'error');
         }
     } catch (e) {
-        showToast('保存失败: ' + e.message, 'error');
+        showToast(t('settings.clientSaveFailedWithMessage', { message: e.message }), 'error');
     } finally {
         saving.value = false;
     }
@@ -213,11 +215,11 @@ const executeDelete = async () => {
         const data = await api.del(`/api/clients?id=${clientToDeleteId.value}`);
         if (data.success) {
             clients.value = data.data;
-            showToast('已删除', 'success');
+            showToast(t('settings.clientDeleted'), 'success');
             showDeleteConfirm.value = false;
         }
     } catch (e) {
-        showToast('删除失败', 'error');
+        showToast(t('settings.clientDeleteFailed'), 'error');
     }
 };
 
@@ -233,7 +235,7 @@ onMounted(fetchClients);
     <div class="space-y-6">
         <div class="rounded-xl border border-gray-100/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-gray-900/70">
             <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <SectionHeader title="客户端管理" description="统一管理公开页一键导入客户端的图标、平台和下载地址。" tone="blue">
+                <SectionHeader :title="t('settings.clientManagerTitle')" :description="t('settings.clientManagerDesc')" tone="blue">
                     <template #icon>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1-3m1.75 0h3.5M12 3v14m0 0l3-3m-3 3l-3-3" />
@@ -242,14 +244,14 @@ onMounted(fetchClients);
                 </SectionHeader>
             <div class="flex gap-2 w-full md:w-auto">
                 <button @click="handleInit"
-                    class="flex-1 md:flex-none px-3 py-1.5 text-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 misub-radius-lg border border-gray-300 dark:border-gray-600">重置默认</button>
+                    class="flex-1 md:flex-none px-3 py-1.5 text-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 misub-radius-lg border border-gray-300 dark:border-gray-600">{{ t('settings.clientResetDefault') }}</button>
                 <button @click="handleAdd"
-                    class="flex-1 md:flex-none px-4 py-2 text-center text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg shadow-sm shadow-primary-500/20">新增客户端</button>
+                    class="flex-1 md:flex-none px-4 py-2 text-center text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 misub-radius-lg shadow-sm shadow-primary-500/20">{{ t('settings.clientAdd') }}</button>
             </div>
         </div>
         </div>
 
-        <div v-if="loading" class="text-center py-8 text-gray-500">加载中...</div>
+        <div v-if="loading" class="text-center py-8 text-gray-500">{{ t('common.loading') }}</div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-for="(client, index) in clients" :key="client.id"
@@ -282,7 +284,7 @@ onMounted(fetchClients);
                             stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
                         </svg>
-                        <span>上移</span>
+                        <span>{{ t('actions.moveUp') }}</span>
                     </button>
                     <button @click.stop="moveClient(index, 1)"
                         :disabled="ordering || index === clients.length - 1"
@@ -291,7 +293,7 @@ onMounted(fetchClients);
                             stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
-                        <span>下移</span>
+                        <span>{{ t('actions.moveDown') }}</span>
                     </button>
                     <button @click.stop="handleEdit(client)"
                         class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors">
@@ -300,7 +302,7 @@ onMounted(fetchClients);
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                        <span>编辑</span>
+                        <span>{{ t('actions.edit') }}</span>
                     </button>
                     <button @click.stop="handleDelete(client.id)"
                         class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-red-50 dark:bg-red-900/30 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg transition-colors">
@@ -309,13 +311,13 @@ onMounted(fetchClients);
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        <span>删除</span>
+                        <span>{{ t('actions.delete') }}</span>
                     </button>
                 </div>
             </div>
         </div>
 
-        <Modal v-model:show="showEditModal" :title="isNew ? '新增客户端' : '编辑客户端'" size="5xl">
+        <Modal v-model:show="showEditModal" :title="isNew ? t('settings.clientAddModalTitle') : t('settings.clientEditModalTitle')" size="5xl">
             <template #body>
                 <div class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
@@ -325,7 +327,7 @@ onMounted(fetchClients);
                                 class="bg-gray-50 dark:bg-gray-700/30 misub-radius-lg p-6 flex flex-col items-center gap-8 h-full border border-gray-100 dark:border-gray-700/50">
                                 <div class="text-center space-y-3 w-full">
                                     <label
-                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">图标预览</label>
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.clientIconPreview') }}</label>
                                     <div
                                         class="aspect-square w-full max-w-[180px] mx-auto misub-radius-lg flex items-center justify-center text-6xl bg-white dark:bg-gray-800 text-gray-600 border-2 border-dashed border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm">
                                         <img v-if="editingClient.icon && (editingClient.icon.includes('/') || editingClient.icon.startsWith('data:'))"
@@ -337,7 +339,7 @@ onMounted(fetchClients);
 
                                 <div class="w-full space-y-4 mt-2">
                                     <div class="space-y-2">
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">本地图标</label>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.clientLocalIcon') }}</label>
                                         <input
                                             ref="iconFileInput"
                                             type="file"
@@ -356,18 +358,18 @@ onMounted(fetchClients);
                                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                 </svg>
-                                                <span>{{ uploadingIcon ? '上传中...' : '上传图片' }}</span>
+                                                <span>{{ uploadingIcon ? t('settings.clientUploading') : t('settings.clientUploadImage') }}</span>
                                             </button>
                                             <button v-if="editingClient.icon" @click="clearIcon" type="button"
                                                 class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
-                                                <span>清除</span>
+                                                <span>{{ t('actions.clearAll') }}</span>
                                             </button>
                                         </div>
-                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">支持 SVG/PNG/JPG/GIF/WebP，最大 200KB</p>
-                                        <p v-if="isDataIcon" class="text-xs text-center text-gray-500 dark:text-gray-400">当前使用本地图标</p>
+                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">{{ t('settings.clientIconSupportHint') }}</p>
+                                        <p v-if="isDataIcon" class="text-xs text-center text-gray-500 dark:text-gray-400">{{ t('settings.clientUsingLocalIcon') }}</p>
                                     </div>
                                     <div class="space-y-2">
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">URL / Emoji</label>
@@ -375,10 +377,10 @@ onMounted(fetchClients);
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <span class="text-gray-500 sm:text-sm">🔗</span>
                                             </div>
-                                            <input v-model="iconInputValue" type="text" placeholder="输入图片 URL 或 Emoji"
+                                            <input v-model="iconInputValue" type="text" :placeholder="t('settings.clientIconPlaceholder')"
                                                 class="block w-full pl-10 pr-3 misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5">
                                         </div>
-                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">输入会替换当前图标来源</p>
+                                        <p class="text-xs text-center text-gray-400 dark:text-gray-500">{{ t('settings.clientIconInputHint') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -389,26 +391,26 @@ onMounted(fetchClients);
                             <!-- Basic Info -->
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">客户端名称
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.clientName') }}
                                         <span class="text-red-500">*</span></label>
                                     <input v-model="editingClient.name" type="text"
                                         class="mt-1 block w-full misub-radius-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-2.5 text-lg font-medium"
-                                        placeholder="例如: Clash Verge">
+                                        :placeholder="t('settings.clientNamePlaceholder')">
                                 </div>
 
                                 <div>
                                     <label
-                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">简介描述</label>
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.clientDescription') }}</label>
                                     <textarea v-model="editingClient.description" rows="3"
                                         class="mt-1 block w-full misub-radius-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-4 py-3 resize-none"
-                                        placeholder="简短描述该客户端的特点..."></textarea>
+                                        :placeholder="t('settings.clientDescriptionPlaceholder')"></textarea>
                                 </div>
                             </div>
 
                             <!-- Platforms Grid -->
                             <div>
                                 <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">支持平台</label>
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.clientPlatforms') }}</label>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                     <label v-for="opt in platformOptions" :key="opt.value"
                                         class="cursor-pointer group relative flex flex-col items-center justify-center p-3 misub-radius-lg border transition-all duration-200 select-none text-center"
@@ -427,8 +429,7 @@ onMounted(fetchClients);
                             <!-- Links -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">下载链接 /
-                                        官网</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.clientDownloadUrl') }}</label>
                                     <div class="mt-1 flex misub-radius-md shadow-sm">
                                         <span
                                             class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 sm:text-sm">🔗</span>
@@ -453,7 +454,7 @@ onMounted(fetchClients);
                                             class="flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                             placeholder="owner/repo">
                                     </div>
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">用于显示版本号 (可选)</p>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('settings.clientRepoHint') }}</p>
                                 </div>
                             </div>
                         </div>
@@ -463,17 +464,17 @@ onMounted(fetchClients);
             <template #footer>
                 <div class="flex justify-end gap-3">
                     <button @click="showEditModal = false"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-700">取消</button>
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 misub-radius-md hover:bg-gray-50 dark:hover:bg-gray-700">{{ t('actions.cancel') }}</button>
                     <button @click="handleSave" :disabled="saving"
                         class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent misub-radius-md hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
-                        {{ saving ? '保存中...' : '保存' }}
+                        {{ saving ? t('settings.saving') : t('actions.save') }}
                     </button>
                 </div>
             </template>
         </Modal>
 
         <!-- Reset Confirmation Modal -->
-        <Modal v-model:show="showResetConfirm" @confirm="executeReset" title="重置确认" confirmText="确认重置" cancelText="取消"
+        <Modal v-model:show="showResetConfirm" @confirm="executeReset" :title="t('settings.clientResetConfirmTitle')" :confirmText="t('settings.clientResetConfirmAction')" :cancelText="t('actions.cancel')"
             size="sm">
             <template #body>
                 <div class="space-y-3">
@@ -483,19 +484,19 @@ onMounted(fetchClients);
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        <p class="text-sm font-medium">警告：此操作不可撤销</p>
+                        <p class="text-sm font-medium">{{ t('settings.clientDangerWarning') }}</p>
                     </div>
                     <p class="text-gray-600 dark:text-gray-300">
-                        确定要重置为默认客户端列表吗？
+                        {{ t('settings.clientResetConfirmQuestion') }}
                         <br>
-                        这将<span class="font-bold text-red-600 dark:text-red-400">覆盖并丢失</span>您当前的所有自定义客户端设置。
+                        {{ t('settings.clientResetConfirmDesc') }}
                     </p>
                 </div>
             </template>
         </Modal>
 
         <!-- Delete Confirmation Modal -->
-        <Modal v-model:show="showDeleteConfirm" @confirm="executeDelete" title="删除确认" confirmText="确认删除" cancelText="取消"
+        <Modal v-model:show="showDeleteConfirm" @confirm="executeDelete" :title="t('settings.clientDeleteConfirmTitle')" :confirmText="t('settings.clientDeleteConfirmAction')" :cancelText="t('actions.cancel')"
             size="sm">
             <template #body>
                 <div class="space-y-3">
@@ -505,10 +506,10 @@ onMounted(fetchClients);
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        <p class="text-sm font-medium">警告：此操作不可撤销</p>
+                        <p class="text-sm font-medium">{{ t('settings.clientDangerWarning') }}</p>
                     </div>
                     <p class="text-gray-600 dark:text-gray-300">
-                        确定要删除此客户端吗？
+                        {{ t('settings.clientDeleteConfirmQuestion') }}
                     </p>
                 </div>
             </template>

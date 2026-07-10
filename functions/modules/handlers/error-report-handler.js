@@ -3,7 +3,7 @@
  * 接收前端错误上报并写入 KV
  */
 
-import { createJsonResponse, createErrorResponse } from '../utils.js';
+import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 
 const ERROR_REPORT_KV_KEY = 'misub_error_reports';
 const MAX_REPORT_ENTRIES = 100;
@@ -85,7 +85,7 @@ export async function handleErrorReportRequest(request, env) {
     }
 
     try {
-        const body = await request.json();
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
         if (!shouldPersistReport(body, request)) {
             return createJsonResponse({ success: true, skipped: true });
         }
@@ -119,6 +119,6 @@ export async function handleErrorReportRequest(request, env) {
         return createJsonResponse({ success: true });
     } catch (error) {
         console.error('[ErrorReport] Failed to save report:', error);
-        return createErrorResponse('Failed to save error report', 500);
+        return createErrorResponse(error.status === 413 ? error.message : 'Failed to save error report', error.status || 500);
     }
 }

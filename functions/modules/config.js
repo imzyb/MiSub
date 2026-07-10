@@ -11,7 +11,8 @@ export const KV_KEY_SETTINGS = 'worker_settings_v1';
 
 // Auth
 export const COOKIE_NAME = 'auth_session';
-export const SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours
+export const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const DEFAULT_SUBCONVERTER_BACKEND = 'subapi.cmliussss.net';
 
 // Default settings
 export const DEFAULT_SETTINGS = {
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS = {
         prependGroupName: false
     },
     defaultOperators: [], // 新版操作符链式处理 (New Unified Pipeline)
+    regionOverrides: [], // 自定义节点地区覆盖规则：{ pattern, region, flags }
     // @deprecated 使用 defaultOperators 代替
     defaultNodeTransform: {
         enabled: false,
@@ -115,10 +117,36 @@ export const DEFAULT_SETTINGS = {
         hideHeader: false,       // 自定义公开页是否隐藏全局页头
         hideFooter: false        // 自定义公开页是否隐藏全局页脚
     },
+    webdavBackup: {
+        enabled: false,
+        endpoint: '',
+        username: '',
+        password: '',
+        remotePath: '/MiSub',
+        filenameTemplate: 'misub-backup-{datetime}.json',
+        backupScope: 'dataOnly',
+        autoBackup: false,
+        interval: 'daily',
+        retentionCount: 7,
+        lastCheckedAt: null,
+        lastBackupAt: null,
+        lastBackupStatus: null,
+        lastBackupMessage: '',
+        lastBackupFile: ''
+    },
+    externalApi: {
+        enabled: false,
+        tokens: [
+            {
+                name: 'default',
+                token: ''
+            }
+        ]
+    },
     // 订阅转换设置
     subconverter: {
         engineMode: "builtin",
-        defaultBackend: "https://subapi.cmliussss.net/sub?",
+        defaultBackend: DEFAULT_SUBCONVERTER_BACKEND,
         defaultOptions: {
             udp: true,
             emoji: true,
@@ -132,7 +160,7 @@ export const DEFAULT_SETTINGS = {
 
 // System constants
 export const SYSTEM_CONSTANTS = {
-    VERSION: '2.6.4',
+    VERSION: '2.7.0',
     // Use v2rayN UA to fetch subscriptions reliably.
     FETCHER_USER_AGENT: 'v2rayN/7.23'
 };

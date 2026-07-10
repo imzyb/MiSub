@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from '../../../../i18n/index.js';
 
 const props = defineProps({
   modelValue: {
@@ -9,6 +10,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue']);
+const { t } = useI18n();
 
 const updateParam = (key, value) => {
   const newParams = { ...props.modelValue };
@@ -45,10 +47,10 @@ const removeRule = (index) => {
 
 // 预设模板
 const presetTemplates = [
-  { name: '标准', template: '{emoji}{region}-{protocol}-{index:2}' },
-  { name: '正则', template: '{emoji}{g1}-{g2}-{index:2}' },
-  { name: '简洁', template: '{emoji}{regionZh} {index:2}' },
-  { name: '名称', template: '{name}' },
+  { nameKey: 'operators.templatePresetStandard', template: '{emoji}{region}-{protocol}-{index:2}' },
+  { nameKey: 'operators.templatePresetRegex', template: '{emoji}{g1}-{g2}-{index:2}' },
+  { nameKey: 'operators.templatePresetSimple', template: '{emoji}{regionZh} {index:2}' },
+  { nameKey: 'operators.templatePresetName', template: '{name}' },
 ];
 
 const applyPresetTemplate = (tpl) => {
@@ -57,9 +59,11 @@ const applyPresetTemplate = (tpl) => {
 
 // 预设正则
 const presetRegexRules = [
-  { name: '地区-机场-线路', pattern: '\\[(.*?)\\]-(.*?)-(.*?)', replacement: '' },
-  { name: '提取后缀', pattern: '(.*?) -(.*?)$', replacement: '$1' },
+  { nameKey: 'operators.regexPresetRegionProviderLine', pattern: '\\[(.*?)\\]-(.*?)-(.*?)', replacement: '' },
+  { nameKey: 'operators.regexPresetExtractSuffix', pattern: '(.*?) -(.*?)$', replacement: '$1' },
 ];
+
+const statusLabel = (enabled) => t(enabled ? 'operators.statusOn' : 'operators.statusOff');
 
 const applyPresetRegex = (rule) => {
   const current = { ...(props.modelValue.regex || { enabled: true, rules: [] }) };
@@ -75,26 +79,26 @@ const applyPresetRegex = (rule) => {
     <!-- Regex Rename -->
     <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">正则替换</label>
+        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{{ t('operators.regexReplace') }}</label>
           <div class="flex items-center gap-2">
             <div class="relative group/presets">
               <button class="text-[10px] text-gray-400 font-medium hover:text-indigo-600 transition-colors flex items-center gap-0.5">
-                常用正则
+                {{ t('operators.commonRegex') }}
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
               </button>
               <div class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover/presets:opacity-100 group-hover/presets:visible transition-all z-10 py-1">
-                <button v-for="rule in presetRegexRules" :key="rule.name" @click="applyPresetRegex(rule)"
+                <button v-for="rule in presetRegexRules" :key="rule.nameKey" @click="applyPresetRegex(rule)"
                   class="w-full text-left px-3 py-1.5 text-[10px] hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:text-gray-300 transition-colors">
-                  {{ rule.name }}
+                  {{ t(rule.nameKey) }}
                 </button>
               </div>
             </div>
-            <button v-if="props.modelValue.regex?.enabled" @click="addRule" class="text-[10px] text-indigo-600 font-bold ml-1">+ 添加项</button>
+            <button v-if="props.modelValue.regex?.enabled" @click="addRule" class="text-[10px] text-indigo-600 font-bold ml-1">+ {{ t('operators.addItem') }}</button>
             <button 
               @click="updateParam('regex', { ...props.modelValue.regex, enabled: !props.modelValue.regex?.enabled })"
               :class="['text-[10px] font-medium transition-colors ml-2', props.modelValue.regex?.enabled ? 'text-indigo-600' : 'text-gray-300']"
             >
-              {{ props.modelValue.regex?.enabled ? '已开启' : '关闭' }}
+              {{ statusLabel(props.modelValue.regex?.enabled) }}
             </button>
           </div>
       </div>
@@ -115,7 +119,7 @@ const applyPresetRegex = (rule) => {
                 :value="rule.pattern"
                 @input="(e) => { rule.pattern = e.target.value; updateParam('regex', props.modelValue.regex); }"
                 @change="normalizeRuleFlags(idx)"
-                placeholder="查找正则 (如: 香港-(.*))"
+                :placeholder="t('operators.regexFindPlaceholder')"
                 class="w-full px-2 py-1.5 text-[11px] rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 outline-none focus:border-indigo-500/30"
               />
             </div>
@@ -124,15 +128,15 @@ const applyPresetRegex = (rule) => {
                 :value="rule.replacement"
                 @input="(e) => { rule.replacement = e.target.value; updateParam('regex', props.modelValue.regex); }"
                 @change="normalizeRuleFlags(idx)"
-                placeholder="替换为 (如: HK $1)"
+                :placeholder="t('operators.regexReplacePlaceholder')"
                 class="w-full px-2 py-1.5 text-[11px] rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 outline-none focus:border-indigo-500/30"
               />
             </div>
           </div>
         </div>
-        <p class="px-1 text-[10px] text-gray-400">默认忽略大小写，并替换所有匹配内容，无需额外设置正则标志。</p>
+        <p class="px-1 text-[10px] text-gray-400">{{ t('operators.regexReplaceHint') }}</p>
         <div v-if="!props.modelValue.regex.rules?.length" class="text-center py-2 text-[10px] text-gray-400 italic">
-          暂无正则规则，点击上方“+ 添加项”
+          {{ t('operators.renameEmptyRules') }}
         </div>
       </div>
     </div>
@@ -140,12 +144,12 @@ const applyPresetRegex = (rule) => {
     <!-- Template Rename -->
     <div class="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800/50">
       <div class="flex items-center justify-between">
-        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">模板重写</label>
+        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{{ t('operators.templateRewrite') }}</label>
         <button 
           @click="updateTemplate({ enabled: !props.modelValue.template?.enabled })"
           :class="['text-[10px] font-medium transition-colors', props.modelValue.template?.enabled ? 'text-teal-600' : 'text-gray-300']"
         >
-          {{ props.modelValue.template?.enabled ? '已开启' : '关闭' }}
+          {{ statusLabel(props.modelValue.template?.enabled) }}
         </button>
       </div>
 
@@ -167,16 +171,16 @@ const applyPresetRegex = (rule) => {
               </button>
             </div>
             <div class="flex items-center gap-2 mt-1">
-              <span class="text-[9px] text-gray-400">推荐模板:</span>
-              <button v-for="tpl in presetTemplates" :key="tpl.name" @click="applyPresetTemplate(tpl.template)"
+              <span class="text-[9px] text-gray-400">{{ t('operators.recommendedTemplates') }}</span>
+              <button v-for="tpl in presetTemplates" :key="tpl.nameKey" @click="applyPresetTemplate(tpl.template)"
                 class="text-[9px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors">
-                {{ tpl.name }}
+                {{ t(tpl.nameKey) }}
               </button>
             </div>
           </div>
           
           <div class="flex items-center gap-2 mt-3 pt-3 border-t border-teal-100/20">
-            <span class="text-[10px] text-teal-600/60 font-medium">起步索引</span>
+            <span class="text-[10px] text-teal-600/60 font-medium">{{ t('operators.startIndex') }}</span>
             <input 
               :value="props.modelValue.template.offset || 1"
               @input="(e) => updateTemplate({ offset: parseInt(e.target.value) || 1 })"

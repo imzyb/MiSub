@@ -11,10 +11,14 @@ import ManualNodeEditModal from '../components/modals/ManualNodeEditModal.vue';
 import ManualNodeDedupModal from '../components/modals/ManualNodeDedupModal.vue';
 import SubscriptionImportModal from '../components/modals/SubscriptionImportModal.vue';
 import BatchGroupModal from '../components/modals/BatchGroupModal.vue'; // Added
+import { useI18n } from '../i18n/index.js';
+
+const GroupManagementModal = defineAsyncComponent(() => import('../components/modals/GroupManagementModal.vue'));
 
 const dataStore = useDataStore();
 const { showToast } = useToastStore();
 const { markDirty } = dataStore;
+const { t } = useI18n();
 
 // Component Logic Reuse
 const isSortingNodes = ref(false);
@@ -27,13 +31,14 @@ const showDedupModal = ref(false);
 const dedupPlan = ref(null);
 const showBatchGroupModal = ref(false); // Added
 const batchGroupIds = ref([]); // Added
+const showGroupManagementModal = ref(false); // 分组管理模态框
 
 const {
   manualNodes, manualNodesCurrentPage, manualNodesTotalPages, paginatedManualNodes, searchTerm,
   changeManualNodesPage, addNode, updateNode, deleteNode, deleteAllNodes,
   addNodesFromBulk, autoSortNodes, deduplicateNodes, buildDedupPlan, applyDedupPlan,
   reorderManualNodes,
-  manualNodeGroups, renameGroup, deleteGroup,
+  manualNodeGroups, renameGroup, deleteGroup, reorderGroups,
   activeGroupFilter, setGroupFilter, batchUpdateGroup, batchDeleteNodes,
   manualNodesPerPage,
   pingResults, pingingNodes, pingNodeId, pingAllNodes
@@ -72,13 +77,13 @@ const handleDeleteAllNodesWithCleanup = () => {
 
 const handleAutoSortNodes = () => {
   autoSortNodes();
-  showToast('已按地区排序，请手动保存', 'success');
+  showToast(t('manualNodes.sortedByRegion'), 'success');
 };
 
 const handleDeduplicateNodes = () => {
   const plan = buildDedupPlan();
   if (!plan || plan.removeCount === 0) {
-    showToast('没有发现重复的节点。', 'info');
+    showToast(t('manualNodes.noDuplicates'), 'info');
     return;
   }
   dedupPlan.value = plan;
@@ -118,6 +123,26 @@ const confirmBatchDelete = () => {
   showBatchDeleteModal.value = false;
 };
 
+// 分组管理处理函数
+const handleOpenGroupManagement = () => {
+  showGroupManagementModal.value = true;
+};
+
+const handleGroupRename = (oldName, newName) => {
+  renameGroup(oldName, newName);
+  showToast(t('manualNodes.groupRenamed', { oldName, newName }), 'success');
+};
+
+const handleGroupDelete = (groupName) => {
+  deleteGroup(groupName);
+  showToast(t('manualNodes.groupDeleted', { groupName }), 'success');
+};
+
+const handleGroupReorder = (newOrder) => {
+  reorderGroups(newOrder);
+  showToast(t('manualNodes.groupOrderUpdated'), 'success');
+};
+
 </script>
 
 <template>
@@ -139,6 +164,7 @@ const confirmBatchDelete = () => {
       @batch-update-group="(ids, group) => batchUpdateGroup(ids, group)"
       @batch-delete-nodes="handleBatchDeleteRequest"
       @open-batch-group-modal="handleOpenBatchGroupModal"
+      @manage-groups="handleOpenGroupManagement"
       :ping-results="pingResults"
       :pinging-nodes="pingingNodes"
       @ping="pingNodeId"
@@ -146,28 +172,37 @@ const confirmBatchDelete = () => {
     />
 
     <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
-      @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
+      :groups="manualNodeGroups" @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
     <ManualNodeDedupModal v-model:show="showDedupModal" :plan="dedupPlan"
       @confirm="applyDedupPlan(dedupPlan); showDedupModal = false; dedupPlan = null" />
     
     <BatchGroupModal v-model:show="showBatchGroupModal" :groups="manualNodeGroups" @confirm="handleBatchGroupConfirm" />
 
+    <GroupManagementModal 
+      v-model:show="showGroupManagementModal" 
+      :groups="manualNodeGroups" 
+      @rename="handleGroupRename"
+      @delete="handleGroupDelete"
+      @reorder="handleGroupReorder"
+    />
+
     <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
       <template #title>
-        <h3 class="text-lg font-bold text-red-500">确认清空节点</h3>
+        <h3 class="text-lg font-bold text-red-500">{{ t('manualNodes.deleteAllConfirmTitle') }}</h3>
       </template>
       <template #body>
-        <p class="text-sm text-gray-400">您确定要删除所有**手动节点**吗？</p>
+        <p class="text-sm text-gray-400">{{ t('manualNodes.deleteAllConfirmBody') }}</p>
       </template>
     </Modal>
 
     <Modal v-model:show="showBatchDeleteModal" @confirm="confirmBatchDelete">
       <template #title>
-        <h3 class="text-lg font-bold text-red-500">确认批量删除</h3>
+        <h3 class="text-lg font-bold text-red-500">{{ t('manualNodes.batchDeleteConfirmTitle') }}</h3>
       </template>
       <template #body>
-        <p class="text-sm text-gray-600 dark:text-gray-300">您确定要删除选中的 <span class="font-bold border-b border-red-500">{{
-          batchDeleteIds.length }}</span> 个节点吗？此操作不可恢复。</p>
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+          {{ t('manualNodes.batchDeleteConfirmBody', { count: batchDeleteIds.length }) }}
+        </p>
       </template>
     </Modal>
 

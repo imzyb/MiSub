@@ -15,7 +15,7 @@ export function isBrowserAgent(userAgent) {
     const isBrowser = /Mozilla/i.test(userAgent) && /Chrome|Safari|Edge|Opera|Firefox|Via|UCBrowser|Quark|MQQBrowser|Konqueror/i.test(userAgent);
     
     // Common proxy client and bot keywords to exclude
-    const isProxyOrBot = /clash|flclash|v2ray|surge|loon|shadowrocket|quantumult|stash|shadowsocks|mihomo|meta|nekobox|nekoray|sfi|sfa|sfra|sing-box|surfboard|hiddify|egern|dio|dart|flutter|http-client|okhttp|axios|postman|curl|wget|go-http-client|python|java/i.test(userAgent);
+    const isProxyOrBot = /clash|flclash|v2ray|surge|loon|shadowrocket|quantumult|stash|shadowsocks|mihomo|mihomo\.party|meta|nekobox|nekoray|sfi|sfa|sfra|sing-box|surfboard|hiddify|egern|yuetu|月兔|dio|dart|flutter|http-client|okhttp|axios|postman|curl|wget|go-http-client|python|java/i.test(userAgent);
 
     return isBrowser && !isProxyOrBot;
 }
@@ -26,6 +26,10 @@ export function isBrowserAgent(userAgent) {
  * @param {URLSearchParams} searchParams 
  * @returns {string} targetFormat (e.g., 'clash', 'singbox', 'base64')
  */
+export function isHiddifyAgent(userAgent) {
+    return /hiddify/i.test(userAgent || '');
+}
+
 export function determineTargetFormat(userAgent, searchParams) {
     // 1. Check URL parameters first
     let targetFormat = searchParams.get('target');
@@ -83,6 +87,10 @@ export function determineTargetFormat(userAgent, searchParams) {
         ['mihomo', 'clash'],
         ['clash.meta', 'clash'],
         ['clash-verge', 'clash'],
+        ['mihomo.party', 'clash'],
+        ['mihomo-party', 'clash'],
+        ['clash-party', 'clash'],
+        ['clash party', 'clash'],
         ['meta', 'clash'],
 
         // Other Clients
@@ -93,9 +101,13 @@ export function determineTargetFormat(userAgent, searchParams) {
         ['cfw', 'clash'],
         ['clashforwindows', 'clash'],
         ['egern', 'egern'],
+        ['yuetu', 'clash'],
+        ['月兔', 'clash'],
         ['sing-box', 'singbox'],
         ['singbox', 'singbox'],
-        ['hiddify', 'singbox'],
+        ['hiddify', 'clash'],
+        // Shadowrocket / 小火箭 prefers raw base64 subscription content for adaptive links.
+        // Explicit URL params such as ?clash=1 or ?target=surge still override this mapping.
         ['shadowrocket', 'base64'],
         ['v2rayn', 'base64'],
         ['v2rayng', 'base64'],
@@ -137,7 +149,7 @@ export function isMetaCore(userAgent, searchParams) {
     
     // 包含 meta, mihomo, verge, flclash, stash, party, nekobox 等识别特征
     // [注意] 我们将 'clash' 放在稍后的位置，并与 core 关键字结合
-    const isMetaKeyword = /mihomo|meta|verge|flclash|stash|nekoray|nekobox|party|surfboard/i.test(ua);
+    const isMetaKeyword = /mihomo|mihomo\.party|meta|verge|flclash|stash|nekoray|nekobox|party|surfboard/i.test(ua);
     
     // 如果 UA 包含 clash 但不属于已知的传统核心，通常现代客户端都支持/使用 Meta 核心特性
     const isModernClash = ua.includes('clash') && !ua.includes('clash-for-windows') && !ua.includes('clash.for.windows');

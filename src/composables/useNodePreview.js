@@ -5,6 +5,7 @@
 
 import { ref, computed, watch } from 'vue';
 import { api, APIError } from '@/lib/http.js';
+import { t } from '@/i18n/index.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -46,9 +47,9 @@ export function useNodePreview(props) {
   // 计算属性
   const title = computed(() => {
     if (props.profileName) {
-      return `订阅组节点预览 - ${props.profileName}`;
+      return t('nodePreview.profileTitle', { name: props.profileName });
     }
-    return `订阅节点预览 - ${props.subscriptionName || '未知订阅'}`;
+    return t('nodePreview.subscriptionTitle', { name: props.subscriptionName || t('nodePreview.unknownSubscription') });
   });
 
   // 过滤后的节点
@@ -115,7 +116,7 @@ export function useNodePreview(props) {
       } else if (props.subscriptionUrl) {
         requestData.url = props.subscriptionUrl;
       } else {
-        throw new Error('缺少必要的参数');
+        throw new Error(t('nodePreview.missingParams'));
       }
 
       if (isDev) {
@@ -125,7 +126,7 @@ export function useNodePreview(props) {
       const data = await api.post('/api/subscription_nodes', requestData);
 
       if (!data.success) {
-        throw new Error(data.error || '获取节点失败');
+        throw new Error(data.error || t('nodePreview.fetchFailed'));
       }
 
       allNodes.value = data.nodes || [];
@@ -144,14 +145,14 @@ export function useNodePreview(props) {
       if (err instanceof APIError && err.status === 401) {
         try {
           await api.get('/api/data');
-          error.value = '认证异常，请刷新页面后重试';
+          error.value = t('nodePreview.authAbnormal');
         } catch (testErr) {
-          error.value = '认证失败，请重新登录后再试';
+          error.value = t('nodePreview.authFailed');
         }
-      } else if (err.message.includes('网络')) {
-        error.value = '网络连接失败，请检查网络连接';
+      } else if (err.message.includes('网络') || err.message.toLowerCase().includes('network')) {
+        error.value = t('nodePreview.networkFailed');
       } else {
-        error.value = err.message || '加载节点失败';
+        error.value = err.message || t('nodePreview.loadFailed');
       }
 
       allNodes.value = [];

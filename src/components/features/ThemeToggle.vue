@@ -1,18 +1,20 @@
 <script setup>
 import { storeToRefs } from 'pinia';
 import { useThemeStore } from '../../stores/theme.js';
+import { useI18n } from '@/i18n/index.js';
 
 const store = useThemeStore();
 const { theme } = storeToRefs(store);
 const { toggleTheme } = store;
+const { t } = useI18n();
 </script>
 
 <template>
   <button
     @click="toggleTheme"
     class="nav-action-btn nav-action-btn-neutral rounded-full"
-    :title="theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'"
-    :aria-label="theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'"
+    :title="theme === 'dark' ? t('common.switchToLight') : t('common.switchToDark')"
+    :aria-label="theme === 'dark' ? t('common.switchToLight') : t('common.switchToDark')"
     :aria-pressed="theme === 'dark'"
   >
     <div v-if="theme === 'dark'" key="dark-icon" class="transition-opacity duration-300">

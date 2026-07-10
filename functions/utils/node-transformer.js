@@ -6,12 +6,13 @@
 import { parseNodeInfo, extractNodeRegion, getRegionEmoji, REGION_KEYWORDS, REGION_EMOJI } from '../modules/utils/geo-utils.js';
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 import { base64EncodeUtf8 } from '../modules/utils.js';
+import { evaluateDslExpression, renderDslTemplate } from './expression-dsl.js';
 
 // ============ 默认配置 ============
 
 const DEFAULT_SORT_KEYS = [
     { key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] },
-    { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr'] },
+    { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr', 'anytls'] },
     { key: 'name', order: 'asc' }
 ];
 
@@ -415,40 +416,29 @@ function safeProtocolAlias(protocolValue) {
     return aliases[protocol] || protocol;
 }
 
+function buildDslContext(record) {
+    return {
+        name: record.name,
+        originalName: record.originalName,
+        protocol: record.protocol,
+        region: record.region,
+        regionZh: record.regionZh,
+        emoji: record.emoji,
+        server: record.server,
+        port: record.port,
+        index: record.index ?? '',
+        regionAlias: safeRegionAlias(record.regionZh || record.region),
+        protocolAlias: safeProtocolAlias(record.protocol)
+    };
+}
+
 function applyScriptRename(record, expression) {
     if (!expression) return record.name;
     try {
-        const runner = new Function(
-            'ctx',
-            'helpers',
-            `"use strict"; const { name, originalName, protocol, region, regionZh, emoji, server, port, index } = ctx; const { upper, lower, title, trim, replace, contains, match, fallback, pick, regionAlias, protocolAlias } = helpers; return (${expression});`
-        );
-        const result = runner({
-            name: record.name,
-            originalName: record.originalName,
-            protocol: record.protocol,
-            region: record.region,
-            regionZh: record.regionZh,
-            emoji: record.emoji,
-            server: record.server,
-            port: record.port,
-            index: record.index ?? ''
-        }, {
-            upper: value => String(value || '').toUpperCase(),
-            lower: value => String(value || '').toLowerCase(),
-            title: value => safeTitle(value),
-            trim: value => String(value || '').trim(),
-            replace: (value, pattern, replacement, flags = 'g') => String(value || '').replace(new RegExp(pattern, flags), replacement || ''),
-            contains: (value, keyword) => safeContains(value, keyword),
-            match: (value, pattern, flags = 'i') => safeMatch(value, pattern, flags),
-            fallback: (...values) => safeFallback(...values),
-            pick: (condition, truthyValue, falsyValue = '') => safePick(condition, truthyValue, falsyValue),
-            regionAlias: value => safeRegionAlias(value),
-            protocolAlias: value => safeProtocolAlias(value)
-        });
+        const result = renderDslTemplate(String(expression).includes('{') ? expression : `{${expression}}`, buildDslContext(record));
         return String(result ?? '').trim() || record.name;
     } catch (error) {
-        console.warn('[NodeTransform] Invalid rename script expression:', error?.message || String(error));
+        console.warn('[NodeTransform] Invalid rename DSL expression:', error?.message || String(error));
         return record.name;
     }
 }
@@ -456,36 +446,9 @@ function applyScriptRename(record, expression) {
 function evaluateScriptExpression(record, expression) {
     if (!expression) return true;
     try {
-        const runner = new Function(
-            'ctx',
-            'helpers',
-            `"use strict"; const { name, originalName, protocol, region, regionZh, emoji, server, port, index } = ctx; const { upper, lower, title, trim, replace, contains, match, fallback, pick, regionAlias, protocolAlias } = helpers; return (${expression});`
-        );
-        return runner({
-            name: record.name,
-            originalName: record.originalName,
-            protocol: record.protocol,
-            region: record.region,
-            regionZh: record.regionZh,
-            emoji: record.emoji,
-            server: record.server,
-            port: record.port,
-            index: record.index ?? ''
-        }, {
-            upper: value => String(value || '').toUpperCase(),
-            lower: value => String(value || '').toLowerCase(),
-            title: value => safeTitle(value),
-            trim: value => String(value || '').trim(),
-            replace: (value, pattern, replacement, flags = 'g') => String(value || '').replace(new RegExp(pattern, flags), replacement || ''),
-            contains: (value, keyword) => safeContains(value, keyword),
-            match: (value, pattern, flags = 'i') => safeMatch(value, pattern, flags),
-            fallback: (...values) => safeFallback(...values),
-            pick: (condition, truthyValue, falsyValue = '') => safePick(condition, truthyValue, falsyValue),
-            regionAlias: value => safeRegionAlias(value),
-            protocolAlias: value => safeProtocolAlias(value)
-        });
+        return evaluateDslExpression(expression, buildDslContext(record));
     } catch (error) {
-        console.warn('[NodeTransform] Invalid filter script expression:', error?.message || String(error));
+        console.warn('[NodeTransform] Invalid filter DSL expression:', error?.message || String(error));
         return true;
     }
 }
@@ -628,9 +591,17 @@ export function makeComparator(sortCfg) {
 
     // 预先构建 customOrder 索引 Map，将 O(n) 查找优化为 O(1)
     const customOrderMaps = keys.map(k => {
-        if (!Array.isArray(k?.customOrder)) return null;
+        let orderList = k?.customOrder;
+        if (!Array.isArray(orderList) || orderList.length === 0) {
+            if (k?.key === 'region') {
+                orderList = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'];
+            } else if (k?.key === 'protocol') {
+                orderList = ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr', 'anytls'];
+            }
+        }
+        if (!Array.isArray(orderList)) return null;
         const map = new Map();
-        k.customOrder.forEach((v, i) => map.set(String(v), i));
+        orderList.forEach((v, i) => map.set(String(v), i));
         return map;
     });
 
@@ -694,6 +665,11 @@ export function makeComparator(sortCfg) {
                     if (raIdx !== rbIdx) return (raIdx - rbIdx) * order;
                 }
                 const r = cmpStr(va, vb);
+                if (r !== 0) return r * order;
+                continue;
+            }
+            if (key === 'group') {
+                const r = cmpStr(ra.group || '', rb.group || '');
                 if (r !== 0) return r * order;
                 continue;
             }
