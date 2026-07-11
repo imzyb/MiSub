@@ -70,8 +70,8 @@ describe('Main handler template url', () => {
         });
 
         expect(externalUrl.searchParams.get('target')).toBe('clash');
-        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/profile-token/profile-id?base64');
-        expect(externalUrl.toString()).toContain('url=https%3A%2F%2Fmisub.example%2Fprofile-token%2Fprofile-id%3Fbase64');
+        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/profile-token/profile-id?base64&callback_token=external');
+        expect(externalUrl.toString()).toContain('url=https%3A%2F%2Fmisub.example%2Fprofile-token%2Fprofile-id%3Fbase64%26callback_token%3Dexternal');
         expect(externalUrl.searchParams.get('config')).toBe('https://raw.githubusercontent.com/Luckylos/shellcrashyaml/main/subconverter-shellcrash-needs.yaml');
     });
 
@@ -84,7 +84,7 @@ describe('Main handler template url', () => {
             subName: 'ShellCrash'
         });
 
-        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/stable-token?base64');
+        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/stable-token?base64&callback_token=external');
         expect(externalUrl.searchParams.get('config')).toBe('https://raw.githubusercontent.com/Luckylos/shellcrashyaml/main/subconverter-shellcrash-needs.yaml');
     });
 

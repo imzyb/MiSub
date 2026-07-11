@@ -127,18 +127,20 @@ describe('handleMisubRequest regression coverage', () => {
             expect(initialResponse.status).toBe(302);
             expect(redirectUrl.origin + redirectUrl.pathname).toBe('https://sub.example/sub');
             expect(redirectUrl.searchParams.get('target')).toBe('clash');
-            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64');
-            expect(redirectUrl.toString()).toContain('url=https%3A%2F%2Fmisub.example%2Fstable-token%3Fbase64');
+            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64&callback_token=external');
+            expect(redirectUrl.toString()).toContain('url=https%3A%2F%2Fmisub.example%2Fstable-token%3Fbase64%26callback_token%3Dexternal');
 
+            const callbackWaitUntil = vi.fn();
             const base64Response = await handleMisubRequest({
                 request: new Request(dataSourceUrl, {
                     headers: { 'User-Agent': 'ClashMeta' }
                 }),
                 env: {},
-                waitUntil: vi.fn()
+                waitUntil: callbackWaitUntil
             });
             expect(base64Response.status).toBe(200);
             expect(atob(await base64Response.text())).toContain('trojan://pass@example.com:443#');
+            expect(callbackWaitUntil).not.toHaveBeenCalled();
             expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[MiSub Request]'));
             expect(logSpy).toHaveBeenCalledWith('[MiSub Nodes] Count/Length: 68');
         } finally {
@@ -182,7 +184,7 @@ describe('handleMisubRequest regression coverage', () => {
             expect(response.status).toBe(302);
             expect(redirectUrl.origin + redirectUrl.pathname).toBe('https://sub.example/sub');
             expect(redirectUrl.searchParams.get('target')).toBe('clash');
-            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64');
+            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64&callback_token=external');
             expect(redirectUrl.toString()).not.toContain('trojan%3A%2F%2Fpass0');
             expect(redirectUrl.toString().length).toBeLessThan(2000);
             expect(response.headers.get('X-MiSub-Mode')).toBe('external-redirect-v2');
@@ -231,7 +233,7 @@ describe('handleMisubRequest regression coverage', () => {
             expect(response.status).toBe(302);
             expect(redirectUrl.origin + redirectUrl.pathname).toBe(expectedEndpoint);
             expect(redirectUrl.searchParams.get('target')).toBe('clash');
-            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64');
+            expect(dataSourceUrl).toBe('https://misub.example/stable-token?base64&callback_token=external');
             expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[MiSub Request]'));
             expect(logSpy).toHaveBeenCalledWith('[MiSub Nodes] Count/Length: 51');
         } finally {

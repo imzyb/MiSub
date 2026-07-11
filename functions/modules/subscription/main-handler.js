@@ -264,7 +264,7 @@ export function buildExternalSubconverterUrl({
         // 第三方后端通过稳定的 Base64 订阅地址拉取节点，避免将完整节点列表内联到重定向 URL。
         // 一次性替换查询参数也能防止转换参数递归传入数据源请求。
         const dataSourceUrl = new URL(requestUrl);
-        dataSourceUrl.search = '?base64';
+        dataSourceUrl.search = '?base64&callback_token=external';
         dataSourceUrl.hash = '';
         externalUrl.searchParams.set('url', dataSourceUrl.toString());
     }
