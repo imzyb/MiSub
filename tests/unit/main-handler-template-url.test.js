@@ -64,13 +64,14 @@ describe('Main handler template url', () => {
         const externalUrl = buildExternalSubconverterUrl({
             backend: 'https://sub.example.com/sub',
             targetFormat: 'clash',
-            nodeList: 'ss://node-a#A\nss://node-b#B',
+            requestUrl: 'https://misub.example/profile-token/profile-id?target=clash&refresh=1',
             templateSource: resolveTemplateSource('https://raw.githubusercontent.com/Luckylos/shellcrashyaml/main/subconverter-shellcrash-needs.yaml'),
             subName: 'ShellCrash'
         });
 
         expect(externalUrl.searchParams.get('target')).toBe('clash');
-        expect(externalUrl.searchParams.get('url')).toBe('ss://node-a#A|ss://node-b#B');
+        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/profile-token/profile-id?base64');
+        expect(externalUrl.toString()).toContain('url=https%3A%2F%2Fmisub.example%2Fprofile-token%2Fprofile-id%3Fbase64');
         expect(externalUrl.searchParams.get('config')).toBe('https://raw.githubusercontent.com/Luckylos/shellcrashyaml/main/subconverter-shellcrash-needs.yaml');
     });
 
@@ -78,11 +79,12 @@ describe('Main handler template url', () => {
         const externalUrl = buildExternalSubconverterUrl({
             backend: 'https://sub.example.com/sub',
             targetFormat: 'clash',
-            nodeList: 'ss://node-a#A',
+            requestUrl: 'https://misub.example/stable-token?clash&nocache=1',
             templateSource: resolveTemplateSource('https://github.com/Luckylos/shellcrashyaml/blob/main/subconverter-shellcrash-needs.yaml'),
             subName: 'ShellCrash'
         });
 
+        expect(externalUrl.searchParams.get('url')).toBe('https://misub.example/stable-token?base64');
         expect(externalUrl.searchParams.get('config')).toBe('https://raw.githubusercontent.com/Luckylos/shellcrashyaml/main/subconverter-shellcrash-needs.yaml');
     });
 

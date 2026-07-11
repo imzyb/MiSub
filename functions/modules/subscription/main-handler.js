@@ -5,7 +5,6 @@ import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings, DEFAULT_SUBCONVERTER_BACKEND } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
 import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
-import { countNodeLines, prepareExternalNodesCallback, shouldUseExternalNodesCallback } from '../../services/external-nodes-callback-service.js';
 import { resolveRequestContext } from './request-context.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
@@ -242,7 +241,6 @@ export function normalizeSubconverterBackend(input, fallback = DEFAULT_SUBCONVER
 export function buildExternalSubconverterUrl({
     backend,
     targetFormat,
-    nodeList,
     requestUrl,
     profileSub = {},
     globalSub = {},
@@ -262,19 +260,12 @@ export function buildExternalSubconverterUrl({
         if (k && v) externalUrl.searchParams.set(k, v);
     });
 
-    const normalizedNodeList = String(nodeList || '').trim();
-    if (normalizedNodeList) {
-        // 关键：第三方转换模式应接收 MiSub 已完成预处理后的节点列表。
-        // subconverter 对多个内联节点更稳定的分隔符是 `|`；保留换行会让部分后端只解析首行或直接报 No nodes were found。
-        const inlineNodeList = normalizedNodeList.split(/\r?\n+/).map(line => line.trim()).filter(Boolean).join('|');
-        externalUrl.searchParams.set('url', inlineNodeList);
-    } else if (requestUrl) {
-        // 兜底保留旧回调 URL 逻辑，避免异常空列表场景构造无效 converter 请求。
+    if (requestUrl) {
+        // 第三方后端通过稳定的 Base64 订阅地址拉取节点，避免将完整节点列表内联到重定向 URL。
+        // 一次性替换查询参数也能防止转换参数递归传入数据源请求。
         const dataSourceUrl = new URL(requestUrl);
-        const paramsToClear = ['target', 'engine', 'builtin', 'clash', 'singbox', 'surge', 'loon', 'quanx', 'egern', 'base64', 'v2ray', 'trojan', 'list', 'include', 'exclude'];
-        paramsToClear.forEach(p => dataSourceUrl.searchParams.delete(p));
-        dataSourceUrl.searchParams.set('target', 'nodes');
-        dataSourceUrl.searchParams.set('builtin', 'true');
+        dataSourceUrl.search = '?base64';
+        dataSourceUrl.hash = '';
         externalUrl.searchParams.set('url', dataSourceUrl.toString());
     }
 
@@ -810,11 +801,9 @@ export async function handleMisubRequest(context) {
         }
 
         const backend = url.searchParams.get('backend') || profileSub.backend || globalSub.defaultBackend;
-        const externalNodeList = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
-        let externalUrl = buildExternalSubconverterUrl({
+        const externalUrl = buildExternalSubconverterUrl({
             backend,
             targetFormat,
-            nodeList: externalNodeList,
             requestUrl: request.url,
             profileSub,
             globalSub,
@@ -823,34 +812,6 @@ export async function handleMisubRequest(context) {
             templateSource,
             subName
         });
-        let externalRedirectMode = 'external-redirect-v2';
-
-        if (shouldUseExternalNodesCallback({
-            inlineUrlLength: externalUrl.toString().length,
-            nodeCount: countNodeLines(externalNodeList)
-        })) {
-            const callbackProfileId = profileIdentifier || token || 'default';
-            const callback = await prepareExternalNodesCallback({
-                env,
-                requestUrl: request.url,
-                profileId: callbackProfileId,
-                nodesText: externalNodeList,
-                encoding: 'base64'
-            });
-            externalUrl = buildExternalSubconverterUrl({
-                backend,
-                targetFormat,
-                nodeList: callback.callbackUrl,
-                requestUrl: request.url,
-                profileSub,
-                globalSub,
-                userAgent: userAgentHeader,
-                searchParams: url.searchParams,
-                templateSource,
-                subName
-            });
-            externalRedirectMode = 'external-redirect-callback';
-        }
 
         // [Access Log] Send notification for external redirection
         if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
@@ -874,7 +835,7 @@ export async function handleMisubRequest(context) {
             headers: {
                 'Location': externalUrl.toString(),
                 'Cache-Control': 'no-store, no-cache',
-                'X-MiSub-Mode': externalRedirectMode,
+                'X-MiSub-Mode': 'external-redirect-v2',
                 ...(templateSource.kind === 'builtin' ? { 'X-MiSub-Template-Warning': 'external-engine-ignores-builtin-template' } : {})
             }
         });
