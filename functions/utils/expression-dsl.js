@@ -101,6 +101,27 @@ function pick(condition, truthyValue, falsyValue = '') {
     return condition ? truthyValue : falsyValue;
 }
 
+function containsToken(value, token) {
+    const escaped = String(token || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(String(value || ''));
+}
+
+function protocolLabel(name, protocol) {
+    const rawProtocol = String(protocol || '');
+    const source = `${rawProtocol} ${name || ''}`.toLowerCase();
+
+    if (source.includes('anytls') || source.includes('any tls')) return 'ANYTLS';
+    if (source.includes('hysteria2') || source.includes('hysteria 2') || containsToken(source, 'hy2')) return 'HY2';
+    if (containsToken(source, 'tuic')) return 'TUIC';
+    if (containsToken(source, 'vless')) return 'VLESS';
+    if (containsToken(source, 'vmess')) return 'VMESS';
+    if (source.includes('shadowsocksr') || containsToken(source, 'ssr')) return 'SSR';
+    if (source.includes('shadowsocks') || containsToken(source, 'ss')) return 'SS';
+
+    const normalized = rawProtocol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return normalized || 'NODE';
+}
+
 function evalValue(expr, ctx) {
     const text = String(expr || '').trim();
     if (!text) return '';
@@ -124,6 +145,7 @@ function evalValue(expr, ctx) {
             case 'match': return safeMatch(args[0], args[1], args[2] || 'i');
             case 'fallback': return fallback(...args);
             case 'pick': return pick(Boolean(args[0]), args[1], args[2] ?? '');
+            case 'protocolLabel': return protocolLabel(args[0], args[1]);
             default: return '';
         }
     }

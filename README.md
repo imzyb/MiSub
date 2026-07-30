@@ -37,7 +37,7 @@ It is designed for personal and small-team usage: simple operations, clear clien
 
 - **Profiles**: combine upstream subscriptions and manual nodes into scenario-specific subscription profiles.
 - **Subscription and node management**: manage airport subscriptions, manual nodes, groups, ordering, remarks, traffic, and expiry data.
-- **Operator Chain**: process nodes with filter, regex rename, script/DSL execution, sorting, and smart deduplication steps.
+- **Operator Chain**: process nodes with filters, regex rename, isolated QuickJS scripts, safe declarative rules, sorting, and smart deduplication steps.
 - **Multi-client output**: generate subscription output for Clash/Mihomo, Sing-Box, Surge, Loon, Quantumult X, Shadowrocket, V2rayN/V2rayNG, and base64 clients.
 - **Built-in templates**: use unified template output, rule-set presets, region groups, policy groups, and custom rule templates.
 - **Custom public page**: publish a public explore page or an immersive disguise/custom page with sanitized HTML rendering.
@@ -162,7 +162,7 @@ Profiles can inherit a global default operator chain or define their own process
 
 - Filter nodes by protocol, region, include regex, or exclude regex.
 - Rename nodes with regex replacement or templates.
-- Apply restricted script/DSL operations.
+- Run synchronous JavaScript in an isolated QuickJS/Wasm runtime, or use safe declarative filter, rename, grouping, and sorting rules.
 - Sort nodes by weighted conditions and custom region priority.
 - Deduplicate nodes with protocol-aware smart rules.
 
@@ -172,7 +172,8 @@ See [Operator Chain Guide](docs/OPERATOR_CHAIN_GUIDE.md) for details.
 
 - Admin APIs are password/session protected.
 - Custom public HTML is sanitized before rendering.
-- User-provided scripts are not executed in the main page context.
+- User-provided operator scripts run in QuickJS/Wasm without host network, storage, environment, or Worker-global access and are subject to resource and output limits.
+- Remote script URLs are not loaded; administrators must review and paste script code explicitly.
 - External resource loading and iframe URLs are restricted by renderer policy.
 - Subscription fetch and preview flows include SSRF-oriented safeguards.
 - Use strong secrets for `ADMIN_PASSWORD`, `COOKIE_SECRET`, and `CRON_SECRET`.

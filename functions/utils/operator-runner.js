@@ -6,6 +6,7 @@
 import * as NodeUtils from './node-transformer.js';
 import { extractNodeRegion, getRegionEmoji } from '../modules/utils/geo-utils.js';
 import { matchesDslCondition, renderDslTemplate } from './expression-dsl.js';
+import { runQuickJsNodeScript } from './quickjs-sandbox.js';
 
 /**
  * 辅助函数：将规则模式规范化为正则表达式数组
@@ -98,6 +99,7 @@ function opRename(nodes, params) {
                     name: r.name,
                     protocol: r.protocol,
                     region: enriched.region,
+                    regionCode: enriched.regionCode,
                     regionZh: enriched.regionZh,
                     emoji: enriched.emoji,
                     server: r.server,
@@ -145,6 +147,7 @@ function opRename(nodes, params) {
                 name: r.name,
                 protocol: r.protocol,
                 region: enriched.region,
+                regionCode: enriched.regionCode,
                 regionZh: enriched.regionZh,
                 emoji: enriched.emoji,
                 server: r.server,
@@ -171,14 +174,89 @@ function opRename(nodes, params) {
 /**
  * Script Operator (The heart of Sub-Store)
  */
+function matchesDslConditions(node, condition) {
+    if (Array.isArray(condition)) {
+        return condition.every(item => matchesDslCondition(node, item));
+    }
+    return matchesDslCondition(node, condition);
+}
+
+function matchesDslStep(node, step) {
+    if (step.when && !matchesDslConditions(node, step.when)) return false;
+    if (step.unless && matchesDslConditions(node, step.unless)) return false;
+    return true;
+}
+
+function sortDslRecords(nodes, step) {
+    const field = String(step.field || '_dslRank');
+    const direction = String(step.order || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+    const missingLast = step.missing !== 'first';
+
+    return nodes
+        .map((node, originalIndex) => ({ node, originalIndex }))
+        .sort((left, right) => {
+            const a = left.node[field];
+            const b = right.node[field];
+            const aMissing = a === undefined || a === null || a === '';
+            const bMissing = b === undefined || b === null || b === '';
+
+            if (aMissing !== bMissing) {
+                return (aMissing ? 1 : -1) * (missingLast ? 1 : -1);
+            }
+            if (!aMissing && !bMissing) {
+                const aNumber = Number(a);
+                const bNumber = Number(b);
+                const bothNumeric = Number.isFinite(aNumber) && Number.isFinite(bNumber);
+                const comparison = bothNumeric
+                    ? aNumber - bNumber
+                    : String(a).localeCompare(String(b), 'zh-CN', { numeric: true, sensitivity: 'base' });
+                if (comparison !== 0) return comparison * direction;
+            }
+            return left.originalIndex - right.originalIndex;
+        })
+        .map(item => item.node);
+}
+
 async function opScript(nodes, params = {}, context) {
-    const dsl = Array.isArray(params.dsl)
+    const mode = params.mode || (params.code ? 'javascript' : 'rules');
+    if (mode === 'javascript' && typeof params.code === 'string' && params.code.trim()) {
+        try {
+            const enrichedNodes = nodes.map(record => {
+                const enriched = NodeUtils.ensureRegionInfo(record, true);
+                return {
+                    ...enriched,
+                    name: enriched.name?.replace(/[·•・∙]/g, '·') || enriched.name,
+                    regionzh: enriched.regionZh,
+                    region_zh: enriched.regionZh
+                };
+            });
+            const scriptedNodes = await runQuickJsNodeScript(params.code, enrichedNodes, context);
+            return scriptedNodes.map(node => {
+                const name = node.name || node.originalName;
+                if (!name) return node;
+                const nextNode = {
+                    ...node,
+                    name,
+                    url: NodeUtils.setNodeName(node.url, node.protocol, name)
+                };
+                if (node.metadata) {
+                    nextNode.metadata = { ...node.metadata, cleanName: name };
+                }
+                return nextNode;
+            });
+        } catch (error) {
+            console.error('[Operator] Sandbox script execution failed:', error);
+            return nodes;
+        }
+    }
+
+    const dsl = mode === 'rules' && Array.isArray(params.dsl)
         ? params.dsl
-        : (params.action ? [params] : []);
+        : (mode === 'rules' && params.action ? [params] : []);
 
     if (!dsl.length) {
-        if (params.code || params.url) {
-            console.warn('[Operator] Legacy script code is disabled; use params.dsl instead.');
+        if (params.url) {
+            console.warn('[Operator] Remote scripts are disabled; paste the code into the sandbox editor instead.');
         }
         return nodes;
     }
@@ -194,16 +272,44 @@ async function opScript(nodes, params = {}, context) {
         if (action === 'rename') {
             const template = step.template || step.expression;
             if (!template) continue;
+            const counters = new Map();
             result = result.map((node, index) => {
-                const nextName = renderDslTemplate(template, { ...node, index: index + 1, target: context?.target || '' }) || node.name;
-                if (nextName === node.name) return node;
-                return {
+                const conditionContext = {
                     ...node,
+                    globalIndex: index + 1,
+                    target: context?.target || ''
+                };
+                if (!matchesDslStep(conditionContext, step)) return node;
+
+                const groupKey = step.groupBy
+                    ? renderDslTemplate(step.groupBy, conditionContext)
+                    : 'global';
+                const groupIndex = (counters.get(groupKey) || 0) + 1;
+                counters.set(groupKey, groupIndex);
+
+                const offset = Number(step.offset ?? step.indexStart ?? 1);
+                const templateContext = {
+                    ...conditionContext,
+                    index: groupIndex + (Number.isFinite(offset) ? offset : 1) - 1
+                };
+                const nextName = renderDslTemplate(template, templateContext) || node.name;
+                const nextNode = {
+                    ...node,
+                    ...(Number.isFinite(Number(step.rank)) ? { _dslRank: Number(step.rank) } : {})
+                };
+
+                if (nextName === node.name) return nextNode;
+                return {
+                    ...nextNode,
                     name: nextName,
                     url: NodeUtils.setNodeName(node.url, node.protocol, nextName),
                     metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
                 };
             });
+            continue;
+        }
+        if (action === 'sort') {
+            result = sortDslRecords(result, step);
         }
     }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runOperatorChain } from '../../functions/utils/operator-runner.js';
+import { createRegionalProtocolRenameDsl } from '../../src/constants/safeScriptPresets.js';
 
 describe('operator runner', () => {
   it('runs script operators through the restricted DSL without dynamic code execution', async () => {
@@ -29,11 +30,10 @@ describe('operator runner', () => {
     }
   });
 
-  it('does not execute legacy script code when dynamic code execution is disabled', async () => {
+  it('executes legacy factory-style scripts inside the QuickJS sandbox', async () => {
     const functionSpy = vi.spyOn(globalThis, 'Function').mockImplementation(() => {
-      throw new Error('dynamic code execution disabled');
+      throw new Error('host dynamic code execution disabled');
     });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const urls = ['ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HKNode'];
 
     try {
@@ -41,20 +41,114 @@ describe('operator runner', () => {
         {
           type: 'script',
           params: {
-            code: 'return $proxies.map(p => ({ ...p, name: `${p.name} Scripted` }))'
+            code: 'return ($nodes) => $nodes.map(node => ({ ...node, name: `${node.name} Scripted` }));'
           }
         }
       ], { target: 'clash' });
 
       expect(result).toHaveLength(1);
-      expect(decodeURIComponent(result[0])).toContain('#HKNode');
-      expect(decodeURIComponent(result[0])).not.toContain('Scripted');
+      expect(decodeURIComponent(result[0])).toContain('#HKNode Scripted');
       expect(functionSpy).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalledWith('[Operator] Legacy script code is disabled; use params.dsl instead.');
     } finally {
       functionSpy.mockRestore();
+    }
+  });
+
+  it('does not expose host globals to sandbox scripts', async () => {
+    const urls = ['ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HKNode'];
+    const result = await runOperatorChain(urls, [
+      {
+        type: 'script',
+        params: {
+          code: `
+            return $proxies.map(node => ({
+              ...node,
+              name: [typeof fetch, typeof process, typeof require, typeof env].join(',')
+            }));
+          `
+        }
+      }
+    ]);
+
+    expect(decodeURIComponent(result[0])).toContain('#undefined,undefined,undefined,undefined');
+  });
+
+  it('interrupts runaway sandbox scripts and keeps the original nodes', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const urls = ['ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HKNode'];
+    try {
+      const result = await runOperatorChain(urls, [
+        {
+          type: 'script',
+          params: { code: 'while (true) {}' }
+        }
+      ]);
+
+      expect(result).toEqual(urls);
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[Operator] Sandbox script execution failed:',
+        expect.any(Error)
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('does not fetch remote script URLs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const urls = ['ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HKNode'];
+    try {
+      const result = await runOperatorChain(urls, [
+        {
+          type: 'script',
+          params: { url: 'https://example.com/operator.js' }
+        }
+      ]);
+
+      expect(result).toEqual(urls);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[Operator] Remote scripts are disabled; paste the code into the sandbox editor instead.'
+      );
+    } finally {
+      fetchSpy.mockRestore();
       warnSpy.mockRestore();
     }
+  });
+
+  it('normalizes regional protocols and Cloudflare nodes with safe rules', async () => {
+    const urls = [
+      `anytls://password@hk-anytls.example.com:443#${encodeURIComponent('HK-AnyTLS')}`,
+      `hysteria2://password@hk-hy2.example.com:443#${encodeURIComponent('HK-Hysteria2')}`,
+      `anytls://password@sg-anytls.example.com:443#${encodeURIComponent('SG-AnyTLS')}`,
+      `hysteria2://password@sg-hy2.example.com:443#${encodeURIComponent('SG-Hysteria2')}`,
+      `vless://00000000-0000-0000-0000-000000000000@jp-mislabeled.example.com:443#${encodeURIComponent('JP-Hysteria2')}`,
+      `vless://00000000-0000-0000-0000-000000000000@us-cf-1.example.com:443#${encodeURIComponent('US 移动优选')}`,
+      `trojan://password@us-cf-2.example.com:443#${encodeURIComponent('US 联通优选')}`,
+      `ss://YWVzLTEyOC1nY206cGFzcw@unknown-cf.example.com:8388#${encodeURIComponent('Cloudflare 优选')}`,
+      `ss://YWVzLTEyOC1nY206cGFzcw@unknown.example.com:8388#${encodeURIComponent('Unknown Node')}`
+    ];
+
+    const result = await runOperatorChain(urls, [
+      {
+        type: 'script',
+        params: { dsl: createRegionalProtocolRenameDsl() }
+      }
+    ]);
+    const names = result.map(url => decodeURIComponent(url.slice(url.lastIndexOf('#') + 1)));
+
+    expect(names).toEqual([
+      '☁CF-US-1',
+      '☁CF-US-2',
+      '🇭🇰HK-ANYTLS-1',
+      '🇭🇰HK-HY2-1',
+      '🇸🇬SG-ANYTLS-1',
+      '🇸🇬SG-HY2-1',
+      '🇯🇵JP-HY2-1',
+      'Cloudflare 优选',
+      'Unknown Node'
+    ]);
   });
 
   it('passes regex capture groups to a template in the same rename operator', async () => {

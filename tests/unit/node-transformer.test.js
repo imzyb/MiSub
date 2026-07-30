@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyNodeTransformPipeline } from '../../functions/utils/node-transformer.js';
+import { applyNodeTransformPipeline, ensureRegionInfo } from '../../functions/utils/node-transformer.js';
 
 describe('applyNodeTransformPipeline filters', () => {
     const nodes = [
@@ -81,5 +81,19 @@ describe('applyNodeTransformPipeline filters', () => {
         expect(result).toHaveLength(3);
         expect(result.some(line => line.includes('%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99'))).toBe(false);
         expect(result.some(line => line.includes('%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F'))).toBe(false);
+    });
+});
+
+describe('ensureRegionInfo', () => {
+    it('adds regionCode without changing the historical region value', () => {
+        const enriched = ensureRegionInfo({
+            name: 'HK Node',
+            server: 'hk.example.com',
+            region: 'HK'
+        }, true);
+
+        expect(enriched.region).toBe('HK');
+        expect(enriched.regionCode).toBe('HK');
+        expect(enriched.regionZh).toBe('香港');
     });
 });

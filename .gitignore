@@ -33,6 +33,7 @@ dev-dist
 
 # Cloudflare
 .wrangler/
+functions/vendor/quickjs-release-sync.wasm
 .dev.vars
 
 # IDEs and editors

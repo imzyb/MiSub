@@ -55,7 +55,7 @@ const operatorList = [
     id: 'script-1',
     type: 'script',
     enabled: true,
-    params: { url: '', code: '' }
+    params: { mode: 'rules', code: '', dsl: [] }
   }
 ];
 
@@ -69,7 +69,7 @@ describe('operator chain English translations', () => {
     expect(wrapper.text()).toContain('Start chained processing');
     expect(wrapper.text()).toContain('Filter nodes');
     expect(wrapper.text()).toContain('Regex rename');
-    expect(wrapper.text()).toContain('Script execution');
+    expect(wrapper.text()).toContain('Script transform');
     expect(wrapper.text()).toContain('Node sorting');
     expect(wrapper.text()).toContain('Smart deduplication');
     expectNoChineseOrKeys(wrapper.text());
@@ -108,8 +108,41 @@ describe('operator chain English translations', () => {
     expectNoChineseOrKeys(wrapper.text());
 
     await headers[4].trigger('click');
-    expect(wrapper.text()).toContain('Remote script URL');
-    expect(wrapper.find('input[placeholder="GitGist/raw link"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Sandbox JavaScript');
+    expect(wrapper.text()).toContain('Declarative transform rules');
+    expect(wrapper.text()).toContain('Region/protocol normalization');
+    expect(wrapper.find('textarea[placeholder="Enter a JSON rule array"]').exists()).toBe(true);
+
+    const presetButton = wrapper.findAll('button')
+      .find(button => button.text() === 'Region/protocol normalization');
+    await presetButton.trigger('click');
+    const latestUpdate = wrapper.emitted('update:modelValue').at(-1)[0];
+    expect(latestUpdate[4].params.dsl).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'rename', rank: 0 }),
+        expect.objectContaining({ action: 'rename', rank: 1 }),
+        expect.objectContaining({ action: 'sort', field: '_dslRank' })
+      ])
+    );
+    expectNoChineseOrKeys(wrapper.text());
+  });
+
+  it('opens legacy JavaScript in the sandbox and warns only about remote URLs', async () => {
+    const wrapper = mount(OperatorChain, {
+      props: {
+        modelValue: [{
+          id: 'legacy-script',
+          type: 'script',
+          enabled: true,
+          params: { code: 'return nodes;', url: 'https://example.com/script.js' }
+        }]
+      },
+      global: englishGlobal()
+    });
+
+    expect(wrapper.text()).toContain('Sandbox JavaScript');
+    expect(wrapper.text()).toContain('Remote script URLs are not loaded.');
+    expect(wrapper.find('textarea').element.value).toBe('return nodes;');
     expectNoChineseOrKeys(wrapper.text());
   });
 });

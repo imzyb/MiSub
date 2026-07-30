@@ -246,22 +246,23 @@ export function matchesRegexRules(name, rules) {
 }
 
 export function ensureRegionInfo(record, enableEmoji = false) {
-    if (record.regionZh) return record;
+    if (record.regionZh && record.regionCode) return record;
     
     // 优先使用预解析的元数据
     let regionZh = record.metadata?.regionZh || extractNodeRegion(record.name);
-    let regionCode = record.metadata?.region || '';
 
     if (regionZh === '其他' && record.server) {
         regionZh = extractNodeRegion(record.server);
     }
     
-    if (!regionCode) {
-        regionCode = toRegionCode(regionZh);
-    }
+    // Keep the historical `region` value while exposing an explicit code for
+    // rules/templates. Most generated records use a code in `region`.
+    let region = record.region || record.metadata?.region || '';
+    if (!region) region = toRegionCode(regionZh);
+    const regionCode = toRegionCode(regionZh === '其他' ? region : (regionZh || region));
     
     const emoji = enableEmoji ? (record.metadata?.flag || getRegionEmoji(regionZh)) : '';
-    return { ...record, region: regionCode, regionZh, emoji };
+    return { ...record, region, regionCode, regionZh, emoji };
 }
 
 function isUselessNode(record) {

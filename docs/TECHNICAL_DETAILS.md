@@ -21,16 +21,28 @@
 
 执行引擎位于 `functions/utils/operator-runner.js`。
 
-### 脚本执行沙箱 (Script Sandbox)
-为了支持自定义逻辑，我们实现了 JavaScript 脚本操作符。
-- **实现方式**：基于 `AsyncFunction` 构建闭包。
-- **传入上下文**：
-  - `$nodes`: 原始节点数组的深拷贝。
-  - `$context`: 包含 `target` (目标格式), `userAgent`, `timestamp` 等。
-  - `$utils`: 提供 `formatBytes`, `getRegionCode` 等内置工具。
+### QuickJS 脚本沙箱
 
-> [!WARNING]
-> **安全局限性**：由于 Cloudflare Workers 环境暂不支持完整的 WASM 沙箱（如 V8 Isolate），目前的脚本执行虽然处于闭包中，但无法实现 100% 的恶意代码防御（如无限循环攻击）。建议仅运行受信任的脚本。
+旧版同步 JavaScript 由 `functions/utils/quickjs-sandbox.js` 在独立的
+QuickJS/Wasm Runtime 中执行。宿主侧不调用 `eval` 或 `Function`，也不向来宾
+运行时暴露网络、存储、环境变量或 Worker 全局能力。
+
+- **资源限制**：限制脚本、输入、输出、节点数量、内存、栈和执行时间。
+- **输入隔离**：节点及有限上下文通过 JSON 复制进入沙箱。
+- **输出校验**：结果必须是字段有效的节点对象数组，随后重新同步节点 URL。
+- **失败回退**：语法错误、超限、死循环或无效输出均保留进入该操作符前的节点。
+- **远程代码**：不加载 `url` 配置，只执行管理员明确保存的内联代码。
+
+### 安全规则引擎 (Safe Rules)
+
+简单转换也可使用受限的声明式 DSL，不执行任意 JavaScript。
+
+- **条件**：字段比较、包含、正则、`when` 与 `unless`。
+- **转换**：模板重命名、按 `groupBy` 分组编号。
+- **顺序**：通过规则 `rank` 标记和稳定 `sort` 操作调整类别顺序。
+- **上下文**：节点名称、协议、地区、Emoji、服务器、端口和目标格式。
+
+旧版内联 `code` 会自动进入 QuickJS 沙箱；远程 `url` 仅用于显示迁移提示，不会加载。
 
 ### 性能优化
 - **Immutable 操作**：操作符内部尽量减少对原数组的修改，使用 map/filter 返回新数组，减少内存碎片。
