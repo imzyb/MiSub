@@ -12,6 +12,7 @@ import { resolveRuleTemplateSource } from '../modules/rule-template-handler.js';
 import { base64EncodeUtf8 } from '../modules/utils.js';
 import yaml from 'js-yaml';
 import { urlsToClashProxies } from '../utils/url-to-clash.js';
+import { renderFullProfileTemplate } from '../modules/subscription/profile-template-renderer.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -28,7 +29,7 @@ function getTemplateExtension(templateUrl) {
 
 export function isIniTemplateSource(templateSource, builtinTemplateEntry = null) {
     if (builtinTemplateEntry?.format === 'ini') return true;
-    if (templateSource?.kind === 'custom') return true;
+    if (templateSource?.kind === 'custom') return (builtinTemplateEntry?.type || builtinTemplateEntry?.format || 'ini') === 'ini';
     return getTemplateExtension(templateSource?.value) === 'ini';
 }
 
@@ -178,8 +179,33 @@ export class ProcessorService {
         if (builtinTemplateEntry || customTemplateEntry || remoteTemplateUrl) {
             const templateText = builtinTemplateEntry?.content || customTemplateEntry?.content || await fetchTransformTemplate(storageAdapter, remoteTemplateUrl);
             const isIniTemplate = isIniTemplateSource(templateSource, builtinTemplateEntry || customTemplateEntry);
+            const isFullProfileTemplate = customTemplateEntry?.type === 'profile';
 
-            if (templateText && isIniTemplate) {
+            if (templateText && isFullProfileTemplate) {
+                const normalizedTarget = String(targetFormat || '').toLowerCase() === 'sing-box'
+                    ? 'singbox'
+                    : String(targetFormat || '').toLowerCase().replace(/^surge&ver=.*/, 'surge');
+                if (customTemplateEntry.target !== normalizedTarget) {
+                    throw new Error(`Template "${customTemplateEntry.name}" targets ${customTemplateEntry.target}, not ${normalizedTarget}`);
+                }
+                finalContent = renderFullProfileTemplate(templateText, builtinProxyContent, targetFormat);
+                headers['X-MiSub-Template-Mode'] = 'full-profile';
+                if (customTemplateEntry.fileName) {
+                    const fileName = customTemplateEntry.fileName.replace(/[\x00-\x1F\x7F"\\]/g, '_');
+                    const asciiFileName = fileName.replace(/[^\x20-\x7E]/g, '_');
+                    const encodedFileName = encodeURIComponent(fileName)
+                        .replace(/'/g, '%27')
+                        .replace(/\(/g, '%28')
+                        .replace(/\)/g, '%29')
+                        .replace(/\*/g, '%2A');
+                    headers['Content-Disposition'] = `attachment; filename="${asciiFileName}"; filename*=utf-8''${encodedFileName}`;
+                }
+                if (normalizedTarget === 'clash' || normalizedTarget === 'egern') {
+                    contentType = 'application/x-yaml; charset=utf-8';
+                } else if (normalizedTarget === 'singbox') {
+                    contentType = 'application/json; charset=utf-8';
+                }
+            } else if (templateText && isIniTemplate) {
                 const renderParams = {
                     nodeList: combinedNodeList,
                     fileName: subName,

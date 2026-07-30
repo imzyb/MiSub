@@ -575,9 +575,13 @@ export async function handleMisubRequest(context) {
 
     
     const globalTemplateUrl = resolveTemplateUrl(config.transformConfigMode, config.transformConfig, '');
-    const templateUrl = currentProfile
+    const configuredTemplateUrl = currentProfile
         ? resolveTemplateUrl(currentProfile.transformConfigMode, currentProfile.transformConfig, globalTemplateUrl)
         : globalTemplateUrl;
+    const requestedTemplate = String(url.searchParams.get('template') || '').trim();
+    const templateUrl = /^(custom|builtin):[a-zA-Z0-9_-]+$/.test(requestedTemplate)
+        ? requestedTemplate
+        : configuredTemplateUrl;
     const templateSource = resolveTemplateSource(templateUrl);
 
     // [逻辑统一] 规则等级：URL 参数 > 订阅组设置 > 全局设置 > 默认值 (std)

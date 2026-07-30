@@ -1,9 +1,12 @@
 import { StorageFactory } from '../storage-adapter.js';
 import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
+import JSON5 from 'json5';
+import yaml from 'js-yaml';
 
 export const KV_KEY_RULE_TEMPLATES = 'misub_rule_templates_v1';
 const MAX_TEMPLATE_COUNT = 50;
 const MAX_TEMPLATE_CONTENT_LENGTH = 128 * 1024;
+const FULL_PROFILE_TARGETS = new Set(['clash', 'singbox', 'surge', 'loon', 'quanx', 'egern']);
 
 function nowIso() {
     return new Date().toISOString();
@@ -28,6 +31,35 @@ function hasIniShape(content) {
     return /\[(custom|proxy\s*group|rule|ruleset|proxy)\]/i.test(content);
 }
 
+function normalizeTemplateTarget(value = '') {
+    const target = String(value || '').trim().toLowerCase();
+    if (target === 'sing-box') return 'singbox';
+    if (target === 'mihomo') return 'clash';
+    return target;
+}
+
+function hasFullProfileShape(content, target) {
+    try {
+        if (target === 'singbox') {
+            const parsed = JSON5.parse(content);
+            return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.outbounds));
+        }
+        if (target === 'clash' || target === 'egern') {
+            const parsed = yaml.load(content);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+            return target === 'clash'
+                ? Array.isArray(parsed['proxy-groups']) || Array.isArray(parsed.proxies)
+                : Array.isArray(parsed.policy_groups) || Array.isArray(parsed.proxies);
+        }
+        if (target === 'quanx') {
+            return /\[server_local\]/i.test(content);
+        }
+        return /\[proxy\]/i.test(content);
+    } catch {
+        return false;
+    }
+}
+
 export function normalizeCustomRuleTemplates(input = []) {
     if (!Array.isArray(input)) return [];
     const seen = new Set();
@@ -37,7 +69,12 @@ export function normalizeCustomRuleTemplates(input = []) {
         if (!item || typeof item !== 'object') continue;
 
         const content = typeof item.content === 'string' ? item.content.trim() : '';
-        if (!content || content.length > MAX_TEMPLATE_CONTENT_LENGTH || !hasIniShape(content)) continue;
+        if (!content || content.length > MAX_TEMPLATE_CONTENT_LENGTH) continue;
+
+        const type = item.type === 'profile' ? 'profile' : 'ini';
+        const target = type === 'profile' ? normalizeTemplateTarget(item.target) : '';
+        if (type === 'ini' && !hasIniShape(content)) continue;
+        if (type === 'profile' && (!FULL_PROFILE_TARGETS.has(target) || !hasFullProfileShape(content, target))) continue;
 
         let id = sanitizeId(item.id) || createId();
         while (seen.has(id)) {
@@ -52,7 +89,9 @@ export function normalizeCustomRuleTemplates(input = []) {
             id,
             name,
             description: String(item.description || '').trim().slice(0, 300),
-            type: 'ini',
+            type,
+            target,
+            fileName: String(item.fileName || '').trim().slice(0, 120),
             content,
             enabled: item.enabled !== false,
             createdAt,

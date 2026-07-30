@@ -231,17 +231,19 @@ Profile 输出链路：
 - 设置保存后会清除 `SettingsCache` 和节点缓存。
 - 设置保存时会尽量同步到 D1 和 KV，以保持双存储环境一致。
 
-## 6. 自定义规则模板模型
+## 6. 自定义模板模型
 
-自定义规则模板通过 `misub_rule_templates_v1` 存储，D1 模式下会落在 `settings` 表的同名 key。
+自定义模板通过 `misub_rule_templates_v1` 存储，D1 模式下会落在 `settings` 表的同名 key。旧版 INI 规则模板与完整客户端配置模板使用同一份兼容存储。
 
 字段：
 
 - `id`：模板 ID，清洗后仅允许字母、数字、`_`、`-`，最长 80。
 - `name`：模板名称，最长 80。
 - `description`：描述，最长 300。
-- `type`：当前固定为 `ini`。
-- `content`：模板内容，最长 128 KiB，必须具备 ini 形态。
+- `type`：`ini` 表示规则模板；`profile` 表示完整客户端配置。
+- `target`：完整配置的目标格式，支持 `clash`、`singbox`、`surge`、`loon`、`quanx`、`egern`；INI 模板为空。
+- `fileName`：完整配置的可选下载文件名。
+- `content`：模板内容，最长 128 KiB。INI 模板必须具备 ini 形态；完整配置必须符合目标格式的基础结构。
 - `enabled`：是否启用。
 - `createdAt`：创建时间。
 - `updatedAt`：更新时间，保存时刷新。
@@ -249,7 +251,9 @@ Profile 输出链路：
 限制：
 
 - 最多保存 50 个模板。
-- 内容必须匹配 `[custom]`、`[proxy group]`、`[rule]`、`[ruleset]` 或 `[proxy]` 等 ini 结构。
+- INI 规则模板必须匹配 `[custom]`、`[proxy group]`、`[rule]`、`[ruleset]` 或 `[proxy]` 等结构。
+- 完整配置使用 `{{MISUB_ALL}}`、`{{MISUB_INCLUDE:正则}}`、`{{MISUB_EXCLUDE:正则}}` 作为策略组节点占位符。
+- 请求可通过 `template=custom:<id>` 为同一个订阅组选择不同完整配置。
 
 ## 7. 前后端命名差异
 

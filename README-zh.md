@@ -46,6 +46,8 @@
 - **🧩 统一模板与链式处理**
   - **操作符链 (Operator Chain)**：支持过滤、重命名、脚本、排序与去重的流式管道
   - 统一模板模型输出 Clash、Sing-Box、Surge、Loon、QX
+  - 支持将订阅组节点注入用户自有的 Clash、Sing-Box、Surge、Loon、QX、Egern 完整配置
+  - 同一订阅组可通过 `template=custom:<id>` 输出多设备、多客户端配置
   - 支持按客户端自动适配模板策略
   - 内置 ACL4SSR 风格完整分流模板预设
   - 支持第三方转换后端接入，MiSub 先完成节点预处理再交给外部后端转换

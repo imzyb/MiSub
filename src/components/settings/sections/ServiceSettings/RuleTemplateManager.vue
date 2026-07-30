@@ -6,6 +6,14 @@ import { useI18n } from '@/i18n/index.js';
 const { t } = useI18n();
 
 const dataStore = useDataStore();
+const PROFILE_TARGETS = [
+  { value: 'clash', label: 'Mihomo / Clash' },
+  { value: 'singbox', label: 'Sing-box' },
+  { value: 'surge', label: 'Surge' },
+  { value: 'loon', label: 'Loon' },
+  { value: 'quanx', label: 'Quantumult X' },
+  { value: 'egern', label: 'Egern' }
+];
 
 const DEFAULT_RULE_TEMPLATE_CONTENT = `[custom]
 ruleset=🎯 全球直连,[]GEOIP,CN
@@ -35,6 +43,8 @@ const blankTemplate = () => ({
   name: '',
   description: '',
   type: 'ini',
+  target: '',
+  fileName: '',
   content: DEFAULT_RULE_TEMPLATE_CONTENT,
   enabled: true
 });
@@ -181,6 +191,27 @@ async function saveTemplates() {
           </label>
         </div>
 
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ t('settings.ruleTemplateType') }}</span>
+            <select v-model="selectedTemplate.type" class="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+              <option value="ini">{{ t('settings.ruleTemplateTypeIni') }}</option>
+              <option value="profile">{{ t('settings.ruleTemplateTypeProfile') }}</option>
+            </select>
+          </label>
+          <label v-if="selectedTemplate.type === 'profile'" class="block">
+            <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ t('settings.ruleTemplateTarget') }}</span>
+            <select v-model="selectedTemplate.target" class="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+              <option value="" disabled>{{ t('settings.ruleTemplateTargetPlaceholder') }}</option>
+              <option v-for="target in PROFILE_TARGETS" :key="target.value" :value="target.value">{{ target.label }}</option>
+            </select>
+          </label>
+          <label v-if="selectedTemplate.type === 'profile'" class="block">
+            <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ t('settings.ruleTemplateFileName') }}</span>
+            <input v-model="selectedTemplate.fileName" :placeholder="t('settings.ruleTemplateFileNamePlaceholder')" class="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
+          </label>
+        </div>
+
         <label class="block">
           <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ t('settings.ruleTemplateDescription') }}</span>
           <input v-model="selectedTemplate.description" :placeholder="t('settings.ruleTemplateDescriptionPlaceholder')" class="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
@@ -188,6 +219,9 @@ async function saveTemplates() {
 
         <label class="block">
           <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ t('settings.ruleTemplateContent') }}</span>
+          <p v-if="selectedTemplate.type === 'profile'" class="mb-2 text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
+            {{ t('settings.ruleTemplateProfileHint') }}
+          </p>
           <textarea
             v-model="selectedTemplate.content"
             rows="12"

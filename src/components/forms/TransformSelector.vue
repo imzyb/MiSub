@@ -61,9 +61,11 @@ const customTemplateAssets = computed(() => {
       id: `custom:${item.id}`,
       name: item.name || '未命名自定义规则模板',
       url: `custom:${item.id}`,
-      group: '自定义规则模板',
+      group: item.type === 'profile' ? '完整配置模板' : '自定义规则模板',
       sourceType: 'custom-template',
-      description: item.description || '本地保存的自定义规则模板'
+      description: item.description || (item.type === 'profile'
+        ? `${item.target || '未知目标'} 完整配置模板`
+        : '本地保存的自定义规则模板')
     }));
 });
 

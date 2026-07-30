@@ -40,6 +40,7 @@ It is designed for personal and small-team usage: simple operations, clear clien
 - **Operator Chain**: process nodes with filter, regex rename, script/DSL execution, sorting, and smart deduplication steps.
 - **Multi-client output**: generate subscription output for Clash/Mihomo, Sing-Box, Surge, Loon, Quantumult X, Shadowrocket, V2rayN/V2rayNG, and base64 clients.
 - **Built-in templates**: use unified template output, rule-set presets, region groups, policy groups, and custom rule templates.
+- **Full profile templates**: inject profile nodes into user-owned Clash, Sing-Box, Surge, Loon, Quantumult X, and Egern configurations while preserving the rest of each file.
 - **Custom public page**: publish a public explore page or an immersive disguise/custom page with sanitized HTML rendering.
 - **Storage options**: use Cloudflare KV for simple deployments or Cloudflare D1 for higher write volume and structured storage.
 - **Notifications and operations**: support Telegram notifications, scheduled refresh, backup/restore, logs, and diagnostics.
@@ -167,6 +168,9 @@ Profiles can inherit a global default operator chain or define their own process
 - Deduplicate nodes with protocol-aware smart rules.
 
 See [Operator Chain Guide](docs/OPERATOR_CHAIN_GUIDE.md) for details.
+
+For injecting profile nodes into complete user-owned client configurations, see
+[Full profile templates](docs/full-profile-templates.md).
 
 ## Security Notes
 
