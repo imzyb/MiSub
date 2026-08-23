@@ -1,5 +1,5 @@
 {
-  "name": "misub",
+  "name": "misubsb",
   "version": "2.7.0",
   "private": true,
   "type": "module",
@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:server": "npx wrangler pages dev public --port 8787",
     "build": "vite build",
+    "deploy": "wrangler deploy",
     "preview": "vite preview",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
