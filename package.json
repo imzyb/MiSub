@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "dompurify": "^3.2.6",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.3.1",
     "pinia": "^3.0.3",
     "qrcode": "^1.5.4",
     "vue": "^3.5.18",
