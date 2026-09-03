@@ -76,6 +76,20 @@ const D1_SCHEMA_STATEMENTS = [
     `CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`
 ];
 
+/**
+ * 以 settings 表为家的已知业务键。
+ * D1StorageAdapter._parseKey 靠它区分「预期的业务键」与「真正的未知 key」，
+ * 后者才告警。与 D1_MIGRATION_KEYS 保持一致。
+ */
+const D1_KNOWN_SETTINGS_KEYS = new Set([
+    'misub_dns_templates_v1',
+    'misub_rule_templates_v1',
+    'misub_clients_v1',
+    'misub_guestbook_v1',
+    'misub_settings_v1',
+    'misub_restore_snapshot_latest'
+]);
+
 async function ensureD1Schema(d1Db) {
     for (const statement of D1_SCHEMA_STATEMENTS) {
         await d1Db.prepare(statement).run();
@@ -538,6 +552,11 @@ class D1StorageAdapter {
             if (String(key).startsWith('misub_guestbook_v1')) {
                 return { table: 'settings', queryField: 'key', queryValue: key };
             }
+            // 这些业务键本来就以 settings 表为家（KV→D1 迁移会主动写它们），
+            // 不该走下面那条「未知格式」告警，否则真正的异常 key 会被噪声淹掉。
+            if (D1_KNOWN_SETTINGS_KEYS.has(String(key))) {
+                return { table: 'settings', queryField: 'key', queryValue: key };
+            }
             // 处理其他格式的 key，默认作为 settings 表的 key，但记录警告
             console.warn(`[D1 Storage] Unknown key format: ${key}, treating as settings key`);
             return { table: 'settings', queryField: 'key', queryValue: key };
@@ -763,6 +782,37 @@ export class StorageFactory {
 }
 
 /**
+ * KV → D1 需要搬运的业务键。
+ *
+ * 原实现只搬 subscriptions / profiles / settings 三个键，其余业务数据（DNS 模板、
+ * 规则模板、客户端、留言板……）留在 KV 里，迁移后按 storageType='d1' 读就全成空，
+ * 而接口仍返回「数据已成功迁移」。用户照官方引导解绑 KV 后就再也取不回。
+ *
+ * 刻意不搬的键，各有原因：
+ *   misub_webdav_backup_lock  —— 定时任务互斥锁，搬一个过期锁过去会挡住下次备份
+ *   misub_system_logs         —— 诊断日志，体积可能很大，非业务数据
+ *   misub_error_reports       —— 同上
+ *   misub_data_v1             —— 更早的遗留格式，由 api-router 的独立升级路径处理
+ */
+const D1_MIGRATION_KEYS = [
+    DATA_KEYS.SUBSCRIPTIONS,
+    DATA_KEYS.PROFILES,
+    'misub_dns_templates_v1',
+    'misub_rule_templates_v1',
+    'misub_clients_v1',
+    'misub_guestbook_v1',
+    'misub_settings_v1',
+    'misub_restore_snapshot_latest'
+];
+
+/** 需要按前缀枚举后逐条搬运的键 */
+const D1_MIGRATION_KEY_PREFIXES = [
+    DATA_KEYS.PROFILE_DOWNLOAD_COUNT_PREFIX
+];
+
+export { D1_MIGRATION_KEYS, D1_MIGRATION_KEY_PREFIXES };
+
+/**
  * 数据迁移工具
  */
 export class DataMigrator {
@@ -779,45 +829,65 @@ export class DataMigrator {
             const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
             await ensureD1Schema(d1Adapter.db);
 
+            // keys: 逐键结果，'migrated' | 'empty' | 'failed'
             const results = {
                 subscriptions: false,
                 profiles: false,
                 settings: false,
+                keys: {},
                 errors: []
             };
 
-            // 迁移订阅数据
-            try {
-                const subscriptions = await kvAdapter.get(DATA_KEYS.SUBSCRIPTIONS);
-                if (subscriptions) {
-                    await d1Adapter.put(DATA_KEYS.SUBSCRIPTIONS, subscriptions);
-                    results.subscriptions = true;
+            const copyKey = async key => {
+                try {
+                    const value = await kvAdapter.get(key);
+                    if (value === null || value === undefined) {
+                        results.keys[key] = 'empty';
+                        return false;
+                    }
+                    await d1Adapter.put(key, value);
+                    results.keys[key] = 'migrated';
+                    return true;
+                } catch (error) {
+                    results.keys[key] = 'failed';
+                    results.errors.push(`${key} 迁移失败: ${error.message}`);
+                    return false;
                 }
-            } catch (error) {
-                results.errors.push(`订阅数据迁移失败: ${error.message}`);
+            };
+
+            for (const key of D1_MIGRATION_KEYS) {
+                const ok = await copyKey(key);
+                if (key === DATA_KEYS.SUBSCRIPTIONS) results.subscriptions = ok;
+                if (key === DATA_KEYS.PROFILES) results.profiles = ok;
             }
 
-            // 迁移配置文件
-            try {
-                const profiles = await kvAdapter.get(DATA_KEYS.PROFILES);
-                if (profiles) {
-                    await d1Adapter.put(DATA_KEYS.PROFILES, profiles);
-                    results.profiles = true;
+            // 前缀键：先枚举再逐条搬
+            for (const prefix of D1_MIGRATION_KEY_PREFIXES) {
+                try {
+                    const listed = await kvAdapter.list(prefix);
+                    for (const entry of listed) {
+                        const key = typeof entry === 'string' ? entry : entry?.name;
+                        if (key) await copyKey(key);
+                    }
+                } catch (error) {
+                    results.errors.push(`前缀 ${prefix} 枚举失败: ${error.message}`);
                 }
-            } catch (error) {
-                results.errors.push(`配置文件迁移失败: ${error.message}`);
             }
 
-            // 迁移设置
+            // settings 放在最后：storageType 要在其余数据都就位之后才翻成 d1，
+            // 否则中途失败会留下「已切 d1、数据还在 kv」的半迁移状态。
             try {
                 const settings = await kvAdapter.get(DATA_KEYS.SETTINGS);
                 if (settings) {
-                    // 更新存储类型为 D1
                     settings.storageType = STORAGE_TYPES.D1;
                     await d1Adapter.put(DATA_KEYS.SETTINGS, settings);
                     results.settings = true;
+                    results.keys[DATA_KEYS.SETTINGS] = 'migrated';
+                } else {
+                    results.keys[DATA_KEYS.SETTINGS] = 'empty';
                 }
             } catch (error) {
+                results.keys[DATA_KEYS.SETTINGS] = 'failed';
                 results.errors.push(`设置迁移失败: ${error.message}`);
             }
 
