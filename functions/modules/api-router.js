@@ -99,10 +99,14 @@ export async function handleApiRequest(request, env, context = null) {
                     partialSuccess: migrationResult
                 }, 500);
             }
+            const migratedKeys = Object.entries(migrationResult.keys || {})
+                .filter(([, state]) => state === 'migrated')
+                .map(([key]) => key);
             return createJsonResponse({
                 success: true,
-                message: '数据已成功迁移到 D1 数据库',
-                details: migrationResult
+                message: `数据已成功迁移到 D1 数据库（搬运 ${migratedKeys.length} 个键）`,
+                details: migrationResult,
+                migratedKeys
             });
 
         } catch (error) {
