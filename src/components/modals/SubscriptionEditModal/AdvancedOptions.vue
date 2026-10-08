@@ -30,6 +30,8 @@
             <option value="clash.meta">Clash Meta</option>
             <option value="v2rayN/7.23">v2rayN</option>
             <option value="Shadowrocket/1.9.0">Shadowrocket</option>
+            <option value="Karing">Karing</option>
+            <option value="sing-box">sing-box</option>
             <option value="Mozilla/5.0">Mozilla</option>
         </select>
         <p

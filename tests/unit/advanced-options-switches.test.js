@@ -28,4 +28,25 @@ describe('AdvancedOptions', () => {
         expect(wrapper.text()).toContain('在多个机场订阅合并展示流量时，忽略此机场的流量信息');
         expect(wrapper.findAllComponents({ name: 'Switch' }).length).toBe(3);
     });
+
+    it('offers Karing and sing-box User-Agent presets', () => {
+        const wrapper = mount(AdvancedOptions, {
+            props: {
+                editingSubscription: {
+                    customUserAgent: '',
+                    notes: '',
+                    enableNodeCache: false,
+                    plusAsSpace: false,
+                    excludeTraffic: false,
+                },
+            },
+            global: {
+                plugins: [createI18n({ initialLocale: 'zh-CN' })],
+            },
+        });
+
+        const options = wrapper.find('#sub-edit-ua').findAll('option');
+        expect(options.map((option) => option.element.value)).toContain('Karing');
+        expect(options.map((option) => option.element.value)).toContain('sing-box');
+    });
 });
