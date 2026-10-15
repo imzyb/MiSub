@@ -172,6 +172,10 @@ function clashProxyToSurgeResult(proxy) {
             parts.push(`port-hopping-interval=${proxy['port-hopping-interval']}`);
         }
         // TLS 通用参数
+        // Salamander 混淆 (Surge 用 salamander-password 表达, Mac 6.4.4+ / iOS 5.17.0+)
+        if (String(proxy.obfs || '').toLowerCase() === 'salamander' && proxy['obfs-password']) {
+            parts.push('salamander-password=' + surgeQuote(proxy['obfs-password']));
+        }
         appendTlsParams(parts, proxy);
     } else if (type === 'tuic') {
         // 格式: name = tuic, server, port, token=xxx

@@ -83,6 +83,9 @@ function buildProxyLine(proxy) {
         const extras = [`password=${proxy.password || ''}`];
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
+        // Surge 用 salamander-password 表达 Hysteria2 Salamander 混淆 (Mac 6.4.4+ / iOS 5.17.0+)
+        if (String(proxy.obfs || '').toLowerCase() === 'salamander' && proxy['obfs-password'])
+            extras.push('salamander-password=' + proxy['obfs-password']);
         return `${name} = hysteria2, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'tuic') {
