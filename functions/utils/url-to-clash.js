@@ -1069,10 +1069,12 @@ function parseWireguardUrl(url) {
                 .split(',')
                 .map((a) => a.trim())
                 .filter(Boolean);
-
+            
+            const ipv4 = addresses.filter((a) => !a.includes(':'));
             const ipv6 = addresses.find((a) => a.includes(':'));
 
-            if (addresses.length > 0) proxy.ip = addresses;
+            // if (addresses.length > 0) proxy.ip = addresses;
+            if (ipv4.length > 0) proxy.ip = ipv4;  // 避免 v4/v6 同时被添加到 ip 字段
             if (ipv6) proxy.ipv6 = ipv6;
         }
 
