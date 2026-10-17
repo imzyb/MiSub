@@ -349,7 +349,25 @@ export function buildSubscriptionNodeCacheKey(sub = {}) {
     return `node_cache_subscription_url_${Math.abs(hash).toString(36)}`;
 }
 
-async function readSubscriptionNodeCache(storage, sub) {
+/**
+ * 构建订阅"过滤配置"指纹（exclude 文本 + 算子链 + 旧版 nodeTransform）。
+ * 用于区分"节点数缩减是用户改了过滤配置"与"上游响应被截断"：
+ * 前者是预期行为，不应触发骤降保护或回退旧缓存。
+ */
+export function buildSubscriptionFilterFingerprint(sub = {}) {
+    const exclude = typeof sub.exclude === 'string' ? sub.exclude.trim() : '';
+    const operators = Array.isArray(sub.operators) ? JSON.stringify(sub.operators) : '';
+    const nodeTransform = sub.nodeTransform ? JSON.stringify(sub.nodeTransform) : '';
+    return JSON.stringify([exclude, operators, nodeTransform]);
+}
+
+/**
+ * 读取单机场订阅的保护性缓存（预览链路与输出链路共用）。
+ * @param {Object} storage 存储适配器
+ * @param {Object} sub 订阅对象（用于构建缓存 key）
+ * @returns {Promise<{nodes: string[], nodeCount: number, updatedAt: string, filterFingerprint?: string}|null>}
+ */
+export async function readSubscriptionNodeCache(storage, sub) {
     if (!storage?.get) return null;
     try {
         const cached = await storage.get(buildSubscriptionNodeCacheKey(sub));
@@ -372,6 +390,7 @@ async function writeSubscriptionNodeCache(storage, sub, nodes) {
             nodes: realNodes,
             nodeCount: realNodes.length,
             updatedAt: new Date().toISOString(),
+            filterFingerprint: buildSubscriptionFilterFingerprint(sub),
             sourceId: sub?.id || null,
             sourceName: sub?.name || '',
             sourceUrl: sub?.url || '',
@@ -740,6 +759,15 @@ export async function generateCombinedNodeList(
             const cached = await readSubscriptionNodeCache(storage, sub);
             return cached?.nodes || [];
         };
+        const readCacheEntry = async () => {
+            if (!cacheEnabled) return null;
+            return readSubscriptionNodeCache(storage, sub);
+        };
+        // 旧缓存没有指纹时视为"配置未变化"，保持原有的截断保护行为
+        const hasFilterConfigChanged = (cached) =>
+            Boolean(cached) &&
+            typeof cached.filterFingerprint === 'string' &&
+            cached.filterFingerprint !== buildSubscriptionFilterFingerprint(sub);
 
         try {
             const customUserAgent =
@@ -804,6 +832,11 @@ export async function generateCombinedNodeList(
 
             let validNodes = fallbackParsedObjects.map((node) => node.url);
 
+            // [截断检测基线] 骤降保护必须基于"过滤前"的上游真实节点数：
+            // 用户配置的 include/exclude 过滤与算子链造成的缩减是预期行为，
+            // 若基于过滤后的数量比较，开启仅包含过滤会导致输出被整体清空。
+            const upstreamRealNodeCount = validNodes.filter(isRealProxyNode).length;
+
             // --- 统一转换治理 (算子 + 过滤 + 组级诊断) ---
             validNodes = await applySubscriptionTransforms(validNodes, sub);
 
@@ -814,11 +847,11 @@ export async function generateCombinedNodeList(
             );
             if (
                 Number.isFinite(knownNodeCount) &&
-                isSuspiciousNodeCountDrop(knownNodeCount, realNodes.length)
+                isSuspiciousNodeCountDrop(knownNodeCount, upstreamRealNodeCount)
             ) {
                 const cachedNodes = await readCachedNodes();
                 console.warn(
-                    `[Subscription] Rejecting suspicious node-count drop for ${sub.id || sub.url} (${knownNodeCount} known -> ${realNodes.length} fetched)`
+                    `[Subscription] Rejecting suspicious node-count drop for ${sub.id || sub.url} (${knownNodeCount} known -> ${upstreamRealNodeCount} fetched)`
                 );
                 if (cachedNodes.length > 0) return cachedNodes.join('\n');
                 // Do not write nodeCount=0 here: this response is suspicious,
@@ -826,15 +859,19 @@ export async function generateCombinedNodeList(
                 return '';
             }
             if (cacheEnabled && realNodes.length === 0) {
-                return (await readCachedNodes()).join('\n');
-            }
-            if (cacheEnabled) {
-                const cachedNodes = await readCachedNodes();
-                if (isSuspiciousNodeCountDrop(cachedNodes.length, realNodes.length)) {
+                // 过滤条件变化后命中 0 节点是配置的预期结果，不能回退旧配置的缓存节点
+                const cached = await readCacheEntry();
+                if (!hasFilterConfigChanged(cached)) return (cached?.nodes || []).join('\n');
+            } else if (cacheEnabled) {
+                const cached = await readCacheEntry();
+                if (
+                    !hasFilterConfigChanged(cached) &&
+                    isSuspiciousNodeCountDrop(cached?.nodes?.length || 0, realNodes.length)
+                ) {
                     console.warn(
-                        `[SubscriptionCache] Refusing suspicious node-count drop for ${sub.id || sub.url} (${cachedNodes.length} -> ${realNodes.length})`
+                        `[SubscriptionCache] Refusing suspicious node-count drop for ${sub.id || sub.url} (${cached.nodes.length} -> ${realNodes.length})`
                     );
-                    return cachedNodes.join('\n');
+                    return cached.nodes.join('\n');
                 }
             }
             if (!cacheEnabled && realNodes.length === 0) {

@@ -67,7 +67,7 @@ export async function handleSingleSubscriptionMode(
         };
     }
 
-    // HTTP订阅：获取节点
+    // HTTP订阅：获取节点（开启保护性缓存时，上游失败回退缓存节点，与输出链路一致）
     const result = await fetchSubscriptionNodes(
         subscription.url,
         subscription.name,
@@ -78,7 +78,9 @@ export async function handleSingleSubscriptionMode(
         subscription.fetchProxy,
         skipCertVerify,
         Boolean(subscription?.plusAsSpace),
-        subscription?.enableNodeCache === true
+        subscription?.enableNodeCache === true,
+        storageAdapter,
+        subscription
     );
 
     return {

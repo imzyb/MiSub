@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+    buildSubscriptionFilterFingerprint,
     buildSubscriptionNodeCacheKey,
     generateCombinedNodeList,
     isRealProxyNode,
@@ -478,5 +479,192 @@ describe('subscription protective node cache', () => {
         expect(updatedSub.userInfo).toBeNull();
         expect(updatedSub.lastError).toBeNull();
         expect(typeof updatedSub.lastUpdate).toBe('string');
+    });
+});
+
+describe('shrink protection vs user include filters', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const SUB_A = { id: 'sub-a', name: '机场A', url: 'https://example.com/sub' };
+
+    function buildUpstreamNodes(total, primeCount) {
+        const nodes = [];
+        for (let i = 0; i < total - primeCount; i++) {
+            nodes.push(
+                `trojan://pass${i}@node${i}.example.com:443#${encodeURIComponent(`香港-Ordinary-${i}`)}`
+            );
+        }
+        for (let i = 0; i < primeCount; i++) {
+            nodes.push(
+                `trojan://prime${i}@prime${i}.example.com:443#${encodeURIComponent(`!美国1 Gemini｜AI家宽【Prime】${i}`)}`
+            );
+        }
+        return nodes.join('\n');
+    }
+
+    it('仅包含过滤导致节点数骤降时，不得误判为上游截断而清空输出', async () => {
+        const storage = createMemoryStorage();
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(buildUpstreamNodes(40, 2), { status: 200 }))
+        );
+
+        const result = await generateCombinedNodeList(
+            { storage },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [
+                {
+                    ...SUB_A,
+                    enabled: true,
+                    enableNodeCache: false,
+                    nodeCount: 40,
+                    lastGoodNodeCount: 40,
+                    exclude: 'keep:Prime',
+                },
+            ],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        const lines = result.trim().split('\n').filter(Boolean);
+        expect(lines).toHaveLength(2);
+        lines.forEach((line) => expect(line).toContain('Prime'));
+        lines.forEach((line) => expect(line).not.toContain('Ordinary'));
+    });
+
+    it('保护性缓存开启时，过滤条件变化后应接受新结果并覆盖旧缓存', async () => {
+        const cacheKey = buildSubscriptionNodeCacheKey(SUB_A);
+        const cachedNodes = Array.from(
+            { length: 40 },
+            (_, index) =>
+                `trojan://pass${index}@node${index}.example.com:443#${encodeURIComponent(`香港-Ordinary-${index}`)}`
+        );
+        const storage = createMemoryStorage({
+            // 旧缓存写于未配置过滤的时期：指纹与当前配置不同
+            [cacheKey]: {
+                nodes: cachedNodes,
+                nodeCount: cachedNodes.length,
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                filterFingerprint: buildSubscriptionFilterFingerprint({}),
+            },
+        });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(buildUpstreamNodes(40, 2), { status: 200 }))
+        );
+
+        const result = await generateCombinedNodeList(
+            { storage },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [
+                {
+                    ...SUB_A,
+                    enabled: true,
+                    enableNodeCache: true,
+                    nodeCount: 40,
+                    lastGoodNodeCount: 40,
+                    exclude: 'keep:Prime',
+                },
+            ],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        const lines = result.trim().split('\n').filter(Boolean);
+        expect(lines).toHaveLength(2);
+        lines.forEach((line) => expect(line).toContain('Prime'));
+
+        const cache = await storage.get(cacheKey);
+        expect(cache.nodes).toHaveLength(2);
+        cache.nodes.forEach((node) => expect(node).toContain('Prime'));
+    });
+
+    it('过滤条件变化后命中 0 节点时，不回退旧配置的缓存节点', async () => {
+        const cacheKey = buildSubscriptionNodeCacheKey(SUB_A);
+        const cachedNodes = Array.from(
+            { length: 40 },
+            (_, index) =>
+                `trojan://pass${index}@node${index}.example.com:443#${encodeURIComponent(`香港-Ordinary-${index}`)}`
+        );
+        const storage = createMemoryStorage({
+            [cacheKey]: {
+                nodes: cachedNodes,
+                nodeCount: cachedNodes.length,
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                filterFingerprint: buildSubscriptionFilterFingerprint({}),
+            },
+        });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(buildUpstreamNodes(40, 0), { status: 200 }))
+        );
+
+        const result = await generateCombinedNodeList(
+            { storage },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [
+                {
+                    ...SUB_A,
+                    enabled: true,
+                    enableNodeCache: true,
+                    nodeCount: 40,
+                    lastGoodNodeCount: 40,
+                    exclude: 'keep:Prime',
+                },
+            ],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        expect(result.trim()).toBe('');
+    });
+
+    it('过滤条件未变化时，真实截断仍然回退保护性缓存', async () => {
+        const cacheKey = buildSubscriptionNodeCacheKey(SUB_A);
+        const subWithFilter = {
+            ...SUB_A,
+            enabled: true,
+            enableNodeCache: true,
+            exclude: 'keep:Prime',
+        };
+        const cachedNodes = Array.from(
+            { length: 20 },
+            (_, index) =>
+                `trojan://prime${index}@prime${index}.example.com:443#${encodeURIComponent(`!美国1 Gemini｜AI家宽【Prime】${index}`)}`
+        );
+        const storage = createMemoryStorage({
+            [cacheKey]: {
+                nodes: cachedNodes,
+                nodeCount: cachedNodes.length,
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                filterFingerprint: buildSubscriptionFilterFingerprint(subWithFilter),
+            },
+        });
+        // 上游被截断：仅剩 1 个 Prime 节点（过滤后 1/20 < 0.3）
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(buildUpstreamNodes(1, 1), { status: 200 }))
+        );
+
+        const result = await generateCombinedNodeList(
+            { storage },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [subWithFilter],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        const lines = result.trim().split('\n').filter(Boolean);
+        expect(lines).toHaveLength(cachedNodes.length);
     });
 });
