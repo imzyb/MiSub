@@ -4,6 +4,7 @@
 
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 import { isLocalProxyEndpoint } from './node-utils.js';
+import { parseXhttpExtra, applyDownloadInheritanceGuard } from './xhttp-extra.js';
 
 const VIRTUAL_INFO_NODE_PASSWORD = '00000000-0000-0000-0000-000000000000';
 
@@ -191,46 +192,27 @@ function parseVlessUrl(url) {
                 xhttpOpts.mode = params.get('mode');
             }
 
-            /*
-             * Xray XHTTP 分享链接中的高级参数通常保存在 extra JSON 中：
-             *
-             * extra={
-             *   "xPaddingObfsMode": true,
-             *   "xPaddingMethod": "tokenish",
-             *   "xPaddingPlacement": "queryInHeader",
-             *   "xPaddingHeader": "...",
-             *   "xPaddingKey": "..."
-             * }
-             *
-             * 转换为 Mihomo / Clash Meta 的 xhttp-opts 字段。
-             */
-            const extraRaw = params.get('extra');
-
-            if (extraRaw) {
+            const extraParam = params.get('extra');
+            if (extraParam) {
                 try {
-                    const extra = JSON.parse(extraRaw);
-
-                    if (Object.prototype.hasOwnProperty.call(extra, 'xPaddingObfsMode')) {
-                        xhttpOpts['x-padding-obfs-mode'] = extra.xPaddingObfsMode;
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(extra, 'xPaddingMethod')) {
-                        xhttpOpts['x-padding-method'] = extra.xPaddingMethod;
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(extra, 'xPaddingPlacement')) {
-                        xhttpOpts['x-padding-placement'] = extra.xPaddingPlacement;
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(extra, 'xPaddingHeader')) {
-                        xhttpOpts['x-padding-header'] = extra.xPaddingHeader;
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(extra, 'xPaddingKey')) {
-                        xhttpOpts['x-padding-key'] = extra.xPaddingKey;
+                    const extraFields = parseXhttpExtra(JSON.parse(extraParam));
+                    const { headers: extraHeaders, ...rest } = extraFields;
+                    Object.assign(xhttpOpts, rest);
+                    // URL 的 host 参数是分享链接的显式声明，优先级高于 extra 里的同名头；
+                    // HTTP 头名大小写不敏感，小写 host 也要让位，避免同一头出现两份。
+                    if (extraHeaders) {
+                        const mergedHeaders = { ...extraHeaders };
+                        if (xhttpOpts.headers?.Host) {
+                            for (const key of Object.keys(mergedHeaders)) {
+                                if (key.toLowerCase() === 'host') {
+                                    delete mergedHeaders[key];
+                                }
+                            }
+                        }
+                        xhttpOpts.headers = { ...mergedHeaders, ...(xhttpOpts.headers || {}) };
                     }
                 } catch (e) {
-                    // extra 非法时不能让整个订阅转换失败
+                    // extra 非法时不能让整个订阅转换失败。
                     console.warn('[MiSub] XHTTP extra 参数解析失败:', e);
                 }
             }
@@ -321,6 +303,14 @@ function parseVlessUrl(url) {
         // [重要] dialer-proxy 链式代理
         if (params.get('dp')) {
             proxy['dialer-proxy'] = params.get('dp');
+        }
+
+        const xhttpOpts = proxy['xhttp-opts'];
+        if (xhttpOpts) {
+            const upstreamPublicKey = proxy['reality-opts'] && proxy['reality-opts']['public-key'];
+            applyDownloadInheritanceGuard(xhttpOpts, {
+                upstreamReality: typeof upstreamPublicKey === 'string' && upstreamPublicKey !== '',
+            });
         }
 
         return proxy;

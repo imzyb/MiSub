@@ -1,3 +1,5 @@
+import { serializeXhttpExtra } from './xhttp-extra.js';
+
 function base64Encode(str) {
     return btoa(unescape(encodeURIComponent(str)));
 }
@@ -212,9 +214,17 @@ export function convertClashProxyToUrl(proxy) {
             const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
             if (xhttpOpts) {
                 if (xhttpOpts.path) params.push(`path=${encodeURIComponent(xhttpOpts.path)}`);
-                const xhttpHost = xhttpOpts.host || xhttpOpts.headers?.Host;
+                // Clash 源的 headers 由人工书写，Host 的大小写不受约束。
+                const headerHost = Object.entries(xhttpOpts.headers || {}).find(
+                    ([key]) => key.toLowerCase() === 'host'
+                )?.[1];
+                const xhttpHost = xhttpOpts.host || headerHost;
                 if (xhttpHost) params.push(`host=${encodeURIComponent(xhttpHost)}`);
                 if (xhttpOpts.mode) params.push(`mode=${encodeURIComponent(xhttpOpts.mode)}`);
+                const extraObj = serializeXhttpExtra(xhttpOpts);
+                if (extraObj) {
+                    params.push(`extra=${encodeURIComponent(JSON.stringify(extraObj))}`);
+                }
             }
             const realityOpts = proxy['reality-opts'];
             if (realityOpts) {
