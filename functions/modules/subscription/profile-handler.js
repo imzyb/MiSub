@@ -181,7 +181,7 @@ export async function handleProfileMode(
         };
     });
 
-    // 并行获取HTTP订阅节点
+    // 并行获取HTTP订阅节点（开启保护性缓存时，上游失败回退缓存节点，与输出链路一致）
     const subscriptionResults = await Promise.all(
         targetSubscriptions.map((sub) =>
             fetchSubscriptionNodes(
@@ -194,7 +194,9 @@ export async function handleProfileMode(
                 sub.fetchProxy,
                 skipCertVerify,
                 Boolean(sub?.plusAsSpace),
-                sub?.enableNodeCache === true
+                sub?.enableNodeCache === true,
+                storageAdapter,
+                sub
             )
         )
     );
