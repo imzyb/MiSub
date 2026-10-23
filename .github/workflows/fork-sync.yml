@@ -50,7 +50,7 @@ jobs:
           git fetch --prune origin main
           git fetch --prune upstream main
 
-      - name: Mirror upstream main
+      - name: Sync upstream main (preserve fork workflow choice)
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
@@ -64,15 +64,20 @@ jobs:
             exit 0
           fi
 
+          if git merge-base --is-ancestor "${UPSTREAM_SHA}" "${ORIGIN_SHA}"; then
+            echo "✨ Fork 已包含上游最新提交，保留 fork 上的工作流选择。"
+            exit 0
+          fi
+
           if [ -z "${SYNC_PAT:-}" ]; then
-            WORKFLOW_DIFF="$(git diff --name-only "${ORIGIN_SHA}" "${UPSTREAM_SHA}" -- .github/workflows || true)"
+            WORKFLOW_DIFF="$(git diff --name-only "${ORIGIN_SHA}" "${UPSTREAM_SHA}" -- .github/workflows | grep -v '^.github/workflows/sync-upstream\.yml$' || true)"
             if [ -n "${WORKFLOW_DIFF}" ]; then
-              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更，默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行，或在网页使用 Sync fork / Discard commits 对齐上游。"
+              echo "::notice title=Fork Sync skipped::上游包含其他 workflow 文件变更；默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请配置 SYNC_PAT（repo + workflow 权限）后手动重新运行。"
               exit 0
             fi
           fi
 
-          echo "🚀 正在镜像上游 main，fork 本地 main 上的额外提交会被丢弃。"
-          git reset --hard upstream/main
-          git push --force-with-lease origin main
-          echo "✅ Fork main 已镜像到上游 main。"
+          echo "🔁 正在合并上游 main；保留 fork 独有的提交与工作流选择。"
+          git merge --no-ff --no-edit upstream/main
+          git push origin main
+          echo "✅ Fork main 已同步到上游。"
