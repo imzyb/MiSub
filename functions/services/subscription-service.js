@@ -713,7 +713,11 @@ export async function generateCombinedNodeList(
     const processedManualNodeList = manualProcessedLines.join('\n');
 
     const httpSubs = misubs.filter(
-        (sub) => sub && sub.url && /^https?:\/\//i.test(sub.url) && !/^https?:\/\/[^/?#]+:\d+\/?#/i.test(sub.url)
+        (sub) =>
+            sub &&
+            sub.url &&
+            /^https?:\/\//i.test(sub.url) &&
+            !/^https?:\/\/[^/?#]+:\d+\/?#/i.test(sub.url)
     );
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
     let upstreamSuccessCount = 0; // 追踪真正从远程拉取成功的订阅数（不含 per-sub 缓存回退）
@@ -1135,7 +1139,7 @@ function applyManualNodeName(nodeUrl, customName) {
  * @param {Object} sub - 订阅对象
  * @returns {Array} - 过滤后的节点列表
  */
-function applyFilterRules(validNodes, sub) {
+export function applyFilterRules(validNodes, sub) {
     const ruleText = sub.exclude;
     if (!ruleText || ruleText.trim() === '') return validNodes;
 
@@ -1150,25 +1154,39 @@ function applyFilterRules(validNodes, sub) {
     const dividerIndex = lines.findIndex((line) => line === '---');
     const hasDivider = dividerIndex !== -1;
 
-    const excludeLines = hasDivider
-        ? lines.slice(0, dividerIndex)
-        : lines.filter((line) => !line.toLowerCase().startsWith('keep:'));
+    let excludeLines = [];
+    let keepLines = [];
 
-    const keepLines = hasDivider
-        ? lines.slice(dividerIndex + 1)
-        : lines.filter((line) => line.toLowerCase().startsWith('keep:'));
+    if (hasDivider) {
+        lines.slice(0, dividerIndex).forEach((l) => {
+            if (l.toLowerCase().startsWith('keep:')) {
+                keepLines.push(l);
+            } else {
+                excludeLines.push(l);
+            }
+        });
+        lines.slice(dividerIndex + 1).forEach((l) => {
+            keepLines.push(l);
+        });
+    } else {
+        excludeLines = lines.filter((line) => !line.toLowerCase().startsWith('keep:'));
+        keepLines = lines.filter((line) => line.toLowerCase().startsWith('keep:'));
+    }
 
     const excludeRules = buildRuleSet(excludeLines, false);
     const keepRules = buildRuleSet(keepLines, true);
 
-    const whitelistOnly = !hasDivider && keepRules.hasRules;
-    const shouldApplyWhitelist = (hasDivider && keepRules.hasRules) || whitelistOnly;
+    let result = validNodes;
 
-    const afterExclude = whitelistOnly
-        ? [...validNodes]
-        : filterNodes(validNodes, excludeRules, 'exclude');
+    if (keepRules.hasRules) {
+        result = filterNodes(result, keepRules, 'include');
+    }
 
-    return shouldApplyWhitelist ? filterNodes(afterExclude, keepRules, 'include') : afterExclude;
+    if (excludeRules.hasRules) {
+        result = filterNodes(result, excludeRules, 'exclude');
+    }
+
+    return result;
 }
 
 /**
