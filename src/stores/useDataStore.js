@@ -329,7 +329,28 @@ export const useDataStore = defineStore('data', () => {
     function removeProfile(id) {
         const index = profiles.value.findIndex((p) => p.id === id || p.customId === id);
         if (index !== -1) {
-            profiles.value.splice(index, 1);
+            const removed = profiles.value.splice(index, 1)[0];
+            removeProfileFromProfiles([removed.id, removed.customId].filter(Boolean));
+        }
+    }
+
+    function removeProfileFromProfiles(profileIds) {
+        const idsToRemove = Array.isArray(profileIds) ? new Set(profileIds) : new Set([profileIds]);
+        if (idsToRemove.size === 0) return;
+
+        let modified = false;
+        profiles.value.forEach((profile) => {
+            if (Array.isArray(profile.subProfiles) && profile.subProfiles.length > 0) {
+                const originalLength = profile.subProfiles.length;
+                profile.subProfiles = profile.subProfiles.filter((id) => !idsToRemove.has(id));
+                if (profile.subProfiles.length !== originalLength) {
+                    modified = true;
+                }
+            }
+        });
+
+        if (modified) {
+            profiles.value = [...profiles.value];
         }
     }
 
@@ -478,6 +499,7 @@ export const useDataStore = defineStore('data', () => {
         addProfile,
         overwriteProfiles,
         removeProfile,
+        removeProfileFromProfiles,
         removeManualNodeFromProfiles,
         removeSubscriptionFromProfiles,
         markDirty,

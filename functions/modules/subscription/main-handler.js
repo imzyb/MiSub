@@ -48,6 +48,7 @@ import {
     renderSingboxFromIniTemplate,
     renderSurgeFromIniTemplate,
 } from './template-pipeline.js';
+import { handleProfileMode } from './profile-handler.js';
 import { getBuiltinTemplate } from './builtin-template-registry.js';
 import { assertPublicNetworkUrl } from '../security-utils.js';
 
@@ -704,6 +705,49 @@ export async function handleMisubRequest(context) {
                             targetMisubs.push(node);
                         }
                     });
+                }
+
+                // 3. Add sub-profiles in order defined by profile (嵌套组合订阅)
+                const profileSubProfileIds = profile.subProfiles || [];
+                if (Array.isArray(profileSubProfileIds) && profileSubProfileIds.length > 0) {
+                    for (const subProfileId of profileSubProfileIds) {
+                        if (
+                            !subProfileId ||
+                            subProfileId === profile.id ||
+                            subProfileId === profile.customId
+                        ) {
+                            continue;
+                        }
+                        try {
+                            const subResult = await handleProfileMode(
+                                request,
+                                env,
+                                subProfileId,
+                                userAgentHeader,
+                                true,
+                                shouldSkipCertificateVerify,
+                                1,
+                                new Set([profile.id, profile.customId].filter(Boolean))
+                            );
+                            if (subResult.success && Array.isArray(subResult.nodes)) {
+                                subResult.nodes.forEach((node) => {
+                                    targetMisubs.push({
+                                        id: `nested-${subProfileId}-${node.url}`,
+                                        name: node.name,
+                                        url: node.url,
+                                        group: subResult.profileName || '组合订阅',
+                                        isFromSubProfile: true,
+                                        enabled: true,
+                                    });
+                                });
+                            }
+                        } catch (err) {
+                            console.error(
+                                `[MainHandler] Failed to resolve sub-profile ${subProfileId}:`,
+                                err
+                            );
+                        }
+                    }
                 }
             }
             // [新增] 增加订阅组下载计数

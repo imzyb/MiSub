@@ -35,6 +35,9 @@
     const subscriptionCount = computed(() =>
         Array.isArray(props.profile?.subscriptions) ? props.profile.subscriptions.length : 0
     );
+    const subProfileCount = computed(() =>
+        Array.isArray(props.profile?.subProfiles) ? props.profile.subProfiles.length : 0
+    );
     const manualNodeCount = computed(() =>
         Array.isArray(props.profile?.manualNodes) ? props.profile.manualNodes.length : 0
     );
@@ -74,13 +77,23 @@
                 >
                     {{ profile.name }}
                 </p>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{
-                        t('profiles.counts', {
-                            subscriptions: subscriptionCount,
-                            nodes: manualNodeCount,
-                        })
-                    }}
+                <p
+                    class="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-1.5"
+                >
+                    <span>
+                        {{
+                            t('profiles.counts', {
+                                subscriptions: subscriptionCount,
+                                nodes: manualNodeCount,
+                            })
+                        }}
+                    </span>
+                    <span
+                        v-if="subProfileCount > 0"
+                        class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                    >
+                        🧩 {{ t('profileModal.subProfilesCountBadge', { count: subProfileCount }) }}
+                    </span>
                 </p>
             </div>
 

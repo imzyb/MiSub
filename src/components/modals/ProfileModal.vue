@@ -3,6 +3,7 @@
     import Modal from '../forms/Modal.vue';
     import ProfileForm from './ProfileModal/ProfileForm.vue';
     import SubscriptionSelector from './ProfileModal/SubscriptionSelector.vue';
+    import SubProfileSelector from './ProfileModal/SubProfileSelector.vue';
     import NodeSelector from './ProfileModal/NodeSelector.vue';
     import { useManualNodes } from '../../composables/useManualNodes.js';
     import { useDataStore } from '../../stores/useDataStore.js';
@@ -27,7 +28,9 @@
 
     const localProfile = ref({});
     const subscriptionSearchTerm = ref('');
+    const subProfileSearchTerm = ref('');
     const nodeSearchTerm = ref('');
+    const activeResourceTab = ref('subscriptions');
     const activeManualNodeGroupFilter = ref(null);
     const showAdvanced = ref(false);
     const uiText = computed(() => ({
@@ -139,6 +142,47 @@
         });
     });
 
+    const selectableSubProfiles = computed(() => {
+        const currentId = localProfile.value?.id || props.profile?.id;
+        return (dataStore.profiles || []).filter((p) => {
+            if (!p) return false;
+            if (currentId && (p.id === currentId || p.customId === currentId)) {
+                return false;
+            }
+            return p.enabled !== false;
+        });
+    });
+
+    const filteredSubProfiles = computed(() => {
+        const list = selectableSubProfiles.value;
+        if (!subProfileSearchTerm.value) {
+            return list;
+        }
+        const lowerCaseSearchTerm = subProfileSearchTerm.value.toLowerCase();
+        const alternativeTerms = countryCodeMap[lowerCaseSearchTerm] || [];
+
+        return list.filter((p) => {
+            const pNameLower = p.name ? p.name.toLowerCase() : '';
+            const pDescLower = p.description ? p.description.toLowerCase() : '';
+            const pIdLower = p.customId ? p.customId.toLowerCase() : '';
+
+            if (
+                pNameLower.includes(lowerCaseSearchTerm) ||
+                pDescLower.includes(lowerCaseSearchTerm) ||
+                pIdLower.includes(lowerCaseSearchTerm)
+            ) {
+                return true;
+            }
+
+            for (const altTerm of alternativeTerms) {
+                if (pNameLower.includes(altTerm.toLowerCase())) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    });
+
     const filteredManualNodes = computed(() => {
         let nodes = props.allManualNodes;
 
@@ -239,12 +283,18 @@
                     ? profileCopy.operators
                     : [];
 
+                // 确保 subProfiles 数组存在
+                profileCopy.subProfiles = Array.isArray(profileCopy.subProfiles)
+                    ? profileCopy.subProfiles
+                    : [];
+
                 localProfile.value = profileCopy;
             } else {
                 localProfile.value = {
                     name: '',
                     enabled: true,
                     subscriptions: [],
+                    subProfiles: [],
                     manualNodes: [],
                     customId: '',
                     expiresAt: '',
@@ -358,33 +408,147 @@
                     @toggle-advanced="showAdvanced = !showAdvanced"
                 />
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <SubscriptionSelector
-                        :subscriptions="selectableSubscriptions"
-                        :filtered-subscriptions="filteredSubscriptions"
-                        :search-term="subscriptionSearchTerm"
-                        :selected-ids="localProfile.subscriptions || []"
-                        @update:search-term="subscriptionSearchTerm = $event"
-                        @update:selected-ids="updateSelectedIds('subscriptions', $event)"
-                        @toggle-selection="toggleSelection('subscriptions', $event)"
-                        @select-all="handleSelectAll('subscriptions', filteredSubscriptions)"
-                        @deselect-all="handleDeselectAll('subscriptions', filteredSubscriptions)"
-                    />
+                <!-- 资源类型 Tab 切换栏 -->
+                <div class="border-b border-gray-200 dark:border-gray-700">
+                    <nav
+                        class="-mb-px flex space-x-2 sm:space-x-4 overflow-x-auto pb-1"
+                        aria-label="Tabs"
+                    >
+                        <button
+                            type="button"
+                            @click="activeResourceTab = 'subscriptions'"
+                            :class="[
+                                activeResourceTab === 'subscriptions'
+                                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200',
+                                'whitespace-nowrap pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
+                            ]"
+                        >
+                            <span>📡 {{ t('profileModal.tabSubscriptions') }}</span>
+                            <span
+                                v-if="localProfile.subscriptions?.length"
+                                class="ml-1 px-1.5 py-0.2 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-semibold"
+                            >
+                                {{ localProfile.subscriptions.length }}
+                            </span>
+                        </button>
 
-                    <NodeSelector
-                        :nodes="allManualNodes"
-                        :filtered-nodes="filteredManualNodes"
-                        :search-term="nodeSearchTerm"
-                        :active-group-filter="activeManualNodeGroupFilter"
-                        :groups="manualNodeGroups"
-                        :selected-ids="localProfile.manualNodes || []"
-                        @update:search-term="nodeSearchTerm = $event"
-                        @update:group-filter="activeManualNodeGroupFilter = $event"
-                        @update:selected-ids="updateSelectedIds('manualNodes', $event)"
-                        @toggle-selection="toggleSelection('manualNodes', $event)"
-                        @select-all="handleSelectAll('manualNodes', filteredManualNodes)"
-                        @deselect-all="handleDeselectAll('manualNodes', filteredManualNodes)"
-                    />
+                        <button
+                            type="button"
+                            @click="activeResourceTab = 'subProfiles'"
+                            :class="[
+                                activeResourceTab === 'subProfiles'
+                                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200',
+                                'whitespace-nowrap pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
+                            ]"
+                        >
+                            <span>🧩 {{ t('profileModal.tabSubProfiles') }}</span>
+                            <span
+                                v-if="localProfile.subProfiles?.length"
+                                class="ml-1 px-1.5 py-0.2 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-semibold"
+                            >
+                                {{ localProfile.subProfiles.length }}
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="activeResourceTab = 'manualNodes'"
+                            :class="[
+                                activeResourceTab === 'manualNodes'
+                                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200',
+                                'whitespace-nowrap pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
+                            ]"
+                        >
+                            <span>📌 {{ t('profileModal.tabManualNodes') }}</span>
+                            <span
+                                v-if="localProfile.manualNodes?.length"
+                                class="ml-1 px-1.5 py-0.2 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-semibold"
+                            >
+                                {{ localProfile.manualNodes.length }}
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="activeResourceTab = 'all'"
+                            :class="[
+                                activeResourceTab === 'all'
+                                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200',
+                                'whitespace-nowrap pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
+                            ]"
+                        >
+                            <span>⚡ {{ t('profileModal.tabAll') }}</span>
+                        </button>
+                    </nav>
+                </div>
+
+                <div
+                    :class="
+                        activeResourceTab === 'all'
+                            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                            : 'space-y-6'
+                    "
+                >
+                    <div
+                        v-show="
+                            activeResourceTab === 'subscriptions' || activeResourceTab === 'all'
+                        "
+                    >
+                        <SubscriptionSelector
+                            :subscriptions="selectableSubscriptions"
+                            :filtered-subscriptions="filteredSubscriptions"
+                            :search-term="subscriptionSearchTerm"
+                            :selected-ids="localProfile.subscriptions || []"
+                            @update:search-term="subscriptionSearchTerm = $event"
+                            @update:selected-ids="updateSelectedIds('subscriptions', $event)"
+                            @toggle-selection="toggleSelection('subscriptions', $event)"
+                            @select-all="handleSelectAll('subscriptions', filteredSubscriptions)"
+                            @deselect-all="
+                                handleDeselectAll('subscriptions', filteredSubscriptions)
+                            "
+                        />
+                    </div>
+
+                    <div
+                        v-show="activeResourceTab === 'subProfiles' || activeResourceTab === 'all'"
+                    >
+                        <SubProfileSelector
+                            :profiles="selectableSubProfiles"
+                            :filtered-profiles="filteredSubProfiles"
+                            :search-term="subProfileSearchTerm"
+                            :selected-ids="localProfile.subProfiles || []"
+                            :target-profile-id="localProfile.id || props.profile?.id || ''"
+                            :all-profiles="dataStore.profiles || []"
+                            @update:search-term="subProfileSearchTerm = $event"
+                            @update:selected-ids="updateSelectedIds('subProfiles', $event)"
+                            @toggle-selection="toggleSelection('subProfiles', $event)"
+                            @select-all="handleSelectAll('subProfiles', $event)"
+                            @deselect-all="handleDeselectAll('subProfiles', filteredSubProfiles)"
+                        />
+                    </div>
+
+                    <div
+                        v-show="activeResourceTab === 'manualNodes' || activeResourceTab === 'all'"
+                    >
+                        <NodeSelector
+                            :nodes="allManualNodes"
+                            :filtered-nodes="filteredManualNodes"
+                            :search-term="nodeSearchTerm"
+                            :active-group-filter="activeManualNodeGroupFilter"
+                            :groups="manualNodeGroups"
+                            :selected-ids="localProfile.manualNodes || []"
+                            @update:search-term="nodeSearchTerm = $event"
+                            @update:group-filter="activeManualNodeGroupFilter = $event"
+                            @update:selected-ids="updateSelectedIds('manualNodes', $event)"
+                            @toggle-selection="toggleSelection('manualNodes', $event)"
+                            @select-all="handleSelectAll('manualNodes', filteredManualNodes)"
+                            @deselect-all="handleDeselectAll('manualNodes', filteredManualNodes)"
+                        />
+                    </div>
                 </div>
             </div>
         </template>

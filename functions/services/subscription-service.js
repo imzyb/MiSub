@@ -675,6 +675,7 @@ export async function generateCombinedNodeList(
 
     // 重构后的手动节点处理逻辑
     const manualSubSourceGroups = misubs.filter((sub) => {
+        if (sub?.isFromSubProfile) return true;
         const url = typeof sub?.url === 'string' ? sub.url.trim() : '';
         return Boolean(url) && !/^https?:\/\//i.test(url);
     });
@@ -689,13 +690,15 @@ export async function generateCombinedNodeList(
                 plusAsSpace: Boolean(sub?.plusAsSpace),
             });
             const customNodeName = typeof sub.name === 'string' ? sub.name.trim() : '';
-            if (customNodeName) processedUrl = applyManualNodeName(processedUrl, customNodeName);
+            if (customNodeName && !sub?.isFromSubProfile)
+                processedUrl = applyManualNodeName(processedUrl, customNodeName);
 
             const nodeGroup = typeof sub.group === 'string' ? sub.group.trim() : '';
             if (prependGroupName && nodeGroup && !skipPrefixDueToRenaming)
                 processedUrl = prependNodeName(processedUrl, nodeGroup);
 
-            const shouldAddPrefix = shouldPrependManualNodes && !skipPrefixDueToRenaming;
+            const shouldAddPrefix =
+                shouldPrependManualNodes && !skipPrefixDueToRenaming && !sub?.isFromSubProfile;
             const finalRawUrl = shouldAddPrefix
                 ? prependNodeName(processedUrl, manualNodePrefix)
                 : processedUrl;
@@ -714,6 +717,7 @@ export async function generateCombinedNodeList(
 
     const httpSubs = misubs.filter(
         (sub) =>
+            !sub?.isFromSubProfile &&
             sub &&
             sub.url &&
             /^https?:\/\//i.test(sub.url) &&
