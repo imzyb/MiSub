@@ -614,6 +614,26 @@ export async function handleMisubRequest(context) {
     const DEFAULT_EXPIRED_NODE = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('您的订阅已到期')}`;
 
     let currentProfile = null;
+    let isExternalMode = false;
+    let useBuiltin = true;
+    let shouldSkipCertificateVerify = false;
+    let shouldEnableUdp = true;
+
+    const initEngineFlags = (targetProf) => {
+        const profileSub = targetProf?.subconverter || {};
+        const globalSub = config.subconverter || {};
+        const effectiveEngine = resolveEffectiveEngine({
+            searchParams: url.searchParams,
+            userAgent: userAgentHeader,
+            profileEngineMode: profileSub.engineMode,
+            globalEngineMode: globalSub.engineMode,
+        });
+        isExternalMode = effectiveEngine === 'external';
+        useBuiltin = !isExternalMode;
+        const flags = resolveBuiltinEngineFlags(config, isExternalMode);
+        shouldSkipCertificateVerify = flags.shouldSkipCertificateVerify;
+        shouldEnableUdp = flags.shouldEnableUdp;
+    };
 
     if (profileIdentifier) {
         // [修正] 使用 config 變量
@@ -629,6 +649,7 @@ export async function handleMisubRequest(context) {
         currentProfile = allProfiles.find(
             (p) => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
         );
+        initEngineFlags(currentProfile);
         const profile = currentProfile;
         if (profile && profile.enabled) {
             // Check if the profile has an expiration date and if it's expired
@@ -786,6 +807,7 @@ export async function handleMisubRequest(context) {
             );
         }
         targetMisubs = allMisubs.filter((s) => s.enabled);
+        initEngineFlags(null);
     }
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
@@ -842,23 +864,8 @@ export async function handleMisubRequest(context) {
         }
     }
 
-    // [Subconverter Engine Selection] Priority: URL Parameter > Profile Settings > Global Settings
     const profileSub = currentProfile?.subconverter || {};
     const globalSub = config.subconverter || {};
-
-    // [Optimization] Respect user defined engine mode while preventing loops for non-browser agents (backend fetchers)
-    const effectiveEngine = resolveEffectiveEngine({
-        searchParams: url.searchParams,
-        userAgent: userAgentHeader,
-        profileEngineMode: profileSub.engineMode,
-        globalEngineMode: globalSub.engineMode,
-    });
-    const isExternalMode = effectiveEngine === 'external';
-    const useBuiltin = !isExternalMode;
-    const { shouldSkipCertificateVerify, shouldEnableUdp } = resolveBuiltinEngineFlags(
-        config,
-        isExternalMode
-    );
 
     const globalTemplateUrl = resolveTemplateUrl(
         config.transformConfigMode,

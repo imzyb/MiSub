@@ -7,6 +7,7 @@ import SubProfileSelector from '../../src/components/modals/ProfileModal/SubProf
 import ProfileCard from '../../src/components/profiles/ProfileCard.vue';
 import { createI18n } from '../../src/i18n/index.js';
 import { handleProfileMode } from '../../functions/modules/subscription/profile-handler.js';
+import { handleMisubRequest } from '../../functions/modules/subscription/main-handler.js';
 import { generateCombinedNodeList } from '../../functions/services/subscription-service.js';
 
 describe('Profile Nesting - Cycle Detection (wouldCreateCycle)', () => {
@@ -272,5 +273,66 @@ describe('ProfileCard Component - subProfiles badge', () => {
         expect(wrapper.text()).toContain('Composite Profile');
         // Should display the count badge (e.g. 2 个组合 or 2 profiles)
         expect(wrapper.text()).toMatch(/2/);
+    });
+});
+
+describe('Profile Nesting - Full Subscription Request via handleMisubRequest', () => {
+    it('successfully processes top-level composite profile containing only subProfiles without TDZ error', async () => {
+        const topProfile = {
+            id: 'top-composite',
+            name: 'Top Composite',
+            enabled: true,
+            subscriptions: [],
+            manualNodes: [],
+            subProfiles: ['sub-profile-1'],
+        };
+
+        const subProfile1 = {
+            id: 'sub-profile-1',
+            name: 'Sub Profile 1',
+            enabled: true,
+            subscriptions: [],
+            manualNodes: ['manual-node-1'],
+            subProfiles: [],
+        };
+
+        const manualNode1 = {
+            id: 'manual-node-1',
+            name: 'Direct SS Node',
+            url: 'ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNzQDEuMS4xLjE6NDQz#Direct%20SS%20Node',
+            enabled: true,
+        };
+
+        const store = new Map([
+            ['misub_profiles_v1', JSON.stringify([topProfile, subProfile1])],
+            ['misub_subscriptions_v1', JSON.stringify([manualNode1])],
+            ['worker_settings_v1', JSON.stringify({ profileToken: 'profiles' })],
+        ]);
+
+        const mockEnv = {
+            MISUB_KV: {
+                get: vi.fn(async (key) => store.get(key) || null),
+                put: vi.fn(async (key, val) => store.set(key, val)),
+                delete: vi.fn(async (key) => store.delete(key)),
+            },
+        };
+
+        const req = new Request('https://example.com/profiles/top-composite', {
+            headers: {
+                'User-Agent': 'ClashMeta/1.18.0',
+            },
+        });
+
+        const context = {
+            request: req,
+            env: mockEnv,
+            waitUntil: () => {},
+        };
+
+        const res = await handleMisubRequest(context);
+        expect(res.status).toBe(200);
+        expect(res.headers.get('x-node-count')).toBe('1');
+        const text = await res.text();
+        expect(text).toContain('Direct SS Node');
     });
 });
