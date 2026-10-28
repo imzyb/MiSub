@@ -686,7 +686,7 @@ export function parseNodeInfo(nodeUrl) {
 
     try {
         if (protocol === 'vmess') {
-            const base64Part = nodeUrl.replace('vmess://', '');
+            const base64Part = nodeUrl.replace('vmess://', '').split('#')[0].split('?')[0].trim();
             if (base64Part && !base64Part.includes('@')) {
                 // 排除可能是明文的情况(虽然vmess少见)
                 try {

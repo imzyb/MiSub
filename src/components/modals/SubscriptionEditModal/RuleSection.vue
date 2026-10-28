@@ -29,6 +29,14 @@
             type: Array,
             default: () => [],
         },
+        keepRules: {
+            type: Array,
+            default: () => [],
+        },
+        excludeRules: {
+            type: Array,
+            default: () => [],
+        },
         presetRegions: {
             type: Array,
             default: () => [],
@@ -53,6 +61,10 @@
             type: Function,
             required: true,
         },
+        isOtherSelected: {
+            type: Function,
+            default: () => false,
+        },
         addCustomKeyword: {
             type: Function,
             required: true,
@@ -60,6 +72,14 @@
         removeRule: {
             type: Function,
             required: true,
+        },
+        removeKeepRule: {
+            type: Function,
+            default: null,
+        },
+        removeExcludeRule: {
+            type: Function,
+            default: null,
         },
         switchToAdvanced: {
             type: Function,
@@ -82,6 +102,34 @@
         get: () => props.customKeyword,
         set: (val) => emit('update:customKeyword', val),
     });
+
+    const effectiveKeepRules = computed(() => {
+        if (props.keepRules && props.keepRules.length > 0) return props.keepRules;
+        if (props.ruleMode === 'keep') return props.selectedRules;
+        return [];
+    });
+
+    const effectiveExcludeRules = computed(() => {
+        if (props.excludeRules && props.excludeRules.length > 0) return props.excludeRules;
+        if (props.ruleMode === 'exclude') return props.selectedRules;
+        return [];
+    });
+
+    const handleRemoveKeep = (index) => {
+        if (props.removeKeepRule) {
+            props.removeKeepRule(index);
+        } else {
+            props.removeRule(index, 'keep');
+        }
+    };
+
+    const handleRemoveExclude = (index) => {
+        if (props.removeExcludeRule) {
+            props.removeExcludeRule(index);
+        } else {
+            props.removeRule(index, 'exclude');
+        }
+    };
 </script>
 
 <template>
@@ -152,31 +200,45 @@
             >
                 <!-- 可视化模式 -->
                 <div v-if="!isAdvancedMode" class="space-y-3">
-                    <!-- 模式选择 -->
+                    <!-- 模式选择（保留白名单 vs 剔除黑名单） -->
                     <div class="flex gap-2">
                         <button
-                            @click="ruleModeModel = 'exclude'"
-                            :aria-pressed="ruleModeModel === 'exclude'"
-                            :class="[
-                                'flex-1 sm:flex-none px-3 py-1.5 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0',
-                                ruleModeModel === 'exclude'
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'
-                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
-                            ]"
-                        >
-                            {{ t('subscriptions.excludeMode') }}
-                        </button>
-                        <button
+                            type="button"
                             @click="ruleModeModel = 'keep'"
                             :aria-pressed="ruleModeModel === 'keep'"
                             :class="[
-                                'flex-1 sm:flex-none px-3 py-1.5 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0',
+                                'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0 cursor-pointer',
                                 ruleModeModel === 'keep'
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 ring-1 ring-emerald-400 dark:ring-emerald-600 font-semibold'
                                     : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
                             ]"
                         >
-                            {{ t('subscriptions.keepMode') }}
+                            <span>{{ t('subscriptions.keepMode') }}</span>
+                            <span
+                                v-if="effectiveKeepRules.length > 0"
+                                class="px-1.5 py-0.2 rounded-full text-xs bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100"
+                            >
+                                {{ effectiveKeepRules.length }}
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="ruleModeModel = 'exclude'"
+                            :aria-pressed="ruleModeModel === 'exclude'"
+                            :class="[
+                                'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0 cursor-pointer',
+                                ruleModeModel === 'exclude'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 ring-1 ring-amber-400 dark:ring-amber-600 font-semibold'
+                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                            ]"
+                        >
+                            <span>{{ t('subscriptions.excludeMode') }}</span>
+                            <span
+                                v-if="effectiveExcludeRules.length > 0"
+                                class="px-1.5 py-0.2 rounded-full text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100"
+                            >
+                                {{ effectiveExcludeRules.length }}
+                            </span>
                         </button>
                     </div>
 
@@ -189,13 +251,18 @@
                             <button
                                 v-for="tag in presetRegions"
                                 :key="tag.pattern"
+                                type="button"
                                 @click="toggleTag(tag, 'region')"
                                 :aria-pressed="isSelected(tag.pattern)"
                                 :class="[
-                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0',
+                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0 cursor-pointer',
                                     isSelected(tag.pattern)
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200 ring-1 ring-indigo-300 dark:ring-indigo-700'
-                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                                        ? ruleModeModel === 'keep'
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 ring-1 ring-emerald-400 dark:ring-emerald-600'
+                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 ring-1 ring-amber-400 dark:ring-amber-600'
+                                        : isOtherSelected(tag.pattern)
+                                          ? 'bg-gray-50 text-gray-500 dark:bg-gray-800/80 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100'
+                                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
                                 ]"
                             >
                                 {{ tag.icon }} {{ tag.label }}
@@ -212,13 +279,18 @@
                             <button
                                 v-for="tag in presetProtocols"
                                 :key="tag.pattern"
+                                type="button"
                                 @click="toggleTag(tag, 'protocol')"
                                 :aria-pressed="isSelected(tag.pattern)"
                                 :class="[
-                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0',
+                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0 cursor-pointer',
                                     isSelected(tag.pattern)
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200 ring-1 ring-indigo-300 dark:ring-indigo-700'
-                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                                        ? ruleModeModel === 'keep'
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 ring-1 ring-emerald-400 dark:ring-emerald-600'
+                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 ring-1 ring-amber-400 dark:ring-amber-600'
+                                        : isOtherSelected(tag.pattern)
+                                          ? 'bg-gray-50 text-gray-500 dark:bg-gray-800/80 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100'
+                                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
                                 ]"
                             >
                                 {{ tag.label }}
@@ -235,13 +307,18 @@
                             <button
                                 v-for="tag in presetKeywords"
                                 :key="tag.pattern"
+                                type="button"
                                 @click="toggleTag(tag, 'keyword')"
                                 :aria-pressed="isSelected(tag.pattern)"
                                 :class="[
-                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0',
+                                    'px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md transition-all !min-h-0 !min-w-0 cursor-pointer',
                                     isSelected(tag.pattern)
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200 ring-1 ring-indigo-300 dark:ring-indigo-700'
-                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                                        ? ruleModeModel === 'keep'
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 ring-1 ring-emerald-400 dark:ring-emerald-600'
+                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 ring-1 ring-amber-400 dark:ring-amber-600'
+                                        : isOtherSelected(tag.pattern)
+                                          ? 'bg-gray-50 text-gray-500 dark:bg-gray-800/80 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100'
+                                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
                                 ]"
                             >
                                 {{ tag.label }}
@@ -264,71 +341,102 @@
                                 :aria-label="t('subscriptions.keywordPlaceholder')"
                             />
                             <button
+                                type="button"
                                 @click="addCustomKeyword"
-                                class="w-full sm:w-auto flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 misub-radius-md transition-colors !min-h-0 !min-w-0"
+                                class="w-full sm:w-auto flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 misub-radius-md transition-colors !min-h-0 !min-w-0 cursor-pointer"
                             >
                                 {{ t('subscriptions.addKeyword') }}
                             </button>
                         </div>
                     </div>
 
-                    <!-- 已选规则展示 -->
-                    <div v-if="selectedRules.length > 0">
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                            📋
-                            {{ t('subscriptions.selectedRules', { count: selectedRules.length }) }}
-                            <span
-                                class="ml-1"
-                                :class="
-                                    ruleModeModel === 'keep' ? 'text-emerald-600' : 'text-amber-600'
-                                "
+                    <!-- 已选规则展示：保留与剔除两组清晰列出 -->
+                    <div
+                        v-if="effectiveKeepRules.length > 0 || effectiveExcludeRules.length > 0"
+                        class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700"
+                    >
+                        <!-- 保留规则列表 -->
+                        <div v-if="effectiveKeepRules.length > 0">
+                            <div
+                                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1"
                             >
-                                -
-                                {{
-                                    ruleModeModel === 'keep'
-                                        ? t('subscriptions.keepMatches')
-                                        : t('subscriptions.excludeMatches')
-                                }}
-                            </span>
-                        </div>
-                        <div
-                            class="flex flex-wrap gap-1.5 p-2 bg-gray-50 dark:bg-gray-800/50 misub-radius-md"
-                        >
-                            <span
-                                v-for="(rule, index) in selectedRules"
-                                :key="index"
-                                :class="[
-                                    'inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md !min-h-0 !min-w-0',
-                                    rule.type === 'region'
-                                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
-                                        : rule.type === 'protocol'
-                                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
-                                          : rule.type === 'custom'
-                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200'
-                                            : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200',
-                                ]"
+                                🟢 {{ t('subscriptions.keepRulesTitle') }} ({{
+                                    effectiveKeepRules.length
+                                }})
+                            </div>
+                            <div
+                                class="flex flex-wrap gap-1.5 p-2 bg-emerald-50/60 dark:bg-emerald-950/20 misub-radius-md border border-emerald-100 dark:border-emerald-900/30"
                             >
-                                {{ rule.icon || '' }}{{ rule.label }}
-                                <button
-                                    @click="removeRule(index)"
-                                    class="hover:text-red-500 transition-colors !min-h-0 !min-w-0"
-                                    :aria-label="t('operators.removeRule')"
+                                <span
+                                    v-for="(rule, index) in effectiveKeepRules"
+                                    :key="'keep-' + index"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 !min-h-0 !min-w-0"
                                 >
-                                    <svg
-                                        class="w-3.5 h-3.5"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
+                                    {{ rule.icon ? rule.icon + ' ' : '' }}{{ rule.label }}
+                                    <button
+                                        type="button"
+                                        @click="handleRemoveKeep(index)"
+                                        class="hover:text-red-500 transition-colors cursor-pointer !min-h-0 !min-w-0"
+                                        :aria-label="t('operators.removeRule')"
                                     >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
-                                    </svg>
-                                </button>
-                            </span>
+                                        <svg
+                                            class="w-3.5 h-3.5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M6 18L18 6M6 6l12 12"
+                                            />
+                                        </svg>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 剔除规则列表 -->
+                        <div v-if="effectiveExcludeRules.length > 0">
+                            <div
+                                class="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1"
+                            >
+                                🔴 {{ t('subscriptions.excludeRulesTitle') }} ({{
+                                    effectiveExcludeRules.length
+                                }})
+                            </div>
+                            <div
+                                class="flex flex-wrap gap-1.5 p-2 bg-amber-50/60 dark:bg-amber-950/20 misub-radius-md border border-amber-100 dark:border-amber-900/30"
+                            >
+                                <span
+                                    v-for="(rule, index) in effectiveExcludeRules"
+                                    :key="'exclude-' + index"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm font-medium misub-radius-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 !min-h-0 !min-w-0"
+                                >
+                                    {{ rule.icon ? rule.icon + ' ' : '' }}{{ rule.label }}
+                                    <button
+                                        type="button"
+                                        @click="handleRemoveExclude(index)"
+                                        class="hover:text-red-500 transition-colors cursor-pointer !min-h-0 !min-w-0"
+                                        :aria-label="t('operators.removeRule')"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M6 18L18 6M6 6l12 12"
+                                            />
+                                        </svg>
+                                    </button>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -359,8 +467,8 @@
                         v-model="editingSubscription.exclude"
                         :placeholder="t('subscriptions.excludePlaceholder')"
                         rows="8"
+                        class="w-full px-3 py-2 misub-radius-md sm:text-sm font-mono dark:text-white leading-6 resize-none bg-white dark:bg-gray-800"
                         :class="[
-                            'w-full px-3 py-2 misub-radius-md sm:text-sm font-mono dark:text-white leading-6 resize-none bg-white dark:bg-gray-800',
                             excludeRuleState.errors.length
                                 ? 'border border-red-400 focus-visible:ring-1 focus-visible:ring-red-500 focus-visible:outline-hidden'
                                 : 'border border-gray-300 dark:border-gray-600 focus-visible:ring-1 focus-visible:ring-indigo-500 focus-visible:outline-hidden',

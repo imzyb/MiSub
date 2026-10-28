@@ -675,6 +675,7 @@ export async function generateCombinedNodeList(
 
     // 重构后的手动节点处理逻辑
     const manualSubSourceGroups = misubs.filter((sub) => {
+        if (sub?.isFromSubProfile) return true;
         const url = typeof sub?.url === 'string' ? sub.url.trim() : '';
         return Boolean(url) && !/^https?:\/\//i.test(url);
     });
@@ -689,13 +690,15 @@ export async function generateCombinedNodeList(
                 plusAsSpace: Boolean(sub?.plusAsSpace),
             });
             const customNodeName = typeof sub.name === 'string' ? sub.name.trim() : '';
-            if (customNodeName) processedUrl = applyManualNodeName(processedUrl, customNodeName);
+            if (customNodeName && !sub?.isFromSubProfile)
+                processedUrl = applyManualNodeName(processedUrl, customNodeName);
 
             const nodeGroup = typeof sub.group === 'string' ? sub.group.trim() : '';
             if (prependGroupName && nodeGroup && !skipPrefixDueToRenaming)
                 processedUrl = prependNodeName(processedUrl, nodeGroup);
 
-            const shouldAddPrefix = shouldPrependManualNodes && !skipPrefixDueToRenaming;
+            const shouldAddPrefix =
+                shouldPrependManualNodes && !skipPrefixDueToRenaming && !sub?.isFromSubProfile;
             const finalRawUrl = shouldAddPrefix
                 ? prependNodeName(processedUrl, manualNodePrefix)
                 : processedUrl;
@@ -713,7 +716,12 @@ export async function generateCombinedNodeList(
     const processedManualNodeList = manualProcessedLines.join('\n');
 
     const httpSubs = misubs.filter(
-        (sub) => sub && sub.url && /^https?:\/\//i.test(sub.url) && !/^https?:\/\/[^/?#]+:\d+\/?#/i.test(sub.url)
+        (sub) =>
+            !sub?.isFromSubProfile &&
+            sub &&
+            sub.url &&
+            /^https?:\/\//i.test(sub.url) &&
+            !/^https?:\/\/[^/?#]+:\d+\/?#/i.test(sub.url)
     );
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
     let upstreamSuccessCount = 0; // 追踪真正从远程拉取成功的订阅数（不含 per-sub 缓存回退）
@@ -1135,7 +1143,7 @@ function applyManualNodeName(nodeUrl, customName) {
  * @param {Object} sub - 订阅对象
  * @returns {Array} - 过滤后的节点列表
  */
-function applyFilterRules(validNodes, sub) {
+export function applyFilterRules(validNodes, sub) {
     const ruleText = sub.exclude;
     if (!ruleText || ruleText.trim() === '') return validNodes;
 
@@ -1150,25 +1158,39 @@ function applyFilterRules(validNodes, sub) {
     const dividerIndex = lines.findIndex((line) => line === '---');
     const hasDivider = dividerIndex !== -1;
 
-    const excludeLines = hasDivider
-        ? lines.slice(0, dividerIndex)
-        : lines.filter((line) => !line.toLowerCase().startsWith('keep:'));
+    let excludeLines = [];
+    let keepLines = [];
 
-    const keepLines = hasDivider
-        ? lines.slice(dividerIndex + 1)
-        : lines.filter((line) => line.toLowerCase().startsWith('keep:'));
+    if (hasDivider) {
+        lines.slice(0, dividerIndex).forEach((l) => {
+            if (l.toLowerCase().startsWith('keep:')) {
+                keepLines.push(l);
+            } else {
+                excludeLines.push(l);
+            }
+        });
+        lines.slice(dividerIndex + 1).forEach((l) => {
+            keepLines.push(l);
+        });
+    } else {
+        excludeLines = lines.filter((line) => !line.toLowerCase().startsWith('keep:'));
+        keepLines = lines.filter((line) => line.toLowerCase().startsWith('keep:'));
+    }
 
     const excludeRules = buildRuleSet(excludeLines, false);
     const keepRules = buildRuleSet(keepLines, true);
 
-    const whitelistOnly = !hasDivider && keepRules.hasRules;
-    const shouldApplyWhitelist = (hasDivider && keepRules.hasRules) || whitelistOnly;
+    let result = validNodes;
 
-    const afterExclude = whitelistOnly
-        ? [...validNodes]
-        : filterNodes(validNodes, excludeRules, 'exclude');
+    if (keepRules.hasRules) {
+        result = filterNodes(result, keepRules, 'include');
+    }
 
-    return shouldApplyWhitelist ? filterNodes(afterExclude, keepRules, 'include') : afterExclude;
+    if (excludeRules.hasRules) {
+        result = filterNodes(result, excludeRules, 'exclude');
+    }
+
+    return result;
 }
 
 /**

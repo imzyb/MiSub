@@ -48,6 +48,7 @@ import {
     renderSingboxFromIniTemplate,
     renderSurgeFromIniTemplate,
 } from './template-pipeline.js';
+import { handleProfileMode } from './profile-handler.js';
 import { getBuiltinTemplate } from './builtin-template-registry.js';
 import { assertPublicNetworkUrl } from '../security-utils.js';
 
@@ -613,6 +614,26 @@ export async function handleMisubRequest(context) {
     const DEFAULT_EXPIRED_NODE = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('您的订阅已到期')}`;
 
     let currentProfile = null;
+    let isExternalMode = false;
+    let useBuiltin = true;
+    let shouldSkipCertificateVerify = false;
+    let shouldEnableUdp = true;
+
+    const initEngineFlags = (targetProf) => {
+        const profileSub = targetProf?.subconverter || {};
+        const globalSub = config.subconverter || {};
+        const effectiveEngine = resolveEffectiveEngine({
+            searchParams: url.searchParams,
+            userAgent: userAgentHeader,
+            profileEngineMode: profileSub.engineMode,
+            globalEngineMode: globalSub.engineMode,
+        });
+        isExternalMode = effectiveEngine === 'external';
+        useBuiltin = !isExternalMode;
+        const flags = resolveBuiltinEngineFlags(config, isExternalMode);
+        shouldSkipCertificateVerify = flags.shouldSkipCertificateVerify;
+        shouldEnableUdp = flags.shouldEnableUdp;
+    };
 
     if (profileIdentifier) {
         // [修正] 使用 config 變量
@@ -628,6 +649,7 @@ export async function handleMisubRequest(context) {
         currentProfile = allProfiles.find(
             (p) => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
         );
+        initEngineFlags(currentProfile);
         const profile = currentProfile;
         if (profile && profile.enabled) {
             // Check if the profile has an expiration date and if it's expired
@@ -705,6 +727,49 @@ export async function handleMisubRequest(context) {
                         }
                     });
                 }
+
+                // 3. Add sub-profiles in order defined by profile (嵌套组合订阅)
+                const profileSubProfileIds = profile.subProfiles || [];
+                if (Array.isArray(profileSubProfileIds) && profileSubProfileIds.length > 0) {
+                    for (const subProfileId of profileSubProfileIds) {
+                        if (
+                            !subProfileId ||
+                            subProfileId === profile.id ||
+                            subProfileId === profile.customId
+                        ) {
+                            continue;
+                        }
+                        try {
+                            const subResult = await handleProfileMode(
+                                request,
+                                env,
+                                subProfileId,
+                                userAgentHeader,
+                                true,
+                                shouldSkipCertificateVerify,
+                                1,
+                                new Set([profile.id, profile.customId].filter(Boolean))
+                            );
+                            if (subResult.success && Array.isArray(subResult.nodes)) {
+                                subResult.nodes.forEach((node) => {
+                                    targetMisubs.push({
+                                        id: `nested-${subProfileId}-${node.url}`,
+                                        name: node.name,
+                                        url: node.url,
+                                        group: subResult.profileName || '组合订阅',
+                                        isFromSubProfile: true,
+                                        enabled: true,
+                                    });
+                                });
+                            }
+                        } catch (err) {
+                            console.error(
+                                `[MainHandler] Failed to resolve sub-profile ${subProfileId}:`,
+                                err
+                            );
+                        }
+                    }
+                }
             }
             // [新增] 增加订阅组下载计数
             // 仅在非回调请求时及非内部请求时增加计数(避免重复计数)
@@ -742,6 +807,7 @@ export async function handleMisubRequest(context) {
             );
         }
         targetMisubs = allMisubs.filter((s) => s.enabled);
+        initEngineFlags(null);
     }
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
@@ -798,23 +864,8 @@ export async function handleMisubRequest(context) {
         }
     }
 
-    // [Subconverter Engine Selection] Priority: URL Parameter > Profile Settings > Global Settings
     const profileSub = currentProfile?.subconverter || {};
     const globalSub = config.subconverter || {};
-
-    // [Optimization] Respect user defined engine mode while preventing loops for non-browser agents (backend fetchers)
-    const effectiveEngine = resolveEffectiveEngine({
-        searchParams: url.searchParams,
-        userAgent: userAgentHeader,
-        profileEngineMode: profileSub.engineMode,
-        globalEngineMode: globalSub.engineMode,
-    });
-    const isExternalMode = effectiveEngine === 'external';
-    const useBuiltin = !isExternalMode;
-    const { shouldSkipCertificateVerify, shouldEnableUdp } = resolveBuiltinEngineFlags(
-        config,
-        isExternalMode
-    );
 
     const globalTemplateUrl = resolveTemplateUrl(
         config.transformConfigMode,

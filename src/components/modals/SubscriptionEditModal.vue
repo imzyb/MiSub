@@ -53,30 +53,59 @@
         { label: '2026', pattern: '2026' },
     ];
 
-    // 已选择的规则（内置+自定义）
-    const selectedRules = ref([]);
+    // 规则池：分别管理保留规则和剔除规则
+    const keepRules = ref([]);
+    const excludeRules = ref([]);
 
-    // 检查标签是否已选中
+    // 活跃规则列表（根据当前 tab 切换）
+    const currentRulePool = computed(() => {
+        return ruleMode.value === 'keep' ? keepRules.value : excludeRules.value;
+    });
+
+    // 选中规则总集（兼容外部组件与计数）
+    const selectedRules = computed(() => {
+        return [...keepRules.value, ...excludeRules.value];
+    });
+
+    // 检查标签在当前激活模式中是否已选中
     const isSelected = (pattern) => {
-        return selectedRules.value.some((rule) => rule.pattern === pattern);
+        return currentRulePool.value.some((rule) => rule.pattern === pattern);
+    };
+
+    // 检查标签在另一个模式中是否已选中
+    const isOtherSelected = (pattern) => {
+        const otherPool = ruleMode.value === 'keep' ? excludeRules.value : keepRules.value;
+        return otherPool.some((rule) => rule.pattern === pattern);
+    };
+
+    // 辅助函数：根据 pattern 转换为规范规则对象
+    const createRuleItem = (tag, type) => {
+        const normalizedPattern =
+            type === 'protocol' && !String(tag.pattern).toLowerCase().startsWith('proto:')
+                ? `proto:${String(tag.pattern).toLowerCase()}`
+                : tag.pattern;
+        return {
+            ...tag,
+            pattern: normalizedPattern,
+            type,
+        };
     };
 
     // 切换标签选择
     const toggleTag = (tag, type) => {
-        const index = selectedRules.value.findIndex((rule) => rule.pattern === tag.pattern);
+        const pool = currentRulePool.value;
+        const otherPool = ruleMode.value === 'keep' ? excludeRules.value : keepRules.value;
+
+        const index = pool.findIndex((rule) => rule.pattern === tag.pattern);
         if (index !== -1) {
-            selectedRules.value.splice(index, 1);
+            pool.splice(index, 1);
         } else {
-            // 统一转成最小化协议标签，供传统文本过滤引擎识别
-            const normalizedPattern =
-                type === 'protocol' && !String(tag.pattern).toLowerCase().startsWith('proto:')
-                    ? `proto:${String(tag.pattern).toLowerCase()}`
-                    : tag.pattern;
-            selectedRules.value.push({
-                ...tag,
-                pattern: normalizedPattern,
-                type, // 'region' | 'protocol' | 'keyword' | 'custom'
-            });
+            // 如果已在另一个规则池中，将其从另一个池移除，避免同一标签同时存在
+            const otherIdx = otherPool.findIndex((rule) => rule.pattern === tag.pattern);
+            if (otherIdx !== -1) {
+                otherPool.splice(otherIdx, 1);
+            }
+            pool.push(createRuleItem(tag, type));
         }
         syncToText();
     };
@@ -86,15 +115,22 @@
         const keyword = customKeyword.value.trim();
         if (!keyword) return;
 
-        // 检查是否已存在
-        if (
-            selectedRules.value.some((rule) => rule.pattern === keyword || rule.label === keyword)
-        ) {
+        const pool = currentRulePool.value;
+        if (pool.some((rule) => rule.pattern === keyword || rule.label === keyword)) {
             showToast(t('subscriptions.duplicateKeyword'), 'warning');
             return;
         }
 
-        selectedRules.value.push({
+        // 如果在另一个池中存在，先移除
+        const otherPool = ruleMode.value === 'keep' ? excludeRules.value : keepRules.value;
+        const otherIdx = otherPool.findIndex(
+            (rule) => rule.pattern === keyword || rule.label === keyword
+        );
+        if (otherIdx !== -1) {
+            otherPool.splice(otherIdx, 1);
+        }
+
+        pool.push({
             label: keyword,
             pattern: keyword,
             type: 'custom',
@@ -104,30 +140,89 @@
     };
 
     // 移除规则
-    const removeRule = (index) => {
-        selectedRules.value.splice(index, 1);
+    const removeKeepRule = (index) => {
+        keepRules.value.splice(index, 1);
         syncToText();
     };
 
-    // 将可视化选择同步到文本格式
+    const removeExcludeRule = (index) => {
+        excludeRules.value.splice(index, 1);
+        syncToText();
+    };
+
+    const removeRule = (index, targetPool = null) => {
+        if (targetPool === 'keep') {
+            removeKeepRule(index);
+        } else if (targetPool === 'exclude') {
+            removeExcludeRule(index);
+        } else {
+            currentRulePool.value.splice(index, 1);
+            syncToText();
+        }
+    };
+
+    // 将可视化选择同步到文本格式（保留与剔除同时支持）
     const syncToText = () => {
         if (!props.editingSubscription) return;
 
-        if (ruleMode.value === 'keep') {
-            const keepRules = selectedRules.value.map((rule) => `keep:${rule.pattern}`);
-            props.editingSubscription.exclude = keepRules.length > 0 ? keepRules.join('\n') : '';
+        const exPatterns = excludeRules.value.map((r) => r.pattern);
+        const kpPatterns = keepRules.value.map((r) => r.pattern);
+
+        if (exPatterns.length === 0 && kpPatterns.length === 0) {
+            props.editingSubscription.exclude = '';
             return;
         }
 
-        const rules = selectedRules.value.map((rule) => rule.pattern);
-        props.editingSubscription.exclude = rules.join('\n');
+        if (kpPatterns.length === 0) {
+            props.editingSubscription.exclude = exPatterns.join('\n');
+            return;
+        }
+
+        if (exPatterns.length === 0) {
+            props.editingSubscription.exclude = kpPatterns.map((p) => `keep:${p}`).join('\n');
+            return;
+        }
+
+        // 两者并存：使用标准 --- 分隔线
+        props.editingSubscription.exclude = [
+            ...exPatterns,
+            '---',
+            ...kpPatterns.map((p) => `keep:${p}`),
+        ].join('\n');
+    };
+
+    const resolvePreset = (pattern) => {
+        const protocolPreset = presetProtocols.find(
+            (p) => p.pattern.toLowerCase() === pattern.toLowerCase()
+        );
+        if (protocolPreset) {
+            return { ...protocolPreset, type: 'protocol' };
+        }
+
+        const allPresets = [...presetRegions, ...presetProtocols, ...presetKeywords];
+        const preset = allPresets.find((p) => p.pattern === pattern);
+        if (preset) {
+            const type = presetRegions.includes(preset)
+                ? 'region'
+                : presetProtocols.includes(preset)
+                  ? 'protocol'
+                  : 'keyword';
+            return { ...preset, type };
+        }
+
+        return {
+            label: pattern,
+            pattern: pattern,
+            type: 'custom',
+        };
     };
 
     // 从文本解析到可视化状态
     const parseFromText = () => {
+        keepRules.value = [];
+        excludeRules.value = [];
+
         if (!props.editingSubscription?.exclude) {
-            selectedRules.value = [];
-            ruleMode.value = 'exclude';
             return;
         }
 
@@ -137,68 +232,64 @@
             .map((l) => l.trim())
             .filter(Boolean);
 
-        // 检测模式
-        const hasKeep = lines.some((l) => l.toLowerCase().startsWith('keep:'));
-        ruleMode.value = hasKeep ? 'keep' : 'exclude';
+        if (lines.length === 0) return;
 
-        // 如果包含 --- 分隔符或复杂混合规则，使用高级模式
-        if (lines.includes('---')) {
-            isAdvancedMode.value = true;
-            return;
-        }
+        const dividerIndex = lines.findIndex((line) => line === '---');
+        const hasDivider = dividerIndex !== -1;
 
-        selectedRules.value = [];
+        const rawExcludePatterns = [];
+        const rawKeepPatterns = [];
 
-        lines.forEach((line) => {
-            let pattern = line;
-            if (pattern.toLowerCase().startsWith('keep:')) {
-                pattern = pattern.substring(5).trim();
-            }
+        lines.forEach((line, index) => {
+            if (line === '---') return;
 
-            // 兼容历史保存的纯 proto:xxx 规则：可视化协议标签必须能正确回显
-            const protocolPreset = presetProtocols.find(
-                (p) => p.pattern.toLowerCase() === pattern.toLowerCase()
-            );
-            if (protocolPreset) {
-                selectedRules.value.push({ ...protocolPreset, type: 'protocol' });
-                return;
-            }
-
-            // 尝试匹配预设标签
-            const allPresets = [...presetRegions, ...presetProtocols, ...presetKeywords];
-            const preset = allPresets.find((p) => p.pattern === pattern);
-
-            if (preset) {
-                const type = presetRegions.includes(preset)
-                    ? 'region'
-                    : presetProtocols.includes(preset)
-                      ? 'protocol'
-                      : 'keyword';
-                selectedRules.value.push({ ...preset, type });
+            if (hasDivider) {
+                if (index < dividerIndex) {
+                    if (line.toLowerCase().startsWith('keep:')) {
+                        rawKeepPatterns.push(line.substring(5).trim());
+                    } else {
+                        rawExcludePatterns.push(line);
+                    }
+                } else {
+                    if (line.toLowerCase().startsWith('keep:')) {
+                        rawKeepPatterns.push(line.substring(5).trim());
+                    } else {
+                        rawKeepPatterns.push(line);
+                    }
+                }
             } else {
-                // 作为自定义关键字
-                selectedRules.value.push({
-                    label: pattern,
-                    pattern: pattern,
-                    type: 'custom',
-                });
+                if (line.toLowerCase().startsWith('keep:')) {
+                    rawKeepPatterns.push(line.substring(5).trim());
+                } else {
+                    rawExcludePatterns.push(line);
+                }
             }
         });
+
+        rawKeepPatterns.filter(Boolean).forEach((pattern) => {
+            keepRules.value.push(resolvePreset(pattern));
+        });
+
+        rawExcludePatterns.filter(Boolean).forEach((pattern) => {
+            excludeRules.value.push(resolvePreset(pattern));
+        });
+
+        if (keepRules.value.length > 0 && excludeRules.value.length === 0) {
+            ruleMode.value = 'keep';
+        } else if (excludeRules.value.length > 0 && keepRules.value.length === 0) {
+            ruleMode.value = 'exclude';
+        }
     };
 
-    // 切换模式时更新文本
-    watch(ruleMode, () => {
-        syncToText();
-    });
-
-    // 监听弹窗显示，解析现有规则
+    // 监听弹窗显示或编辑订阅变化，解析现有规则
     watch(
-        () => props.show,
-        (newVal) => {
-            if (newVal) {
+        [() => props.show, () => props.editingSubscription],
+        ([showVal, subVal]) => {
+            if (showVal && subVal) {
                 parseFromText();
             }
-        }
+        },
+        { immediate: true }
     );
 
     // === 高级模式相关（保留原有逻辑） ===
@@ -222,8 +313,15 @@
 
         let tagKey = 'unset';
         if (hasContent) {
-            if (hasDivider) tagKey = 'mixed';
-            else if (hasKeepPrefix) tagKey = 'keepOnly';
+            const hasExclude = lines.some(
+                (l) => l && l !== '---' && !l.toLowerCase().startsWith('keep:')
+            );
+            const hasKeep =
+                lines.some((l) => l && l.toLowerCase().startsWith('keep:')) ||
+                (hasDivider && lines.slice(dividerIndex + 1).some((l) => l));
+
+            if (hasDivider || (hasExclude && hasKeep)) tagKey = 'mixed';
+            else if (hasKeep) tagKey = 'keepOnly';
             else tagKey = 'exclude';
         }
 
@@ -361,14 +459,19 @@
                     :rule-mode="ruleMode"
                     :custom-keyword="customKeyword"
                     :selected-rules="selectedRules"
+                    :keep-rules="keepRules"
+                    :exclude-rules="excludeRules"
                     :preset-regions="presetRegions"
                     :preset-protocols="presetProtocols"
                     :preset-keywords="presetKeywords"
                     :exclude-rule-state="excludeRuleState"
                     :toggle-tag="toggleTag"
                     :is-selected="isSelected"
+                    :is-other-selected="isOtherSelected"
                     :add-custom-keyword="addCustomKeyword"
                     :remove-rule="removeRule"
+                    :remove-keep-rule="removeKeepRule"
+                    :remove-exclude-rule="removeExcludeRule"
                     :switch-to-advanced="switchToAdvanced"
                     :switch-to-visual="switchToVisual"
                     @toggle-expand="isRuleExpanded = !isRuleExpanded"
