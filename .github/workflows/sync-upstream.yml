@@ -1,9 +1,8 @@
-name: 自动同步上游 MiSub
+name: 同步上游 MiSub
 
 on:
-  schedule:
-    # 每天北京时间 08:00（UTC 00:00）检查一次
-    - cron: '0 0 * * *'
+  # 关闭每日自动定时同步，避免覆盖本地定制化功能代码
+  # 如需同步官方更新，请在 GitHub 仓库 Actions 页面手动点击 Run workflow 触发
   workflow_dispatch:  # 可在 Actions 页面手动触发
 
 permissions:
