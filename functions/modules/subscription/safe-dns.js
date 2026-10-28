@@ -180,7 +180,7 @@ export const DEFAULT_DNS_CONFIG = {
     },
     'proxy-server-nameserver': [...DEFAULT_DNS_POLICY.domestic],
     'direct-nameserver': [...DEFAULT_DNS_POLICY.domestic],
-    'direct-nameserver-follow-policy': true,
+    'direct-nameserver-follow-policy': false,
     fallback: [],
     'fallback-filter': {
         geoip: true,
