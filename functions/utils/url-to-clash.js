@@ -571,7 +571,7 @@ function parseSsPlugin(pluginStr) {
     if (!pluginStr) return null;
     // 插件参数内部通常用分号分隔
     const parts = pluginStr.split(';');
-    const name = parts[0];
+    const name = parts[0] === 'obfs-local' ? 'obfs' : parts[0];
     const opts = {};
     for (let i = 1; i < parts.length; i++) {
         const item = parts[i];
@@ -581,7 +581,9 @@ function parseSsPlugin(pluginStr) {
             // 布尔值标识位，例如 "tls"
             opts[item] = true;
         } else {
-            const key = item.substring(0, eqIndex);
+            let key = item.substring(0, eqIndex);
+            if (name === 'obfs' && key === 'obfs') key = 'mode';
+            if (name === 'obfs' && key === 'obfs-host') key = 'host';
             let val = item.substring(eqIndex + 1);
             // 处理 SIP002 转义：\= -> =, \; -> ;, \? -> ?
             val = val
@@ -698,11 +700,12 @@ function parseSsUrl(url) {
                 if (obfsMode) proxy['plugin-opts'].mode = obfsMode;
                 if (obfsHost) proxy['plugin-opts'].host = obfsHost;
 
-                // 协议兼容性映射 (TLS / Host)
+                // obfs 的 TLS 是混淆，不能生成普通 TLS 配置。
                 if (
-                    pluginDetails.opts.tls ||
-                    pluginDetails.opts.mode?.includes('tls') ||
-                    pluginDetails.opts.security === 'tls'
+                    pluginDetails.name !== 'obfs' &&
+                    (pluginDetails.opts.tls ||
+                        pluginDetails.opts.mode?.includes('tls') ||
+                        pluginDetails.opts.security === 'tls')
                 ) {
                     proxy.tls = true;
                 }
@@ -713,8 +716,11 @@ function parseSsUrl(url) {
             }
         }
 
-        // UDP
-        // proxy.udp = true;
+        const uot = params.get('uot');
+        if (uot === '1' || uot === 'true') {
+            proxy.udp = true;
+            proxy['udp-over-tcp'] = true;
+        }
 
         return proxy;
     } catch (e) {

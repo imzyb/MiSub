@@ -3,5 +3,8 @@ pages_build_output_dir = "./dist"
 compatibility_date = "2024-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Pages 负责路由、KV 绑定、环境变量和 Cron 配置；这些运行时设置保留在
-# Cloudflare Pages 项目中，避免在仓库配置里覆盖生产环境值。
+[[kv_namespaces]]
+binding = "MISUB_KV"
+id = "709d803756e14dd99d1bbefc84c12246"
+
+# Pages 负责路由、KV 绑定、环境变量和 Cron 配置。

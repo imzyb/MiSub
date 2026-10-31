@@ -12,6 +12,7 @@ export const useSessionStore = defineStore('session', () => {
     const initialData = ref(null);
     const subscriptionConfig = ref({}); // [NEW] Added subscriptionConfig
     const securityWarning = ref(null);
+    const sessionCheckId = ref(0);
     const defaultPublicConfig = Object.freeze({
         enablePublicPage: true,
         isLoginPath: false,
@@ -39,11 +40,14 @@ export const useSessionStore = defineStore('session', () => {
     const hasLoadedPublicConfig = ref(false);
 
     async function checkSession() {
+        const currentCheckId = ++sessionCheckId.value;
         // Parallel fetch of initial data (auth check) and public config
         const [dataResult, pConfigResult] = await Promise.all([
             fetchInitialData(),
             fetchPublicConfig(),
         ]);
+
+        if (currentCheckId !== sessionCheckId.value) return;
 
         // Update public config
         if (pConfigResult.success) {

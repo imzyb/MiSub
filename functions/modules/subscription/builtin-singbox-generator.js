@@ -55,13 +55,21 @@ function buildOutbound(proxy) {
         outbound.server_port = port;
         outbound.method = proxy.cipher || 'aes-128-gcm';
         outbound.password = proxy.password || '';
-        if (proxy.udp) outbound.udp_over_tcp = false;
+        if (proxy.udp || proxy['udp-over-tcp'] !== undefined) {
+            outbound.udp_over_tcp = proxy['udp-over-tcp'] ?? false;
+        }
 
         // sing-box 的 Shadowsocks 出站使用 SIP003 plugin/plugin_opts；
         // `transport` 仅属于 V2Ray 传输协议，SFA 会严格拒绝它。
         const plugin = proxy.plugin || '';
         const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
-        if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
+        if (plugin === 'obfs' || plugin === 'obfs-local') {
+            outbound.plugin = 'obfs-local';
+            const pluginOptions = [];
+            if (opts.mode) pluginOptions.push(`obfs=${opts.mode}`);
+            if (opts.host) pluginOptions.push(`obfs-host=${opts.host}`);
+            outbound.plugin_opts = pluginOptions.join(';');
+        } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
             outbound.plugin = 'v2ray-plugin';
             const pluginOptions = ['mode=websocket'];
             if (opts.host) pluginOptions.push(`host=${opts.host}`);
