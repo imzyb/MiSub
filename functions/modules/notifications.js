@@ -7,10 +7,10 @@
 import { formatBytes } from './utils.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
 // 导入核心通知服务及工具
-import { 
-    sendTgNotification as sendCoreTg, 
-    sendEnhancedTgNotification as sendCoreEnhancedTg, 
-    tgEscape as coreTgEscape 
+import {
+    sendTgNotification as sendCoreTg,
+    sendEnhancedTgNotification as sendCoreEnhancedTg,
+    tgEscape as coreTgEscape,
 } from '../services/notification-service.js';
 
 /**
@@ -19,7 +19,6 @@ import {
 export function tgEscape(text) {
     return coreTgEscape(text);
 }
-
 
 /**
  * 发送Telegram基础通知 (兼容旧调用)
@@ -60,7 +59,7 @@ async function persistSubscriptionsForCron(storageAdapter, subscriptions) {
  * 检查并发送订阅到期和流量预警通知
  */
 export async function checkAndNotify(sub, settings, env) {
-    if (!sub.userInfo) return;
+    if (!sub?.enabled || !sub.userInfo) return;
 
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     const now = Date.now();
@@ -71,13 +70,13 @@ export async function checkAndNotify(sub, settings, env) {
         const daysRemaining = Math.ceil((expiryDate - now) / ONE_DAY_MS);
 
         if (daysRemaining <= (settings.NotifyThresholdDays || 7)) {
-            if (!sub.lastNotifiedExpire || (now - sub.lastNotifiedExpire > ONE_DAY_MS)) {
+            if (!sub.lastNotifiedExpire || now - sub.lastNotifiedExpire > ONE_DAY_MS) {
                 const message = `🗓️ <b>订阅临期提醒</b> 🗓️
 
 <b>订阅名称:</b> <code>${tgEscape(sub.name || '未命名')}</code>
 <b>状态:</b> <code>${tgEscape(daysRemaining < 0 ? '已过期' : `仅剩 ${daysRemaining} 天到期`)}</code>
 <b>到期日期:</b> <code>${expiryDate.toLocaleDateString('zh-CN')}</code>`;
-                
+
                 const sent = await sendCoreTg(settings, message);
                 if (sent) {
                     sub.lastNotifiedExpire = now;
@@ -93,13 +92,13 @@ export async function checkAndNotify(sub, settings, env) {
         const usagePercent = Math.round((used / total) * 100);
 
         if (usagePercent >= (settings.NotifyThresholdPercent || 90)) {
-            if (!sub.lastNotifiedTraffic || (now - sub.lastNotifiedTraffic > ONE_DAY_MS)) {
+            if (!sub.lastNotifiedTraffic || now - sub.lastNotifiedTraffic > ONE_DAY_MS) {
                 const message = `📈 <b>流量预警提醒</b> 📈
 
 <b>订阅名称:</b> <code>${tgEscape(sub.name || '未命名')}</code>
 <b>状态:</b> <code>已使用 ${usagePercent}%</code>
 <b>详情:</b> <code>${tgEscape(formatBytes(used))} / ${tgEscape(formatBytes(total))}</code>`;
-                
+
                 const sent = await sendCoreTg(settings, message);
                 if (sent) {
                     sub.lastNotifiedTraffic = now;
@@ -115,12 +114,15 @@ export async function checkAndNotify(sub, settings, env) {
 export async function handleCronTrigger(env) {
     const { StorageFactory } = await import('../storage-adapter.js');
 
-    const storageAdapter = await StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+    const storageAdapter = await StorageFactory.createAdapter(
+        env,
+        await StorageFactory.getStorageType(env)
+    );
     const originalSubs = await loadSubscriptionsForCron(storageAdapter);
     const allSubs = JSON.parse(JSON.stringify(originalSubs));
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || DEFAULT_SETTINGS;
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 
-    const httpSubscriptions = allSubs.filter(sub => sub.url.startsWith('http') && sub.enabled);
+    const httpSubscriptions = allSubs.filter((sub) => sub.url.startsWith('http') && sub.enabled);
 
     console.info(`[Cron] Starting parallel update for ${httpSubscriptions.length} subscriptions`);
     const startTime = Date.now();
@@ -128,7 +130,8 @@ export async function handleCronTrigger(env) {
     const CONCURRENCY = 6;
     const TIMEOUT = 15000;
 
-    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm;
+    const nodeRegex =
+        /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm;
     let changesMade = false;
     let updatedCount = 0;
     let failedCount = 0;
@@ -143,21 +146,23 @@ export async function handleCronTrigger(env) {
                     : fetch(new Request(url, requestInit));
                 return Promise.race([
                     fetchCall,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), TIMEOUT))
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Timeout')), TIMEOUT)
+                    ),
                 ]);
             };
 
             const [trafficResult, nodeCountResult] = await Promise.allSettled([
                 fetchWithTimeout(sub.url, {
                     headers: { 'User-Agent': 'clash-verge/v2.4.3' },
-                    redirect: "follow",
-                    cf: { insecureSkipVerify: true }
+                    redirect: 'follow',
+                    cf: { insecureSkipVerify: true },
                 }),
                 fetchWithTimeout(sub.url, {
                     headers: { 'User-Agent': SYSTEM_CONSTANTS.FETCHER_USER_AGENT },
-                    redirect: "follow",
-                    cf: { insecureSkipVerify: true }
-                })
+                    redirect: 'follow',
+                    cf: { insecureSkipVerify: true },
+                }),
             ]);
 
             let hasTrafficUpdate = false;
@@ -167,11 +172,11 @@ export async function handleCronTrigger(env) {
                 const userInfoHeader = trafficResult.value.headers.get('subscription-userinfo');
                 if (userInfoHeader) {
                     const info = {};
-                    userInfoHeader.split(';').forEach(part => {
+                    userInfoHeader.split(';').forEach((part) => {
                         const [key, value] = part.trim().split('=');
                         if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
                     });
-                    const originalSub = allSubs.find(s => s.id === sub.id);
+                    const originalSub = allSubs.find((s) => s.id === sub.id);
                     if (originalSub) {
                         originalSub.userInfo = info;
                         await checkAndNotify(originalSub, settings, env);
@@ -190,7 +195,7 @@ export async function handleCronTrigger(env) {
                 }
                 const matches = decoded.match(nodeRegex);
                 if (matches) {
-                    const originalSub = allSubs.find(s => s.id === sub.id);
+                    const originalSub = allSubs.find((s) => s.id === sub.id);
                     if (originalSub) {
                         const previousCount = originalSub.nodeCount;
                         const newCount = matches.length;
@@ -206,7 +211,7 @@ export async function handleCronTrigger(env) {
                                     previous: previousCount,
                                     current: newCount,
                                     diff: diff,
-                                    timestamp: Date.now()
+                                    timestamp: Date.now(),
                                 };
                             }
                         }
@@ -219,13 +224,13 @@ export async function handleCronTrigger(env) {
                 name: sub.name,
                 success: hasTrafficUpdate || hasNodeCountUpdate,
                 traffic: hasTrafficUpdate,
-                nodes: hasNodeCountUpdate
+                nodes: hasNodeCountUpdate,
             };
         } catch (e) {
             return {
                 name: sub.name,
                 success: false,
-                error: e.message
+                error: e.message,
             };
         }
     }
@@ -234,7 +239,7 @@ export async function handleCronTrigger(env) {
         const results = [];
         const executing = new Set();
         for (const item of items) {
-            const promise = fn(item).then(result => {
+            const promise = fn(item).then((result) => {
                 executing.delete(promise);
                 return result;
             });
@@ -272,8 +277,8 @@ export async function handleCronTrigger(env) {
             failed: failedCount,
             changes: changesMade,
             duration: `${duration}ms`,
-            failed_subscriptions: failedSubscriptions
-        }
+            failed_subscriptions: failedSubscriptions,
+        },
     };
 
     console.info(`[Cron] Completed in ${duration}ms:`, summary.summary);
@@ -285,7 +290,7 @@ export async function handleCronTrigger(env) {
                 name: sub.name,
                 previous: sub.nodeCountChange.previous,
                 current: sub.nodeCountChange.current,
-                diff: sub.nodeCountChange.diff
+                diff: sub.nodeCountChange.diff,
             });
             delete sub.nodeCountChange;
         }
@@ -296,7 +301,7 @@ export async function handleCronTrigger(env) {
         let nodeChangeMessage = `📉 <b>节点数量变化提醒</b>\n\n`;
         nodeChangeMessage += `检测到 ${nodeCountChanges.length} 个订阅的节点数量发生显著变化：\n\n`;
 
-        nodeCountChanges.slice(0, 10).forEach(change => {
+        nodeCountChanges.slice(0, 10).forEach((change) => {
             const changeType = change.diff > 0 ? '增加' : '减少';
             const emoji = change.diff > 0 ? '📈' : '📉';
             nodeChangeMessage += `${emoji} <b>${tgEscape(change.name)}</b>\n`;
@@ -329,7 +334,7 @@ export async function handleCronTrigger(env) {
 
         if (failedSubscriptions.length > 0) {
             updateMessage += `\n❌ <b>失败详情:</b>\n`;
-            failedSubscriptions.slice(0, 5).forEach(f => {
+            failedSubscriptions.slice(0, 5).forEach((f) => {
                 const errorShort = f.error.length > 30 ? f.error.substring(0, 30) + '...' : f.error;
                 updateMessage += `• ${tgEscape(f.name)}: <code>${tgEscape(errorShort)}</code>\n`;
             });
@@ -340,6 +345,6 @@ export async function handleCronTrigger(env) {
 
     return new Response(JSON.stringify(summary), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }

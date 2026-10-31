@@ -11,7 +11,10 @@ describe('fetchSubscriptionNodes fetch proxy UA forwarding', () => {
             const upstreamUa = parsed.searchParams.get('ua');
 
             if (upstreamUa !== 'clash-verge/v2.4.3') {
-                return new Response('Gateway Time-out', { status: 504, statusText: 'Gateway Time-out' });
+                return new Response('Gateway Time-out', {
+                    status: 504,
+                    statusText: 'Gateway Time-out',
+                });
             }
 
             return new Response(

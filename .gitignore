@@ -103,3 +103,6 @@ docker/
 data/
 /brain/
 /scratch/
+
+# AI assistant workspace data
+.workbuddy-ai/

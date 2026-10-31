@@ -36,7 +36,7 @@ export function renderTransformTemplate(templateText, context = {}) {
         '<%protocol_strategy_chain%>': context.protocolStrategyChain ?? '',
         '<%protocolStrategyChain%>': context.protocolStrategyChain ?? '',
         '<%all_strategy_groups%>': context.allStrategyGroups ?? '',
-        '<%allStrategyGroups%>': context.allStrategyGroups ?? ''
+        '<%allStrategyGroups%>': context.allStrategyGroups ?? '',
     };
 
     let rendered = templateText;
@@ -47,12 +47,29 @@ export function renderTransformTemplate(templateText, context = {}) {
     return rendered;
 }
 
-export function buildTransformTemplateContext({ proxies = '', rules = '', fileName = '', interval = '', managedConfigUrl = '', targetFormat = '', nodeCount = 0, regionGroups = [], protocolGroups = [] } = {}) {
+export function buildTransformTemplateContext({
+    proxies = '',
+    rules = '',
+    fileName = '',
+    interval = '',
+    managedConfigUrl = '',
+    targetFormat = '',
+    nodeCount = 0,
+    regionGroups = [],
+    protocolGroups = [],
+} = {}) {
     const normalizedRegionGroups = Array.isArray(regionGroups) ? regionGroups : [];
     const normalizedProtocolGroups = Array.isArray(protocolGroups) ? protocolGroups : [];
-    const regionNames = normalizedRegionGroups.map(group => group.name).filter(Boolean);
-    const protocolNames = normalizedProtocolGroups.map(group => group.name).filter(Boolean);
-    const primaryStrategyChain = ['🚀 节点选择', '♻️ 自动选择', ...regionNames, ...protocolNames, '☑️ 手动切换', 'DIRECT'].join(', ');
+    const regionNames = normalizedRegionGroups.map((group) => group.name).filter(Boolean);
+    const protocolNames = normalizedProtocolGroups.map((group) => group.name).filter(Boolean);
+    const primaryStrategyChain = [
+        '🚀 节点选择',
+        '♻️ 自动选择',
+        ...regionNames,
+        ...protocolNames,
+        '☑️ 手动切换',
+        'DIRECT',
+    ].join(', ');
     return {
         proxies,
         rules,
@@ -62,16 +79,33 @@ export function buildTransformTemplateContext({ proxies = '', rules = '', fileNa
         targetFormat,
         nodeCount,
         regionGroups: JSON.stringify(normalizedRegionGroups, null, 2),
-        regionGroupNames: normalizedRegionGroups.map(group => group.name).join(', '),
-        regionGroupCounts: normalizedRegionGroups.map(group => `${group.name}:${group.count ?? (group.tags?.length || 0)}`).join(', '),
-        regionGroupList: normalizedRegionGroups.map(group => `${group.name}(${group.count ?? (group.tags?.length || 0)})`).join('\n'),
+        regionGroupNames: normalizedRegionGroups.map((group) => group.name).join(', '),
+        regionGroupCounts: normalizedRegionGroups
+            .map((group) => `${group.name}:${group.count ?? (group.tags?.length || 0)}`)
+            .join(', '),
+        regionGroupList: normalizedRegionGroups
+            .map((group) => `${group.name}(${group.count ?? (group.tags?.length || 0)})`)
+            .join('\n'),
         protocolGroups: JSON.stringify(normalizedProtocolGroups, null, 2),
-        protocolGroupNames: normalizedProtocolGroups.map(group => group.name).join(', '),
-        protocolGroupCounts: normalizedProtocolGroups.map(group => `${group.name}:${group.count ?? (group.lines?.length || 0)}`).join(', '),
-        protocolGroupList: normalizedProtocolGroups.map(group => `${group.name}(${group.count ?? (group.lines?.length || 0)})`).join('\n'),
+        protocolGroupNames: normalizedProtocolGroups.map((group) => group.name).join(', '),
+        protocolGroupCounts: normalizedProtocolGroups
+            .map((group) => `${group.name}:${group.count ?? (group.lines?.length || 0)}`)
+            .join(', '),
+        protocolGroupList: normalizedProtocolGroups
+            .map((group) => `${group.name}(${group.count ?? (group.lines?.length || 0)})`)
+            .join('\n'),
         primaryStrategyChain,
         regionStrategyChain: regionNames.join(', '),
         protocolStrategyChain: protocolNames.join(', '),
-        allStrategyGroups: [...new Set(['🚀 节点选择', '♻️ 自动选择', ...regionNames, ...protocolNames, '☑️ 手动切换', 'DIRECT'])].join(', ')
+        allStrategyGroups: [
+            ...new Set([
+                '🚀 节点选择',
+                '♻️ 自动选择',
+                ...regionNames,
+                ...protocolNames,
+                '☑️ 手动切换',
+                'DIRECT',
+            ]),
+        ].join(', '),
     };
 }

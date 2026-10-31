@@ -8,9 +8,14 @@
 
 /**
  * 渲染默认伪装页面
+ * @param {Object} [disguiseConfig] 伪装配置；若配置了 redirectUrl，则「返回首页」指向该地址
  * @returns {Response} HTML响应
  */
-export function renderDisguisePage() {
+export function renderDisguisePage(disguiseConfig) {
+    const homeHref = resolveHomeHref(disguiseConfig);
+    const homeLink = homeHref
+        ? `<a href="${escapeHtml(homeHref)}" class="home-link">返回首页</a>`
+        : '';
     const html = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -178,7 +183,7 @@ export function renderDisguisePage() {
             <div class="error-code">404</div>
             <h1>页面未找到</h1>
             <p>抱歉，您访问的页面不存在或已被移除。<br>仿佛进入了数字荒原。</p>
-            <a href="/" class="home-link">返回首页</a>
+            ${homeLink}
         </div>
     </div>
 </body>
@@ -189,14 +194,14 @@ export function renderDisguisePage() {
         status: 404,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache'
-        }
+            'Cache-Control': 'no-cache',
+        },
     });
 }
 
 /**
  * 根据配置生成伪装响应 (Redirect 或 404 Page)
- * @param {Object} disguiseConfig 
+ * @param {Object} disguiseConfig
  * @param {string} [baseUrl]
  * @returns {Response}
  */
@@ -206,11 +211,51 @@ export function createDisguiseResponse(disguiseConfig, baseUrl) {
         if (redirectUrl) {
             return new Response(null, {
                 status: 302,
-                headers: { Location: redirectUrl }
+                headers: {
+                    Location: redirectUrl,
+                    // 伪装响应绝不能被边缘缓存：否则可能被缓存后被已登录用户命中，
+                    // 或泄露给搜索引擎/第三方来源。
+                    'Cache-Control': 'no-store, no-cache, must-revalidate',
+                    'CDN-Cache-Control': 'no-store',
+                    'Surrogate-Control': 'no-store',
+                },
             });
         }
     }
-    return renderDisguisePage();
+    return renderDisguisePage(disguiseConfig);
+}
+
+/** 转义 HTML 属性/文本，避免配置里的引号破坏页面结构。 */
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * 计算伪装页「返回首页」的目标：优先使用配置的 redirectUrl，
+ * 避免指向本站根路径造成死循环（根路径本身就会再次触发伪装）。
+ * @param {Object} [disguiseConfig]
+ * @returns {string} 空字符串表示不渲染该链接
+ */
+function resolveHomeHref(disguiseConfig) {
+    if (disguiseConfig && typeof disguiseConfig.redirectUrl === 'string') {
+        const trimmed = disguiseConfig.redirectUrl.trim();
+        if (trimmed) {
+            const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+            if (!hasScheme && !trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+                return `https://${trimmed}`;
+            }
+            // 站内相对路径会回到本站根路径并再次触发伪装，故不渲染
+            if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                return trimmed;
+            }
+        }
+    }
+    return '';
 }
 
 function normalizeRedirectUrl(rawUrl, baseUrl) {

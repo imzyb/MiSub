@@ -13,24 +13,33 @@ export function logAccessSuccess({
     token,
     profileIdentifier,
     subName,
-    domain
+    domain,
 }) {
     const stats = context?.generationStats || {};
-    const clientIp = request.headers.get('CF-Connecting-IP')
-        || request.headers.get('X-Real-IP')
-        || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-        || 'N/A';
+    const clientIp =
+        request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Real-IP') ||
+        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        'N/A';
     const country = request.headers.get('CF-IPCountry') || 'N/A';
 
     const payload = {
         profileName: subName || 'Unknown Profile',
         clientIp,
-        geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
+        geoInfo: {
+            country,
+            city: request.cf?.city,
+            isp: request.cf?.asOrganization,
+            asn: request.cf?.asn,
+        },
         userAgent: userAgentHeader || 'Unknown',
         status: 'success',
         format: targetFormat,
         type: profileIdentifier ? 'profile' : 'token',
-        token: anonymizeLogToken(profileIdentifier ? profileIdentifier : token, profileIdentifier ? 'profile' : 'token'),
+        token: anonymizeLogToken(
+            profileIdentifier ? profileIdentifier : token,
+            profileIdentifier ? 'profile' : 'token'
+        ),
         domain,
         persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {
@@ -38,9 +47,9 @@ export function logAccessSuccess({
             sourceCount: stats.sourceCount || 0,
             successCount: stats.successCount || 0,
             failCount: stats.failCount || 0,
-            duration: stats.duration || 0
+            duration: stats.duration || 0,
         },
-        summary: `生成 ${stats.totalNodes || 0} 个节点 (成功: ${stats.successCount || 0}, 失败: ${stats.failCount || 0})`
+        summary: `生成 ${stats.totalNodes || 0} 个节点 (成功: ${stats.successCount || 0}, 失败: ${stats.failCount || 0})`,
     };
 
     if (context?.waitUntil) {
@@ -58,24 +67,33 @@ export function logAccessError({
     profileIdentifier,
     subName,
     domain,
-    errorMessage
+    errorMessage,
 }) {
     const stats = context?.generationStats || {};
-    const clientIp = request.headers.get('CF-Connecting-IP')
-        || request.headers.get('X-Real-IP')
-        || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-        || 'N/A';
+    const clientIp =
+        request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Real-IP') ||
+        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        'N/A';
     const country = request.headers.get('CF-IPCountry') || 'N/A';
 
     const payload = {
         profileName: subName || 'Unknown Profile',
         clientIp,
-        geoInfo: { country, city: request.cf?.city, isp: request.cf?.asOrganization, asn: request.cf?.asn },
+        geoInfo: {
+            country,
+            city: request.cf?.city,
+            isp: request.cf?.asOrganization,
+            asn: request.cf?.asn,
+        },
         userAgent: userAgentHeader || 'Unknown',
         status: 'error',
         format: targetFormat,
         type: profileIdentifier ? 'profile' : 'token',
-        token: anonymizeLogToken(profileIdentifier ? profileIdentifier : token, profileIdentifier ? 'profile' : 'token'),
+        token: anonymizeLogToken(
+            profileIdentifier ? profileIdentifier : token,
+            profileIdentifier ? 'profile' : 'token'
+        ),
         domain,
         persistenceMode: context?.accessLogPersistenceMode || 'light',
         details: {
@@ -84,9 +102,9 @@ export function logAccessError({
             successCount: stats.successCount || 0,
             failCount: stats.failCount || 0,
             duration: stats.duration || 0,
-            error: errorMessage
+            error: errorMessage,
         },
-        summary: `转换失败: ${errorMessage}`
+        summary: `转换失败: ${errorMessage}`,
     };
 
     if (context?.waitUntil) {

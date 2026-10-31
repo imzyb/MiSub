@@ -9,14 +9,15 @@
 MiSub 的内置引擎（Built-in Engine）采用一种**中间格式**，它会自动根据你使用的客户端（Clash, Sing-Box, Surge, Loon, Quantumult X）将规则翻译成对应的语法。
 
 ### 1. 策略组 (Policy Groups)
+
 在 MiSub 中，你可以直接使用以下由系统自动生成的策略组名称：
 
-*   `🚀 节点选择`: 主要的手动切换入口。
-*   `♻️ 自动选择`: 延迟最低的节点。
-*   `🔯 故障转移`: 自动切换到可用节点。
-*   `👋 手动切换`: 纯手动节点列表。
-*   `🌍 总出口`: (链式代理模式) 所有流量的总闸。
-*   `🇺🇸 美国节点`, `🇭🇰 香港节点`, `🇯🇵 日本节点`: 自动按地区分类的组。
+- `🚀 节点选择`: 主要的手动切换入口。
+- `♻️ 自动选择`: 延迟最低的节点。
+- `🔯 故障转移`: 自动切换到可用节点。
+- `👋 手动切换`: 纯手动节点列表。
+- `🌍 总出口`: (链式代理模式) 所有流量的总闸。
+- `🇺🇸 美国节点`, `🇭🇰 香港节点`, `🇯🇵 日本节点`: 自动按地区分类的组。
 
 ---
 
@@ -78,6 +79,59 @@ GEOIP,CN,DIRECT
 # 以上规则均未匹配时，使用的默认策略
 MATCH,🚀 节点选择
 ```
+
+---
+
+## 🔗 链式代理（Mihomo / Meta）
+
+链式代理（前置跳板 → 落地节点）在 Mihomo / Meta 内核上通过**节点级 `dialer-proxy`** 实现，
+旧的 `relay` 策略组已被内核移除，不要再使用。
+
+MiSub 的 ini 模板支持用 `custom_chain_proxy` 声明链式代理：
+
+```ini
+# 语法：custom_chain_proxy=<落地组名>`<前置组名>[`<落地副本名前缀>]
+# 前缀省略时默认为 "<落地组名> - "
+[custom]
+custom_proxy_group=🔗 链式落地`select`[]🔗 链式前置
+custom_proxy_group=🔗 链式前置`select`.*
+custom_chain_proxy=🔗 链式落地`🔗 链式前置
+```
+
+MiSub 会据此展开：
+
+1. 为每个节点生成一份带 `dialer-proxy: 🔗 链式前置` 的落地副本，命名为 `🔗 链式落地 - <节点名>`；
+2. 把 `🔗 链式落地` 组改为选择这些落地副本；
+3. 保证 `🔗 链式前置` 只引用原始节点，避免 `dialer-proxy` 形成环路。
+
+落地组与前置组若未在模板中声明，MiSub 会自动创建：前置组包含全部原始节点，落地组包含全部落地副本。
+
+YAML profile 模板使用同一套语义，但通过顶层的 MiSub 扩展字段声明。字段会在输出时移除，不会泄露给客户端：
+
+```yaml
+proxy-groups:
+    - name: 🔗 链式前置
+      type: select
+      include-all-proxies: true
+    - name: 🔗 链式落地
+      type: select
+      proxies: []
+x-misub-chain-proxy:
+    entry-group: 🔗 链式前置
+    landing-group: 🔗 链式落地
+    clone-prefix: '🔗 链式落地|'
+```
+
+当请求目标为 Mihomo / Meta（例如 URL 带有 `meta=true`）时，MiSub 会生成带节点级
+`dialer-proxy: 🔗 链式前置` 的落地副本；普通 Clash 输出不生成该字段，并将落地组回退为原始节点。
+YAML 模板不应依赖 ShellCrash 专用的 `proxy-providers.chainpool`、`use: chainpool` 或 `type: relay`。
+
+> ⚠️ 注意事项
+>
+> - 链式代理是 **Mihomo / Meta 专属能力**。普通 Clash 内核（Clash Premium、Clash for Windows 等）
+>   不认识 `dialer-proxy`，MiSub 会自动跳过展开，模板退化为普通策略组。
+> - 前置组**不能**引用落地组或落地副本，否则会形成无限环路（Mihomo 没有环路检测）。
+> - 节点数量会翻倍（每个节点多一份落地副本），节点很多时请留意配置体积。
 
 ---
 

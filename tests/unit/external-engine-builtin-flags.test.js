@@ -3,26 +3,32 @@ import { resolveBuiltinEngineFlags } from '../../functions/modules/subscription/
 
 describe('resolveBuiltinEngineFlags', () => {
     it('第三方转换引擎应忽略并关闭内置引擎专属开关', () => {
-        const flags = resolveBuiltinEngineFlags({
-            builtinSkipCertVerify: true,
-            builtinEnableUdp: true
-        }, true);
+        const flags = resolveBuiltinEngineFlags(
+            {
+                builtinSkipCertVerify: true,
+                builtinEnableUdp: true,
+            },
+            true
+        );
 
         expect(flags).toEqual({
             shouldSkipCertificateVerify: false,
-            shouldEnableUdp: false
+            shouldEnableUdp: false,
         });
     });
 
     it('内置转换引擎应保留内置引擎专属开关', () => {
-        const flags = resolveBuiltinEngineFlags({
-            builtinSkipCertVerify: true,
-            builtinEnableUdp: true
-        }, false);
+        const flags = resolveBuiltinEngineFlags(
+            {
+                builtinSkipCertVerify: true,
+                builtinEnableUdp: true,
+            },
+            false
+        );
 
         expect(flags).toEqual({
             shouldSkipCertificateVerify: true,
-            shouldEnableUdp: true
+            shouldEnableUdp: true,
         });
     });
 });

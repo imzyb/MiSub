@@ -18,11 +18,15 @@ function buildProxyLine(proxy) {
             if (wsOpts?.path) extras.push(`ws-path=${wsOpts.path}`);
             if (wsOpts?.headers?.Host) extras.push(`ws-headers=Host:${wsOpts.headers.Host}`);
         }
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('skip-cert-verify=true');
         return `${name} = trojan, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'ss' || type === 'shadowsocks') {
-        const extras = [`encrypt-method=${proxy.cipher || 'aes-128-gcm'}`, `password=${proxy.password || ''}`];
+        const extras = [
+            `encrypt-method=${proxy.cipher || 'aes-128-gcm'}`,
+            `password=${proxy.password || ''}`,
+        ];
         const plugin = proxy.plugin || '';
         const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
         if (plugin === 'obfs-local' || proxy.obfs) {
@@ -44,7 +48,7 @@ function buildProxyLine(proxy) {
     if (type === 'vmess') {
         const extras = [`username=${proxy.uuid || ''}`];
         const network = proxy.network || '';
-        
+
         if (network === 'ws' || proxy['ws-opts']) {
             extras.push('ws=true');
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
@@ -53,7 +57,8 @@ function buildProxyLine(proxy) {
         } else if (network === 'grpc') {
             extras.push('transport=grpc');
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (grpcOpts?.['grpc-service-name']) extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
+            if (grpcOpts?.['grpc-service-name'])
+                extras.push(`grpc-service-name=${grpcOpts['grpc-service-name']}`);
         } else if (network === 'h2') {
             extras.push('transport=h2');
             const h2Opts = proxy['h2-opts'] || proxy.h2Opts;
@@ -64,11 +69,13 @@ function buildProxyLine(proxy) {
             }
         }
 
-        if (proxy.alterId === 0 || proxy.alterId === undefined || proxy.alterId === null) extras.push('vmess-aead=true');
+        if (proxy.alterId === 0 || proxy.alterId === undefined || proxy.alterId === null)
+            extras.push('vmess-aead=true');
         const sni = proxy.servername ?? proxy.sni;
         if (proxy.tls || sni !== undefined) extras.push('tls=true');
         if (sni !== undefined) extras.push(`sni=${sni}`);
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('skip-cert-verify=true');
         return `${name} = vmess, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'vless') return null;
@@ -76,14 +83,19 @@ function buildProxyLine(proxy) {
         const extras = [`password=${proxy.password || ''}`];
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
+        // Surge 用 salamander-password 表达 Hysteria2 Salamander 混淆 (Mac 6.4.4+ / iOS 5.17.0+)
+        if (String(proxy.obfs || '').toLowerCase() === 'salamander' && proxy['obfs-password'])
+            extras.push('salamander-password=' + proxy['obfs-password']);
         return `${name} = hysteria2, ${server}, ${port}, ${extras.join(', ')}`;
     }
     if (type === 'tuic') {
         const extras = [];
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`sni=${sni}`);
-        if (proxy['congestion-control']) extras.push(`congestion-control=${proxy['congestion-control']}`);
-        if (proxy['congestion-controller']) extras.push(`congestion-control=${proxy['congestion-controller']}`);
+        if (proxy['congestion-control'])
+            extras.push(`congestion-control=${proxy['congestion-control']}`);
+        if (proxy['congestion-controller'])
+            extras.push(`congestion-control=${proxy['congestion-controller']}`);
         if (proxy['udp-relay-mode'] === 'native') extras.push(`udp-relay=true`);
         if (proxy.alpn) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
@@ -95,7 +107,8 @@ function buildProxyLine(proxy) {
         } else if (proxy.password) {
             extras.unshift(`token=${proxy.password}`);
         }
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('skip-cert-verify=true');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('skip-cert-verify=true');
         return `${name} = tuic, ${server}, ${port}, ${extras.join(', ')}`;
     }
     // if (type === 'wireguard') {
@@ -109,14 +122,10 @@ function buildProxyLine(proxy) {
     //     return `${name} = wireguard, ${server}, ${port}${extras.length ? `, ${extras.join(', ')}` : ''}`;
     // }
     if (type === 'wireguard') {
-        if (
-            !proxy['private-key'] ||
-            !proxy['public-key'] ||
-            (!proxy.ip && !proxy.ipv6)
-        ) {
+        if (!proxy['private-key'] || !proxy['public-key'] || (!proxy.ip && !proxy.ipv6)) {
             return null;
         }
-    
+
         const sectionName = getWireGuardSectionName(name);
         return `${name} = wireguard, section-name=${sectionName}`;
     }
@@ -144,8 +153,7 @@ function buildProxyLine(proxy) {
 
 // builtin-surge-generator.js implement
 function getWireGuardSectionName(name) {
-    const safeName = String(name || 'WireGuard')
-        .replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_');
+    const safeName = String(name || 'WireGuard').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_');
 
     return `WG_${safeName}`;
 }
@@ -167,15 +175,12 @@ function buildWireGuardSection(proxy) {
     const name = proxy.name || 'Untitled';
     const sectionName = getWireGuardSectionName(name);
 
-    const lines = [
-        `[WireGuard ${sectionName}]`,
-        `private-key = ${proxy['private-key']}`
-    ];
+    const lines = [`[WireGuard ${sectionName}]`, `private-key = ${proxy['private-key']}`];
 
     // IPv4
     if (proxy.ip) {
         const ipv4 = Array.isArray(proxy.ip)
-            ? proxy.ip.find(ip => !String(ip).includes(':'))
+            ? proxy.ip.find((ip) => !String(ip).includes(':'))
             : proxy.ip;
 
         if (ipv4) {
@@ -185,9 +190,7 @@ function buildWireGuardSection(proxy) {
 
     // IPv6
     if (proxy.ipv6) {
-        const ipv6 = Array.isArray(proxy.ipv6)
-            ? proxy.ipv6.find(Boolean)
-            : proxy.ipv6;
+        const ipv6 = Array.isArray(proxy.ipv6) ? proxy.ipv6.find(Boolean) : proxy.ipv6;
 
         if (ipv6) {
             lines.push(`self-ip-v6 = ${ipv6}`);
@@ -196,9 +199,7 @@ function buildWireGuardSection(proxy) {
 
     // DNS：有就输出，没有则不主动添加
     if (proxy.dns) {
-        const dns = Array.isArray(proxy.dns)
-            ? proxy.dns.join(', ')
-            : proxy.dns;
+        const dns = Array.isArray(proxy.dns) ? proxy.dns.join(', ') : proxy.dns;
 
         if (dns) {
             lines.push(`dns-server = ${dns}`);
@@ -223,9 +224,7 @@ function buildWireGuardSection(proxy) {
             : proxy['allowed-ips'];
     } else {
         // 没有显式 allowed-ips 时，根据是否有 IPv6 自动生成
-        allowedIps = proxy.ipv6
-            ? '0.0.0.0/0, ::/0'
-            : '0.0.0.0/0';
+        allowedIps = proxy.ipv6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0';
     }
 
     if (allowedIps.includes(',')) {
@@ -236,11 +235,7 @@ function buildWireGuardSection(proxy) {
 
     // IPv6 endpoint 需要加 []
     const server = String(proxy.server);
-    const endpointHost =
-        server.includes(':') &&
-        !server.startsWith('[')
-            ? `[${server}]`
-            : server;
+    const endpointHost = server.includes(':') && !server.startsWith('[') ? `[${server}]` : server;
 
     peerParts.push(`endpoint = ${endpointHost}:${proxy.port}`);
 
@@ -256,9 +251,7 @@ function buildWireGuardSection(proxy) {
 
     // Cloudflare WARP reserved → Surge client-id
     if (proxy.reserved) {
-        const clientId = Array.isArray(proxy.reserved)
-            ? proxy.reserved.join('/')
-            : proxy.reserved;
+        const clientId = Array.isArray(proxy.reserved) ? proxy.reserved.join('/') : proxy.reserved;
 
         peerParts.push(`client-id = ${clientId}`);
     }
@@ -271,21 +264,35 @@ function buildWireGuardSection(proxy) {
 function buildProxyGroupLine(group) {
     const type = String(group.type || 'select').toLowerCase();
     const rawMembers = Array.isArray(group.members) ? group.members.filter(Boolean) : [];
-    const members = (['url-test', 'fallback', 'load-balance'].includes(type)
-        ? rawMembers.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()))
-        : rawMembers).join(', ');
-    const filter = Array.isArray(group.filters) && group.filters.length > 0 ? group.filters.join('|') : '';
+    const members = (
+        ['url-test', 'fallback', 'load-balance'].includes(type)
+            ? rawMembers.filter(
+                  (member) =>
+                      !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(
+                          String(member).toUpperCase()
+                      )
+              )
+            : rawMembers
+    ).join(', ');
+    const filter =
+        Array.isArray(group.filters) && group.filters.length > 0 ? group.filters.join('|') : '';
     const tolerance = group.options?.tolerance;
     if (type === 'url-test') {
-        const base = filter ? `${group.name} = url-test, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}` : `${group.name} = url-test, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
+        const base = filter
+            ? `${group.name} = url-test, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
+            : `${group.name} = url-test, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
         return tolerance ? `${base}, tolerance=${tolerance}` : base;
     }
     if (type === 'fallback') {
-        const base = filter ? `${group.name} = fallback, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}` : `${group.name} = fallback, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
+        const base = filter
+            ? `${group.name} = fallback, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
+            : `${group.name} = fallback, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
         return tolerance ? `${base}, tolerance=${tolerance}` : base;
     }
     if (type === 'load-balance') {
-        return filter ? `${group.name} = load-balance, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}` : `${group.name} = load-balance, ${members}`;
+        return filter
+            ? `${group.name} = load-balance, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
+            : `${group.name} = load-balance, ${members}`;
     }
     return `${group.name} = select, ${members}`;
 }
@@ -304,27 +311,24 @@ export function renderSurgeFromTemplateModel(model, options = {}) {
     const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
     const proxyUrls = nodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
-        ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
+    const proxies =
+        Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
+            ? normalizedModel.proxies
+            : urlsToClashProxies(proxyUrls);
 
     // const proxyLines = proxies.map(buildProxyLine).filter(Boolean);
-    const proxyLines = proxies
-        .map(buildProxyLine)
-        .filter(Boolean);
+    const proxyLines = proxies.map(buildProxyLine).filter(Boolean);
 
     const wireguardSections = proxies
-        .filter(proxy =>
-            String(proxy.type || '').toLowerCase() === 'wireguard'
-        )
+        .filter((proxy) => String(proxy.type || '').toLowerCase() === 'wireguard')
         .map(buildWireGuardSection)
         .filter(Boolean);
-    
+
     const wireguardBlock = wireguardSections.join('\n\n');
     const groupLines = normalizedModel.groups
-        .filter(group => Array.isArray(group.members) && group.members.length > 0)
+        .filter((group) => Array.isArray(group.members) && group.members.length > 0)
         .map(buildProxyGroupLine)
         .filter(Boolean);
     const ruleLines = normalizedModel.rules.map(buildRuleLine).filter(Boolean);
@@ -351,6 +355,6 @@ export function renderSurgeFromTemplateModel(model, options = {}) {
         '',
         '[Rule]',
         ...ruleLines,
-        ''
+        '',
     ].join('\n');
 }

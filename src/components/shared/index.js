@@ -14,10 +14,10 @@ export { default as DragDropList } from './DragDropList.vue';
 
 // 组件映射对象，方便批量注册
 export const SharedComponents = {
-  FormModal,
-  DataGrid,
-  FilterPanel,
-  DragDropList
+    FormModal,
+    DataGrid,
+    FilterPanel,
+    DragDropList,
 };
 
 // 默认导出

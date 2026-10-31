@@ -39,7 +39,8 @@ export function validateGeneratedUrl(url) {
 
         // 3. 确保有服务器地址部分
         const afterProtocol = urlParts[1];
-        if (afterProtocol.length < 3) { // 至少需要 "x:y" 这样的格式
+        if (afterProtocol.length < 3) {
+            // 至少需要 "x:y" 这样的格式
             return false;
         }
 

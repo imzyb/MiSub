@@ -13,18 +13,18 @@ export function applyPatch(originalItems = [], diff = {}) {
     // 1. Remove items
     if (removed.length > 0) {
         const removedIds = new Set(removed);
-        newItems = newItems.filter(item => !removedIds.has(item.id));
+        newItems = newItems.filter((item) => !removedIds.has(item.id));
     }
 
     // 2. Update items
     if (updated.length > 0) {
         // Create a map for faster lookup
-        const updatesMap = new Map(updated.map(item => [item.id, item]));
-        newItems = newItems.map(item => {
+        const updatesMap = new Map(updated.map((item) => [item.id, item]));
+        newItems = newItems.map((item) => {
             if (updatesMap.has(item.id)) {
                 // Merge existing item with updates
                 // Note: This assumes 'updated' contains the FULL item or partial updates?
-                // Usually safe to assume full item replacement for 'updated' based on frontend logic, 
+                // Usually safe to assume full item replacement for 'updated' based on frontend logic,
                 // but let's do a merge to be safe if only partial fields sent.
                 return { ...item, ...updatesMap.get(item.id) };
             }
@@ -35,8 +35,8 @@ export function applyPatch(originalItems = [], diff = {}) {
     // 3. Add items
     if (added.length > 0) {
         // Filter out any that might already exist to prevent duplicates if ID conflict
-        const existingIds = new Set(newItems.map(i => i.id));
-        const validAdds = added.filter(item => !existingIds.has(item.id));
+        const existingIds = new Set(newItems.map((i) => i.id));
+        const validAdds = added.filter((item) => !existingIds.has(item.id));
         newItems = [...newItems, ...validAdds];
     }
 

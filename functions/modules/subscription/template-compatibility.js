@@ -3,32 +3,33 @@ export const TEMPLATE_COMPATIBILITY = {
         allowExternalTemplate: true,
         externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Clash 系列通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 Clash 配置。'
+        description:
+            'Clash 系列通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 Clash 配置。',
     },
     surge: {
         allowExternalTemplate: true,
         externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Surge 通过统一模板模型接入，支持将 ini 模板转译为 Surge 配置。'
+        description: 'Surge 通过统一模板模型接入，支持将 ini 模板转译为 Surge 配置。',
     },
     loon: {
         allowExternalTemplate: true,
         externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Loon 通过统一模板模型接入，支持将 ini 模板转译为 Loon 配置。'
+        description: 'Loon 通过统一模板模型接入，支持将 ini 模板转译为 Loon 配置。',
     },
     quanx: {
         allowExternalTemplate: true,
         externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Quantumult X 通过统一模板模型接入，支持将 ini 模板转译为 Quantumult X 配置。'
+        description: 'Quantumult X 通过统一模板模型接入，支持将 ini 模板转译为 Quantumult X 配置。',
     },
     singbox: {
         allowExternalTemplate: true,
         externalTemplateTypes: ['ini'],
         strategy: 'model-driven',
-        description: 'Sing-Box 通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 JSON 配置。'
-    }
+        description: 'Sing-Box 通过统一模板模型接入，当前内置引擎支持将 ini 模板转译为 JSON 配置。',
+    },
 };
 
 function getTemplateExtension(templateUrl) {

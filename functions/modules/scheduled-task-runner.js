@@ -19,11 +19,15 @@ function parseTime(value) {
 
 function intervalMs(interval) {
     switch (interval) {
-        case 'hourly': return 60 * 60 * 1000;
-        case 'weekly': return 7 * 24 * 60 * 60 * 1000;
-        case 'monthly': return 30 * 24 * 60 * 60 * 1000;
+        case 'hourly':
+            return 60 * 60 * 1000;
+        case 'weekly':
+            return 7 * 24 * 60 * 60 * 1000;
+        case 'monthly':
+            return 30 * 24 * 60 * 60 * 1000;
         case 'daily':
-        default: return 24 * 60 * 60 * 1000;
+        default:
+            return 24 * 60 * 60 * 1000;
     }
 }
 
@@ -37,7 +41,8 @@ export async function maybeRunScheduledTasks(context = {}, options = {}) {
     if (!env) return { skipped: true, reason: 'missing-env' };
 
     const storageAdapter = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || await SettingsCache.get(env) || {};
+    const settings =
+        (await storageAdapter.get(KV_KEY_SETTINGS)) || (await SettingsCache.get(env)) || {};
     const config = settings.webdavBackup || {};
 
     if (!config.enabled || !config.autoBackup) {
@@ -54,8 +59,8 @@ export async function maybeRunScheduledTasks(context = {}, options = {}) {
         ...settings,
         webdavBackup: {
             ...config,
-            lastCheckedAt: new Date(now).toISOString()
-        }
+            lastCheckedAt: new Date(now).toISOString(),
+        },
     };
     await storageAdapter.put(KV_KEY_SETTINGS, updatedSettings);
     SettingsCache.clear();
@@ -73,7 +78,7 @@ export async function maybeRunScheduledTasks(context = {}, options = {}) {
     await storageAdapter.put(LOCK_KEY, {
         lockedAt: new Date(now).toISOString(),
         expiresAt: new Date(now + LOCK_TTL_MS).toISOString(),
-        source: options.source || 'request'
+        source: options.source || 'request',
     });
 
     const run = async () => {

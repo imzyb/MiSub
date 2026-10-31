@@ -76,7 +76,7 @@ export function createLoadingState() {
         stopLoading,
         setError,
         clearError,
-        reset
+        reset,
     };
 }
 
@@ -109,6 +109,6 @@ export function createTimeoutLoadingState(timeout = TIMING.REQUEST_TIMEOUT_MS) {
     return {
         ...loadingState,
         startLoading,
-        stopLoading
+        stopLoading,
     };
 }

@@ -3,6 +3,7 @@ import { convertShadowsocksToUrl, convertShadowsocksRToUrl } from './converters/
 import { convertTrojanToUrl } from './converters/trojan.js';
 import { convertVlessToUrl } from './converters/vless.js';
 import { convertHysteriaToUrl } from './converters/hysteria.js';
+import { convertAnytlsToUrl } from './converters/anytls.js';
 import { convertTuicToUrl } from './converters/tuic.js';
 import { convertSocks5ToUrl } from './converters/socks5.js';
 import { convertHttpToUrl } from './converters/http.js';
@@ -34,6 +35,8 @@ export function convertClashProxyToUrl(proxy) {
         case 'hysteria':
         case 'hysteria2':
             return convertHysteriaToUrl(proxy);
+        case 'anytls':
+            return convertAnytlsToUrl(proxy);
         case 'tuic':
             return convertTuicToUrl(proxy);
         case 'socks5':

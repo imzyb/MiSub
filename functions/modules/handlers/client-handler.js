@@ -1,7 +1,9 @@
-
-
-
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from '../utils.js';
 
 const KV_KEY_CLIENTS = 'misub_clients_v1';
 const MAX_ICON_DATA_URL_BYTES = 200 * 1024;
@@ -12,29 +14,31 @@ function getKV(env) {
 
 function isStorageUnavailableError(error) {
     const message = String(error?.message || error || '').toLowerCase();
-    return message.includes('kv storage is paused')
-        || message.includes('storage is paused')
-        || message.includes('namespace is paused');
+    return (
+        message.includes('kv storage is paused') ||
+        message.includes('storage is paused') ||
+        message.includes('namespace is paused')
+    );
 }
 
 const LEGACY_CLIENT_ICONS = {
     'clash-verge-rev': '⚡️',
     'clash-party': '🎉',
-    'v2rayn': '💻',
-    'v2rayng': '📱',
-    'shadowrocket': '🚀',
-    'hiddify': '🛡️',
-    'nekobox': '🐱',
-    'stash': '📦',
-    'loon': '🎈',
-    'egern': '🪺',
-    'surge': '⚡️',
-    'flclash': '🦋',
-    'clashmi': 'Ⓜ️',
-    'flyclash': '✈️',
-    'karing': '🦌',
-    'quantumultx': '❌',
-    'clashbox': '📦'
+    v2rayn: '💻',
+    v2rayng: '📱',
+    shadowrocket: '🚀',
+    hiddify: '🛡️',
+    nekobox: '🐱',
+    stash: '📦',
+    loon: '🎈',
+    egern: '🪺',
+    surge: '⚡️',
+    flclash: '🦋',
+    clashmi: 'Ⓜ️',
+    flyclash: '✈️',
+    karing: '🦌',
+    quantumultx: '❌',
+    clashbox: '📦',
 };
 
 const LEGACY_ICON_ALIASES = {
@@ -54,7 +58,7 @@ const LEGACY_ICON_ALIASES = {
     '/icons/clients/flyclash.png': '/icons/clients/flyclash.svg',
     '/icons/clients/karing.png': '/icons/clients/karing.svg',
     '/icons/clients/quantumultx.jpg': '/icons/clients/quantumultx.svg',
-    '/icons/clients/clashbox.png': '/icons/clients/clashbox.svg'
+    '/icons/clients/clashbox.png': '/icons/clients/clashbox.svg',
 };
 
 const DEFAULT_CLIENTS = [
@@ -66,7 +70,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'macos', 'linux'],
         url: 'https://github.com/clash-verge-rev/clash-verge-rev/releases',
         repo: 'clash-verge-rev/clash-verge-rev',
-        version: null
+        version: null,
     },
     {
         id: 'clash-party',
@@ -76,7 +80,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'macos', 'linux'],
         url: 'https://github.com/mihomo-party-org/clash-party/releases',
         repo: 'mihomo-party-org/clash-party',
-        version: null
+        version: null,
     },
     {
         id: 'v2rayn',
@@ -86,7 +90,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'linux'],
         url: 'https://github.com/2dust/v2rayN/releases',
         repo: '2dust/v2rayN',
-        version: null
+        version: null,
     },
     {
         id: 'v2rayng',
@@ -96,7 +100,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['android'],
         url: 'https://github.com/2dust/v2rayNG/releases',
         repo: '2dust/v2rayNG',
-        version: null
+        version: null,
     },
     {
         id: 'shadowrocket',
@@ -106,7 +110,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios'],
         url: 'https://apps.apple.com/us/app/shadowrocket/id932747118',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'hiddify',
@@ -116,7 +120,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'macos', 'linux', 'android', 'ios'],
         url: 'https://github.com/hiddify/hiddify-next/releases',
         repo: 'hiddify/hiddify-next',
-        version: null
+        version: null,
     },
     {
         id: 'nekobox',
@@ -126,7 +130,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['android', 'windows'],
         url: 'https://github.com/MatsuriDayo/NekoBoxForAndroid/releases',
         repo: 'MatsuriDayo/NekoBoxForAndroid',
-        version: null
+        version: null,
     },
     {
         id: 'stash',
@@ -136,7 +140,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios', 'macos'],
         url: 'https://apps.apple.com/us/app/stash-rule-based-proxy/id1596063349',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'loon',
@@ -146,7 +150,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios', 'macos'],
         url: 'https://apps.apple.com/us/app/loon/id1373567447',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'egern',
@@ -156,7 +160,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios'],
         url: 'https://apps.apple.com/us/app/egern/id1616105820',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'surge',
@@ -166,7 +170,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios', 'macos'],
         url: 'https://nssurge.com/',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'flclash',
@@ -176,7 +180,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'linux', 'android'],
         url: 'https://github.com/chen08209/FlClash/releases',
         repo: 'chen08209/FlClash',
-        version: null
+        version: null,
     },
     {
         id: 'clashmi',
@@ -186,7 +190,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'macos', 'linux', 'android', 'ios'],
         url: 'https://github.com/KaringX/clashmi/releases',
         repo: 'KaringX/clashmi',
-        version: null
+        version: null,
     },
     {
         id: 'flyclash',
@@ -196,7 +200,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'android'],
         url: 'https://github.com/GtxFury/FlyClash/releases',
         repo: 'GtxFury/FlyClash',
-        version: null
+        version: null,
     },
     {
         id: 'karing',
@@ -206,7 +210,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['windows', 'macos', 'linux', 'android', 'ios'],
         url: 'https://github.com/KaringX/karing/releases',
         repo: 'KaringX/karing',
-        version: null
+        version: null,
     },
     {
         id: 'quantumultx',
@@ -216,7 +220,7 @@ const DEFAULT_CLIENTS = [
         platforms: ['ios'],
         url: 'https://apps.apple.com/us/app/quantumult-x/id1443988620',
         repo: null,
-        version: null
+        version: null,
     },
     {
         id: 'clashbox',
@@ -226,8 +230,8 @@ const DEFAULT_CLIENTS = [
         platforms: ['HarmonyOS'],
         url: 'https://github.com/xiaobaigroup/ClashBox/releases',
         repo: 'xiaobaigroup/ClashBox',
-        version: null
-    }
+        version: null,
+    },
 ];
 
 const DEFAULT_ICON_BY_ID = DEFAULT_CLIENTS.reduce((map, client) => {
@@ -266,8 +270,8 @@ function generateUUID() {
 
 /**
  * Handle client management requests
- * @param {Request} request 
- * @param {Object} env 
+ * @param {Request} request
+ * @param {Object} env
  */
 export async function handleClientRequest(request, env) {
     const url = new URL(request.url);
@@ -277,7 +281,11 @@ export async function handleClientRequest(request, env) {
     try {
         if (request.method === 'GET') {
             if (!kv) {
-                return createJsonResponse({ success: true, data: DEFAULT_CLIENTS, storageUnavailable: true });
+                return createJsonResponse({
+                    success: true,
+                    data: DEFAULT_CLIENTS,
+                    storageUnavailable: true,
+                });
             }
             try {
                 const raw = await kv.get(KV_KEY_CLIENTS);
@@ -295,14 +303,14 @@ export async function handleClientRequest(request, env) {
                         return createJsonResponse({
                             success: true,
                             data: migration.clients,
-                            storageUnavailable: false
+                            storageUnavailable: false,
                         });
                     }
                 }
                 return createJsonResponse({
                     success: true,
                     data: data || DEFAULT_CLIENTS,
-                    storageUnavailable: false
+                    storageUnavailable: false,
                 });
             } catch (readError) {
                 if (isStorageUnavailableError(readError)) {
@@ -310,7 +318,7 @@ export async function handleClientRequest(request, env) {
                         success: true,
                         data: DEFAULT_CLIENTS,
                         storageUnavailable: true,
-                        message: 'KV 存储已暂停，客户端列表已回退为内置默认值。'
+                        message: 'KV 存储已暂停，客户端列表已回退为内置默认值。',
                     });
                 }
                 throw readError;
@@ -327,7 +335,7 @@ export async function handleClientRequest(request, env) {
                 return createJsonResponse({
                     success: true,
                     message: 'Clients initialized',
-                    data: DEFAULT_CLIENTS
+                    data: DEFAULT_CLIENTS,
                 });
             }
 
@@ -335,10 +343,14 @@ export async function handleClientRequest(request, env) {
             try {
                 body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
             } catch (e) {
-                return createErrorResponse(e?.status === 413 ? e.message : 'Invalid JSON body', e?.status || 400);
+                return createErrorResponse(
+                    e?.status === 413 ? e.message : 'Invalid JSON body',
+                    e?.status || 400
+                );
             }
 
-            let clients = await kv.get(KV_KEY_CLIENTS).then(r => r ? JSON.parse(r) : null) || [];
+            let clients =
+                (await kv.get(KV_KEY_CLIENTS).then((r) => (r ? JSON.parse(r) : null))) || [];
 
             if (Array.isArray(body)) {
                 clients = body;
@@ -351,7 +363,7 @@ export async function handleClientRequest(request, env) {
                         return createErrorResponse('Icon data URL is too large (max 200KB)', 400);
                     }
                 }
-                const index = clients.findIndex(c => c.id === body.id);
+                const index = clients.findIndex((c) => c.id === body.id);
                 if (index !== -1) {
                     clients[index] = { ...clients[index], ...body };
                 } else {
@@ -370,9 +382,10 @@ export async function handleClientRequest(request, env) {
                 return createErrorResponse('Client ID is required', 400);
             }
 
-            let clients = await kv.get(KV_KEY_CLIENTS).then(r => r ? JSON.parse(r) : null) || [];
+            let clients =
+                (await kv.get(KV_KEY_CLIENTS).then((r) => (r ? JSON.parse(r) : null))) || [];
             const originalLength = clients.length;
-            clients = clients.filter(c => c.id !== id);
+            clients = clients.filter((c) => c.id !== id);
 
             if (clients.length === originalLength) {
                 return createErrorResponse('Client not found', 404);
@@ -386,7 +399,10 @@ export async function handleClientRequest(request, env) {
     } catch (e) {
         console.error('[Client Handler Error]', e);
         if (isStorageUnavailableError(e)) {
-            return createErrorResponse('KV 存储已暂停，客户端配置当前无法保存。请先恢复 KV 绑定，或改用 D1。', 503);
+            return createErrorResponse(
+                'KV 存储已暂停，客户端配置当前无法保存。请先恢复 KV 绑定，或改用 D1。',
+                503
+            );
         }
         return createErrorResponse(`Operation failed: ${e.message}`, 500);
     }

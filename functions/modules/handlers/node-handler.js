@@ -5,14 +5,22 @@
 
 import { StorageFactory } from '../../storage-adapter.js';
 import { DEFAULT_SETTINGS, KV_KEY_SETTINGS } from '../config.js';
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from '../utils.js';
 import { parseNodeList } from '../utils/node-parser.js';
 import { getProcessedUserAgent } from '../../utils/format-utils.js';
 import { buildFetchProxyUrl } from '../../utils/fetch-proxy-utils.js';
 import { isSuspiciousNodeCountDrop } from '../../services/node-cache-service.js';
 
 // 创建用于全局匹配的协议正则表达式
-const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp('^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\\/\\/', 'gm');
+const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp(
+    '^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\\/\\/',
+    'gm'
+);
 
 const SUBSCRIPTION_BODY_ERROR_PATTERNS = [
     /failed to fetch remote profile/i,
@@ -22,22 +30,26 @@ const SUBSCRIPTION_BODY_ERROR_PATTERNS = [
     /\bnot authorized\b/i,
     /\bsubscription protection\b/i,
     /\bstatus\s*[:=]?\s*(400|401|403|404|429|5\d\d)\b/i,
-    /\bhttp\s*(400|401|403|404|429|5\d\d)\b/i
+    /\bhttp\s*(400|401|403|404|429|5\d\d)\b/i,
 ];
 
 function summarizeResponseText(text) {
-    return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+    return String(text || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180);
 }
 
 function detectSubscriptionBodyError(text) {
     const summary = summarizeResponseText(text);
     if (!summary) return null;
 
-    const hasErrorText = SUBSCRIPTION_BODY_ERROR_PATTERNS.some(pattern => pattern.test(summary));
+    const hasErrorText = SUBSCRIPTION_BODY_ERROR_PATTERNS.some((pattern) => pattern.test(summary));
     if (!hasErrorText) return null;
 
-    const statusMatch = summary.match(/\b(?:status|http)\s*[:=]?\s*(\d{3})\b/i)
-        || summary.match(/\b(400|401|403|404|429|5\d\d)\b/);
+    const statusMatch =
+        summary.match(/\b(?:status|http)\s*[:=]?\s*(\d{3})\b/i) ||
+        summary.match(/\b(400|401|403|404|429|5\d\d)\b/);
     const status = statusMatch ? Number(statusMatch[1]) : undefined;
     const message = status ? `HTTP ${status}: ${summary}` : summary;
     const error = new Error(message);
@@ -47,13 +59,19 @@ function detectSubscriptionBodyError(text) {
 
 async function resolveNodeCountFetchCfOptions(env) {
     try {
-        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || DEFAULT_SETTINGS;
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
+        const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
         if (settings?.builtinSkipCertVerify === true) {
             return { cf: { insecureSkipVerify: true } };
         }
     } catch (error) {
-        console.warn('[NodeHandler] Failed to load certificate verification setting, using secure default:', error);
+        console.warn(
+            '[NodeHandler] Failed to load certificate verification setting, using secure default:',
+            error
+        );
     }
     return {};
 }
@@ -70,7 +88,12 @@ export async function handleNodeCountRequest(request, env) {
     }
 
     try {
-        const { url: subUrl, fetchProxy, plusAsSpace, userAgent: customUserAgent } = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
+        const {
+            url: subUrl,
+            fetchProxy,
+            plusAsSpace,
+            userAgent: customUserAgent,
+        } = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//i.test(subUrl)) {
             return createErrorResponse('Invalid or missing url', 400);
         }
@@ -81,8 +104,10 @@ export async function handleNodeCountRequest(request, env) {
         let fetchError = null;
 
         let requestUrl = subUrl;
-        const requestedUserAgent = typeof customUserAgent === 'string' ? customUserAgent.trim() : '';
-        const processedUserAgent = requestedUserAgent || getProcessedUserAgent('v2rayN/7.23', subUrl);
+        const requestedUserAgent =
+            typeof customUserAgent === 'string' ? customUserAgent.trim() : '';
+        const processedUserAgent =
+            requestedUserAgent || getProcessedUserAgent('v2rayN/7.23', subUrl);
         if (fetchProxy && typeof fetchProxy === 'string' && fetchProxy.trim()) {
             requestUrl = buildFetchProxyUrl(fetchProxy, subUrl, processedUserAgent);
         }
@@ -91,11 +116,11 @@ export async function handleNodeCountRequest(request, env) {
             // 使用统一的User-Agent策略
             const fetchOptions = {
                 headers: { 'User-Agent': processedUserAgent },
-                redirect: "follow"
+                redirect: 'follow',
             };
             const trafficFetchOptions = {
                 headers: { 'User-Agent': 'clash-verge/v2.4.3' },
-                redirect: "follow"
+                redirect: 'follow',
             };
 
             // cf 选项需传给 fetch() 而非 Request()：仅在用户显式启用跳过证书验证时传递
@@ -112,7 +137,7 @@ export async function handleNodeCountRequest(request, env) {
                 const userInfoHeader = response.headers.get('subscription-userinfo');
                 if (userInfoHeader) {
                     const info = {};
-                    userInfoHeader.split(';').forEach(part => {
+                    userInfoHeader.split(';').forEach((part) => {
                         const [key, value] = part.trim().split('=');
                         if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
                     });
@@ -147,14 +172,19 @@ export async function handleNodeCountRequest(request, env) {
                     /剩余流量[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
                     /Remaining[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
                     /剩余[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
-                    /Traffic[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i
+                    /Traffic[：:]\s*([\d.]+)\s*(GB|MB|TB|KB)/i,
                 ];
                 for (const pattern of trafficPatterns) {
                     const match = fullText.match(pattern);
                     if (match) {
                         const value = parseFloat(match[1]);
                         const unit = match[2].toUpperCase();
-                        const multipliers = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
+                        const multipliers = {
+                            KB: 1024,
+                            MB: 1024 ** 2,
+                            GB: 1024 ** 3,
+                            TB: 1024 ** 4,
+                        };
                         const bytes = Math.round(value * (multipliers[unit] || 1));
                         // 用 total = bytes, upload = 0, download = 0 表示剩余流量
                         info.total = bytes;
@@ -165,9 +195,7 @@ export async function handleNodeCountRequest(request, env) {
                 }
 
                 // 解析到期时间
-                const expirePatterns = [
-                    /(?:套餐到期|到期时间|过期时间|Expire)[：:]\s*(.+)/i
-                ];
+                const expirePatterns = [/(?:套餐到期|到期时间|过期时间|Expire)[：:]\s*(.+)/i];
                 for (const pattern of expirePatterns) {
                     const match = fullText.match(pattern);
                     if (match) {
@@ -202,10 +230,13 @@ export async function handleNodeCountRequest(request, env) {
                 }
             } else {
                 // 仅记录警告，不视为严重错误，因为我们还有 fallback
-                const reason = responses[0].status === 'fulfilled'
-                    ? `HTTP ${responses[0].value.status}`
-                    : (responses[0].reason?.message || 'Unknown Error');
-                console.warn(`[NodeHandler] Traffic specific request failed (${reason}). Will attempt fallback extraction.`);
+                const reason =
+                    responses[0].status === 'fulfilled'
+                        ? `HTTP ${responses[0].value.status}`
+                        : responses[0].reason?.message || 'Unknown Error';
+                console.warn(
+                    `[NodeHandler] Traffic specific request failed (${reason}). Will attempt fallback extraction.`
+                );
             }
 
             // 2. 处理节点数请求的结果
@@ -220,7 +251,9 @@ export async function handleNodeCountRequest(request, env) {
                     if (!result.userInfo) {
                         const info = extractUserInfo(responses[1].value);
                         if (info) {
-                            console.info('[NodeHandler] Successfully extracted traffic info from node response header (Fallback 1).');
+                            console.info(
+                                '[NodeHandler] Successfully extracted traffic info from node response header (Fallback 1).'
+                            );
                             result.userInfo = info;
                             trafficRequestSucceeded = true;
                         }
@@ -229,7 +262,9 @@ export async function handleNodeCountRequest(request, env) {
                     const bodyError = detectSubscriptionBodyError(text);
                     if (bodyError) {
                         fetchError = bodyError;
-                        console.warn(`[NodeHandler] Node count response contains upstream error: ${bodyError.message}`);
+                        console.warn(
+                            `[NodeHandler] Node count response contains upstream error: ${bodyError.message}`
+                        );
                         throw bodyError;
                     }
 
@@ -254,11 +289,15 @@ export async function handleNodeCountRequest(request, env) {
                                 }
                                 decodedText = new TextDecoder('utf-8').decode(bytes);
                             }
-                        } catch { /* 已经是明文 */ }
+                        } catch {
+                            /* 已经是明文 */
+                        }
 
                         const bodyInfo = extractUserInfoFromBody(decodedText);
                         if (bodyInfo) {
-                            console.info('[NodeHandler] Successfully extracted traffic info from body fake nodes (Fallback 2).');
+                            console.info(
+                                '[NodeHandler] Successfully extracted traffic info from body fake nodes (Fallback 2).'
+                            );
                             result.userInfo = bodyInfo;
                             trafficRequestSucceeded = true;
                         }
@@ -268,59 +307,70 @@ export async function handleNodeCountRequest(request, env) {
                         result.count = parsedNodes.length;
                         nodeCountRequestSucceeded = true;
                     } else {
-                        fetchError = fetchError || new Error('No valid nodes returned from subscription');
-                        console.warn(`[NodeHandler] Node count response parsed successfully but contained no valid nodes for ${subUrl}.`);
+                        fetchError =
+                            fetchError || new Error('No valid nodes returned from subscription');
+                        console.warn(
+                            `[NodeHandler] Node count response parsed successfully but contained no valid nodes for ${subUrl}.`
+                        );
                     }
                 } catch (e) {
                     if (e === fetchError) {
-                        console.warn(`[NodeHandler] Skipping node count fallback because upstream returned an error body: ${e.message}`);
+                        console.warn(
+                            `[NodeHandler] Skipping node count fallback because upstream returned an error body: ${e.message}`
+                        );
                     } else {
-                    // 解析失败，尝试简单统计
-                    console.error('Node count parse error:', e);
+                        // 解析失败，尝试简单统计
+                        console.error('Node count parse error:', e);
 
-                    try {
-                        const cleanedText = text.replace(/\s/g, '');
-                        let normalized = cleanedText.replace(/-/g, '+').replace(/_/g, '/');
-                        const padding = normalized.length % 4;
-                        if (padding) {
-                            normalized += '='.repeat(4 - padding);
-                        }
-                        const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-                        if (base64Regex.test(normalized) && normalized.length >= 20) {
-                            const binaryString = atob(normalized);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
+                        try {
+                            const cleanedText = text.replace(/\s/g, '');
+                            let normalized = cleanedText.replace(/-/g, '+').replace(/_/g, '/');
+                            const padding = normalized.length % 4;
+                            if (padding) {
+                                normalized += '='.repeat(4 - padding);
                             }
-                            const processedText = new TextDecoder('utf-8').decode(bytes);
-                            const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                            if (lineMatches) {
-                                result.count = lineMatches.length;
-                                nodeCountRequestSucceeded = true;
+                            const base64Regex = /^[A-Za-z0-9+\/=]+$/;
+                            if (base64Regex.test(normalized) && normalized.length >= 20) {
+                                const binaryString = atob(normalized);
+                                const bytes = new Uint8Array(binaryString.length);
+                                for (let i = 0; i < binaryString.length; i++) {
+                                    bytes[i] = binaryString.charCodeAt(i);
+                                }
+                                const processedText = new TextDecoder('utf-8').decode(bytes);
+                                const lineMatches = processedText.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                                if (lineMatches) {
+                                    result.count = lineMatches.length;
+                                    nodeCountRequestSucceeded = true;
+                                }
+                            } else {
+                                const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
+                                if (lineMatches) {
+                                    result.count = lineMatches.length;
+                                    nodeCountRequestSucceeded = true;
+                                }
                             }
-                        } else {
+                        } catch (error) {
+                            // 最后降级到原始文本统计
+                            console.debug(
+                                '[NodeHandler] Failed to decode node count response, falling back to raw text:',
+                                error
+                            );
                             const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
                             if (lineMatches) {
                                 result.count = lineMatches.length;
                                 nodeCountRequestSucceeded = true;
                             }
                         }
-                    } catch (error) {
-                        // 最后降级到原始文本统计
-                        console.debug('[NodeHandler] Failed to decode node count response, falling back to raw text:', error);
-                        const lineMatches = text.match(NODE_PROTOCOL_GLOBAL_REGEX);
-                        if (lineMatches) {
-                            result.count = lineMatches.length;
-                            nodeCountRequestSucceeded = true;
-                        }
-                    }
                     }
                 }
             } else if (responses[1].status === 'rejected') {
                 if (!fetchError) fetchError = responses[1].reason;
                 console.error('Node count request failed:', responses[1].reason);
             } else if (responses[1].status === 'fulfilled' && !responses[1].value.ok) {
-                if (!fetchError) fetchError = new Error(`HTTP ${responses[1].value.status}: ${responses[1].value.statusText}`);
+                if (!fetchError)
+                    fetchError = new Error(
+                        `HTTP ${responses[1].value.status}: ${responses[1].value.statusText}`
+                    );
                 console.error('Node count request returned error:', responses[1].value.status);
             }
 
@@ -331,13 +381,19 @@ export async function handleNodeCountRequest(request, env) {
                 let errorMessage = 'No valid nodes returned from subscription';
 
                 if (fetchError) {
-                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('timeout')) {
+                    if (
+                        fetchError.name === 'AbortError' ||
+                        fetchError.message?.includes('timeout')
+                    ) {
                         errorType = 'timeout';
                         errorMessage = '订阅请求超时';
                     } else if (fetchError.message?.includes('HTTP')) {
                         errorType = 'server';
                         errorMessage = fetchError.message;
-                    } else if (fetchError.message?.includes('network') || fetchError.message?.includes('fetch')) {
+                    } else if (
+                        fetchError.message?.includes('network') ||
+                        fetchError.message?.includes('fetch')
+                    ) {
                         errorType = 'network';
                         errorMessage = '网络连接失败';
                     } else if (fetchError.message) {
@@ -345,22 +401,27 @@ export async function handleNodeCountRequest(request, env) {
                     }
                 }
 
-                console.error(`[Node Count] Node count update failed for ${subUrl}: ${errorMessage}`);
+                console.error(
+                    `[Node Count] Node count update failed for ${subUrl}: ${errorMessage}`
+                );
                 return createJsonResponse({
                     success: false,
                     error: errorMessage,
                     errorType: errorType,
                     status: fetchError?.status || null,
                     count: 0,
-                    userInfo: result.userInfo || null
+                    userInfo: result.userInfo || null,
                 });
             }
 
             // 只有在至少获取到一个有效信息时，才更新数据库
             if (result.count > 0) {
-                const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-                const originalSubs = await storageAdapter.get('misub_subscriptions_v1') || [];
-                const subToUpdate = originalSubs.find(s => s.url === subUrl);
+                const storageAdapter = StorageFactory.createAdapter(
+                    env,
+                    await StorageFactory.getStorageType(env)
+                );
+                const originalSubs = (await storageAdapter.get('misub_subscriptions_v1')) || [];
+                const subToUpdate = originalSubs.find((s) => s.url === subUrl);
 
                 if (subToUpdate) {
                     const knownNodeCount = Math.max(
@@ -372,28 +433,30 @@ export async function handleNodeCountRequest(request, env) {
                     // group. A truncated Base64 prefix may still parse as one node, so preserve
                     // the last healthy count instead of destroying the shrink-protection baseline.
                     if (isSuspiciousNodeCountDrop(knownNodeCount, result.count)) {
-                        console.warn(`[Node Count] Rejecting suspicious node-count drop for ${subUrl} (${knownNodeCount} known -> ${result.count} fetched)`);
+                        console.warn(
+                            `[Node Count] Rejecting suspicious node-count drop for ${subUrl} (${knownNodeCount} known -> ${result.count} fetched)`
+                        );
                         result.count = knownNodeCount;
                         result.protected = true;
                         result.lastGoodNodeCount = knownNodeCount;
                         return createJsonResponse({
                             success: true,
-                            data: result
+                            data: result,
                         });
                     }
 
                     if (typeof storageAdapter.updateSubscriptionById === 'function') {
-                        await storageAdapter.updateSubscriptionById(subToUpdate.id, current => ({
+                        await storageAdapter.updateSubscriptionById(subToUpdate.id, (current) => ({
                             ...current,
                             nodeCount: result.count,
                             ...(result.count >= 10 ? { lastGoodNodeCount: result.count } : {}),
                             userInfo: result.userInfo,
                             lastError: null,
-                            lastUpdate: new Date().toISOString()
+                            lastUpdate: new Date().toISOString(),
                         }));
                     } else {
                         const allSubs = JSON.parse(JSON.stringify(originalSubs));
-                        const target = allSubs.find(s => s.url === subUrl);
+                        const target = allSubs.find((s) => s.url === subUrl);
                         if (target) {
                             target.nodeCount = result.count;
                             if (result.count >= 10) target.lastGoodNodeCount = result.count;
@@ -407,20 +470,19 @@ export async function handleNodeCountRequest(request, env) {
             } else {
                 // 如果 count 为 0 且没有用户信息，但请求成功了（可能机场真的没节点），也要更新错误状态（可选，此处暂不作为错误）
             }
-
         } catch (e) {
             // 节点计数处理错误
             console.error('Node count processing error:', e);
             return createJsonResponse({
                 success: false,
                 error: `处理失败: ${e.message}`,
-                errorType: 'processing_error'
+                errorType: 'processing_error',
             });
         }
 
         return createJsonResponse({
             success: true,
-            data: result
+            data: result,
         });
     } catch (e) {
         return createErrorResponse(`获取节点数量失败: ${e.message}`, 500);
@@ -444,23 +506,36 @@ export async function handleBatchUpdateNodesRequest(request, env) {
 
         // 验证必需参数
         if (!subscriptionIds || !Array.isArray(subscriptionIds) || subscriptionIds.length === 0) {
-            return createJsonResponse({
-                error: '请提供要更新的订阅ID列表'
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '请提供要更新的订阅ID列表',
+                },
+                400
+            );
         }
 
-        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-        const allSubscriptions = await storageAdapter.get('misub_subscriptions_v1') || [];
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
+        const allSubscriptions = (await storageAdapter.get('misub_subscriptions_v1')) || [];
 
         // 过滤出要更新的订阅
-        const targetSubscriptions = allSubscriptions.filter(sub =>
-            subscriptionIds.includes(sub.id) && sub.enabled && sub.url && sub.url.startsWith('http')
+        const targetSubscriptions = allSubscriptions.filter(
+            (sub) =>
+                subscriptionIds.includes(sub.id) &&
+                sub.enabled &&
+                sub.url &&
+                sub.url.startsWith('http')
         );
 
         if (targetSubscriptions.length === 0) {
-            return createJsonResponse({
-                error: '没有找到需要更新的有效订阅'
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '没有找到需要更新的有效订阅',
+                },
+                400
+            );
         }
 
         // 单个订阅超时时间（毫秒）
@@ -469,18 +544,31 @@ export async function handleBatchUpdateNodesRequest(request, env) {
         // 并行获取所有订阅的节点（带超时）
         const updatePromises = targetSubscriptions.map(async (subscription) => {
             try {
-                const effectiveUserAgent = (typeof subscription.customUserAgent === 'string' && subscription.customUserAgent.trim())
-                    || getProcessedUserAgent(userAgent, subscription.url);
+                const effectiveUserAgent =
+                    (typeof subscription.customUserAgent === 'string' &&
+                        subscription.customUserAgent.trim()) ||
+                    getProcessedUserAgent(userAgent, subscription.url);
                 let requestUrl = subscription.url;
-                if (subscription.fetchProxy && typeof subscription.fetchProxy === 'string' && subscription.fetchProxy.trim()) {
-                    requestUrl = buildFetchProxyUrl(subscription.fetchProxy, subscription.url, effectiveUserAgent);
+                if (
+                    subscription.fetchProxy &&
+                    typeof subscription.fetchProxy === 'string' &&
+                    subscription.fetchProxy.trim()
+                ) {
+                    requestUrl = buildFetchProxyUrl(
+                        subscription.fetchProxy,
+                        subscription.url,
+                        effectiveUserAgent
+                    );
                 }
 
                 // 使用 Promise.race 实现超时
-                const fetchPromise = fetch(new Request(requestUrl, {
-                    headers: { 'User-Agent': effectiveUserAgent },
-                    redirect: "follow"
-                }), { cf: { insecureSkipVerify: true } });
+                const fetchPromise = fetch(
+                    new Request(requestUrl, {
+                        headers: { 'User-Agent': effectiveUserAgent },
+                        redirect: 'follow',
+                    }),
+                    { cf: { insecureSkipVerify: true } }
+                );
 
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('请求超时')), SINGLE_SUB_TIMEOUT)
@@ -513,7 +601,8 @@ export async function handleBatchUpdateNodesRequest(request, env) {
                                 bytes[i] = binaryString.charCodeAt(i);
                             }
                             const processedText = new TextDecoder('utf-8').decode(bytes);
-                            nodeCount = (processedText.match(NODE_PROTOCOL_GLOBAL_REGEX) || []).length;
+                            nodeCount = (processedText.match(NODE_PROTOCOL_GLOBAL_REGEX) || [])
+                                .length;
                         } else {
                             nodeCount = (text.match(NODE_PROTOCOL_GLOBAL_REGEX) || []).length;
                         }
@@ -529,7 +618,7 @@ export async function handleBatchUpdateNodesRequest(request, env) {
                     success: true,
                     nodeCount,
                     error: null,
-                    lastUpdated: new Date().toISOString()
+                    lastUpdated: new Date().toISOString(),
                 };
             } catch (e) {
                 return {
@@ -538,7 +627,7 @@ export async function handleBatchUpdateNodesRequest(request, env) {
                     success: false,
                     nodeCount: 0,
                     error: e.message,
-                    lastUpdated: new Date().toISOString()
+                    lastUpdated: new Date().toISOString(),
                 };
             }
         });
@@ -547,7 +636,7 @@ export async function handleBatchUpdateNodesRequest(request, env) {
         const results = await Promise.all(updatePromises);
 
         // 统计结果
-        const successfulUpdates = results.filter(r => r.success);
+        const successfulUpdates = results.filter((r) => r.success);
         const totalNodes = successfulUpdates.reduce((sum, r) => sum + r.nodeCount, 0);
 
         return createJsonResponse({
@@ -557,8 +646,8 @@ export async function handleBatchUpdateNodesRequest(request, env) {
                 totalSubscriptions: targetSubscriptions.length,
                 successfulUpdates: successfulUpdates.length,
                 failedUpdates: targetSubscriptions.length - successfulUpdates.length,
-                totalNodes
-            }
+                totalNodes,
+            },
         });
     } catch (e) {
         return createErrorResponse(`批量更新失败: ${e.message}`, 500);
@@ -580,7 +669,10 @@ export async function handleCleanNodesRequest(request, env) {
         const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         const { profileId } = requestData;
 
-        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
 
         if (profileId) {
             // 清理指定订阅组的节点
@@ -595,7 +687,7 @@ export async function handleCleanNodesRequest(request, env) {
             const uniqueNodes = [];
             const seenUrls = new Set();
 
-            previewResult.nodes.forEach(node => {
+            previewResult.nodes.forEach((node) => {
                 if (node.url && !seenUrls.has(node.url)) {
                     seenUrls.add(node.url);
                     uniqueNodes.push(node);
@@ -608,7 +700,7 @@ export async function handleCleanNodesRequest(request, env) {
                 originalCount: previewResult.nodes.length,
                 cleanedCount: uniqueNodes.length,
                 removedDuplicates: previewResult.nodes.length - uniqueNodes.length,
-                cleanedNodes: uniqueNodes
+                cleanedNodes: uniqueNodes,
             });
         } else {
             // 清理所有订阅的节点（全局清理）
@@ -635,35 +727,48 @@ export async function handleHealthCheckRequest(request, env) {
         const { nodeUrls, timeout = 5000 } = requestData;
 
         if (!nodeUrls || !Array.isArray(nodeUrls) || nodeUrls.length === 0) {
-            return createJsonResponse({
-                error: '请提供要检查的节点URL列表'
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '请提供要检查的节点URL列表',
+                },
+                400
+            );
         }
 
         // 在Cloudflare环境中，我们只能进行基本的格式检查
         // 实际的连通性测试需要在外部进行
-        const healthResults = nodeUrls.map(nodeUrl => {
+        const healthResults = nodeUrls.map((nodeUrl) => {
             try {
                 const url = new URL(nodeUrl);
-                const isValidProtocol = ['ss:', 'ssr:', 'vmess:', 'vless:', 'trojan:', 'hysteria:', 'hysteria2:', 'tuic:', 'snell:'].includes(url.protocol);
+                const isValidProtocol = [
+                    'ss:',
+                    'ssr:',
+                    'vmess:',
+                    'vless:',
+                    'trojan:',
+                    'hysteria:',
+                    'hysteria2:',
+                    'tuic:',
+                    'snell:',
+                ].includes(url.protocol);
 
                 return {
                     nodeUrl,
                     healthy: isValidProtocol,
                     error: isValidProtocol ? null : '不支持的协议',
-                    checkTime: new Date().toISOString()
+                    checkTime: new Date().toISOString(),
                 };
             } catch (e) {
                 return {
                     nodeUrl,
                     healthy: false,
                     error: '无效的URL格式',
-                    checkTime: new Date().toISOString()
+                    checkTime: new Date().toISOString(),
                 };
             }
         });
 
-        const healthyNodes = healthResults.filter(r => r.healthy).length;
+        const healthyNodes = healthResults.filter((r) => r.healthy).length;
 
         return createJsonResponse({
             success: true,
@@ -671,12 +776,15 @@ export async function handleHealthCheckRequest(request, env) {
             summary: {
                 totalNodes: nodeUrls.length,
                 healthyNodes,
-                unhealthyNodes: nodeUrls.length - healthyNodes
-            }
+                unhealthyNodes: nodeUrls.length - healthyNodes,
+            },
         });
     } catch (e) {
-        return createJsonResponse({
-            error: `健康检查失败: ${e.message}`
-        }, 500);
+        return createJsonResponse(
+            {
+                error: `健康检查失败: ${e.message}`,
+            },
+            500
+        );
     }
 }

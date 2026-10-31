@@ -73,6 +73,12 @@ export function convertTrojanToUrl(proxy) {
                 if (proxy['reality-opts']['spider-x']) {
                     params.set('spx', proxy['reality-opts']['spider-x']);
                 }
+                const sxm =
+                    proxy['reality-opts']['support-x25519mlkem768'] ??
+                    proxy['reality-opts'].support_x25519mlkem768;
+                if (sxm !== undefined) {
+                    params.set('support-x25519mlkem768', String(sxm));
+                }
             }
             // Reality SNI
             if (proxy.servername || proxy.sni) {

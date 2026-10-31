@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { isBrowserAgent, determineTargetFormat, isMetaCore } from '../../functions/modules/subscription/user-agent-utils.js';
+import {
+    isBrowserAgent,
+    determineTargetFormat,
+    isMetaCore,
+} from '../../functions/modules/subscription/user-agent-utils.js';
 
 describe('User-Agent Utils', () => {
     describe('isBrowserAgent', () => {
@@ -12,9 +16,9 @@ describe('User-Agent Utils', () => {
                 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 Via/4.3.1', // Via Browser
                 'Mozilla/5.0 (Linux; U; Android 12; zh-CN; Pixel 6 Build/SQ3A.220705.004) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/100.0.4896.127 UWS/3.22.1.239 Mobile Safari/537.36 UCBrowser/15.2.2.1239', // UC Browser
                 'Mozilla/5.0 (Linux; U; Android 11; zh-cn; MI 9 Build/RKQ1.200826.002) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/89.0.4389.116 Mobile Safari/537.36 Quark/5.6.8.211', // Quark Browser
-                'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1' // Safari Mobile
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1', // Safari Mobile
             ];
-            browsers.forEach(ua => {
+            browsers.forEach((ua) => {
                 expect(isBrowserAgent(ua)).toBe(true);
             });
         });
@@ -30,9 +34,9 @@ describe('User-Agent Utils', () => {
                 'v2rayNG/1.6.25 (Linux; Android 11; Pixel 4 XL Build/RQ3A.210605.005) Go/1.16.5',
                 'NekoBox/1.0',
                 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 月兔/v2.0.9',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)'
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)',
             ];
-            proxies.forEach(ua => {
+            proxies.forEach((ua) => {
                 expect(isBrowserAgent(ua)).toBe(false);
             });
         });
@@ -74,10 +78,22 @@ describe('User-Agent Utils', () => {
         });
 
         it('should default Shadowrocket adaptive subscription links to base64 unless explicitly overridden', () => {
-            expect(determineTargetFormat('Shadowrocket/2.2.60 CFNetwork/1496.0.7 Darwin/23.5.0', new URLSearchParams(''))).toBe('base64');
+            expect(
+                determineTargetFormat(
+                    'Shadowrocket/2.2.60 CFNetwork/1496.0.7 Darwin/23.5.0',
+                    new URLSearchParams('')
+                )
+            ).toBe('base64');
             expect(determineTargetFormat('shadowrocket', new URLSearchParams(''))).toBe('base64');
-            expect(determineTargetFormat('Shadowrocket/2.2.60', new URLSearchParams('?clash=1'))).toBe('clash');
-            expect(determineTargetFormat('Shadowrocket/2.2.60', new URLSearchParams('?target=surge&ver=4'))).toBe('surge&ver=4');
+            expect(
+                determineTargetFormat('Shadowrocket/2.2.60', new URLSearchParams('?clash=1'))
+            ).toBe('clash');
+            expect(
+                determineTargetFormat(
+                    'Shadowrocket/2.2.60',
+                    new URLSearchParams('?target=surge&ver=4')
+                )
+            ).toBe('surge&ver=4');
         });
 
         it('should treat Yuetu Android clients as Clash-compatible', () => {
@@ -92,10 +108,10 @@ describe('User-Agent Utils', () => {
                 'mihomo.party/v1.8.5 (clash.meta)',
                 'clash-party/v1.8.5',
                 'Clash Party/1.8.5',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)'
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36 mihomo.party/v1.8.5 (clash.meta)',
             ];
 
-            partyUas.forEach(ua => {
+            partyUas.forEach((ua) => {
                 expect(determineTargetFormat(ua, params)).toBe('clash');
             });
         });

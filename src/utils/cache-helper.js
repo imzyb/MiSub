@@ -1,6 +1,6 @@
 /**
  * Simple SessionStorage Cache Helper
- * 
+ *
  * Provides basic get/set/clear operations with Time-To-Live (TTL) support.
  */
 

@@ -40,7 +40,7 @@ export function clashFix(content) {
 
     // // 移除末尾多余的换行符
     // return result.replace(/\n$/, '');
-    
+
     // WireGuard-specific formatting can be added here if needed.
     // Do not inject remote-dns-resolve.
     return content;
@@ -130,7 +130,7 @@ export function determineFormatByUserAgent(userAgentHeader) {
         ['quantumult', 'quanx'],
 
         // 最後才匹配通用的 clash，作為向下相容
-        ['clash', 'clash']
+        ['clash', 'clash'],
     ];
 
     for (const [keyword, format] of uaMapping) {
@@ -149,7 +149,17 @@ export function determineFormatByUserAgent(userAgentHeader) {
 export function determineFormatByUrl(url) {
     let targetFormat = url.searchParams.get('target');
     if (!targetFormat) {
-        const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'quanx', 'base64', 'v2ray', 'trojan', 'egern'];
+        const supportedFormats = [
+            'clash',
+            'singbox',
+            'surge',
+            'loon',
+            'quanx',
+            'base64',
+            'v2ray',
+            'trojan',
+            'egern',
+        ];
         for (const format of supportedFormats) {
             if (url.searchParams.has(format)) {
                 if (format === 'v2ray' || format === 'trojan') {

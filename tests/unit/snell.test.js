@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseSnellUrl, validateSnellNode, extractValidNodes, parseNodeList } from '../../functions/modules/utils/node-parser.js';
+import {
+    parseSnellUrl,
+    validateSnellNode,
+    extractValidNodes,
+    parseNodeList,
+} from '../../functions/modules/utils/node-parser.js';
 import { parseSurgeConfig } from '../../src/utils/protocolConverter.js';
 
 describe('Snell 协议支持', () => {
@@ -18,7 +23,8 @@ describe('Snell 协议支持', () => {
         });
 
         it('应正确解析带 reuse 和 tfo 参数的 Snell URL', () => {
-            const url = 'snell://password123@example.com:443?version=5&reuse=true&tfo=true#TestNode';
+            const url =
+                'snell://password123@example.com:443?version=5&reuse=true&tfo=true#TestNode';
             const result = parseSnellUrl(url);
 
             expect(result).toBeTruthy();
@@ -27,7 +33,8 @@ describe('Snell 协议支持', () => {
         });
 
         it('应忽略不支持的参数（如 ecn）', () => {
-            const url = 'snell://password123@example.com:443?version=5&reuse=true&tfo=true&ecn=true#TestNode';
+            const url =
+                'snell://password123@example.com:443?version=5&reuse=true&tfo=true&ecn=true#TestNode';
             const result = parseSnellUrl(url);
 
             expect(result).toBeTruthy();
@@ -36,7 +43,8 @@ describe('Snell 协议支持', () => {
         });
 
         it('应正确解析带混淆参数的 Snell URL', () => {
-            const url = 'snell://password123@example.com:443?version=5&obfs=http&obfs-host=cloudflare.com#TestNode';
+            const url =
+                'snell://password123@example.com:443?version=5&obfs=http&obfs-host=cloudflare.com#TestNode';
             const result = parseSnellUrl(url);
 
             expect(result).toBeTruthy();
@@ -140,7 +148,7 @@ JP-Snell = snell, jp.example.com, 443, psk=password123, version=5, obfs=http, ob
             const config = `Full-Snell = snell, full.example.com, 443, psk=password123, version=5, obfs=tls, obfs-host=example.com, reuse=true, tfo=true
 🇺🇸Snell - US = snell, image.apple.com, 443, psk = RygGbqC47muxRlJUaWiS, version = 5, reuse = true, tfo = true`;
             const nodes = extractValidNodes(config);
-            
+
             expect(nodes.length).toBe(2);
             expect(nodes[0]).toContain('Full-Snell');
             expect(nodes[0]).toContain('obfs=tls');

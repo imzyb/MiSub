@@ -21,9 +21,11 @@ describe('Surge 内置生成器', () => {
             const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
             const result = generateBuiltinSurgeConfig(ss, {
                 managedConfigUrl: 'https://example.com/sub',
-                interval: 3600
+                interval: 3600,
             });
-            expect(result).toContain('#!MANAGED-CONFIG https://example.com/sub interval=3600 strict=false');
+            expect(result).toContain(
+                '#!MANAGED-CONFIG https://example.com/sub interval=3600 strict=false'
+            );
         });
 
         it('应正确应用全局 skipCertVerify 设置', () => {
@@ -60,9 +62,17 @@ describe('Surge 内置生成器', () => {
     describe('VMess', () => {
         it('应正确生成 VMess 代理行', () => {
             const vmessConfig = {
-                v: "2", ps: "TestVMess", add: "1.2.3.4", port: "443",
-                id: "uuid-1234", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'TestVMess',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1234',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const vmess = `vmess://${btoa(JSON.stringify(vmessConfig))}`;
             const result = generateBuiltinSurgeConfig(vmess);
@@ -72,9 +82,17 @@ describe('Surge 内置生成器', () => {
 
         it('应默认启用 vmess-aead', () => {
             const vmessConfig = {
-                v: "2", ps: "AEADTest", add: "1.2.3.4", port: "443",
-                id: "uuid-1234", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'AEADTest',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1234',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const vmess = `vmess://${btoa(JSON.stringify(vmessConfig))}`;
             const result = generateBuiltinSurgeConfig(vmess);
@@ -83,9 +101,17 @@ describe('Surge 内置生成器', () => {
 
         it('应正确处理 VMess WebSocket', () => {
             const vmessConfig = {
-                v: "2", ps: "WSTest", add: "1.2.3.4", port: "443",
-                id: "uuid-1234", aid: "0", net: "ws", type: "none",
-                host: "example.com", path: "/ws", tls: "tls"
+                v: '2',
+                ps: 'WSTest',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1234',
+                aid: '0',
+                net: 'ws',
+                type: 'none',
+                host: 'example.com',
+                path: '/ws',
+                tls: 'tls',
             };
             const vmess = `vmess://${btoa(JSON.stringify(vmessConfig))}`;
             const result = generateBuiltinSurgeConfig(vmess);
@@ -113,7 +139,8 @@ describe('Surge 内置生成器', () => {
         });
 
         it('应正确处理 Trojan WebSocket', () => {
-            const trojan = 'trojan://password@1.2.3.4:443?type=ws&path=/ws&host=example.com#TrojanWS';
+            const trojan =
+                'trojan://password@1.2.3.4:443?type=ws&path=/ws&host=example.com#TrojanWS';
             const result = generateBuiltinSurgeConfig(trojan);
             expect(result).toContain('ws=true');
             expect(result).toContain('ws-path=/ws');
@@ -147,14 +174,18 @@ describe('Surge 内置生成器', () => {
 
     describe('Snell', () => {
         it('应正确生成 Snell 代理行', () => {
-            const result = generateBuiltinSurgeConfig('snell://password@1.2.3.4:443?version=4#TestSnell');
+            const result = generateBuiltinSurgeConfig(
+                'snell://password@1.2.3.4:443?version=4#TestSnell'
+            );
             expect(result).toContain('TestSnell = snell');
             expect(result).toContain('psk=password');
             expect(result).toContain('version=4');
         });
 
         it('应保留 Snell 的 reuse、tfo 和 obfs 参数', () => {
-            const result = generateBuiltinSurgeConfig('snell://password@1.2.3.4:443?version=5&reuse=true&tfo=true&obfs=http&obfs-host=example.com#TestSnellFull');
+            const result = generateBuiltinSurgeConfig(
+                'snell://password@1.2.3.4:443?version=5&reuse=true&tfo=true&obfs=http&obfs-host=example.com#TestSnellFull'
+            );
             expect(result).toContain('TestSnellFull = snell');
             expect(result).toContain('version=5');
             expect(result).toContain('reuse=true');
@@ -171,7 +202,8 @@ describe('Surge 内置生成器', () => {
 
     describe('WireGuard', () => {
         it('应正确生成 WireGuard 代理行和独立 section', () => {
-            const wg = 'wireguard://privatekey123@1.2.3.4:51820?publickey=pubkey456&address=10.0.0.2&reserved=83,12,235#TestWG';
+            const wg =
+                'wireguard://privatekey123@1.2.3.4:51820?publickey=pubkey456&address=10.0.0.2&reserved=83,12,235#TestWG';
             const result = generateBuiltinSurgeConfig(wg);
             expect(result).toContain('TestWG = wireguard');
             expect(result).toContain('section-name =');
@@ -189,7 +221,8 @@ describe('Surge 内置生成器', () => {
         });
 
         it('应处理自定义 DNS', () => {
-            const wg = 'wireguard://key@1.2.3.4:51820?publickey=pub&dns=9.9.9.9,1.1.1.1#WGCustomDNS';
+            const wg =
+                'wireguard://key@1.2.3.4:51820?publickey=pub&dns=9.9.9.9,1.1.1.1#WGCustomDNS';
             const result = generateBuiltinSurgeConfig(wg);
             expect(result).toContain('dns-server = 9.9.9.9, 1.1.1.1');
         });
@@ -208,9 +241,17 @@ describe('Surge 内置生成器', () => {
     describe('节点名称安全化', () => {
         it('应转义节点名中的逗号', () => {
             const vmessConfig = {
-                v: "2", ps: "US,CA Node", add: "1.2.3.4", port: "443",
-                id: "uuid-1234", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'US,CA Node',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1234',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const vmess = `vmess://${btoa(JSON.stringify(vmessConfig))}`;
             const result = generateBuiltinSurgeConfig(vmess);
@@ -221,9 +262,17 @@ describe('Surge 内置生成器', () => {
 
         it('应转义节点名中的等号', () => {
             const vmessConfig = {
-                v: "2", ps: "Node=Test", add: "1.2.3.4", port: "443",
-                id: "uuid-1234", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'Node=Test',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1234',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const vmess = `vmess://${btoa(JSON.stringify(vmessConfig))}`;
             const result = generateBuiltinSurgeConfig(vmess);
@@ -235,18 +284,34 @@ describe('Surge 内置生成器', () => {
     describe('重名去重', () => {
         it('应对重名节点添加后缀', () => {
             const vmessConfig1 = {
-                v: "2", ps: "Same Name", add: "1.2.3.4", port: "443",
-                id: "uuid-1", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'Same Name',
+                add: '1.2.3.4',
+                port: '443',
+                id: 'uuid-1',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const vmessConfig2 = {
-                v: "2", ps: "Same Name", add: "5.6.7.8", port: "443",
-                id: "uuid-2", aid: "0", net: "tcp", type: "none",
-                host: "", path: "", tls: ""
+                v: '2',
+                ps: 'Same Name',
+                add: '5.6.7.8',
+                port: '443',
+                id: 'uuid-2',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: '',
             };
             const nodeList = [
                 `vmess://${btoa(JSON.stringify(vmessConfig1))}`,
-                `vmess://${btoa(JSON.stringify(vmessConfig2))}`
+                `vmess://${btoa(JSON.stringify(vmessConfig2))}`,
             ].join('\n');
             const result = generateBuiltinSurgeConfig(nodeList);
             expect(result).toContain('Same Name = vmess');
@@ -266,7 +331,7 @@ describe('Surge 内置生成器', () => {
             const nodeList = [
                 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#香港节点1',
                 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@5.6.7.8:8388#US Node',
-                'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@9.10.11.12:8388#未知地区节点'
+                'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@9.10.11.12:8388#未知地区节点',
             ].join('\n');
             const result = generateBuiltinSurgeConfig(nodeList);
             expect(result).toContain('🇭🇰 香港节点 = select');
@@ -274,9 +339,11 @@ describe('Surge 内置生成器', () => {
             expect(result).not.toContain('🇯🇵 日本节点 = select'); // 不包含未匹配的地区
             expect(result).toContain('⚡️ 🇭🇰 香港 - 自动测速 = url-test');
             expect(result).toContain('⚡️ 🇺🇸 美国 - 自动测速 = url-test');
-            
+
             // 主分组应包含地区分组和默认策略
-            expect(result).toContain('🚀 节点选择 = select, ♻️ 自动选择, 🔯 故障转移, 👋 手动切换, 🇭🇰 香港节点, 🇺🇸 美国节点');
+            expect(result).toContain(
+                '🚀 节点选择 = select, ♻️ 自动选择, 🔯 故障转移, 👋 手动切换, 🇭🇰 香港节点, 🇺🇸 美国节点'
+            );
         });
     });
 
@@ -284,8 +351,12 @@ describe('Surge 内置生成器', () => {
         it('应包含高级分流规则', () => {
             const ss = 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestSS';
             const result = generateBuiltinSurgeConfig(ss);
-            expect(result).toContain(`RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Apple.list,🍎 Apple`);
-            expect(result).toContain(`RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Netflix.list,🎥 流媒体`);
+            expect(result).toContain(
+                `RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Apple.list,🍎 Apple`
+            );
+            expect(result).toContain(
+                `RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Netflix.list,🎥 流媒体`
+            );
             expect(result).toContain('GEOIP,CN,DIRECT');
             expect(result).toContain('FINAL,🚀 节点选择,dns-failed');
         });
@@ -296,7 +367,7 @@ describe('Surge 内置生成器', () => {
             const nodeList = [
                 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#SSNode',
                 'trojan://password@5.6.7.8:443#TrojanNode',
-                'hysteria2://pass@9.10.11.12:443#Hy2Node'
+                'hysteria2://pass@9.10.11.12:443#Hy2Node',
             ].join('\n');
             const result = generateBuiltinSurgeConfig(nodeList);
             expect(result).toContain('SSNode = ss');
@@ -308,7 +379,7 @@ describe('Surge 内置生成器', () => {
             const nodeList = [
                 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#SSNode',
                 'trojan://password@5.6.7.8:443#TrojanNode',
-                'vless://uuid@1.2.3.4:443?type=tcp#VLESSSkipped'  // 应被跳过
+                'vless://uuid@1.2.3.4:443?type=tcp#VLESSSkipped', // 应被跳过
             ].join('\n');
             const result = generateBuiltinSurgeConfig(nodeList);
             expect(result).toContain('SSNode');

@@ -1,44 +1,83 @@
+/**
+ * 订阅转换模板资产清单。
+ *
+ * ⚠️ 这里只存 i18n **key**（nameKey / descriptionKey），不存文案本身。
+ *
+ * 原因是这个文件是模块级常量：整个对象在应用启动时求值一次。
+ * 如果直接在这里写 `t('...')`，切换语言后下拉框里的模板名称会一直停在
+ * 启动时那种语言 —— 而用户根本不会重启应用。
+ *
+ * 想拿当前语言的文案，用下面的 localizeTransformAsset / getLocalizedTransformAssets，
+ * 并且**必须在 computed 里调用**：computed 求值时会读到 locale.value，
+ * 从而建立响应式依赖，切换语言即时更新。
+ *
+ * url / group / sourceType 等字段是逻辑标识，不参与翻译，保持原样。
+ */
 export const TRANSFORM_ASSETS = {
     configs: [
         {
             id: 0,
-            name: 'MiSub 内置 极简默认分流',
+            nameKey: 'transformAssets.builtinMinimal.name',
             url: 'builtin:clash_misub_minimal',
             group: 'MiSub Builtin',
             is_default: true,
             sourceType: 'builtin-preset',
             recommendedFor: ['clash', 'singbox', 'surge', 'loon', 'quanx'],
-            compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox', 'surge', 'loon', 'quanx'],
+            compatibleClients: [
+                'clash',
+                'mihomo',
+                'clash-meta',
+                'singbox',
+                'surge',
+                'loon',
+                'quanx',
+            ],
             strategy: 'model-driven',
-            description: 'MiSub 自带的默认极简模板，适合日常通用、新手用户和优先稳定的场景。'
+            descriptionKey: 'transformAssets.builtinMinimal.description',
         },
         {
             id: 1,
-            name: 'MiSub 内置 ACL4SSR 精简分流',
+            nameKey: 'transformAssets.acl4ssrLite.name',
             url: 'builtin:clash_acl4ssr_lite',
             group: 'MiSub Builtin',
             is_default: false,
             sourceType: 'builtin-preset',
             recommendedFor: ['clash', 'singbox', 'surge', 'loon', 'quanx'],
-            compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox', 'surge', 'loon', 'quanx'],
+            compatibleClients: [
+                'clash',
+                'mihomo',
+                'clash-meta',
+                'singbox',
+                'surge',
+                'loon',
+                'quanx',
+            ],
             strategy: 'model-driven',
-            description: '内置精简 ACL4SSR 分流模板，适合习惯 ACL4SSR 规则且希望保持轻量的用户。'
+            descriptionKey: 'transformAssets.acl4ssrLite.description',
         },
         {
             id: 2,
-            name: 'MiSub 内置 流媒体与 AI 分流',
+            nameKey: 'transformAssets.mediaAi.name',
             url: 'builtin:clash_misub_media_ai',
             group: 'MiSub Builtin',
             is_default: false,
             sourceType: 'builtin-preset',
             recommendedFor: ['clash', 'singbox', 'surge', 'loon', 'quanx'],
-            compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox', 'surge', 'loon', 'quanx'],
+            compatibleClients: [
+                'clash',
+                'mihomo',
+                'clash-meta',
+                'singbox',
+                'surge',
+                'loon',
+                'quanx',
+            ],
             strategy: 'model-driven',
-            description: '面向流媒体和 AI 服务使用场景的内置模板，保留核心分流和地区候选链。'
+            descriptionKey: 'transformAssets.mediaAi.description',
         },
         {
             id: 3,
-            name: 'MiSub 内置 ACL4SSR 完整分流',
+            nameKey: 'transformAssets.acl4ssrFull.name',
             url: 'builtin:clash_acl4ssr_full',
             group: 'MiSub Builtin',
             is_default: false,
@@ -46,11 +85,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash', 'singbox'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta', 'singbox'],
             strategy: 'model-driven',
-            description: '内置完整 ACL4SSR 分流模板，可通过统一模板模型生成 Clash 与 Sing-Box 配置。'
+            descriptionKey: 'transformAssets.acl4ssrFull.description',
         },
         {
             id: 101,
-            name: 'CM_Online 默认版 识别港美地区(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineDefault.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online.ini',
             group: 'ACL4SSR',
             is_default: true,
@@ -58,11 +97,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '经典 ACL4SSR 规则，适合 Clash 系列客户端。'
+            descriptionKey: 'transformAssets.cmOnlineDefault.description',
         },
         {
             id: 102,
-            name: 'CM_Online_MultiCountry 识别港美地区 负载均衡(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineMultiCountry.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -70,11 +109,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '适合需要多地区自动分组和负载均衡的 Clash 用户。'
+            descriptionKey: 'transformAssets.cmOnlineMultiCountry.description',
         },
         {
             id: 103,
-            name: 'CM_Online_MultiCountry_CF 识别港美地区、CloudFlareCDN 负载均衡 Worker节点专用(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineMultiCountryCf.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry_CF.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -82,11 +121,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: 'Cloudflare Worker 节点场景专用的 Clash 预设。'
+            descriptionKey: 'transformAssets.cmOnlineMultiCountryCf.description',
         },
         {
             id: 104,
-            name: 'CM_Online_Full 识别多地区分组(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineFull.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -94,11 +133,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '规则更完整，分组更细，适合作为 Clash 进阶预设。'
+            descriptionKey: 'transformAssets.cmOnlineFull.description',
         },
         {
             id: 105,
-            name: 'CM_Online_Full_CF 识别多地区、CloudFlareCDN 分组 Worker节点专用(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineFullCf.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_CF.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -106,11 +145,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '面向 Worker/CDN 线路的完整 Clash 预设。'
+            descriptionKey: 'transformAssets.cmOnlineFullCf.description',
         },
         {
             id: 106,
-            name: 'CM_Online_Full_MultiMode 识别多地区 负载均衡(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineFullMultiMode.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -118,11 +157,11 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '适合需要完整规则和多模式分组的 Clash 用户。'
+            descriptionKey: 'transformAssets.cmOnlineFullMultiMode.description',
         },
         {
             id: 107,
-            name: 'CM_Online_Full_MultiMode_CF 识别多地区、CloudFlareCDN 负载均衡 Worker节点专用(与Github同步)',
+            nameKey: 'transformAssets.cmOnlineFullMultiModeCf.name',
             url: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode_CF.ini',
             group: 'ACL4SSR',
             is_default: false,
@@ -130,15 +169,41 @@ export const TRANSFORM_ASSETS = {
             recommendedFor: ['clash'],
             compatibleClients: ['clash', 'mihomo', 'clash-meta'],
             strategy: 'external-first',
-            description: '完整多模式的 Worker/CDN Clash 预设。'
-        }
-    ]
+            descriptionKey: 'transformAssets.cmOnlineFullMultiModeCf.description',
+        },
+    ],
 };
 
 export function getTransformAssetByUrl(url) {
-    return TRANSFORM_ASSETS.configs.find(item => item.url === url) || null;
+    return TRANSFORM_ASSETS.configs.find((item) => item.url === url) || null;
 }
 
 export function isBuiltinTransformAssetUrl(url) {
     return typeof url === 'string' && url.startsWith('builtin:');
+}
+
+/**
+ * 把单个资产的 nameKey / descriptionKey 解析成当前语言的文案。
+ *
+ * @param {object|null} asset 原始资产（含 nameKey / descriptionKey）
+ * @param {(key: string) => string} t i18n 翻译函数
+ * @returns {object|null} 附带 name / description 的新对象，入参不会被修改
+ */
+export function localizeTransformAsset(asset, t) {
+    if (!asset) return null;
+    return {
+        ...asset,
+        name: asset.nameKey ? t(asset.nameKey) : '',
+        description: asset.descriptionKey ? t(asset.descriptionKey) : '',
+    };
+}
+
+/** 解析全部资产。请在 computed 里调用，否则切换语言不会更新。 */
+export function getLocalizedTransformAssets(t) {
+    return TRANSFORM_ASSETS.configs.map((asset) => localizeTransformAsset(asset, t));
+}
+
+/** 按 url 查找并解析。请在 computed 里调用。 */
+export function getLocalizedTransformAssetByUrl(url, t) {
+    return localizeTransformAsset(getTransformAssetByUrl(url), t);
 }

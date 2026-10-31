@@ -4,7 +4,14 @@
  */
 
 import { COOKIE_NAME, SESSION_DURATION, SESSION_RENEW_THRESHOLD } from './config.js';
-import { getCookieSecret, getAdminPassword, getAuthDebugInfo, JSON_BODY_LIMITS, RequestBodyTooLargeError, readJsonWithLimit } from './utils.js';
+import {
+    getCookieSecret,
+    getAdminPassword,
+    getAuthDebugInfo,
+    JSON_BODY_LIMITS,
+    RequestBodyTooLargeError,
+    readJsonWithLimit,
+} from './utils.js';
 import { StorageFactory } from '../storage-adapter.js';
 
 function normalizeSecret(value) {
@@ -26,7 +33,7 @@ function buildRequestMeta(request, env) {
         referer: request?.headers?.get('Referer'),
         cfRay: request?.headers?.get('CF-Ray'),
         hasKv: !!StorageFactory.resolveKV(env),
-        hasD1: !!env?.MISUB_DB
+        hasD1: !!env?.MISUB_DB,
     };
 }
 
@@ -42,13 +49,21 @@ async function isUsingDefaultAdminPassword(env) {
  * @returns {Promise<string>} 签名后的令牌
  */
 export async function createSignedToken(key, data) {
-    if (!key || !data) throw new Error("Key and data are required for signing.");
+    if (!key || !data) throw new Error('Key and data are required for signing.');
     const encoder = new TextEncoder();
     const keyData = encoder.encode(key);
     const dataToSign = encoder.encode(data);
-    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
     const signature = await crypto.subtle.sign('HMAC', cryptoKey, dataToSign);
-    return `${data}.${Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
+    return `${data}.${Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')}`;
 }
 
 /**
@@ -61,37 +76,32 @@ export async function verifySignedToken(key, token) {
     if (!key || !token) return null;
     const parts = token.split('.');
     if (parts.length !== 2) return null;
-    
+
     const [data, signatureHex] = parts;
-    
+
     try {
         const encoder = new TextEncoder();
         const keyData = encoder.encode(key);
         const dataToVerify = encoder.encode(data);
-        
+
         // Convert hex to Uint8Array
         const sigBytes = new Uint8Array(signatureHex.length / 2);
         for (let i = 0; i < signatureHex.length; i += 2) {
             sigBytes[i / 2] = parseInt(signatureHex.substring(i, i + 2), 16);
         }
-        
+
         // Import key for verification
         const cryptoKey = await crypto.subtle.importKey(
-            'raw', 
-            keyData, 
-            { name: 'HMAC', hash: 'SHA-256' }, 
-            false, 
+            'raw',
+            keyData,
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
             ['verify']
         );
-        
+
         // Use native timing-safe verification
-        const isValid = await crypto.subtle.verify(
-            'HMAC',
-            cryptoKey,
-            sigBytes,
-            dataToVerify
-        );
-        
+        const isValid = await crypto.subtle.verify('HMAC', cryptoKey, sigBytes, dataToVerify);
+
         return isValid ? data : null;
     } catch (e) {
         console.error('[Auth] Token verify error:', e);
@@ -115,15 +125,15 @@ export async function getAuthSessionDiagnostic(request, env) {
             exists: false,
             decodeMode: 'none',
             length: 0,
-            partCount: 0
+            partCount: 0,
         },
         verify: {
             success: false,
             hasTimestamp: false,
             isExpired: null,
-            sessionAgeMs: null
+            sessionAgeMs: null,
         },
-        shouldRenew: false
+        shouldRenew: false,
     };
 
     const secret = await getCookieSecret(env);
@@ -137,8 +147,8 @@ export async function getAuthSessionDiagnostic(request, env) {
 
     const matchedCookies = cookieHeader
         .split(';')
-        .map(c => c.trim())
-        .filter(c => c.startsWith(`${COOKIE_NAME}=`));
+        .map((c) => c.trim())
+        .filter((c) => c.startsWith(`${COOKIE_NAME}=`));
 
     result.authSessionCookieCount = matchedCookies.length;
     if (matchedCookies.length === 0) {
@@ -211,7 +221,7 @@ export async function getAuthSessionDiagnostic(request, env) {
  * @returns {Promise<Response>}
  */
 export async function renewAuthSession(request, env, response, diagnostic = null) {
-    const authDiagnostic = diagnostic || await getAuthSessionDiagnostic(request, env);
+    const authDiagnostic = diagnostic || (await getAuthSessionDiagnostic(request, env));
     if (!authDiagnostic?.isAuthenticated || !authDiagnostic.shouldRenew) {
         return response;
     }
@@ -225,7 +235,7 @@ export async function renewAuthSession(request, env, response, diagnostic = null
     const renewedResponse = new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
-        headers: new Headers(response.headers)
+        headers: new Headers(response.headers),
     });
     renewedResponse.headers.append('Set-Cookie', cookieString);
     return renewedResponse;
@@ -244,15 +254,15 @@ export async function getLoginPasswordDiagnostic(request, env) {
         matched: false,
         reason: 'unknown',
         runtime: {
-            adminPasswordSource: debugInfo?.adminPassword?.source || 'unknown'
+            adminPasswordSource: debugInfo?.adminPassword?.source || 'unknown',
         },
         input: {
             provided: false,
-            normalizedLength: 0
+            normalizedLength: 0,
         },
         expected: {
-            normalizedLength: 0
-        }
+            normalizedLength: 0,
+        },
     };
 
     let payload;
@@ -314,11 +324,14 @@ export async function handleLogin(request, env) {
     try {
         payload = await readJsonWithLimit(request, JSON_BODY_LIMITS.auth);
     } catch (e) {
-        console.error('[API Error /login] Request body parse failed', { ...logMeta, error: e?.message });
+        console.error('[API Error /login] Request body parse failed', {
+            ...logMeta,
+            error: e?.message,
+        });
         if (e instanceof RequestBodyTooLargeError) {
             return new Response(JSON.stringify({ error: e.message }), {
                 status: e.status,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
         }
         return new Response(JSON.stringify({ error: '请求体解析失败' }), { status: 400 });
@@ -340,14 +353,14 @@ export async function handleLogin(request, env) {
                 responseBody.securityWarning = {
                     type: 'default_admin_password',
                     shouldChangePassword: true,
-                    message: '当前正在使用默认管理员密码 admin，请登录后立即修改。'
+                    message: '当前正在使用默认管理员密码 admin，请登录后立即修改。',
                 };
             }
             return new Response(JSON.stringify(responseBody), {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Set-Cookie': cookieString
-                }
+                    'Set-Cookie': cookieString,
+                },
             });
         }
         return new Response(JSON.stringify({ error: '密码错误' }), { status: 401 });
@@ -365,7 +378,10 @@ export async function handleLogout(request) {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     const isSecure = typeof request?.url === 'string' && request.url.startsWith('https');
     const secureFlag = isSecure ? 'Secure;' : '';
-    headers.append('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; ${secureFlag} SameSite=Strict; Max-Age=0`);
+    headers.append(
+        'Set-Cookie',
+        `${COOKIE_NAME}=; Path=/; HttpOnly; ${secureFlag} SameSite=Strict; Max-Age=0`
+    );
     return new Response(JSON.stringify({ success: true }), { headers });
 }
 

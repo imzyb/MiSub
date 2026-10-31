@@ -12,15 +12,15 @@ const mocks = vi.hoisted(() => {
 
     return {
         post: vi.fn(),
-        APIError: MockAPIError
+        APIError: MockAPIError,
     };
 });
 
 vi.mock('../../src/lib/http.js', () => ({
     api: {
-        post: mocks.post
+        post: mocks.post,
     },
-    APIError: mocks.APIError
+    APIError: mocks.APIError,
 }));
 
 describe('fetchNodeCount feedback normalization', () => {
@@ -34,7 +34,7 @@ describe('fetchNodeCount feedback normalization', () => {
             error: 'HTTP 403: Forbidden',
             errorType: 'server',
             count: 0,
-            userInfo: null
+            userInfo: null,
         });
 
         const { fetchNodeCount } = await import('../../src/lib/api.js');

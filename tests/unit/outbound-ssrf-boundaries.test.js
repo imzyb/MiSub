@@ -6,7 +6,7 @@ import { handleSubconverterTestRequest } from '../../functions/modules/api-route
 function createStorage(cached = null) {
     return {
         put: vi.fn(),
-        get: vi.fn().mockResolvedValue(cached)
+        get: vi.fn().mockResolvedValue(cached),
     };
 }
 
@@ -16,7 +16,7 @@ function createBaseConfig() {
         enableFlagEmoji: false,
         subConverter: 'backend',
         selectedRules: [],
-        customRules: []
+        customRules: [],
     };
 }
 
@@ -29,7 +29,9 @@ describe('outbound SSRF boundaries', () => {
 
     it('rejects private subscription source URLs before outbound fetch', async () => {
         vi.useFakeTimers();
-        const fetchSpy = vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }));
+        const fetchSpy = vi.fn(
+            async () => new Response('trojan://pass@example.com:443#HK', { status: 200 })
+        );
         vi.stubGlobal('fetch', fetchSpy);
 
         const resultPromise = generateCombinedNodeList(
@@ -47,19 +49,23 @@ describe('outbound SSRF boundaries', () => {
 
     it('rejects private fetch proxy endpoints before outbound fetch', async () => {
         vi.useFakeTimers();
-        const fetchSpy = vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }));
+        const fetchSpy = vi.fn(
+            async () => new Response('trojan://pass@example.com:443#HK', { status: 200 })
+        );
         vi.stubGlobal('fetch', fetchSpy);
 
         const resultPromise = generateCombinedNodeList(
             {},
             createBaseConfig(),
             'ClashforWindows/0.20',
-            [{
-                id: 'proxied-source',
-                name: 'Proxied',
-                url: 'https://raw.githubusercontent.com/example/repo/main/sub.txt',
-                fetchProxy: 'http://169.254.169.254/proxy?url='
-            }]
+            [
+                {
+                    id: 'proxied-source',
+                    name: 'Proxied',
+                    url: 'https://raw.githubusercontent.com/example/repo/main/sub.txt',
+                    fetchProxy: 'http://169.254.169.254/proxy?url=',
+                },
+            ]
         );
         await vi.runAllTimersAsync();
         const result = await resultPromise;
@@ -72,20 +78,26 @@ describe('outbound SSRF boundaries', () => {
         const fetchSpy = vi.fn(async () => new Response('template', { status: 200 }));
         vi.stubGlobal('fetch', fetchSpy);
 
-        await expect(fetchTransformTemplate(createStorage(), 'http://localhost/template.yaml'))
-            .rejects.toThrow('URL host is not allowed.');
+        await expect(
+            fetchTransformTemplate(createStorage(), 'http://localhost/template.yaml')
+        ).rejects.toThrow('URL host is not allowed.');
         expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it('rejects private subconverter backend test endpoints before outbound fetch', async () => {
-        const fetchSpy = vi.fn(async () => new Response('proxies:\n  - name: MiSub-Test-Node', { status: 200 }));
+        const fetchSpy = vi.fn(
+            async () => new Response('proxies:\n  - name: MiSub-Test-Node', { status: 200 })
+        );
         vi.stubGlobal('fetch', fetchSpy);
 
-        const response = await handleSubconverterTestRequest(new Request('https://example.com/api/subconverter/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ backend: 'http://10.0.0.1/sub' })
-        }), {});
+        const response = await handleSubconverterTestRequest(
+            new Request('https://example.com/api/subconverter/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backend: 'http://10.0.0.1/sub' }),
+            }),
+            {}
+        );
         const body = await response.json();
 
         expect(response.status).toBe(400);

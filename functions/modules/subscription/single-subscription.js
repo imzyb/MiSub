@@ -13,13 +13,25 @@ import { fetchSubscriptionNodes } from './node-fetcher.js';
  * @param {string} userAgent - 用户代理
  * @returns {Promise<Object>} 处理结果
  */
-export async function handleSingleSubscriptionMode(request, env, subscriptionId, userAgent, skipCertVerify = false) {
-    const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+export async function handleSingleSubscriptionMode(
+    request,
+    env,
+    subscriptionId,
+    userAgent,
+    skipCertVerify = false
+) {
+    const storageAdapter = StorageFactory.createAdapter(
+        env,
+        await StorageFactory.getStorageType(env)
+    );
 
     // 查找订阅
-    const subscription = typeof storageAdapter.getSubscriptionById === 'function'
-        ? await storageAdapter.getSubscriptionById(subscriptionId)
-        : (await storageAdapter.get(KV_KEY_SUBS) || []).find(sub => sub.id === subscriptionId);
+    const subscription =
+        typeof storageAdapter.getSubscriptionById === 'function'
+            ? await storageAdapter.getSubscriptionById(subscriptionId)
+            : ((await storageAdapter.get(KV_KEY_SUBS)) || []).find(
+                  (sub) => sub.id === subscriptionId
+              );
 
     if (!subscription || !subscription.enabled) {
         return createJsonResponse({ error: '订阅不存在或已禁用' }, 404);
@@ -33,12 +45,14 @@ export async function handleSingleSubscriptionMode(request, env, subscriptionId,
             subscriptionName: subscription.name || '手工节点',
             url: subscription.url,
             success: true,
-            nodes: [{
-                ...nodeInfo,
-                subscriptionName: subscription.name || '手工节点'
-            }],
+            nodes: [
+                {
+                    ...nodeInfo,
+                    subscriptionName: subscription.name || '手工节点',
+                },
+            ],
             error: null,
-            isManualNode: true
+            isManualNode: true,
         };
 
         return {
@@ -48,13 +62,26 @@ export async function handleSingleSubscriptionMode(request, env, subscriptionId,
             totalCount: manualNodeResult.nodes.length,
             stats: {
                 protocols: { [nodeInfo.protocol]: 1 },
-                regions: { [nodeInfo.region || '其他']: 1 }
-            }
+                regions: { [nodeInfo.region || '其他']: 1 },
+            },
         };
     }
 
-    // HTTP订阅：获取节点
-    const result = await fetchSubscriptionNodes(subscription.url, subscription.name, userAgent, subscription.customUserAgent, false, subscription.exclude, subscription.fetchProxy, skipCertVerify, Boolean(subscription?.plusAsSpace), subscription?.enableNodeCache === true);
+    // HTTP订阅：获取节点（开启保护性缓存时，上游失败回退缓存节点，与输出链路一致）
+    const result = await fetchSubscriptionNodes(
+        subscription.url,
+        subscription.name,
+        userAgent,
+        subscription.customUserAgent,
+        false,
+        subscription.exclude,
+        subscription.fetchProxy,
+        skipCertVerify,
+        Boolean(subscription?.plusAsSpace),
+        subscription?.enableNodeCache === true,
+        storageAdapter,
+        subscription
+    );
 
     return {
         success: true,
@@ -63,8 +90,8 @@ export async function handleSingleSubscriptionMode(request, env, subscriptionId,
         totalCount: result.nodes.length,
         stats: {
             protocols: calculateProtocolStats(result.nodes),
-            regions: calculateRegionStats(result.nodes)
-        }
+            regions: calculateRegionStats(result.nodes),
+        },
     };
 }
 
@@ -75,9 +102,24 @@ export async function handleSingleSubscriptionMode(request, env, subscriptionId,
  * @param {string} userAgent - 用户代理
  * @returns {Promise<Object>} 处理结果
  */
-export async function handleDirectUrlMode(subscriptionUrl, userAgent, skipCertVerify = false, plusAsSpace = false) {
+export async function handleDirectUrlMode(
+    subscriptionUrl,
+    userAgent,
+    skipCertVerify = false,
+    plusAsSpace = false
+) {
     const debug = subscriptionUrl.includes('b0b422857bb46aba65da8234c84f38c6');
-    const result = await fetchSubscriptionNodes(subscriptionUrl, '预览订阅', userAgent, null, debug, '', null, skipCertVerify, plusAsSpace);
+    const result = await fetchSubscriptionNodes(
+        subscriptionUrl,
+        '预览订阅',
+        userAgent,
+        null,
+        debug,
+        '',
+        null,
+        skipCertVerify,
+        plusAsSpace
+    );
 
     return {
         success: true,
@@ -86,7 +128,7 @@ export async function handleDirectUrlMode(subscriptionUrl, userAgent, skipCertVe
         totalCount: result.nodes.length,
         stats: {
             protocols: calculateProtocolStats(result.nodes),
-            regions: calculateRegionStats(result.nodes)
-        }
+            regions: calculateRegionStats(result.nodes),
+        },
     };
 }

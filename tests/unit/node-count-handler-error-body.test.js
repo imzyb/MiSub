@@ -5,23 +5,23 @@ import { StorageFactory } from '../../functions/storage-adapter.js';
 function createAdapter({ settings = {}, subscriptions = [] } = {}) {
     const store = new Map([
         ['worker_settings_v1', settings],
-        ['misub_subscriptions_v1', subscriptions]
+        ['misub_subscriptions_v1', subscriptions],
     ]);
     return {
-        get: vi.fn(async key => store.get(key)),
+        get: vi.fn(async (key) => store.get(key)),
         put: vi.fn(async (key, value) => {
             store.set(key, value);
             return true;
         }),
         updateSubscriptionById: vi.fn(async (id, updater) => {
             const all = store.get('misub_subscriptions_v1') || [];
-            const index = all.findIndex(item => item.id === id);
+            const index = all.findIndex((item) => item.id === id);
             if (index === -1) return false;
             all[index] = updater(all[index]);
             store.set('misub_subscriptions_v1', all);
             return true;
         }),
-        store
+        store,
     };
 }
 
@@ -37,17 +37,20 @@ describe('handleNodeCountRequest error body handling', () => {
         const errorText = 'failed to fetch remote profile with status 400 Bad Request';
         const adapter = createAdapter({
             settings: { builtinSkipCertVerify: false },
-            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }]
+            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }],
         });
         vi.spyOn(StorageFactory, 'getStorageType').mockResolvedValue('kv');
         vi.spyOn(StorageFactory, 'createAdapter').mockReturnValue(adapter);
 
-        vi.stubGlobal('fetch', vi.fn(async () => new Response(errorText, { status: 200 })));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(errorText, { status: 200 }))
+        );
 
         const request = new Request('http://local/api/node_count', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ url: 'https://airport.example/sub' })
+            body: JSON.stringify({ url: 'https://airport.example/sub' }),
         });
 
         try {
@@ -58,9 +61,15 @@ describe('handleNodeCountRequest error body handling', () => {
             expect(data.errorType).toBe('server');
             expect(data.error).toContain('HTTP 400');
             expect(data.count).toBe(0);
-            expect(warnSpy).toHaveBeenCalledWith('[NodeHandler] Node count response contains upstream error: HTTP 400: failed to fetch remote profile with status 400 Bad Request');
-            expect(warnSpy).toHaveBeenCalledWith('[NodeHandler] Skipping node count fallback because upstream returned an error body: HTTP 400: failed to fetch remote profile with status 400 Bad Request');
-            expect(errorSpy).toHaveBeenCalledWith('[Node Count] Node count update failed for https://airport.example/sub: HTTP 400: failed to fetch remote profile with status 400 Bad Request');
+            expect(warnSpy).toHaveBeenCalledWith(
+                '[NodeHandler] Node count response contains upstream error: HTTP 400: failed to fetch remote profile with status 400 Bad Request'
+            );
+            expect(warnSpy).toHaveBeenCalledWith(
+                '[NodeHandler] Skipping node count fallback because upstream returned an error body: HTTP 400: failed to fetch remote profile with status 400 Bad Request'
+            );
+            expect(errorSpy).toHaveBeenCalledWith(
+                '[Node Count] Node count update failed for https://airport.example/sub: HTTP 400: failed to fetch remote profile with status 400 Bad Request'
+            );
             expect(adapter.updateSubscriptionById).not.toHaveBeenCalled();
         } finally {
             warnSpy.mockRestore();
@@ -71,18 +80,20 @@ describe('handleNodeCountRequest error body handling', () => {
     it('does not skip certificate verification for node count by default', async () => {
         const adapter = createAdapter({
             settings: { builtinSkipCertVerify: false },
-            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }]
+            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }],
         });
         vi.spyOn(StorageFactory, 'getStorageType').mockResolvedValue('kv');
         vi.spyOn(StorageFactory, 'createAdapter').mockReturnValue(adapter);
 
-        const fetchSpy = vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }));
+        const fetchSpy = vi.fn(
+            async () => new Response('trojan://pass@example.com:443#HK', { status: 200 })
+        );
         vi.stubGlobal('fetch', fetchSpy);
 
         const request = new Request('http://local/api/node_count', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ url: 'https://airport.example/sub' })
+            body: JSON.stringify({ url: 'https://airport.example/sub' }),
         });
 
         const response = await handleNodeCountRequest(request, {});
@@ -98,18 +109,20 @@ describe('handleNodeCountRequest error body handling', () => {
     it('only skips certificate verification for node count when enabled in settings', async () => {
         const adapter = createAdapter({
             settings: { builtinSkipCertVerify: true },
-            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }]
+            subscriptions: [{ id: 'sub-a', url: 'https://airport.example/sub' }],
         });
         vi.spyOn(StorageFactory, 'getStorageType').mockResolvedValue('kv');
         vi.spyOn(StorageFactory, 'createAdapter').mockReturnValue(adapter);
 
-        const fetchSpy = vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }));
+        const fetchSpy = vi.fn(
+            async () => new Response('trojan://pass@example.com:443#HK', { status: 200 })
+        );
         vi.stubGlobal('fetch', fetchSpy);
 
         const request = new Request('http://local/api/node_count', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ url: 'https://airport.example/sub' })
+            body: JSON.stringify({ url: 'https://airport.example/sub' }),
         });
 
         const response = await handleNodeCountRequest(request, {});
@@ -125,25 +138,33 @@ describe('handleNodeCountRequest error body handling', () => {
     it('protects the stored healthy node count when automatic refresh sees one partial node', async () => {
         const adapter = createAdapter({
             settings: { builtinSkipCertVerify: false },
-            subscriptions: [{
-                id: 'sub-a',
-                url: 'https://airport.example/sub',
-                nodeCount: 156,
-                lastGoodNodeCount: 156
-            }]
+            subscriptions: [
+                {
+                    id: 'sub-a',
+                    url: 'https://airport.example/sub',
+                    nodeCount: 156,
+                    lastGoodNodeCount: 156,
+                },
+            ],
         });
         vi.spyOn(StorageFactory, 'getStorageType').mockResolvedValue('kv');
         vi.spyOn(StorageFactory, 'createAdapter').mockReturnValue(adapter);
 
-        vi.stubGlobal('fetch', vi.fn(async () => new Response(
-            'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
-            { status: 200 }
-        )));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(
+                        'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
+                        { status: 200 }
+                    )
+            )
+        );
 
         const request = new Request('http://local/api/node_count', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ url: 'https://airport.example/sub' })
+            body: JSON.stringify({ url: 'https://airport.example/sub' }),
         });
 
         const response = await handleNodeCountRequest(request, {});

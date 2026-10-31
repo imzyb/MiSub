@@ -167,7 +167,7 @@ function getCronDashboard(env) {
 </html>`;
 
     return new Response(html, {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
 }
 
@@ -178,21 +178,27 @@ async function triggerManualSync(env) {
     try {
         // 手动触发同步的请求应该转发到 _schedule.js
         // 由于Cloudflare Pages Functions限制，这里只返回成功响应
-        return new Response(JSON.stringify({
-            success: true,
-            message: '同步任务已提交，请查看日志获取进度',
-            timestamp: new Date().toISOString()
-        }), {
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+            JSON.stringify({
+                success: true,
+                message: '同步任务已提交，请查看日志获取进度',
+                timestamp: new Date().toISOString(),
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' },
+            }
+        );
     } catch (error) {
-        return new Response(JSON.stringify({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+            JSON.stringify({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString(),
+            }),
+            {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            }
+        );
     }
 }

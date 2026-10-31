@@ -4,59 +4,75 @@
  */
 
 export class APIError extends Error {
-  constructor(message, status = 500, data = null) {
-    super(message);
-    this.name = 'APIError';
-    this.status = status;
-    this.data = data;
-  }
+    constructor(message, status = 500, data = null) {
+        super(message);
+        this.name = 'APIError';
+        this.status = status;
+        this.data = data;
+    }
+}
+
+let unauthorizedHandler = null;
+
+export function configureUnauthorizedHandler(handler) {
+    unauthorizedHandler = typeof handler === 'function' ? handler : null;
 }
 
 const buildHeaders = (headers, body) => {
-  if (headers instanceof Headers) {
-    return headers;
-  }
-  const resolved = new Headers(headers || {});
-  if (!resolved.has('Content-Type') && body !== undefined) {
-    resolved.set('Content-Type', 'application/json');
-  }
-  return resolved;
+    if (headers instanceof Headers) {
+        return headers;
+    }
+    const resolved = new Headers(headers || {});
+    if (!resolved.has('Content-Type') && body !== undefined) {
+        resolved.set('Content-Type', 'application/json');
+    }
+    return resolved;
 };
 
 const parseJson = async (response) => {
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    return text;
-  }
+    const text = await response.text();
+    if (!text) return null;
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return text;
+    }
 };
 
 export async function request(url, options = {}) {
-  const { headers, body, ...rest } = options;
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...rest,
-    body,
-    headers: buildHeaders(headers, body)
-  });
+    const { headers, body, ...rest } = options;
+    const response = await fetch(url, {
+        credentials: 'include',
+        ...rest,
+        body,
+        headers: buildHeaders(headers, body),
+    });
 
-  const data = await parseJson(response);
-  if (!response.ok) {
-    const message = data?.message || data?.error || `HTTP ${response.status}`;
-    throw new APIError(message, response.status, data);
-  }
+    const data = await parseJson(response);
+    if (!response.ok) {
+        if (response.status === 401) {
+            try {
+                unauthorizedHandler?.({ url, data });
+            } catch (error) {
+                console.warn('[HTTP] Unauthorized handler failed:', error);
+            }
+        }
+        const message = data?.message || data?.error || `HTTP ${response.status}`;
+        throw new APIError(message, response.status, data);
+    }
 
-  return data;
+    return data;
 }
 
 const stringifyBody = (data) => (data === undefined ? undefined : JSON.stringify(data));
 
 export const api = {
-  get: (url, options = {}) => request(url, { ...options, method: 'GET' }),
-  post: (url, data, options = {}) => request(url, { ...options, method: 'POST', body: stringifyBody(data) }),
-  put: (url, data, options = {}) => request(url, { ...options, method: 'PUT', body: stringifyBody(data) }),
-  patch: (url, data, options = {}) => request(url, { ...options, method: 'PATCH', body: stringifyBody(data) }),
-  del: (url, options = {}) => request(url, { ...options, method: 'DELETE' })
+    get: (url, options = {}) => request(url, { ...options, method: 'GET' }),
+    post: (url, data, options = {}) =>
+        request(url, { ...options, method: 'POST', body: stringifyBody(data) }),
+    put: (url, data, options = {}) =>
+        request(url, { ...options, method: 'PUT', body: stringifyBody(data) }),
+    patch: (url, data, options = {}) =>
+        request(url, { ...options, method: 'PATCH', body: stringifyBody(data) }),
+    del: (url, options = {}) => request(url, { ...options, method: 'DELETE' }),
 };

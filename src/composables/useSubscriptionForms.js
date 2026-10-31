@@ -24,7 +24,7 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             plusAsSpace: false,
             excludeTraffic: false,
             website: '',
-            notes: ''
+            notes: '',
         };
         showModal.value = true;
     };
@@ -42,11 +42,16 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
         try {
             editingSubscription.value = JSON.parse(JSON.stringify(sub));
             if (isDev) {
-                console.debug('UseSubscriptionForms: editingSubscription set to', editingSubscription.value);
+                console.debug(
+                    'UseSubscriptionForms: editingSubscription set to',
+                    editingSubscription.value
+                );
             }
             showModal.value = true;
         } catch (e) {
+            // 克隆失败会导致编辑弹窗打不开，必须告知用户，否则点击「编辑」毫无反应
             console.error('UseSubscriptionForms: Failed to clone subscription', e);
+            showToast(t('subscriptions.openEditFailed'), 'error');
         }
     };
 
@@ -74,6 +79,6 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
         editingSubscription,
         openAdd,
         openEdit,
-        handleSave
+        handleSave,
     };
 }

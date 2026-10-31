@@ -4,51 +4,55 @@ import QuickImportModal from '../../src/components/modals/QuickImportModal.vue';
 import { createI18n } from '../../src/i18n/index.js';
 
 const globalOptions = () => ({
-  plugins: [createI18n({ initialLocale: 'en-US' })],
-  stubs: {
-    Teleport: true
-  }
+    plugins: [createI18n({ initialLocale: 'en-US' })],
+    stubs: {
+        Teleport: true,
+    },
 });
 
 describe('QuickImportModal', () => {
-  beforeEach(() => {
-    window.history.replaceState({}, '', '/public');
-  });
-
-  it('renders through shared Modal and emits close on visibility update', async () => {
-    const wrapper = mount(QuickImportModal, {
-      props: {
-        show: true,
-        profile: { id: 'p1', name: 'Demo' },
-        clients: [],
-        profileToken: 'profiles'
-      },
-      global: globalOptions()
+    beforeEach(() => {
+        window.history.replaceState({}, '', '/public');
     });
 
-    expect(wrapper.text()).toContain('Choose client import');
-    await wrapper.findComponent({ name: 'Modal' }).vm.$emit('update:show', false);
+    it('renders through shared Modal and emits close on visibility update', async () => {
+        const wrapper = mount(QuickImportModal, {
+            props: {
+                show: true,
+                profile: { id: 'p1', name: 'Demo' },
+                clients: [],
+                profileToken: 'profiles',
+            },
+            global: globalOptions(),
+        });
 
-    expect(wrapper.emitted('close')).toBeTruthy();
-  });
+        expect(wrapper.text()).toContain('Choose client import');
+        await wrapper.findComponent({ name: 'Modal' }).vm.$emit('update:show', false);
 
-  it('uses mihomo deep link and an explicit Clash target for Clash-Party one-click import', async () => {
-    delete window.location;
-    window.location = { href: 'https://misub.example/public', origin: 'https://misub.example' };
-
-    const wrapper = mount(QuickImportModal, {
-      props: {
-        show: true,
-        profile: { id: 'p1', customId: '!luckyss', name: 'Lucky SS' },
-        clients: [{ id: 'clash-party', name: 'Clash Party', platforms: ['windows'] }],
-        profileToken: ''
-      },
-      global: globalOptions()
+        expect(wrapper.emitted('close')).toBeTruthy();
     });
 
-    await wrapper.find('button.group').trigger('click');
+    it('uses mihomo deep link and an explicit Clash target for Clash-Party one-click import', async () => {
+        delete window.location;
+        window.location = { href: 'https://misub.example/public', origin: 'https://misub.example' };
 
-    const expectedUrl = encodeURIComponent('https://misub.example/profiles/!luckyss?target=clash');
-    expect(window.location.href).toBe(`mihomo://install-config?url=${expectedUrl}&name=Lucky%20SS`);
-  });
+        const wrapper = mount(QuickImportModal, {
+            props: {
+                show: true,
+                profile: { id: 'p1', customId: '!luckyss', name: 'Lucky SS' },
+                clients: [{ id: 'clash-party', name: 'Clash Party', platforms: ['windows'] }],
+                profileToken: '',
+            },
+            global: globalOptions(),
+        });
+
+        await wrapper.find('button.group').trigger('click');
+
+        const expectedUrl = encodeURIComponent(
+            'https://misub.example/profiles/!luckyss?target=clash'
+        );
+        expect(window.location.href).toBe(
+            `mihomo://install-config?url=${expectedUrl}&name=Lucky%20SS`
+        );
+    });
 });

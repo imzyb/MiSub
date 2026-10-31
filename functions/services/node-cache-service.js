@@ -9,11 +9,11 @@
  * 策略：仅首次缓存 - 首次同步获取，后续返回缓存+后台刷新
  */
 const CACHE_CONFIG = {
-    KEY_PREFIX: 'node_cache_',           // 缓存键前缀
-    FRESH_TTL: 3 * 60 * 1000,            // 新鲜期：3 分钟（命中时不触发后台刷新）
-    STALE_TTL: 60 * 60 * 1000,           // 可用期：1 小时（超过后同步获取）
-    MAX_AGE: 12 * 60 * 60 * 1000,        // 最大缓存时间：12 小时
-    BACKGROUND_REFRESH_TIMEOUT: 25000    // 后台刷新超时：25 秒
+    KEY_PREFIX: 'node_cache_', // 缓存键前缀
+    FRESH_TTL: 3 * 60 * 1000, // 新鲜期：3 分钟（命中时不触发后台刷新）
+    STALE_TTL: 60 * 60 * 1000, // 可用期：1 小时（超过后同步获取）
+    MAX_AGE: 12 * 60 * 60 * 1000, // 最大缓存时间：12 小时
+    BACKGROUND_REFRESH_TIMEOUT: 25000, // 后台刷新超时：25 秒
 };
 
 // A truncated upstream response can still contain a few valid nodes. Protect
@@ -30,10 +30,17 @@ export function isSuspiciousNodeCountDrop(previousCount, nextCount) {
 }
 
 export function isLikelyPartialAggregateNodeList(nodes) {
-    const lines = String(nodes || '').split(/\r?\n+/).map(line => line.trim()).filter(Boolean);
+    const lines = String(nodes || '')
+        .split(/\r?\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
     if (lines.length < 2 || lines.length > 3) return false;
-    const hasTrafficNode = lines.some(line => /@127\.0\.0\.1(?::443)?(?:[/?#]|$)/i.test(line));
-    const hasUuidNamedNode = lines.some(line => /^(?:vless|vmess|trojan):\/\/.*#[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:$|[?&])/i.test(line));
+    const hasTrafficNode = lines.some((line) => /@127\.0\.0\.1(?::443)?(?:[/?#]|$)/i.test(line));
+    const hasUuidNamedNode = lines.some((line) =>
+        /^(?:vless|vmess|trojan):\/\/.*#[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:$|[?&])/i.test(
+            line
+        )
+    );
     return hasTrafficNode && hasUuidNamedNode;
 }
 
@@ -48,11 +55,11 @@ export function generateCacheKey(type, identifier) {
 }
 
 function isSubscriptionNodeCacheKey(key) {
-    return typeof key === 'string'
-        && (
-            key.startsWith(`${CACHE_CONFIG.KEY_PREFIX}subscription_`)
-            || key.startsWith(`${CACHE_CONFIG.KEY_PREFIX}subscription_url_`)
-        );
+    return (
+        typeof key === 'string' &&
+        (key.startsWith(`${CACHE_CONFIG.KEY_PREFIX}subscription_`) ||
+            key.startsWith(`${CACHE_CONFIG.KEY_PREFIX}subscription_url_`))
+    );
 }
 
 /**
@@ -105,21 +112,31 @@ export async function getCache(storageAdapter, cacheKey) {
  */
 export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
     try {
-        const nodeCount = nodes.split('\n').filter(line => line.trim()).length;
+        const nodeCount = nodes.split('\n').filter((line) => line.trim()).length;
         if (isLikelyPartialAggregateNodeList(nodes)) {
-            console.warn(`[Cache] Refusing to cache a likely partial aggregate node list for ${cacheKey}`);
+            console.warn(
+                `[Cache] Refusing to cache a likely partial aggregate node list for ${cacheKey}`
+            );
             return false;
         }
         const existing = await storageAdapter.get(cacheKey);
-        const existingNodeCount = existing?.nodeCount || String(existing?.nodes || '').split('\n').filter(line => line.trim()).length;
+        const existingNodeCount =
+            existing?.nodeCount ||
+            String(existing?.nodes || '')
+                .split('\n')
+                .filter((line) => line.trim()).length;
         if (nodeCount === 0) {
             if (existingNodeCount > 0) {
-                console.warn(`[Cache] Refusing to overwrite non-empty cache ${cacheKey} with empty node list`);
+                console.warn(
+                    `[Cache] Refusing to overwrite non-empty cache ${cacheKey} with empty node list`
+                );
                 return false;
             }
         }
         if (isSuspiciousNodeCountDrop(existingNodeCount, nodeCount)) {
-            console.warn(`[Cache] Refusing to overwrite cache ${cacheKey} after suspicious node-count drop (${existingNodeCount} -> ${nodeCount})`);
+            console.warn(
+                `[Cache] Refusing to overwrite cache ${cacheKey} after suspicious node-count drop (${existingNodeCount} -> ${nodeCount})`
+            );
             return false;
         }
 
@@ -127,7 +144,7 @@ export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
             nodes,
             timestamp: Date.now(),
             nodeCount,
-            sources
+            sources,
         };
 
         // 计算 TTL（秒），使用 MAX_AGE 作为过期时间
@@ -136,13 +153,12 @@ export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
         // 尝试使用 KV 原生 TTL
         if (storageAdapter.kv && typeof storageAdapter.kv.put === 'function') {
             await storageAdapter.kv.put(cacheKey, JSON.stringify(cacheEntry), {
-                expirationTtl: ttlSeconds
+                expirationTtl: ttlSeconds,
             });
         } else {
             // 降级：使用普通 put（无 TTL）
             await storageAdapter.put(cacheKey, cacheEntry);
         }
-
 
         return true;
     } catch (error) {
@@ -162,14 +178,16 @@ export function triggerBackgroundRefresh(context, refreshFn) {
         const refreshPromise = Promise.race([
             refreshFn(),
             new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Background refresh timeout')), CACHE_CONFIG.BACKGROUND_REFRESH_TIMEOUT)
-            )
-        ]).catch(error => {
+                setTimeout(
+                    () => reject(new Error('Background refresh timeout')),
+                    CACHE_CONFIG.BACKGROUND_REFRESH_TIMEOUT
+                )
+            ),
+        ]).catch((error) => {
             console.warn('[Cache] Background refresh failed:', error.message);
         });
 
         context.waitUntil(refreshPromise);
-
     } else {
         // 降级：不等待刷新完成
         console.warn('[Cache] waitUntil not available, skipping background refresh');
@@ -186,7 +204,7 @@ export function createCacheHeaders(status, nodeCount) {
     return {
         'X-Cache-Status': status,
         'X-Node-Count': String(nodeCount),
-        'X-Cache-Time': new Date().toISOString()
+        'X-Cache-Time': new Date().toISOString(),
     };
 }
 
@@ -251,7 +269,7 @@ export async function clearAllNodeCaches(storageAdapter, options = {}) {
                 // 使用适配器的 list 方法（KVStorageAdapter 或 D1StorageAdapter）
                 // 注意：适配器的 list 方法接受 prefix 字符串参数
                 const result = await storageAdapter.list(CACHE_CONFIG.KEY_PREFIX);
-                keys = Array.isArray(result) ? result : (result.keys || []);
+                keys = Array.isArray(result) ? result : result.keys || [];
                 cursor = null; // 适配器可能不支持分页，一次性返回所有
                 listComplete = true;
             } else {
@@ -261,7 +279,7 @@ export async function clearAllNodeCaches(storageAdapter, options = {}) {
 
             // 删除缓存
             for (const keyInfo of keys) {
-                const key = typeof keyInfo === 'string' ? keyInfo : (keyInfo.name || keyInfo);
+                const key = typeof keyInfo === 'string' ? keyInfo : keyInfo.name || keyInfo;
                 if (preserveKeys.has(key)) {
                     skipped++;
                     continue;
@@ -283,7 +301,6 @@ export async function clearAllNodeCaches(storageAdapter, options = {}) {
                 cursor = null;
             }
         } while (cursor);
-
 
         return { cleared, failed, skipped };
     } catch (error) {

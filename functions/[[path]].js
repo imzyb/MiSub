@@ -21,7 +21,11 @@
 import { handleMisubRequest } from './modules/subscription-handler.js';
 import { handleApiRequest } from './modules/api-router.js';
 import { createJsonResponse, migrateConfigSettings } from './modules/utils.js';
-import { corsMiddleware, csrfOriginMiddleware, securityHeadersMiddleware } from './middleware/cors.js';
+import {
+    corsMiddleware,
+    csrfOriginMiddleware,
+    securityHeadersMiddleware,
+} from './middleware/cors.js';
 import { handleDisguiseRequest } from './modules/handlers/disguise-handler.js';
 import { createDisguiseResponse } from './modules/disguise-page.js';
 
@@ -34,7 +38,7 @@ import { authMiddleware, renewAuthSession } from './modules/auth-middleware.js';
 function parseCorsOrigins(env, requestUrl) {
     const configured = (env?.CORS_ORIGINS || '')
         .split(',')
-        .map(origin => origin.trim())
+        .map((origin) => origin.trim())
         .filter(Boolean);
     const origins = configured.length ? configured : [requestUrl.origin];
     if (['localhost', '127.0.0.1'].includes(requestUrl.hostname)) {
@@ -64,7 +68,7 @@ function applyNoStoreToHtmlResponse(response) {
     return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
-        headers
+        headers,
     });
 }
 
@@ -83,12 +87,15 @@ async function fetchHostedAssetViaOrigin(request, assetPath) {
     headers.delete(INTERNAL_SPA_FETCH_HEADER);
     headers.set(INTERNAL_ORIGIN_ASSET_FETCH_HEADER, '1');
 
-    return fetch(new Request(assetUrl.toString(), {
-        method: ['GET', 'HEAD'].includes(request.method) ? request.method : 'GET',
-        headers
-    }), {
-        cf: { cacheTtl: 0, cacheEverything: false }
-    });
+    return fetch(
+        new Request(assetUrl.toString(), {
+            method: ['GET', 'HEAD'].includes(request.method) ? request.method : 'GET',
+            headers,
+        }),
+        {
+            cf: { cacheTtl: 0, cacheEverything: false },
+        }
+    );
 }
 
 async function fetchStaticAsset(request, env, next) {
@@ -132,11 +139,15 @@ async function fetchSpaEntry(request, env, next) {
             return applyNoStoreToHtmlResponse(await next());
         }
 
-        const assetsResponse = await fetchStaticAsset(new Request(indexUrl, {
-            method: request.method,
-            headers: headers,
-            redirect: request.redirect
-        }), env, next);
+        const assetsResponse = await fetchStaticAsset(
+            new Request(indexUrl, {
+                method: request.method,
+                headers: headers,
+                redirect: request.redirect,
+            }),
+            env,
+            next
+        );
         return applyNoStoreToHtmlResponse(assetsResponse);
     }
 
@@ -154,7 +165,7 @@ export async function onRequest(context) {
 
     try {
         const handleRequest = async () => {
-            const settings = await SettingsCache.get(env) || {};
+            const settings = (await SettingsCache.get(env)) || {};
             const config = migrateConfigSettings({ ...defaultSettings, ...settings });
 
             if (request.headers.get(INTERNAL_SPA_FETCH_HEADER) === '1') {
@@ -163,9 +174,10 @@ export async function onRequest(context) {
 
             // 动态识别订阅路由：仅保留 /sub/ 显式前缀，以及用户自定义 mytoken/profileToken 短链
             const isExplicitSubRoute = url.pathname.startsWith('/sub/');
-            
+
             const firstSeg = url.pathname.split('/').filter(Boolean)[0];
-            const isCustomTokenRoute = firstSeg && (firstSeg === config.mytoken || firstSeg === config.profileToken);
+            const isCustomTokenRoute =
+                firstSeg && (firstSeg === config.mytoken || firstSeg === config.profileToken);
 
             // 路由分发
             if (url.pathname.startsWith('/api/')) {
@@ -180,10 +192,13 @@ export async function onRequest(context) {
                 const expectedSecret = settings.cronSecret;
 
                 if (!expectedSecret) {
-                    return createJsonResponse({
-                        error: 'Cron Secret 未配置',
-                        hint: '请在设置页面的「自动任务配置」中设置 Cron Secret'
-                    }, 500);
+                    return createJsonResponse(
+                        {
+                            error: 'Cron Secret 未配置',
+                            hint: '请在设置页面的「自动任务配置」中设置 Cron Secret',
+                        },
+                        500
+                    );
                 }
 
                 const cronAuthHeader = request.headers.get('Authorization');
@@ -203,11 +218,12 @@ export async function onRequest(context) {
                 // 本地 wrangler pages dev 调试兜底：优先返回静态资源，避免函数逻辑影响 SPA 首屏
                 if (isLocalhost) {
                     let localResponse = await fetchStaticAsset(request, env, next);
-                    const isLikelySpaPath = !/\.\w+$/.test(url.pathname)
-                        && !url.pathname.startsWith('/api/')
-                        && !isExplicitSubRoute
-                        && !isCustomTokenRoute
-                        && url.pathname !== '/cron';
+                    const isLikelySpaPath =
+                        !/\.\w+$/.test(url.pathname) &&
+                        !url.pathname.startsWith('/api/') &&
+                        !isExplicitSubRoute &&
+                        !isCustomTokenRoute &&
+                        url.pathname !== '/cron';
 
                     if (localResponse.status === 404 && isLikelySpaPath) {
                         const indexResponse = await fetchSpaEntry(request, env, next);
@@ -219,7 +235,25 @@ export async function onRequest(context) {
                     return applyNoStoreToHtmlResponse(localResponse);
                 }
                 // 静态文件处理
-                const isStaticAsset = /^\/(assets|@vite|src)\/./.test(url.pathname) || /\.\w+$/.test(url.pathname);
+                const isStaticAsset =
+                    /^\/(assets|@vite|src)\/./.test(url.pathname) || /\.\w+$/.test(url.pathname);
+
+                // [伪装加固] 品牌资源（logo / favicon）在未登录时不应对外提供：
+                // 否则伪装成的第三方页面会挂着 MiSub 的品牌图标，形成明显指纹。
+                // 仅在伪装开启时生效，且已登录用户仍可正常获取。
+                const isBrandAsset =
+                    url.pathname === '/logo.png' ||
+                    url.pathname === '/favicon.ico' ||
+                    url.pathname === '/favicon.png';
+                if (isBrandAsset && settings?.disguise?.enabled) {
+                    const isAuthenticated = await authMiddleware(request, env);
+                    if (!isAuthenticated) {
+                        return (
+                            createDisguiseResponse(settings?.disguise, request.url) ||
+                            new Response('Not Found', { status: 404 })
+                        );
+                    }
+                }
 
                 if (!isStaticAsset) {
                     // 已提前读取过 settings
@@ -234,32 +268,34 @@ export async function onRequest(context) {
                 // [新增] 动态包含自定义登录路径
                 // [Fix #400] 当设置了自定义登录路径时，/login 不再作为 SPA 路由，
                 // 应直接返回 404 / disguise 页面以避免暴露自定义路径。
-                const isSpaRoute = [
-                    '/',
-                    '/dashboard',
-                    '/login',
-                    '/explore',
-                    customLoginPath
-                ].some(route => {
-                    if (route === '/') return url.pathname === '/';
-                    if (route === '/dashboard') {
-                        return url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/');
+                const isSpaRoute = ['/', '/dashboard', '/login', '/explore', customLoginPath].some(
+                    (route) => {
+                        if (route === '/') return url.pathname === '/';
+                        if (route === '/dashboard') {
+                            return (
+                                url.pathname === '/dashboard' ||
+                                url.pathname.startsWith('/dashboard/')
+                            );
+                        }
+                        return url.pathname === route || url.pathname.startsWith(route + '/');
                     }
-                    return url.pathname === route || url.pathname.startsWith(route + '/');
-                });
+                );
 
                 // [Fix #400] 设置了自定义路径后，/login 不再是有效 SPA 路由
                 const isLoginPath = url.pathname === '/login';
                 if (hasCustomLoginPath && isLoginPath) {
-                    return createDisguiseResponse(settings?.disguise, request.url)
-                        || new Response('Not Found', { status: 404 });
+                    return (
+                        createDisguiseResponse(settings?.disguise, request.url) ||
+                        new Response('Not Found', { status: 404 })
+                    );
                 }
 
-                const isProtectedSpaRoute = isSpaRoute
-                    && url.pathname !== '/'
-                    && url.pathname !== '/login'
-                    && url.pathname !== customLoginPath
-                    && !url.pathname.startsWith('/explore');
+                const isProtectedSpaRoute =
+                    isSpaRoute &&
+                    url.pathname !== '/' &&
+                    url.pathname !== '/login' &&
+                    url.pathname !== customLoginPath &&
+                    !url.pathname.startsWith('/explore');
 
                 // Route protection for SPA pages
                 // If accessing a protected route without auth, redirect to login
@@ -286,7 +322,6 @@ export async function onRequest(context) {
                     }
                 }
 
-
                 if (!isStaticAsset && !isSpaRoute && url.pathname !== '/') {
                     // 如果是浏览器请求且看起来像是一个页面访问，优先尝试返回 SPA
                     // fix: 解决经典模式下可能的路由冲突
@@ -296,11 +331,10 @@ export async function onRequest(context) {
                         // 我们可以选择:
                         // 1. 仍然尝试作为订阅处理 (如果用户在浏览器直接访问 shortlink)
                         // 2. 返回 next() 让前端处理 404
-
                         // 这里保持现有逻辑，但添加注释备忘。
                         // 既然目前通过 ui.js 强制跳转回 / 解决了经典模式的问题，
                         // 这里我们可以保留对短链接的支持。
-                        // return next(); 
+                        // return next();
                     }
                     return await handleMisubRequest(context);
                 }
@@ -324,9 +358,9 @@ export async function onRequest(context) {
                         return new Response(`Redirecting to frontend dev server...`, {
                             status: 302,
                             headers: {
-                                'Location': `http://localhost:5173${url.pathname}${url.search}`,
-                                'Content-Type': 'text/plain'
-                            }
+                                Location: `http://localhost:5173${url.pathname}${url.search}`,
+                                'Content-Type': 'text/plain',
+                            },
                         });
                     }
                 }
@@ -337,21 +371,23 @@ export async function onRequest(context) {
 
         const corsOptions = {
             origins: parseCorsOrigins(env, url),
-            allowCredentials: true
+            allowCredentials: true,
         };
         const response = await corsMiddleware(
             request,
-            () => csrfOriginMiddleware(
-                request,
-                () => securityHeadersMiddleware(request, handleRequest),
-                corsOptions
-            ),
+            () =>
+                csrfOriginMiddleware(
+                    request,
+                    () => securityHeadersMiddleware(request, handleRequest),
+                    corsOptions
+                ),
             corsOptions
         );
 
         // Sliding session renewal: refresh active sessions after seven days.
         // Login and logout manage the cookie themselves and must not be renewed here.
-        const isAuthCookieManagementRoute = url.pathname === '/api/login' || url.pathname === '/api/logout';
+        const isAuthCookieManagementRoute =
+            url.pathname === '/api/login' || url.pathname === '/api/logout';
         if (isAuthCookieManagementRoute || request.method === 'OPTIONS') {
             return response;
         }
@@ -359,10 +395,13 @@ export async function onRequest(context) {
     } catch (error) {
         // 全局错误处理
         console.error('[Main Handler Error]', error);
-        return createJsonResponse({
-            error: 'Internal Server Error',
-            message: error.message
-        }, 500);
+        return createJsonResponse(
+            {
+                error: 'Internal Server Error',
+                message: error.message,
+            },
+            500
+        );
     }
 }
 
@@ -383,7 +422,7 @@ export const debugInfo = {
         'handlers/node-handler',
         'handlers/debug-handler',
         'utils/geo-utils',
-        'utils/node-parser'
+        'utils/node-parser',
     ],
-    architecture: 'modular-refactor-v2-domain-split'
+    architecture: 'modular-refactor-v2-domain-split',
 };

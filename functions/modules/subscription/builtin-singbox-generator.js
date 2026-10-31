@@ -6,7 +6,15 @@
 import { urlToClashProxy, urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
 import { groupNodeLinesByRegion } from './region-groups.js';
-import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, getSingboxDnsRuleSet, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
+import {
+    POLICY_GROUPS,
+    getBuiltinRules,
+    getRemoteProviderDefinitions,
+    getSingboxDnsRuleSet,
+    DEFAULT_SELECT_GROUP,
+    DEFAULT_RELAY_GROUP,
+    pruneProxyGroups,
+} from './builtin-rules-provider.js';
 import { buildSingboxDnsConfig, DNS_PROXY_GROUP, SINGBOX_CN_RULE_SET } from './safe-dns.js';
 
 function cleanControlChars(str) {
@@ -18,7 +26,10 @@ function cleanControlChars(str) {
 function sanitizeName(name) {
     if (!name) return 'Untitled';
     let safe = cleanControlChars(name);
-    safe = safe.replace(/\s+/g, ' ').replace(/[\r\n\t]/g, ' ').trim();
+    safe = safe
+        .replace(/\s+/g, ' ')
+        .replace(/[\r\n\t]/g, ' ')
+        .trim();
     return safe || 'Untitled';
 }
 
@@ -68,14 +79,14 @@ function buildOutbound(proxy) {
         if (proxy.tls || proxy.sni || proxy.servername || proxy['skip-cert-verify']) {
             outbound.tls = {
                 enabled: true,
-                server_name: proxy.sni || proxy.servername || server
+                server_name: proxy.sni || proxy.servername || server,
             };
             if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) {
                 outbound.tls.insecure = true;
             }
         }
         outbound.transport = {
-            type: proxy.network === 'ws' ? 'ws' : 'tcp'
+            type: proxy.network === 'ws' ? 'ws' : 'tcp',
         };
         if (proxy['ws-opts']?.path || proxy.wsOpts?.path) {
             outbound.transport.path = proxy['ws-opts']?.path || proxy.wsOpts?.path;
@@ -92,10 +103,12 @@ function buildOutbound(proxy) {
             if (proxy.network === 'ws') {
                 const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
                 if (wsOpts?.path) outbound.transport.path = wsOpts.path;
-                if (wsOpts?.headers?.Host) outbound.transport.headers = { Host: wsOpts.headers.Host };
+                if (wsOpts?.headers?.Host)
+                    outbound.transport.headers = { Host: wsOpts.headers.Host };
             } else if (proxy.network === 'grpc') {
                 const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-                if (grpcOpts?.['grpc-service-name']) outbound.transport.service_name = grpcOpts['grpc-service-name'];
+                if (grpcOpts?.['grpc-service-name'])
+                    outbound.transport.service_name = grpcOpts['grpc-service-name'];
             } else if (proxy.network === 'xhttp') {
                 const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
                 if (xhttpOpts?.path) outbound.transport.path = xhttpOpts.path;
@@ -113,8 +126,8 @@ function buildOutbound(proxy) {
                 reality: {
                     enabled: true,
                     public_key: reality['public-key'] || reality.public_key,
-                    short_id: reality['short-id'] || reality.short_id
-                }
+                    short_id: reality['short-id'] || reality.short_id,
+                },
             };
         }
     } else if (type === 'trojan') {
@@ -124,14 +137,14 @@ function buildOutbound(proxy) {
         outbound.password = proxy.password || '';
         outbound.tls = {
             enabled: true,
-            server_name: proxy.sni || proxy.servername || server
+            server_name: proxy.sni || proxy.servername || server,
         };
         if (proxy.network === 'ws') {
             const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
             outbound.transport = {
                 type: 'ws',
                 path: wsOpts?.path || '/',
-                headers: wsOpts?.headers || {}
+                headers: wsOpts?.headers || {},
             };
         }
     } else if (type === 'hysteria2' || type === 'hy2') {
@@ -141,7 +154,7 @@ function buildOutbound(proxy) {
         outbound.password = proxy.password || '';
         outbound.tls = {
             enabled: true,
-            server_name: proxy.sni || proxy.servername || server
+            server_name: proxy.sni || proxy.servername || server,
         };
     } else if (type === 'tuic') {
         outbound.type = 'tuic';
@@ -150,19 +163,23 @@ function buildOutbound(proxy) {
         outbound.uuid = proxy.uuid || '';
         outbound.password = proxy.password || '';
 
-        const congestionControl = proxy['congestion-controller'] || proxy['congestion-control'] || proxy.congestion;
+        const congestionControl =
+            proxy['congestion-controller'] || proxy['congestion-control'] || proxy.congestion;
         if (congestionControl) outbound.congestion_control = congestionControl;
-        if (proxy['udp-relay-mode']) outbound.udp_relay_mode = proxy['udp-relay-mode'];
-        if (proxy['udp-over-stream'] !== undefined) outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
+        // sing-box TUIC schema has no udp_relay_mode field; do not emit Clash-only option.
+        if (proxy['udp-over-stream'] !== undefined)
+            outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
         if (proxy['zero-rtt-handshake'] !== undefined || proxy['reduce-rtt'] !== undefined) {
-            outbound.zero_rtt_handshake = Boolean(proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']);
+            outbound.zero_rtt_handshake = Boolean(
+                proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']
+            );
         }
         if (proxy.heartbeat) outbound.heartbeat = String(proxy.heartbeat);
         if (proxy.network) outbound.network = proxy.network;
 
         outbound.tls = {
             enabled: true,
-            server_name: proxy.sni || proxy.servername || server
+            server_name: proxy.sni || proxy.servername || server,
         };
         if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
     } else if (type === 'anytls') {
@@ -172,7 +189,7 @@ function buildOutbound(proxy) {
         outbound.password = proxy.password || '';
         outbound.tls = {
             enabled: true,
-            server_name: proxy.sni || proxy.servername || server
+            server_name: proxy.sni || proxy.servername || server,
         };
     } else if (type === 'snell') {
         outbound.type = 'snell';
@@ -185,7 +202,7 @@ function buildOutbound(proxy) {
         outbound.server = server;
         outbound.server_port = port;
         outbound.private_key = proxy['private-key'] || '';
-        outbound.local_address = Array.isArray(proxy.ip) ? proxy.ip : (proxy.ip ? [proxy.ip] : []);
+        outbound.local_address = Array.isArray(proxy.ip) ? proxy.ip : proxy.ip ? [proxy.ip] : [];
         outbound.peer_public_key = proxy['public-key'] || '';
         outbound.pre_shared_key = proxy['preshared-key'] || '';
         outbound.reserved = proxy.reserved;
@@ -195,10 +212,11 @@ function buildOutbound(proxy) {
         outbound.server_port = port;
         if (proxy.username) outbound.username = proxy.username;
         if (proxy.password) outbound.password = proxy.password;
-        if (type === 'https') {
+        if (type === 'https' || proxy.tls || proxy.sni || proxy.servername) {
             outbound.tls = {
                 enabled: true,
-                server_name: proxy.sni || proxy.servername || server
+                server_name: proxy.sni || proxy.servername || server,
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
             };
         }
     } else if (type === 'socks5' || type === 'socks5-tls') {
@@ -210,7 +228,7 @@ function buildOutbound(proxy) {
         if (type === 'socks5-tls') {
             outbound.tls = {
                 enabled: true,
-                server_name: proxy.sni || proxy.servername || server
+                server_name: proxy.sni || proxy.servername || server,
             };
         }
     } else {
@@ -222,7 +240,10 @@ function buildOutbound(proxy) {
         outbound.tls.enabled = true;
         outbound.tls.insecure = true;
     }
-    if ((proxy.sni || proxy.servername) && (type !== 'ss' && type !== 'shadowsocks' || proxy.tls || outbound.tls?.enabled)) {
+    if (
+        (proxy.sni || proxy.servername) &&
+        ((type !== 'ss' && type !== 'shadowsocks') || proxy.tls || outbound.tls?.enabled)
+    ) {
         outbound.tls = outbound.tls || {};
         outbound.tls.server_name = proxy.sni || proxy.servername;
     }
@@ -238,21 +259,20 @@ function buildOutbound(proxy) {
     return outbound;
 }
 
-
 export function generateBuiltinSingboxConfig(nodeList, options = {}) {
     const {
         managedConfigUrl = '',
         skipCertVerify = false,
         enableUdp = false,
         enableTfo = false,
-        ruleLevel = 'std'
+        ruleLevel = 'std',
     } = options;
 
     const cleanedNodeList = cleanControlChars(nodeList);
     const nodeUrls = cleanedNodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
 
     const outbounds = [];
     const usedNames = new Map();
@@ -262,7 +282,7 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
 
     // 应用 UDP 开关
     // (已在 urlsToClashProxies 中全局处理)
-    
+
     for (const clashProxy of proxies) {
         const baseName = sanitizeName(clashProxy.name);
         clashProxy.name = getUniqueName(baseName, usedNames);
@@ -274,7 +294,7 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
         }
     }
 
-    const proxyOutboundTags = outbounds.map(item => item.tag);
+    const proxyOutboundTags = outbounds.map((item) => item.tag);
     if (outbounds.length === 0) {
         outbounds.push({ tag: 'DIRECT', type: 'direct' });
     }
@@ -289,70 +309,77 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
         const chainOutbounds = nodeEntries.map(({ tag, outbound }) => ({
             ...outbound,
             tag: `🔗 链式代理 - ${tag}`,
-            detour: '入口节点'
+            detour: '入口节点',
         }));
-        const chainTags = chainOutbounds.map(outbound => outbound.tag);
+        const chainTags = chainOutbounds.map((outbound) => outbound.tag);
         outbounds.push(...chainOutbounds);
-        proxyGroups = proxyGroups.map(group => {
-            if (group.name === '🔗 链式代理') {
-                return {
-                    ...group,
-                    // Sing-box 通过 detour 表达链式出站。保持上一版可用结构：
-                    // “链式代理”直接选择带 detour 的落地副本；同时隐藏“落地节点”分组。
-                    type: 'select',
-                    proxies: chainTags
-                };
-            }
-            if (group.name === '落地节点') {
-                return null;
-            }
-            return group;
-        }).filter(Boolean);
+        proxyGroups = proxyGroups
+            .map((group) => {
+                if (group.name === '🔗 链式代理') {
+                    return {
+                        ...group,
+                        // Sing-box 通过 detour 表达链式出站。保持上一版可用结构：
+                        // “链式代理”直接选择带 detour 的落地副本；同时隐藏“落地节点”分组。
+                        type: 'select',
+                        proxies: chainTags,
+                    };
+                }
+                if (group.name === '落地节点') {
+                    return null;
+                }
+                return group;
+            })
+            .filter(Boolean);
         proxyGroups = pruneProxyGroups(proxyGroups, outbounds);
     }
 
     // 将抽象分组转换为 Sing-Box Outbounds
-    const groupOutbounds = proxyGroups.map(group => {
+    const groupOutbounds = proxyGroups.map((group) => {
         let type = 'selector';
         if (group.type === 'url-test') type = 'urltest';
         if (group.type === 'fallback') type = 'urltest'; // Sing-Box 暂时映射为 urltest
-        
+
         return {
             tag: group.name,
             type: type,
             outbounds: group.proxies,
-            ...(type === 'urltest' ? { 
-                url: 'http://www.gstatic.com/generate_204', 
-                interval: '10m',
-                tolerance: 50 
-            } : {})
+            ...(type === 'urltest'
+                ? {
+                      url: 'http://www.gstatic.com/generate_204',
+                      interval: '10m',
+                      tolerance: 50,
+                  }
+                : {}),
         };
     });
 
     // 从统一规则库获取分流规则
     const rawRules = getBuiltinRules(levelKey, 'singbox');
-    
+
     // 提取远程 Rule Set 定义 (Sing-Box 格式)
     const ruleSetsMap = getRemoteProviderDefinitions('singbox', rawRules);
     const ruleSets = [
         getSingboxDnsRuleSet(),
-        ...Object.values(ruleSetsMap).filter(ruleSet => ruleSet.tag !== SINGBOX_CN_RULE_SET)
+        ...Object.values(ruleSetsMap).filter((ruleSet) => ruleSet.tag !== SINGBOX_CN_RULE_SET),
     ];
 
     // 转换路由规则：将中间对象映射为 Sing-Box 语法
     const routeRules = [
-        { ip_cidr: ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'], outbound: 'DIRECT' },
+        {
+            ip_cidr: ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
+            outbound: 'DIRECT',
+        },
         { domain_suffix: ['localhost'], outbound: 'DIRECT' },
-        ...rawRules.map(r => {
+        ...rawRules.map((r) => {
             if (r.type === 'rule_set') return { rule_set: [r.tag], outbound: r.outbound };
             return r; // 已经是 Sing-Box 格式的普通规则
         }),
-        { domain_suffix: ['cn'], outbound: 'DIRECT' }
+        { domain_suffix: ['cn'], outbound: 'DIRECT' },
     ];
 
     const dnsConfig = buildSingboxDnsConfig(options.customDnsOverride || '', {
         mode: options.dnsMode,
-        proxyGroup: DNS_PROXY_GROUP
+        proxyGroup: DNS_PROXY_GROUP,
     });
 
     const config = {
@@ -365,22 +392,22 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
                 address: ['172.19.0.1/30'],
                 auto_route: true,
                 strict_route: true,
-                stack: 'mixed'
-            }
+                stack: 'mixed',
+            },
         ],
         outbounds: [
             { tag: 'DIRECT', type: 'direct' },
             { tag: 'REJECT', type: 'block' },
             ...outbounds,
-            ...groupOutbounds
+            ...groupOutbounds,
         ],
         route: {
             auto_detect_interface: true,
             default_domain_resolver: dnsConfig.servers[0]?.tag || 'dns-cn-1',
             final: levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP,
             rule_set: ruleSets,
-            rules: routeRules
-        }
+            rules: routeRules,
+        },
     };
 
     return JSON.stringify(config, null, 2) + '\n';

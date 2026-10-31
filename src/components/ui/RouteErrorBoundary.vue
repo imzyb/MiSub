@@ -1,59 +1,67 @@
 <script setup>
-import { ref, watch } from 'vue';
-import { useI18n } from '@/i18n/index.js';
+    import { ref, watch } from 'vue';
+    import { useI18n } from '@/i18n/index.js';
 
-const props = defineProps({
-  resetKey: {
-    type: [String, Number],
-    default: ''
-  }
-});
+    const props = defineProps({
+        resetKey: {
+            type: [String, Number],
+            default: '',
+        },
+    });
 
-const { t } = useI18n();
+    const { t } = useI18n();
 
-const hasError = ref(false);
-const errorMessage = ref('');
+    const hasError = ref(false);
+    const errorMessage = ref('');
 
-const reset = () => {
-  hasError.value = false;
-  errorMessage.value = '';
-};
+    const reset = () => {
+        hasError.value = false;
+        errorMessage.value = '';
+    };
 
-watch(() => props.resetKey, () => {
-  reset();
-});
+    watch(
+        () => props.resetKey,
+        () => {
+            reset();
+        }
+    );
 
-const handleReload = () => {
-  window.location.reload();
-};
+    const handleReload = () => {
+        window.location.reload();
+    };
 
-const errorCaptured = (error) => {
-  hasError.value = true;
-  errorMessage.value = error?.message || t('common.routeRenderFailed');
-  return false;
-};
+    const errorCaptured = (error) => {
+        hasError.value = true;
+        errorMessage.value = error?.message || t('common.routeRenderFailed');
+        return false;
+    };
 
-defineExpose({ reset, errorCaptured });
+    defineExpose({ reset, errorCaptured });
 </script>
 
 <template>
-  <div v-if="hasError" class="w-full py-12 flex flex-col items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-    <div class="text-base font-semibold text-gray-900 dark:text-white">{{ t('common.routeLoadError') }}</div>
-    <div class="max-w-md text-center text-xs text-gray-500">{{ errorMessage }}</div>
-    <button
-      class="px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-      @click="handleReload"
+    <div
+        v-if="hasError"
+        class="w-full py-12 flex flex-col items-center gap-3 text-sm text-gray-600 dark:text-gray-300"
     >
-      {{ t('common.reload') }}
-    </button>
-  </div>
-  <slot v-else />
+        <div class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ t('common.routeLoadError') }}
+        </div>
+        <div class="max-w-md text-center text-xs text-gray-500">{{ errorMessage }}</div>
+        <button
+            class="px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+            @click="handleReload"
+        >
+            {{ t('common.reload') }}
+        </button>
+    </div>
+    <slot v-else />
 </template>
 
 <script>
-export default {
-  errorCaptured(err) {
-    return this.$.exposed.errorCaptured(err);
-  }
-}
+    export default {
+        errorCaptured(err) {
+            return this.$.exposed.errorCaptured(err);
+        },
+    };
 </script>

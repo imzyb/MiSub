@@ -8,9 +8,9 @@ export { default as ManualNodeList } from './ManualNodeList.vue';
 export { default as ManualNodePanel } from './ManualNodePanel.vue';
 
 export const NodeComponents = {
-  ManualNodeCard,
-  ManualNodeList,
-  ManualNodePanel
+    ManualNodeCard,
+    ManualNodeList,
+    ManualNodePanel,
 };
 
 export default NodeComponents;

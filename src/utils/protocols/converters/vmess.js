@@ -13,21 +13,21 @@ export function convertVmessToUrl(proxy) {
         }
 
         const config = {
-            v: "2",
+            v: '2',
             ps: proxy.name || proxy['server-name'] || 'VMess',
             add: proxy.server,
             port: String(proxy.port),
             id: uuid || proxy['client-id'] || '',
             aid: String(proxy.alterId || proxy['alter-id'] || 0),
-            scy: proxy.cipher || 'auto',  // 加密方式
+            scy: proxy.cipher || 'auto', // 加密方式
             net: proxy.network || 'tcp',
-            type: 'none',  // HTTP 伪装类型
+            type: 'none', // HTTP 伪装类型
             host: '',
             path: '',
             tls: proxy.tls ? 'tls' : '',
             sni: '',
             alpn: '',
-            fp: ''  // fingerprint
+            fp: '', // fingerprint
         };
 
         // 处理不同的网络类型

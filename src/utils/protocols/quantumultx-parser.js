@@ -23,7 +23,10 @@ export function parseQuantumultXConfig(content) {
         } else if (trimmedLine.toLowerCase().startsWith('trojan')) {
             const node = parseQuantumultXTrojan(trimmedLine);
             if (node) nodes.push(node);
-        } else if (trimmedLine.toLowerCase().startsWith('hysteria2') || trimmedLine.toLowerCase().startsWith('hy2')) {
+        } else if (
+            trimmedLine.toLowerCase().startsWith('hysteria2') ||
+            trimmedLine.toLowerCase().startsWith('hy2')
+        ) {
             const node = parseQuantumultXHysteria2(trimmedLine);
             if (node) nodes.push(node);
         } else if (trimmedLine.toLowerCase().startsWith('tuic')) {
@@ -47,13 +50,13 @@ function parseServerPortToken(value) {
     if (lastColon === -1) return null;
     return {
         server: token.slice(0, lastColon).trim(),
-        port: token.slice(lastColon + 1).trim()
+        port: token.slice(lastColon + 1).trim(),
     };
 }
 
 function parseKeyValueParams(parts) {
     const map = new Map();
-    parts.forEach(param => {
+    parts.forEach((param) => {
         const [key, ...rest] = param.split('=');
         if (!key || rest.length === 0) return;
         map.set(key.trim().toLowerCase(), rest.join('=').trim());
@@ -70,7 +73,7 @@ function parseQuantumultXVmess(line) {
         if (equalIndex === -1) return null;
 
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
 
         let name = '';
         let server = '';
@@ -107,21 +110,21 @@ function parseQuantumultXVmess(line) {
 
         // 构建VMess配置
         const vmessConfig = {
-            v: "2",
+            v: '2',
             ps: name.trim().replace(/"/g, ''),
             add: server.trim(),
             port: parseInt(port.trim()),
             id: id.trim(),
             aid: aid ? parseInt(aid.trim()) : 0,
-            net: "tcp",
-            type: "none",
-            host: "",
-            path: "",
-            tls: ""
+            net: 'tcp',
+            type: 'none',
+            host: '',
+            path: '',
+            tls: '',
         };
 
         // 解析额外参数
-        extra.forEach(param => {
+        extra.forEach((param) => {
             const [key, ...rest] = param.split('=');
             const value = rest.join('=').trim();
             if (key && value) {
@@ -164,7 +167,7 @@ function parseQuantumultXVmess(line) {
             url: `vmess://${base64Encode(JSON.stringify(vmessConfig))}`,
             enabled: true,
             protocol: 'vmess',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch (e) {
         return null;
@@ -180,7 +183,7 @@ function parseQuantumultXSS(line) {
         if (equalIndex === -1) return null;
 
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
 
         let name = '';
         let server = '';
@@ -217,7 +220,7 @@ function parseQuantumultXSS(line) {
             url: `ss://${userinfo}@${server.trim()}:${port.trim()}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'ss',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch (e) {
         return null;
@@ -233,7 +236,7 @@ function parseQuantumultXTrojan(line) {
         if (equalIndex === -1) return null;
 
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
 
         let name = '';
         let server = '';
@@ -265,7 +268,7 @@ function parseQuantumultXTrojan(line) {
             url: `trojan://${encodeURIComponent(password.trim())}@${server.trim()}:${port.trim()}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'trojan',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch (e) {
         return null;
@@ -278,7 +281,7 @@ function parseQuantumultXVless(line) {
         if (equalIndex === -1) return null;
 
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
         let name = '';
         let server = '';
         let port = '';
@@ -306,8 +309,8 @@ function parseQuantumultXVless(line) {
         if (!name || !server || !port || !uuid) return null;
 
         const urlParams = [];
-        extra.forEach(param => {
-            const [key, value] = param.split('=').map(p => p.trim());
+        extra.forEach((param) => {
+            const [key, value] = param.split('=').map((p) => p.trim());
             if (!key || !value) return;
             switch (key.toLowerCase()) {
                 case 'transport':
@@ -348,7 +351,7 @@ function parseQuantumultXVless(line) {
             url: `vless://${uuid.trim()}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'vless',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch {
         return null;
@@ -360,7 +363,7 @@ function parseQuantumultXHysteria2(line) {
         const equalIndex = line.indexOf('=');
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
         let name = '';
         let server = '';
         let port = '';
@@ -388,11 +391,17 @@ function parseQuantumultXHysteria2(line) {
         if (!name || !server || !port || !password) return null;
 
         const urlParams = [];
-        extra.forEach(param => {
-            const [key, value] = param.split('=').map(p => p.trim());
+        extra.forEach((param) => {
+            const [key, value] = param.split('=').map((p) => p.trim());
             if (!key || !value) return;
-            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer' || key.toLowerCase() === 'tls-host') urlParams.push(`sni=${encodeURIComponent(value)}`);
-            if (key.toLowerCase() === 'insecure' || key.toLowerCase() === 'tls-verification') urlParams.push(`insecure=${value === 'false' ? '1' : value}`);
+            if (
+                key.toLowerCase() === 'sni' ||
+                key.toLowerCase() === 'peer' ||
+                key.toLowerCase() === 'tls-host'
+            )
+                urlParams.push(`sni=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'insecure' || key.toLowerCase() === 'tls-verification')
+                urlParams.push(`insecure=${value === 'false' ? '1' : value}`);
         });
 
         const query = urlParams.length ? `?${urlParams.join('&')}` : '';
@@ -402,7 +411,7 @@ function parseQuantumultXHysteria2(line) {
             url: `hysteria2://${encodeURIComponent(password.trim())}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'hysteria2',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch {
         return null;
@@ -414,7 +423,7 @@ function parseQuantumultXTuic(line) {
         const equalIndex = line.indexOf('=');
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
         let name = '';
         let server = '';
         let port = '';
@@ -444,14 +453,19 @@ function parseQuantumultXTuic(line) {
         }
         if (!name || !server || !port || !uuid) return null;
 
-        const auth = password ? `${encodeURIComponent(uuid.trim())}:${encodeURIComponent(password.trim())}` : encodeURIComponent(uuid.trim());
+        const auth = password
+            ? `${encodeURIComponent(uuid.trim())}:${encodeURIComponent(password.trim())}`
+            : encodeURIComponent(uuid.trim());
         const urlParams = [];
-        extra.forEach(param => {
-            const [key, value] = param.split('=').map(p => p.trim());
+        extra.forEach((param) => {
+            const [key, value] = param.split('=').map((p) => p.trim());
             if (!key || !value) return;
-            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer') urlParams.push(`sni=${encodeURIComponent(value)}`);
-            if (key.toLowerCase() === 'congestion-controller') urlParams.push(`congestion_control=${encodeURIComponent(value)}`);
-            if (key.toLowerCase() === 'udp-relay') urlParams.push(`udp_relay_mode=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'sni' || key.toLowerCase() === 'peer')
+                urlParams.push(`sni=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'congestion-controller')
+                urlParams.push(`congestion_control=${encodeURIComponent(value)}`);
+            if (key.toLowerCase() === 'udp-relay')
+                urlParams.push(`udp_relay_mode=${encodeURIComponent(value)}`);
         });
 
         const query = urlParams.length ? `?${urlParams.join('&')}` : '';
@@ -461,7 +475,7 @@ function parseQuantumultXTuic(line) {
             url: `tuic://${auth}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'tuic',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch {
         return null;
@@ -473,10 +487,15 @@ function parseQuantumultXAnyTLS(line) {
         const equalIndex = line.indexOf('=');
         if (equalIndex === -1) return null;
         const config = line.slice(equalIndex + 1);
-        const rawParams = config.split(',').map(p => p.trim());
+        const rawParams = config.split(',').map((p) => p.trim());
         const params = [];
         for (const param of rawParams) {
-            if (/^[A-Za-z][A-Za-z0-9_-]*=/.test(param) || param.includes(':') || params.length < 1 || (params.length < 3 && !/^[A-Za-z][A-Za-z0-9_-]*=/.test(param))) {
+            if (
+                /^[A-Za-z][A-Za-z0-9_-]*=/.test(param) ||
+                param.includes(':') ||
+                params.length < 1 ||
+                (params.length < 3 && !/^[A-Za-z][A-Za-z0-9_-]*=/.test(param))
+            ) {
                 params.push(param);
             } else if (params.length > 0) {
                 params[params.length - 1] = `${params[params.length - 1]},${param}`;
@@ -507,8 +526,8 @@ function parseQuantumultXAnyTLS(line) {
 
         let password = '';
         const urlParams = [];
-        extra.forEach(param => {
-            const [key, value] = param.split('=').map(p => p.trim());
+        extra.forEach((param) => {
+            const [key, value] = param.split('=').map((p) => p.trim());
             if (!key || !value) return;
             switch (key.toLowerCase()) {
                 case 'password':
@@ -535,7 +554,7 @@ function parseQuantumultXAnyTLS(line) {
             url: `anytls://${encodeURIComponent(password.trim())}@${server.trim()}:${port.trim()}${query}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: 'anytls',
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch {
         return null;
@@ -551,7 +570,7 @@ function parseQuantumultXHTTP(line) {
         if (equalIndex === -1) return null;
 
         const config = line.slice(equalIndex + 1);
-        const params = config.split(',').map(p => p.trim());
+        const params = config.split(',').map((p) => p.trim());
 
         if (params.length < 3) return null;
 
@@ -578,7 +597,7 @@ function parseQuantumultXHTTP(line) {
             url: `${scheme}://${userinfo}${server.trim()}:${port.trim()}#${encodeURIComponent(name.trim().replace(/"/g, ''))}`,
             enabled: true,
             protocol: scheme,
-            source: 'quantumultx'
+            source: 'quantumultx',
         };
     } catch (e) {
         return null;

@@ -3,7 +3,12 @@
  * 接收前端错误上报并写入 KV
  */
 
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from '../utils.js';
 
 const ERROR_REPORT_KV_KEY = 'misub_error_reports';
 const MAX_REPORT_ENTRIES = 100;
@@ -38,7 +43,7 @@ function safeAdditionalData(value) {
 }
 
 function cleanupReportBudgets(now = Date.now()) {
-    persistedReportTimestamps = persistedReportTimestamps.filter(ts => (now - ts) < 60 * 1000);
+    persistedReportTimestamps = persistedReportTimestamps.filter((ts) => now - ts < 60 * 1000);
     for (const [fingerprint, expiresAt] of recentReportFingerprints.entries()) {
         if (expiresAt <= now) {
             recentReportFingerprints.delete(fingerprint);
@@ -100,9 +105,12 @@ export async function handleErrorReportRequest(request, env) {
             userAgent: safeString(body?.userAgent, 300),
             additionalData: safeAdditionalData(body?.additionalData),
             origin: safeString(request.headers.get('Origin'), 200),
-            ip: safeString(request.headers.get('CF-Connecting-IP')
-                || request.headers.get('X-Real-IP')
-                || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim(), 100)
+            ip: safeString(
+                request.headers.get('CF-Connecting-IP') ||
+                    request.headers.get('X-Real-IP') ||
+                    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim(),
+                100
+            ),
         };
 
         const raw = await kv.get(ERROR_REPORT_KV_KEY);
@@ -119,6 +127,9 @@ export async function handleErrorReportRequest(request, env) {
         return createJsonResponse({ success: true });
     } catch (error) {
         console.error('[ErrorReport] Failed to save report:', error);
-        return createErrorResponse(error.status === 413 ? error.message : 'Failed to save error report', error.status || 500);
+        return createErrorResponse(
+            error.status === 413 ? error.message : 'Failed to save error report',
+            error.status || 500
+        );
     }
 }

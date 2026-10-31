@@ -1,4 +1,3 @@
-
 import { createJsonResponse, createErrorResponse } from '../utils.js';
 import { StorageFactory, STORAGE_TYPES } from '../../storage-adapter.js';
 
@@ -28,7 +27,7 @@ export async function handleGithubReleaseRequest(request, env) {
             if (age < CACHE_TTL_MS) {
                 return createJsonResponse(cachedWrapper.data, 200, {
                     'X-Cache-Status': 'HIT',
-                    'Cache-Control': 'public, max-age=86400'
+                    'Cache-Control': 'public, max-age=86400',
                 });
             }
         }
@@ -38,12 +37,12 @@ export async function handleGithubReleaseRequest(request, env) {
         const response = await fetch(githubUrl, {
             headers: {
                 'User-Agent': 'MiSub-Proxy/1.0',
-                'Accept': 'application/vnd.github.v3+json'
+                Accept: 'application/vnd.github.v3+json',
             },
             cf: {
                 cacheTtl: 86400,
-                cacheEverything: true
-            }
+                cacheEverything: true,
+            },
         });
 
         if (!response.ok) {
@@ -53,7 +52,7 @@ export async function handleGithubReleaseRequest(request, env) {
                 if (cachedWrapper) {
                     return createJsonResponse(cachedWrapper.data, 200, {
                         'X-Cache-Status': 'STALE',
-                        'Cache-Control': 'public, max-age=60'
+                        'Cache-Control': 'public, max-age=60',
                     });
                 }
                 // No cache available, return empty data instead of error
@@ -61,14 +60,14 @@ export async function handleGithubReleaseRequest(request, env) {
                 console.warn(`[GitHub Proxy] Rate limited for ${repo}, no cache available`);
                 return createJsonResponse({ tag_name: null, rate_limited: true }, 200, {
                     'X-Cache-Status': 'RATE_LIMITED',
-                    'Cache-Control': 'public, max-age=300' // Retry after 5 min
+                    'Cache-Control': 'public, max-age=300', // Retry after 5 min
                 });
             }
             // For other errors (404, etc.), also return gracefully
             if (response.status === 404) {
                 return createJsonResponse({ tag_name: null, not_found: true }, 200, {
                     'X-Cache-Status': 'NOT_FOUND',
-                    'Cache-Control': 'public, max-age=3600'
+                    'Cache-Control': 'public, max-age=3600',
                 });
             }
             return createErrorResponse(`GitHub API Error: ${response.statusText}`, response.status);
@@ -82,21 +81,20 @@ export async function handleGithubReleaseRequest(request, env) {
             html_url: data.html_url,
             published_at: data.published_at,
             name: data.name,
-            body: data.body || ''
+            body: data.body || '',
         };
 
         const cachePayload = {
             data: simplifiedData,
-            timestamp: Date.now()
+            timestamp: Date.now(),
         };
 
         await storage.put(CACHE_KEY, cachePayload);
 
         return createJsonResponse(simplifiedData, 200, {
             'X-Cache-Status': 'MISS',
-            'Cache-Control': 'public, max-age=86400'
+            'Cache-Control': 'public, max-age=86400',
         });
-
     } catch (error) {
         console.error(`[GitHub Proxy] Error fetching ${repo}:`, error);
         return createErrorResponse('Internal Server Error', 500);

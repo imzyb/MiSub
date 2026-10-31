@@ -33,6 +33,8 @@ describe('buildFetchProxyUrl', () => {
             ''
         );
 
-        expect(result).toBe('https://proxy.example.com/api?url=http%3A%2F%2Fexample.com%2Fsub%3Fclash%3D2');
+        expect(result).toBe(
+            'https://proxy.example.com/api?url=http%3A%2F%2Fexample.com%2Fsub%3Fclash%3D2'
+        );
     });
 });

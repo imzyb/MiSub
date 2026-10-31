@@ -1,5 +1,10 @@
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from '../utils.js';
 import { KV_KEY_PROFILES } from '../config.js';
 import { handleProfileMode } from './profile-handler.js';
 import { handleSingleSubscriptionMode, handleDirectUrlMode } from './single-subscription.js';
@@ -40,10 +45,16 @@ export async function handlePublicPreviewRequest(request, env) {
         }
 
         // 验证是否为公开订阅组
-        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
-        const profile = typeof storageAdapter.getProfileById === 'function'
-            ? await storageAdapter.getProfileById(profileId)
-            : (await storageAdapter.get(KV_KEY_PROFILES) || []).find(p => (p.customId && p.customId === profileId) || p.id === profileId);
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
+        const profile =
+            typeof storageAdapter.getProfileById === 'function'
+                ? await storageAdapter.getProfileById(profileId)
+                : ((await storageAdapter.get(KV_KEY_PROFILES)) || []).find(
+                      (p) => (p.customId && p.customId === profileId) || p.id === profileId
+                  );
 
         if (!profile || !profile.enabled || !profile.isPublic) {
             return createJsonResponse({ error: 'Profile not found or not public' }, 404);
@@ -58,10 +69,16 @@ export async function handlePublicPreviewRequest(request, env) {
             profile?.settings?.builtinSkipCertVerify ||
             profile?.settings?.transformBackendScv
         );
-        const result = await handleProfileMode(request, env, profile.id, userAgent, true, shouldSkipCertificateVerify);
+        const result = await handleProfileMode(
+            request,
+            env,
+            profile.id,
+            userAgent,
+            true,
+            shouldSkipCertificateVerify
+        );
 
         return createJsonResponse(result);
-
     } catch (e) {
         return createErrorResponse(`Preview failed: ${e.message}`, e.status || 500);
     }
@@ -85,16 +102,19 @@ export async function handleSubscriptionNodesRequest(request, env) {
             subscriptionId,
             profileId,
             userAgent = 'MiSub-Node-Preview/1.0',
-            applyTransform = false,  // 管理后台默认不应用转换，由前端控制
+            applyTransform = false, // 管理后台默认不应用转换，由前端控制
             skipCertVerify = false,
-            plusAsSpace = false
+            plusAsSpace = false,
         } = requestData;
 
         // 验证必需参数
         if (!subscriptionUrl && !subscriptionId && !profileId) {
-            return createJsonResponse({
-                error: '请提供订阅URL、订阅ID或订阅组ID'
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '请提供订阅URL、订阅ID或订阅组ID',
+                },
+                400
+            );
         }
 
         // 根据参数确定请求模式
@@ -105,24 +125,48 @@ export async function handleSubscriptionNodesRequest(request, env) {
             case 'profile':
                 // [Modified] Default applyTransform to true for profile preview if not specified
                 // This ensures preview matches the final output ("What You See Is What You Get")
-                result = await handleProfileMode(request, env, profileId, userAgent, requestData.applyTransform !== undefined ? requestData.applyTransform : true, skipCertVerify);
+                result = await handleProfileMode(
+                    request,
+                    env,
+                    profileId,
+                    userAgent,
+                    requestData.applyTransform !== undefined ? requestData.applyTransform : true,
+                    skipCertVerify
+                );
                 break;
             case 'subscription':
-                result = await handleSingleSubscriptionMode(request, env, subscriptionId, userAgent, skipCertVerify);
+                result = await handleSingleSubscriptionMode(
+                    request,
+                    env,
+                    subscriptionId,
+                    userAgent,
+                    skipCertVerify
+                );
                 break;
             case 'direct':
-                result = await handleDirectUrlMode(subscriptionUrl, userAgent, skipCertVerify, plusAsSpace);
+                result = await handleDirectUrlMode(
+                    subscriptionUrl,
+                    userAgent,
+                    skipCertVerify,
+                    plusAsSpace
+                );
                 break;
             default:
-                return createJsonResponse({
-                    error: '无效的请求参数'
-                }, 400);
+                return createJsonResponse(
+                    {
+                        error: '无效的请求参数',
+                    },
+                    400
+                );
         }
 
         return createJsonResponse(result);
     } catch (e) {
-        return createJsonResponse({
-            error: `获取节点列表失败: ${e.message}`
-        }, e.status || 500);
+        return createJsonResponse(
+            {
+                error: `获取节点列表失败: ${e.message}`,
+            },
+            e.status || 500
+        );
     }
 }

@@ -5,7 +5,7 @@
 
 /**
  * 修复节点URL编码问题（支持多种协议）
- * @param {string} nodeUrl 
+ * @param {string} nodeUrl
  * @returns {string}
  */
 export function fixNodeUrlEncoding(nodeUrl, options = {}) {
@@ -59,7 +59,12 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
         return fixSSEncoding(fixedUrl, options);
     }
 
-    if (fixedUrl.startsWith('trojan://') || fixedUrl.startsWith('vless://') || fixedUrl.startsWith('hy2://') || fixedUrl.startsWith('hysteria2://')) {
+    if (
+        fixedUrl.startsWith('trojan://') ||
+        fixedUrl.startsWith('vless://') ||
+        fixedUrl.startsWith('hy2://') ||
+        fixedUrl.startsWith('hysteria2://')
+    ) {
         try {
             const urlObj = new URL(fixedUrl);
 
@@ -131,7 +136,9 @@ export function fixSSEncoding(nodeUrl, options = {}) {
         return `ss://${normalizedBeforeHash}`;
     }
 
-    const normalizedHash = encodeURIComponent(decodeRepeatedly(plusAsSpace ? rawHash.replace(/\+/g, ' ') : rawHash));
+    const normalizedHash = encodeURIComponent(
+        decodeRepeatedly(plusAsSpace ? rawHash.replace(/\+/g, ' ') : rawHash)
+    );
     return `ss://${normalizedBeforeHash}#${normalizedHash}`;
 }
 
@@ -155,14 +162,18 @@ export function encodeArrayBufferToBase64(buffer) {
 
 /**
  * 将多行规则文本解析为规则对象
- * @param {string|string[]} lines 
- * @param {boolean} stripKeepPrefix 
+ * @param {string|string[]} lines
+ * @param {boolean} stripKeepPrefix
  */
 export function buildRuleSet(lines, stripKeepPrefix = false) {
     const protocols = new Set();
     const patterns = [];
 
-    const lineArray = Array.isArray(lines) ? lines : (typeof lines === 'string' ? lines.split('\n') : []);
+    const lineArray = Array.isArray(lines)
+        ? lines
+        : typeof lines === 'string'
+          ? lines.split('\n')
+          : [];
 
     for (const rawLine of lineArray) {
         let line = rawLine.trim();
@@ -174,11 +185,12 @@ export function buildRuleSet(lines, stripKeepPrefix = false) {
         if (!line) continue;
 
         if (line.toLowerCase().startsWith('proto:')) {
-            const parts = line.substring('proto:'.length)
+            const parts = line
+                .substring('proto:'.length)
                 .split(',')
-                .map(p => p.trim().toLowerCase())
+                .map((p) => p.trim().toLowerCase())
                 .filter(Boolean);
-            parts.forEach(p => protocols.add(p));
+            parts.forEach((p) => protocols.add(p));
             continue;
         }
 
@@ -189,7 +201,7 @@ export function buildRuleSet(lines, stripKeepPrefix = false) {
     return {
         protocols,
         nameRegex,
-        hasRules: protocols.size > 0 || Boolean(nameRegex)
+        hasRules: protocols.size > 0 || Boolean(nameRegex),
     };
 }
 
@@ -205,8 +217,11 @@ export function buildSafeRegex(patterns) {
 
 export function parseFilterRuleText(ruleText) {
     const lines = Array.isArray(ruleText)
-        ? ruleText.map(line => String(line || '').trim()).filter(Boolean)
-        : String(ruleText || '').split('\n').map(line => line.trim()).filter(Boolean);
+        ? ruleText.map((line) => String(line || '').trim()).filter(Boolean)
+        : String(ruleText || '')
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean);
 
     const includeLines = [];
     const excludeLines = [];
@@ -234,21 +249,21 @@ export function parseFilterRuleText(ruleText) {
         includeLines,
         excludeLines,
         includeRules: buildRuleSet(includeLines, true),
-        excludeRules: buildRuleSet(excludeLines)
+        excludeRules: buildRuleSet(excludeLines),
     };
 }
 
 /**
  * 过滤节点对象列表 (用于 preview/node-fetcher)
- * @param {Array<Object>} nodes 
- * @param {Object} rules 
+ * @param {Array<Object>} nodes
+ * @param {Object} rules
  * @param {string} mode 'include' | 'exclude'
  */
 export function filterNodeObjects(nodes, rules, mode = 'exclude') {
     if (!rules || !rules.hasRules) return nodes;
     const isInclude = mode === 'include';
 
-    return nodes.filter(node => {
+    return nodes.filter((node) => {
         const protocol = (node.protocol || '').toLowerCase();
         const name = node.name || '';
 
@@ -265,13 +280,16 @@ export function filterNodeObjects(nodes, rules, mode = 'exclude') {
 export function filterNodeUrls(nodeUrls, rules, mode = 'exclude') {
     if (!rules || !rules.hasRules || !Array.isArray(nodeUrls)) return nodeUrls;
 
-    const nodes = nodeUrls.map(url => ({
+    const nodes = nodeUrls.map((url) => ({
         url,
-        protocol: String(url || '').match(/^(.*?):\/\//)?.[1]?.toLowerCase() || '',
-        name: parseNodeUrlName(url)
+        protocol:
+            String(url || '')
+                .match(/^(.*?):\/\//)?.[1]
+                ?.toLowerCase() || '',
+        name: parseNodeUrlName(url),
     }));
-    const keptUrls = new Set(filterNodeObjects(nodes, rules, mode).map(node => node.url));
-    return nodeUrls.filter(url => keptUrls.has(url));
+    const keptUrls = new Set(filterNodeObjects(nodes, rules, mode).map((node) => node.url));
+    return nodeUrls.filter((url) => keptUrls.has(url));
 }
 
 function parseNodeUrlName(nodeUrl) {
@@ -311,9 +329,13 @@ export function applyManualNodeName(nodeUrl, customName) {
         return `${baseUrl}#${encodedName}`;
     }
 
-    if (nodeUrl.startsWith('trojan://') || nodeUrl.startsWith('vless://') ||
-        nodeUrl.startsWith('hysteria2://') || nodeUrl.startsWith('hy2://') ||
-        nodeUrl.startsWith('tuic://')) {
+    if (
+        nodeUrl.startsWith('trojan://') ||
+        nodeUrl.startsWith('vless://') ||
+        nodeUrl.startsWith('hysteria2://') ||
+        nodeUrl.startsWith('hy2://') ||
+        nodeUrl.startsWith('tuic://')
+    ) {
         try {
             const urlObj = new URL(nodeUrl);
             urlObj.hash = '#' + encodedName;
@@ -333,8 +355,8 @@ export function applyManualNodeName(nodeUrl, customName) {
 
 /**
  * 应用过滤规则 (针对 URL string 列表)
- * @param {Array} validNodes 
- * @param {Object} sub 
+ * @param {Array} validNodes
+ * @param {Object} sub
  * @returns {Array} filtered nodes
  */
 export function applyFilterRules(validNodes, sub) {

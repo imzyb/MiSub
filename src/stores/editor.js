@@ -7,12 +7,10 @@ export const useEditorStore = defineStore('editor', () => {
     const lastUpdated = ref(null);
 
     function markDirty() {
-
         isDirty.value = true;
     }
 
     function clearDirty() {
-
         isDirty.value = false;
     }
 
@@ -31,6 +29,6 @@ export const useEditorStore = defineStore('editor', () => {
         markDirty,
         clearDirty,
         setLoading,
-        setLastUpdated
+        setLastUpdated,
     };
 });

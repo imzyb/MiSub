@@ -1,6 +1,7 @@
 import { useToastStore } from '../stores/toast.js';
 import { api } from '../lib/http.js';
 import { t } from '../i18n/index.js';
+import { confirmAction } from './useConfirm.js';
 
 /**
  * 备份和恢复逻辑 composable
@@ -35,8 +36,15 @@ export function useBackupLogic() {
             if (!result?.success || !result.exportData) {
                 throw new Error(result?.message || t('backup.exportFailed'));
             }
-            const timestamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
-            downloadJson(result.exportData, `misub-backup-${result.exportData.scope || scope}-${timestamp}.json`);
+            const timestamp = new Date()
+                .toISOString()
+                .slice(0, 19)
+                .replace('T', '_')
+                .replace(/:/g, '-');
+            downloadJson(
+                result.exportData,
+                `misub-backup-${result.exportData.scope || scope}-${timestamp}.json`
+            );
             showToast(t('backup.exportSuccess'), 'success');
         } catch (error) {
             console.error('Backup export failed:', error);
@@ -61,9 +69,13 @@ export function useBackupLogic() {
                 try {
                     const data = JSON.parse(e.target.result);
                     const scope = data?.scope || 'dataOnly';
-                    const scopeLabel = scope === 'dataAndSettings' ? t('backup.scopeDataAndSettings') : t('backup.scopeDataOnly');
+                    const scopeLabel =
+                        scope === 'dataAndSettings'
+                            ? t('backup.scopeDataAndSettings')
+                            : t('backup.scopeDataOnly');
                     const message = t('backup.restoreConfirm', { scope: scopeLabel });
-                    if (!confirm(message)) return;
+                    const confirmed = await confirmAction({ message, variant: 'danger' });
+                    if (!confirmed) return;
 
                     const result = await api.post('/api/backup/restore', { payload: data, scope });
                     if (!result?.success) {
@@ -72,7 +84,10 @@ export function useBackupLogic() {
                     showToast(t('backup.restoreSuccess'), 'success');
                     setTimeout(() => window.location.reload(), 800);
                 } catch (err) {
-                    showToast(t('backup.importFailedWithMessage', { message: err.message }), 'error');
+                    showToast(
+                        t('backup.importFailedWithMessage', { message: err.message }),
+                        'error'
+                    );
                 }
             };
             reader.readAsText(file);

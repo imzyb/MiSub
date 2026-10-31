@@ -6,7 +6,7 @@
 export { default as SubscriptionPanel } from './SubscriptionPanel.vue';
 
 export const SubscriptionComponents = {
-  SubscriptionPanel
+    SubscriptionPanel,
 };
 
 export default SubscriptionComponents;

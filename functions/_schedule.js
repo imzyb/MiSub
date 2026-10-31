@@ -11,7 +11,7 @@ export async function onRequest(context) {
 
     const results = {
         timestamp: new Date().toISOString(),
-        subscriptionSync: null
+        subscriptionSync: null,
     };
 
     try {
@@ -23,7 +23,7 @@ export async function onRequest(context) {
     }
 
     return new Response(JSON.stringify(results), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }
 
@@ -31,11 +31,7 @@ export async function onRequest(context) {
  * 执行订阅同步
  */
 export async function performSubscriptionSync(env, config = {}) {
-    const {
-        maxSyncCount = 50,
-        timeout = 30000,
-        concurrency = 5
-    } = config;
+    const { maxSyncCount = 50, timeout = 30000, concurrency = 5 } = config;
 
     const results = {
         timestamp: new Date().toISOString(),
@@ -46,8 +42,8 @@ export async function performSubscriptionSync(env, config = {}) {
         config: {
             maxSyncCount,
             timeout,
-            concurrency
-        }
+            concurrency,
+        },
     };
 
     try {
@@ -60,7 +56,7 @@ export async function performSubscriptionSync(env, config = {}) {
         const BATCH_SIZE = concurrency;
         for (let i = 0; i < subscriptions.length; i += BATCH_SIZE) {
             const batch = subscriptions.slice(i, i + BATCH_SIZE);
-            const batchPromises = batch.map(sub => syncSingleSubscription(sub, env, timeout));
+            const batchPromises = batch.map((sub) => syncSingleSubscription(sub, env, timeout));
 
             const batchResults = await Promise.allSettled(batchPromises);
 
@@ -72,7 +68,7 @@ export async function performSubscriptionSync(env, config = {}) {
                         name: subscription.name,
                         url: subscription.url,
                         status: 'success',
-                        nodeCount: result.value.nodeCount
+                        nodeCount: result.value.nodeCount,
                     });
                 } else {
                     results.failedSyncs++;
@@ -80,12 +76,11 @@ export async function performSubscriptionSync(env, config = {}) {
                         name: subscription.name,
                         url: subscription.url,
                         status: 'failed',
-                        error: result.reason.message
+                        error: result.reason.message,
                     });
                 }
             });
         }
-
     } catch (error) {
         console.error('Subscription sync error:', error);
         results.error = error.message;
@@ -114,7 +109,7 @@ async function getSubscriptionsToSync(env) {
     // 从 D1 数据库获取
     if (env.DB) {
         const { results } = await env.DB.prepare(
-            "SELECT * FROM subscriptions WHERE auto_sync = 1"
+            'SELECT * FROM subscriptions WHERE auto_sync = 1'
         ).all();
         subscriptions.push(...results);
     }
@@ -133,9 +128,9 @@ async function syncSingleSubscription(subscription, env) {
     // 使用重试机制获取订阅
     const response = await fetch(url, {
         headers: {
-            'User-Agent': userAgent
+            'User-Agent': userAgent,
         },
-        signal: AbortSignal.timeout(timeout)
+        signal: AbortSignal.timeout(timeout),
     });
 
     if (!response.ok) {
@@ -152,7 +147,7 @@ async function syncSingleSubscription(subscription, env) {
 
     return {
         nodeCount: nodes.length,
-        contentLength: content.length
+        contentLength: content.length,
     };
 }
 
@@ -184,12 +179,15 @@ async function updateSubscriptionData(subscription, nodes, env) {
     // 更新 KV 存储
     if (env.KV_STORAGE) {
         const key = `subscription_${subscription.id}`;
-        await env.KV_STORAGE.put(key, JSON.stringify({
-            ...subscription,
-            nodes,
-            lastSync: new Date().toISOString(),
-            nodeCount: nodes.length
-        }));
+        await env.KV_STORAGE.put(
+            key,
+            JSON.stringify({
+                ...subscription,
+                nodes,
+                lastSync: new Date().toISOString(),
+                nodeCount: nodes.length,
+            })
+        );
     }
 
     // 更新 D1 数据库
@@ -198,11 +196,8 @@ async function updateSubscriptionData(subscription, nodes, env) {
             `UPDATE subscriptions
              SET nodes = ?, node_count = ?, last_sync = ?
              WHERE id = ?`
-        ).bind(
-            JSON.stringify(nodes),
-            nodes.length,
-            new Date().toISOString(),
-            subscription.id
-        ).run();
+        )
+            .bind(JSON.stringify(nodes), nodes.length, new Date().toISOString(), subscription.id)
+            .run();
     }
 }

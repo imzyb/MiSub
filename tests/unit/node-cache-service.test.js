@@ -11,7 +11,7 @@ import {
     triggerBackgroundRefresh,
     getCacheConfig,
     isSuspiciousNodeCountDrop,
-    isLikelyPartialAggregateNodeList
+    isLikelyPartialAggregateNodeList,
 } from '../../functions/services/node-cache-service.js';
 
 function createStorage(initialData = {}) {
@@ -20,7 +20,7 @@ function createStorage(initialData = {}) {
         get: async (key) => data.get(key) || null,
         put: async (key, value) => {
             data.set(key, value);
-        }
+        },
     };
 }
 
@@ -39,7 +39,7 @@ describe('node-cache-service', () => {
         const storage = createStorage({
             stale: { nodes: 'a', timestamp: now - (FRESH_TTL + 1000), nodeCount: 1, sources: [] },
             expired: { nodes: 'b', timestamp: now - (STALE_TTL + 1000), nodeCount: 2, sources: [] },
-            miss: { nodes: 'c', timestamp: now - (MAX_AGE + 1000), nodeCount: 3, sources: [] }
+            miss: { nodes: 'c', timestamp: now - (MAX_AGE + 1000), nodeCount: 3, sources: [] },
         });
 
         const stale = await getCache(storage, 'stale');
@@ -77,8 +77,8 @@ describe('node-cache-service', () => {
                 nodes: 'trojan://password@1.2.3.4:443#HK-01\n',
                 timestamp: Date.now(),
                 nodeCount: 1,
-                sources: ['机场']
-            }
+                sources: ['机场'],
+            },
         });
 
         try {
@@ -88,7 +88,9 @@ describe('node-cache-service', () => {
             expect(updated).toBe(false);
             expect(cached.data.nodes).toBe('trojan://password@1.2.3.4:443#HK-01\n');
             expect(cached.data.nodeCount).toBe(1);
-            expect(warnSpy).toHaveBeenCalledWith('[Cache] Refusing to overwrite non-empty cache cache with empty node list');
+            expect(warnSpy).toHaveBeenCalledWith(
+                '[Cache] Refusing to overwrite non-empty cache cache with empty node list'
+            );
         } finally {
             warnSpy.mockRestore();
         }
@@ -96,16 +98,18 @@ describe('node-cache-service', () => {
 
     it('refuses to overwrite a healthy large cache after a severe node-count drop', async () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const healthyNodes = Array.from({ length: 156 }, (_, index) =>
-            `trojan://password${index}@node${index}.example.com:443#Node-${index}`
-        ).join('\n') + '\n';
+        const healthyNodes =
+            Array.from(
+                { length: 156 },
+                (_, index) => `trojan://password${index}@node${index}.example.com:443#Node-${index}`
+            ).join('\n') + '\n';
         const storage = createStorage({
             cache: {
                 nodes: healthyNodes,
                 timestamp: Date.now(),
                 nodeCount: 156,
-                sources: ['Airport']
-            }
+                sources: ['Airport'],
+            },
         });
 
         try {
@@ -136,18 +140,21 @@ describe('node-cache-service', () => {
     });
 
     it('recognizes the traffic-node plus UUID-node signature of a partial aggregate result', async () => {
-        const partial = [
-            'trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99',
-            'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111'
-        ].join('\n') + '\n';
+        const partial =
+            [
+                'trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99',
+                'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
+            ].join('\n') + '\n';
         const storage = createStorage();
 
         expect(isLikelyPartialAggregateNodeList(partial)).toBe(true);
         expect(await setCache(storage, 'cache', partial, ['Airport'])).toBe(false);
         expect(await getCache(storage, 'cache')).toEqual({ data: null, status: 'miss' });
-        expect(isLikelyPartialAggregateNodeList(
-            'vless://11111111-1111-1111-1111-111111111111@example.com:443#HK\n'
-        )).toBe(false);
+        expect(
+            isLikelyPartialAggregateNodeList(
+                'vless://11111111-1111-1111-1111-111111111111@example.com:443#HK\n'
+            )
+        ).toBe(false);
     });
 
     it('preserves only requested subscription protective caches when clearing node caches', async () => {
@@ -158,23 +165,23 @@ describe('node-cache-service', () => {
                     'node_cache_token_main',
                     'node_cache_profile_profile-1',
                     'node_cache_subscription_sub-keep',
-                    'node_cache_subscription_sub-drop'
+                    'node_cache_subscription_sub-drop',
                 ];
             },
             async delete(key) {
                 deleted.push(key);
-            }
+            },
         };
 
         const result = await clearAllNodeCaches(storage, {
-            preserveKeys: ['node_cache_subscription_sub-keep']
+            preserveKeys: ['node_cache_subscription_sub-keep'],
         });
 
         expect(result).toEqual({ cleared: 3, failed: 0, skipped: 1 });
         expect(deleted).toEqual([
             'node_cache_token_main',
             'node_cache_profile_profile-1',
-            'node_cache_subscription_sub-drop'
+            'node_cache_subscription_sub-drop',
         ]);
     });
 });

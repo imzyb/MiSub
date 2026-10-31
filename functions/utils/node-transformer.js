@@ -3,7 +3,13 @@
  * 支持：正则过滤、正则重命名、模板重命名、智能去重、排序
  */
 
-import { parseNodeInfo, extractNodeRegion, getRegionEmoji, REGION_KEYWORDS, REGION_EMOJI } from '../modules/utils/geo-utils.js';
+import {
+    parseNodeInfo,
+    extractNodeRegion,
+    getRegionEmoji,
+    REGION_KEYWORDS,
+    REGION_EMOJI,
+} from '../modules/utils/geo-utils.js';
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 import { base64EncodeUtf8 } from '../modules/utils.js';
 import { evaluateDslExpression, renderDslTemplate } from './expression-dsl.js';
@@ -11,14 +17,34 @@ import { evaluateDslExpression, renderDslTemplate } from './expression-dsl.js';
 // ============ 默认配置 ============
 
 const DEFAULT_SORT_KEYS = [
-    { key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] },
-    { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr', 'anytls'] },
-    { key: 'name', order: 'asc' }
+    {
+        key: 'region',
+        order: 'asc',
+        customOrder: [
+            '香港',
+            '台湾',
+            '日本',
+            '新加坡',
+            '美国',
+            '韩国',
+            '英国',
+            '德国',
+            '法国',
+            '加拿大',
+        ],
+    },
+    {
+        key: 'protocol',
+        order: 'asc',
+        customOrder: ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr', 'anytls'],
+    },
+    { key: 'name', order: 'asc' },
 ];
 
 const REGION_CODE_TO_ZH = buildRegionCodeToZhMap();
 const REGION_ZH_TO_CODE = buildZhToCodeMap();
 const warnedRegexRules = new Set();
+const VIRTUAL_INFO_NODE_UUID = '00000000-0000-0000-0000-000000000000';
 
 function warnInvalidRegex(rule, error) {
     const key = `${rule.pattern || ''}|${rule.flags || ''}`;
@@ -27,19 +53,24 @@ function warnInvalidRegex(rule, error) {
     console.warn('[NodeTransform] Invalid rename regex:', {
         pattern: rule.pattern,
         flags: rule.flags,
-        error: error?.message || String(error)
+        error: error?.message || String(error),
     });
 }
 
 // ============ 工具函数 ============
 
 function safeDecodeURI(value) {
-    try { return decodeURIComponent(value); }
-    catch { return value; }
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
 }
 
 function normalizeBase64(input) {
-    let s = String(input || '').trim().replace(/\s+/g, '');
+    let s = String(input || '')
+        .trim()
+        .replace(/\s+/g, '');
     if (!s) return '';
     // 处理可能被 URL 编码的 Base64
     if (s.includes('%')) {
@@ -137,7 +168,9 @@ function parseHostPort(hostPort) {
 // ============ 节点解析 ============
 
 function stripLeadingEmoji(name) {
-    return String(name || '').replace(/^[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\s*/g, '').trim();
+    return String(name || '')
+        .replace(/^[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\s*/g, '')
+        .trim();
 }
 
 // ============ 配置标准化 ============
@@ -157,40 +190,42 @@ function normalizeConfig(cfg) {
         filter: {
             include: {
                 enabled: Boolean(filter.include?.enabled),
-                rules: Array.isArray(filter.include?.rules) ? filter.include.rules : []
+                rules: Array.isArray(filter.include?.rules) ? filter.include.rules : [],
             },
             exclude: {
                 enabled: Boolean(filter.exclude?.enabled),
-                rules: Array.isArray(filter.exclude?.rules) ? filter.exclude.rules : []
+                rules: Array.isArray(filter.exclude?.rules) ? filter.exclude.rules : [],
             },
             protocols: {
                 enabled: Boolean(filter.protocols?.enabled),
                 values: Array.isArray(filter.protocols?.values)
-                    ? filter.protocols.values.map(value => normalizeProtocol(value)).filter(Boolean)
-                    : []
+                    ? filter.protocols.values
+                          .map((value) => normalizeProtocol(value))
+                          .filter(Boolean)
+                    : [],
             },
             regions: {
                 enabled: Boolean(filter.regions?.enabled),
                 values: Array.isArray(filter.regions?.values)
-                    ? filter.regions.values.map(value => toRegionZh(value)).filter(Boolean)
-                    : []
+                    ? filter.regions.values.map((value) => toRegionZh(value)).filter(Boolean)
+                    : [],
             },
             script: {
                 enabled: Boolean(filter.script?.enabled),
-                expression: String(filter.script?.expression || '').trim()
+                expression: String(filter.script?.expression || '').trim(),
             },
             useless: {
-                enabled: Boolean(filter.useless?.enabled)
-            }
+                enabled: Boolean(filter.useless?.enabled),
+            },
         },
         rename: {
             regex: {
                 enabled: Boolean(regex.enabled),
-                rules: Array.isArray(regex.rules) ? regex.rules : []
+                rules: Array.isArray(regex.rules) ? regex.rules : [],
             },
             script: {
                 enabled: Boolean(rename.script?.enabled),
-                expression: String(rename.script?.expression || '').trim()
+                expression: String(rename.script?.expression || '').trim(),
             },
             template: {
                 enabled: Boolean(template.enabled),
@@ -199,8 +234,8 @@ function normalizeConfig(cfg) {
                 indexPad: Number.isFinite(template.indexPad) ? template.indexPad : 2,
                 indexScope: template.indexScope || 'regionProtocol',
                 regionAlias: template.regionAlias || {},
-                protocolAlias: template.protocolAlias || {}
-            }
+                protocolAlias: template.protocolAlias || {},
+            },
         },
         dedup: {
             enabled: Boolean(dedup.enabled),
@@ -208,17 +243,15 @@ function normalizeConfig(cfg) {
             includeProtocol: Boolean(dedup.includeProtocol),
             prefer: {
                 protocolOrder: Array.isArray(dedup.prefer?.protocolOrder)
-                    ? dedup.prefer.protocolOrder.map(s => String(s).toLowerCase())
-                    : []
-            }
+                    ? dedup.prefer.protocolOrder.map((s) => String(s).toLowerCase())
+                    : [],
+            },
         },
         sort: {
             enabled: Boolean(sort.enabled),
             nameIgnoreEmoji: sort.nameIgnoreEmoji !== false,
-            keys: Array.isArray(sort.keys) && sort.keys.length > 0
-                ? sort.keys
-                : DEFAULT_SORT_KEYS
-        }
+            keys: Array.isArray(sort.keys) && sort.keys.length > 0 ? sort.keys : DEFAULT_SORT_KEYS,
+        },
     };
 }
 
@@ -228,13 +261,13 @@ export function matchesRegexRules(name, rules) {
     const value = String(name || '');
     for (const rule of rules) {
         if (!rule) continue;
-        
+
         // 兼容规则既可以是对象 {pattern: "...", flags: "..."} 也可以是纯字符串
         const pattern = typeof rule === 'string' ? rule : rule.pattern;
-        const flags = typeof rule === 'string' ? 'i' : (rule.flags || 'i');
-        
+        const flags = typeof rule === 'string' ? 'i' : rule.flags || 'i';
+
         if (!pattern) continue;
-        
+
         try {
             const re = new RegExp(pattern, flags);
             if (re.test(value)) return true;
@@ -247,7 +280,7 @@ export function matchesRegexRules(name, rules) {
 
 export function ensureRegionInfo(record, enableEmoji = false) {
     if (record.regionZh) return record;
-    
+
     // 优先使用预解析的元数据
     let regionZh = record.metadata?.regionZh || extractNodeRegion(record.name);
     let regionCode = record.metadata?.region || '';
@@ -255,31 +288,46 @@ export function ensureRegionInfo(record, enableEmoji = false) {
     if (regionZh === '其他' && record.server) {
         regionZh = extractNodeRegion(record.server);
     }
-    
+
     if (!regionCode) {
         regionCode = toRegionCode(regionZh);
     }
-    
-    const emoji = enableEmoji ? (record.metadata?.flag || getRegionEmoji(regionZh)) : '';
+
+    const emoji = enableEmoji ? record.metadata?.flag || getRegionEmoji(regionZh) : '';
     return { ...record, region: regionCode, regionZh, emoji };
 }
 
 function isUselessNode(record) {
     const name = String(record?.name || '').trim();
     const protocol = normalizeProtocol(record?.protocol);
-    const server = String(record?.server || '').trim().toLowerCase();
+    const server = String(record?.server || '')
+        .trim()
+        .toLowerCase();
+
+    const isVirtualInfoNode =
+        protocol === 'trojan' &&
+        server === '127.0.0.1' &&
+        Number(record?.port) === 443 &&
+        String(record?.url || '').includes(`trojan://${VIRTUAL_INFO_NODE_UUID}@127.0.0.1:443#`) &&
+        /(?:流量剩余|到期时间|您的订阅已到期)/.test(name);
+
+    if (isVirtualInfoNode) return false;
 
     if (!name) return true;
 
     if (
-        protocol === 'trojan'
-        && server === '127.0.0.1'
-        && /(?:流量剩余|剩余流量|订阅已失效|订阅已到期|已过期|到期提醒|到期时间|套餐到期|过期时间)/i.test(name)
+        protocol === 'trojan' &&
+        server === '127.0.0.1' &&
+        /(?:流量剩余|剩余流量|订阅已失效|订阅已到期|已过期|到期提醒|到期时间|套餐到期|过期时间)/i.test(
+            name
+        )
     ) {
         return true;
     }
 
-    return /(?:流量剩余|剩余流量|已用流量|总流量|套餐到期|到期时间|过期时间|订阅已失效|订阅已到期|已过期|官网|群组|频道|联系客服|测试节点|回车更新|点击订阅|剩余套餐|订阅信息)/i.test(name);
+    return /(?:流量剩余|剩余流量|已用流量|总流量|套餐到期|到期时间|过期时间|订阅已失效|订阅已到期|已过期|官网|群组|频道|联系客服|测试节点|回车更新|点击订阅|剩余套餐|订阅信息)/i.test(
+        name
+    );
 }
 
 /**
@@ -296,11 +344,13 @@ export function setNodeName(url, protocol, newName) {
             // 处理 URL-Safe Base64
             let safeBody = base64Part.replace(/-/g, '+').replace(/_/g, '/');
             while (safeBody.length % 4) safeBody += '=';
-            
-            const decoded = new TextDecoder().decode(Uint8Array.from(atob(safeBody), c => c.charCodeAt(0)));
+
+            const decoded = new TextDecoder().decode(
+                Uint8Array.from(atob(safeBody), (c) => c.charCodeAt(0))
+            );
             const config = JSON.parse(decoded);
             config.ps = newName;
-            
+
             // 重新编码为标准 Base64 (非 URL-Safe 以保持最大兼容性)
             const newJson = JSON.stringify(config);
             const newBase64 = base64EncodeUtf8(newJson);
@@ -326,17 +376,17 @@ export function applyRegexRename(name, rules, record = null) {
 
     for (const rule of rules) {
         if (!rule) continue;
-        
+
         // 兼容规则既可以是对象 {pattern: "...", flags: "...", replacement: "..."} 也可以是纯字符串
         const pattern = typeof rule === 'string' ? rule : rule.pattern;
-        const replacement = typeof rule === 'string' ? '' : (rule.replacement || '');
-        const flags = typeof rule === 'string' ? 'gi' : (rule.flags || 'gi');
+        const replacement = typeof rule === 'string' ? '' : rule.replacement || '';
+        const flags = typeof rule === 'string' ? 'gi' : rule.flags || 'gi';
 
         if (!pattern) continue;
-        
+
         try {
             const re = new RegExp(pattern, flags);
-            
+
             // 提取捕获组：只对第一次匹配到的内容进行组提取
             const matchMatch = String(result).match(new RegExp(pattern, flags.replace(/g/g, '')));
             if (matchMatch) {
@@ -357,11 +407,11 @@ export function applyRegexRename(name, rules, record = null) {
             warnInvalidRegex(typeof rule === 'string' ? { pattern: rule } : rule, error);
         }
     }
-    
+
     if (record) {
         record.regexGroups = regexGroups;
     }
-    
+
     return result.trim();
 }
 
@@ -371,7 +421,9 @@ function safeTitle(value) {
 }
 
 function safeContains(value, keyword) {
-    return String(value || '').toLowerCase().includes(String(keyword || '').toLowerCase());
+    return String(value || '')
+        .toLowerCase()
+        .includes(String(keyword || '').toLowerCase());
 }
 
 function safeMatch(value, pattern, flags = 'i') {
@@ -396,13 +448,13 @@ function safePick(condition, truthyValue, falsyValue = '') {
 function safeRegionAlias(regionValue) {
     const region = toRegionZh(regionValue);
     const aliases = {
-        '香港': 'HK',
-        '台湾': 'TW',
-        '日本': 'JP',
-        '新加坡': 'SG',
-        '美国': 'US',
-        '韩国': 'KR',
-        '英国': 'UK'
+        香港: 'HK',
+        台湾: 'TW',
+        日本: 'JP',
+        新加坡: 'SG',
+        美国: 'US',
+        韩国: 'KR',
+        英国: 'UK',
     };
     return aliases[region] || toRegionCode(region);
 }
@@ -411,7 +463,7 @@ function safeProtocolAlias(protocolValue) {
     const protocol = normalizeProtocol(protocolValue);
     const aliases = {
         hysteria2: 'hy2',
-        shadowsocks: 'ss'
+        shadowsocks: 'ss',
     };
     return aliases[protocol] || protocol;
 }
@@ -428,17 +480,23 @@ function buildDslContext(record) {
         port: record.port,
         index: record.index ?? '',
         regionAlias: safeRegionAlias(record.regionZh || record.region),
-        protocolAlias: safeProtocolAlias(record.protocol)
+        protocolAlias: safeProtocolAlias(record.protocol),
     };
 }
 
 function applyScriptRename(record, expression) {
     if (!expression) return record.name;
     try {
-        const result = renderDslTemplate(String(expression).includes('{') ? expression : `{${expression}}`, buildDslContext(record));
+        const result = renderDslTemplate(
+            String(expression).includes('{') ? expression : `{${expression}}`,
+            buildDslContext(record)
+        );
         return String(result ?? '').trim() || record.name;
     } catch (error) {
-        console.warn('[NodeTransform] Invalid rename DSL expression:', error?.message || String(error));
+        console.warn(
+            '[NodeTransform] Invalid rename DSL expression:',
+            error?.message || String(error)
+        );
         return record.name;
     }
 }
@@ -448,13 +506,18 @@ function evaluateScriptExpression(record, expression) {
     try {
         return evaluateDslExpression(expression, buildDslContext(record));
     } catch (error) {
-        console.warn('[NodeTransform] Invalid filter DSL expression:', error?.message || String(error));
+        console.warn(
+            '[NodeTransform] Invalid filter DSL expression:',
+            error?.message || String(error)
+        );
         return true;
     }
 }
 
 function makeDedupKey(record, cfg) {
-    const server = String(record.server || '').trim().toLowerCase();
+    const server = String(record.server || '')
+        .trim()
+        .toLowerCase();
     const port = String(record.port || '').trim();
     if (!server || !port) return '';
     const base = `${server}:${port}`;
@@ -464,7 +527,7 @@ function makeDedupKey(record, cfg) {
 function choosePreferred(existing, candidate, protocolOrder) {
     if (!existing) return candidate;
     if (!protocolOrder?.length) return existing;
-    const rank = p => {
+    const rank = (p) => {
         const idx = protocolOrder.indexOf(String(p || '').toLowerCase());
         return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
     };
@@ -532,16 +595,19 @@ function toRegionZh(value) {
 function applyModifier(key, value, modifier, record) {
     const val = value == null ? '' : String(value);
     switch (modifier) {
-        case 'UPPER': return val.toUpperCase();
-        case 'lower': return val.toLowerCase();
-        case 'Title': return val.charAt(0).toUpperCase() + val.slice(1);
+        case 'UPPER':
+            return val.toUpperCase();
+        case 'lower':
+            return val.toLowerCase();
+        case 'Title':
+            return val.charAt(0).toUpperCase() + val.slice(1);
         case 'zh':
             // 对于 region:zh，直接返回 regionZh（中文地区名）
             if (key === 'region' && record && record.regionZh) {
                 return record.regionZh;
             }
             return key === 'region' ? toRegionZh(val) : val;
-        default: 
+        default:
             // 如果修饰符是数字且 key 是 index，进行补零
             if (key === 'index' && /^\d+$/.test(modifier)) {
                 return String(value).padStart(parseInt(modifier), '0');
@@ -551,25 +617,27 @@ function applyModifier(key, value, modifier, record) {
 }
 
 export function renderTemplate(template, vars, record) {
-    return String(template || '').replace(/\{([a-zA-Z0-9_]+)(?::([a-zA-Z0-9]+))?\}/g, (_, key, modifier) => {
-        let v;
-        
-        // 优先处理内置变量
-        if (Object.prototype.hasOwnProperty.call(vars, key)) {
-            v = vars[key];
-        } 
-        // 其次处理正则捕获组变量 {g1}, {g2}, {g_name}
-        else if (key.startsWith('g') && record?.regexGroups) {
-            const gKey = key.slice(1); // 提取 1, 2, 或 _name
-            const gKeyValid = gKey.startsWith('_') ? gKey.slice(1) : gKey;
-            v = record.regexGroups[gKeyValid];
-        }
+    return String(template || '')
+        .replace(/\{([a-zA-Z0-9_]+)(?::([a-zA-Z0-9]+))?\}/g, (_, key, modifier) => {
+            let v;
 
-        if (v === undefined) return '';
-        
-        if (modifier) v = applyModifier(key, v, modifier, record);
-        return v == null ? '' : String(v);
-    }).trim();
+            // 优先处理内置变量
+            if (Object.prototype.hasOwnProperty.call(vars, key)) {
+                v = vars[key];
+            }
+            // 其次处理正则捕获组变量 {g1}, {g2}, {g_name}
+            else if (key.startsWith('g') && record?.regexGroups) {
+                const gKey = key.slice(1); // 提取 1, 2, 或 _name
+                const gKeyValid = gKey.startsWith('_') ? gKey.slice(1) : gKey;
+                v = record.regexGroups[gKeyValid];
+            }
+
+            if (v === undefined) return '';
+
+            if (modifier) v = applyModifier(key, v, modifier, record);
+            return v == null ? '' : String(v);
+        })
+        .trim();
 }
 
 function padIndex(n, width) {
@@ -578,10 +646,14 @@ function padIndex(n, width) {
 
 function getIndexGroupKey(record, scope) {
     switch (scope) {
-        case 'region': return `r:${record.region}`;
-        case 'protocol': return `p:${record.protocol}`;
-        case 'regionProtocol': return `rp:${record.region}|${record.protocol}`;
-        default: return 'global';
+        case 'region':
+            return `r:${record.region}`;
+        case 'protocol':
+            return `p:${record.protocol}`;
+        case 'regionProtocol':
+            return `rp:${record.region}|${record.protocol}`;
+        default:
+            return 'global';
     }
 }
 
@@ -590,11 +662,22 @@ export function makeComparator(sortCfg) {
     const nameIgnoreEmoji = sortCfg.nameIgnoreEmoji !== false;
 
     // 预先构建 customOrder 索引 Map，将 O(n) 查找优化为 O(1)
-    const customOrderMaps = keys.map(k => {
+    const customOrderMaps = keys.map((k) => {
         let orderList = k?.customOrder;
         if (!Array.isArray(orderList) || orderList.length === 0) {
             if (k?.key === 'region') {
-                orderList = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'];
+                orderList = [
+                    '香港',
+                    '台湾',
+                    '日本',
+                    '新加坡',
+                    '美国',
+                    '韩国',
+                    '英国',
+                    '德国',
+                    '法国',
+                    '加拿大',
+                ];
             } else if (k?.key === 'protocol') {
                 orderList = ['vless', 'trojan', 'vmess', 'hysteria2', 'ss', 'ssr', 'anytls'];
             }
@@ -605,9 +688,14 @@ export function makeComparator(sortCfg) {
         return map;
     });
 
-    const cmpStr = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
+    const cmpStr = (a, b) =>
+        String(a || '').localeCompare(String(b || ''), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+        });
     const cmpNum = (a, b) => {
-        const an = Number(a), bn = Number(b);
+        const an = Number(a),
+            bn = Number(b);
         if (Number.isNaN(an) && Number.isNaN(bn)) return 0;
         if (Number.isNaN(an)) return 1;
         if (Number.isNaN(bn)) return -1;
@@ -715,26 +803,26 @@ export function makeComparator(sortCfg) {
  */
 export function nodeUrlsToRecords(nodeUrls, options = {}) {
     const input = Array.isArray(nodeUrls)
-        ? nodeUrls.map(s => String(s || '').trim()).filter(Boolean)
+        ? nodeUrls.map((s) => String(s || '').trim()).filter(Boolean)
         : [];
-    
-    return input.map(url => {
+
+    return input.map((url) => {
         // 使用统一的解析引擎
         const nodeInfo = parseNodeInfo(url);
         const metadata = extractNodeMetadata(nodeInfo.name);
-        
-        const record = { 
-            url, 
-            protocol: nodeInfo.protocol, 
-            name: nodeInfo.name, 
-            originalName: nodeInfo.name, 
-            region: '', 
-            emoji: '', 
-            server: nodeInfo.server || '', 
+
+        const record = {
+            url,
+            protocol: nodeInfo.protocol,
+            name: nodeInfo.name,
+            originalName: nodeInfo.name,
+            region: '',
+            emoji: '',
+            server: nodeInfo.server || '',
             port: nodeInfo.port || '',
-            metadata: metadata // 注入完整元数据
+            metadata: metadata, // 注入完整元数据
         };
-        
+
         return options.ensureRegion ? ensureRegionInfo(record, options.enableEmoji) : record;
     });
 }
@@ -744,7 +832,7 @@ export function nodeUrlsToRecords(nodeUrls, options = {}) {
  */
 export function recordsToNodeUrls(records) {
     if (!Array.isArray(records)) return [];
-    return records.map(r => {
+    return records.map((r) => {
         // 如果名称发生变化（例如被正则重命名或脚本重命名），同步更新 URL
         if (r.name && r.name !== r.originalName) {
             return setNodeName(r.url, r.protocol, r.name);
@@ -757,61 +845,68 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
     const cfg = normalizeConfig(transformConfig);
     if (!cfg.enabled) return nodeUrls;
 
-    const sortKeys = cfg.sort.enabled ? (cfg.sort.keys || []) : [];
-    const sortKeySet = new Set(sortKeys.map(k => String(k?.key || '')));
-    const needServerPort = (cfg.dedup.enabled && cfg.dedup.mode !== 'url')
-        || cfg.rename.template.enabled
-        || (cfg.sort.enabled && (sortKeySet.has('server') || sortKeySet.has('port')));
+    const sortKeys = cfg.sort.enabled ? cfg.sort.keys || [] : [];
+    const sortKeySet = new Set(sortKeys.map((k) => String(k?.key || '')));
+    const needServerPort =
+        (cfg.dedup.enabled && cfg.dedup.mode !== 'url') ||
+        cfg.rename.template.enabled ||
+        (cfg.sort.enabled && (sortKeySet.has('server') || sortKeySet.has('port')));
 
-    let records = nodeUrlsToRecords(nodeUrls, { 
-        needServerPort, 
-        ensureRegion: false 
+    let records = nodeUrlsToRecords(nodeUrls, {
+        needServerPort,
+        ensureRegion: false,
     });
 
-    const needRegionEmoji = cfg.rename.template.enabled
-        || (cfg.filter.regions.enabled && cfg.filter.regions.values.length > 0)
-        || (cfg.sort.enabled && sortKeySet.has('region'))
-        || (cfg.filter.script.enabled && cfg.filter.script.expression);
+    const needRegionEmoji =
+        cfg.rename.template.enabled ||
+        (cfg.filter.regions.enabled && cfg.filter.regions.values.length > 0) ||
+        (cfg.sort.enabled && sortKeySet.has('region')) ||
+        (cfg.filter.script.enabled && cfg.filter.script.expression);
 
     // Stage 1: 正则过滤
     if (cfg.filter.include.enabled && cfg.filter.include.rules.length > 0) {
-        records = records.filter(r => matchesRegexRules(r.name, cfg.filter.include.rules));
+        records = records.filter((r) => matchesRegexRules(r.name, cfg.filter.include.rules));
     }
     // ... (rest of the pipe remains similar but simplified)
 
     if (cfg.filter.exclude.enabled && cfg.filter.exclude.rules.length > 0) {
-        records = records.filter(r => !matchesRegexRules(r.name, cfg.filter.exclude.rules));
+        records = records.filter((r) => !matchesRegexRules(r.name, cfg.filter.exclude.rules));
     }
 
     if (cfg.filter.protocols.enabled && cfg.filter.protocols.values.length > 0) {
-        const allowedProtocols = new Set(cfg.filter.protocols.values.map(value => normalizeProtocol(value)));
-        records = records.filter(r => allowedProtocols.has(r.protocol));
+        const allowedProtocols = new Set(
+            cfg.filter.protocols.values.map((value) => normalizeProtocol(value))
+        );
+        records = records.filter((r) => allowedProtocols.has(r.protocol));
     }
 
     if (cfg.filter.regions.enabled && cfg.filter.regions.values.length > 0) {
-        const allowedRegions = new Set(cfg.filter.regions.values.map(value => toRegionZh(value)));
+        const allowedRegions = new Set(cfg.filter.regions.values.map((value) => toRegionZh(value)));
         records = records
-            .map(r => ensureRegionInfo(r, cfg.enableEmoji))
-            .filter(r => allowedRegions.has(r.regionZh));
+            .map((r) => ensureRegionInfo(r, cfg.enableEmoji))
+            .filter((r) => allowedRegions.has(r.regionZh));
     }
 
     if (cfg.filter.script.enabled && cfg.filter.script.expression) {
         records = records
-            .map((r, index) => ({ ...(needRegionEmoji ? r : ensureRegionInfo(r, cfg.enableEmoji)), index: index + 1 }))
-            .filter(r => Boolean(evaluateScriptExpression(r, cfg.filter.script.expression)));
+            .map((r, index) => ({
+                ...(needRegionEmoji ? r : ensureRegionInfo(r, cfg.enableEmoji)),
+                index: index + 1,
+            }))
+            .filter((r) => Boolean(evaluateScriptExpression(r, cfg.filter.script.expression)));
     }
 
     if (cfg.filter.useless.enabled) {
-        records = records.filter(r => !isUselessNode(r));
+        records = records.filter((r) => !isUselessNode(r));
     }
 
     // Stage 2: 正则重命名
     if (cfg.rename.regex.enabled && cfg.rename.regex.rules.length > 0) {
-        records = records.map(r => {
+        records = records.map((r) => {
             const newName = applyRegexRename(r.name, cfg.rename.regex.rules, r);
             return {
                 ...r,
-                name: newName
+                name: newName,
             };
         });
     }
@@ -820,7 +915,7 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
     if (cfg.dedup.enabled) {
         if (cfg.dedup.mode === 'url') {
             const seen = new Set();
-            records = records.filter(r => {
+            records = records.filter((r) => {
                 if (seen.has(r.url)) return false;
                 seen.add(r.url);
                 return true;
@@ -842,18 +937,21 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
     // 去重后再计算 region/emoji：修复"正则改名后 region 未更新"问题，并减少大列表开销
     // 注意：extractNodeRegion 返回中文地区名，我们需要同时保存中文名和代码
     if (needRegionEmoji) {
-        records = records.map(r => ensureRegionInfo(r, cfg.enableEmoji));
+        records = records.map((r) => ensureRegionInfo(r, cfg.enableEmoji));
     }
 
     // Stage 4: 受限表达式改写
     if (cfg.rename.script.enabled && cfg.rename.script.expression) {
         records = records.map((r, index) => {
             const enriched = needRegionEmoji ? r : ensureRegionInfo(r, cfg.enableEmoji);
-            const newName = applyScriptRename({ ...enriched, index: index + 1 }, cfg.rename.script.expression);
+            const newName = applyScriptRename(
+                { ...enriched, index: index + 1 },
+                cfg.rename.script.expression
+            );
             return {
                 ...enriched,
                 name: newName,
-                url: newName ? setNodeName(enriched.url, enriched.protocol, newName) : enriched.url
+                url: newName ? setNodeName(enriched.url, enriched.protocol, newName) : enriched.url,
             };
         });
     }
@@ -889,7 +987,7 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
                     index: padIndex(currentIndex, cfg.rename.template.indexPad),
                     name: templateHasEmoji ? stripLeadingEmoji(r.name) : r.name,
                     server: r.server,
-                    port: r.port
+                    port: r.port,
                 };
                 const newName = renderTemplate(cfg.rename.template.template, vars, r);
                 r.name = newName;
@@ -898,9 +996,9 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
         }
     } else if (cfg.rename.regex.enabled && cfg.rename.regex.rules.length > 0) {
         // 仅正则时也要写回 URL
-        records = records.map(r => ({
+        records = records.map((r) => ({
             ...r,
-            url: r.name ? setNodeName(r.url, r.protocol, r.name) : r.url
+            url: r.name ? setNodeName(r.url, r.protocol, r.name) : r.url,
         }));
     }
 
@@ -909,5 +1007,5 @@ export function applyNodeTransformPipeline(nodeUrls, transformConfig = {}) {
         records.sort(makeComparator(cfg.sort));
     }
 
-    return records.map(r => r.url);
+    return records.map((r) => r.url);
 }

@@ -13,7 +13,7 @@ export function calculateDataHash(data) {
     let hash = 0;
     for (let i = 0; i < jsonString.length; i++) {
         const char = jsonString.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
+        hash = (hash << 5) - hash + char;
         hash = hash & hash; // 转换为32位整数
     }
     return hash.toString();
@@ -58,11 +58,13 @@ function getRuntimeEnvValue(env, key) {
 
 function isStorageUnavailableError(error) {
     const message = String(error?.message || error || '').toLowerCase();
-    return message.includes('kv storage is paused')
-        || message.includes('storage is paused')
-        || message.includes('namespace is paused')
-        || message.includes('kv put() limit exceeded')
-        || message.includes('put() limit exceeded for the day');
+    return (
+        message.includes('kv storage is paused') ||
+        message.includes('storage is paused') ||
+        message.includes('namespace is paused') ||
+        message.includes('kv put() limit exceeded') ||
+        message.includes('put() limit exceeded for the day')
+    );
 }
 
 async function safeKvGet(kv, key) {
@@ -73,6 +75,26 @@ async function safeKvGet(kv, key) {
         if (isStorageUnavailableError(error)) {
             console.warn(`[Auth Storage] KV get skipped for ${key}: ${error.message}`);
             return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Read the admin password from KV without converting a storage outage to a missing key.
+ * @param {Object} env
+ * @returns {Promise<string|null>}
+ */
+async function getAdminPasswordFromKv(env) {
+    const kv = getKV(env);
+    if (!kv) return null;
+    try {
+        return await kv.get('SYSTEM_ADMIN_PASSWORD');
+    } catch (error) {
+        if (isStorageUnavailableError(error)) {
+            console.warn(
+                `[Auth Storage] KV get failed for SYSTEM_ADMIN_PASSWORD: ${error.message}`
+            );
         }
         throw error;
     }
@@ -105,7 +127,7 @@ export async function conditionalKVPut(env, key, newData, oldData = null) {
     // 如果没有提供旧数据，先从KV读取
     if (oldData === null) {
         try {
-            oldData = await kv.get(key).then(r => r ? JSON.parse(r) : null);
+            oldData = await kv.get(key).then((r) => (r ? JSON.parse(r) : null));
         } catch (error) {
             // 读取失败时，为安全起见执行写入
             await kv.put(key, JSON.stringify(newData));
@@ -168,8 +190,9 @@ export async function getAdminPassword(env) {
 
     const kv = getKV(env);
     if (kv) {
-        const kvPassword = await safeKvGet(kv, 'SYSTEM_ADMIN_PASSWORD');
+        const kvPassword = await getAdminPasswordFromKv(env);
         if (kvPassword) return String(kvPassword).trim();
+        return 'admin';
     }
 
     return 'admin';
@@ -214,14 +237,14 @@ export async function getAuthDebugInfo(env) {
             source: adminPasswordSource,
             hasRuntime: !!runtimeAdminPassword,
             hasKvValue: hasKvAdminPassword,
-            isDefaultFallback: adminPasswordSource === 'default'
+            isDefaultFallback: adminPasswordSource === 'default',
         },
         cookieSecret: {
             source: cookieSecretSource,
             hasRuntime: !!runtimeCookieSecret,
             hasKvValue: hasKvCookieSecret,
-            mayRegenerateWithoutKv: !kv && !runtimeCookieSecret
-        }
+            mayRegenerateWithoutKv: !kv && !runtimeCookieSecret,
+        },
     };
 }
 
@@ -242,6 +265,9 @@ export async function isUsingDefaultPassword(env) {
  * @param {string} newPassword - 新密码
  */
 export async function setAdminPassword(env, newPassword) {
+    if (getRuntimeEnvValue(env, 'ADMIN_PASSWORD')) {
+        throw new Error('当前部署通过环境变量 ADMIN_PASSWORD 设置密码，请在平台控制台修改该变量');
+    }
     const kv = getKV(env);
     if (!kv) {
         throw new Error('当前部署未绑定 KV，请在平台控制台通过环境变量 ADMIN_PASSWORD 修改密码');
@@ -284,7 +310,7 @@ export function clashFix(content) {
             lines = content.split('\n');
         }
 
-        let result = "";
+        let result = '';
         for (let line of lines) {
             if (line.includes('type: wireguard')) {
                 const 备改内容 = `, mtu: 1280, udp: true`;
@@ -337,7 +363,8 @@ export function prependNodeName(link, prefix) {
     if (!prefix) return link;
     const appendToFragment = (baseLink, namePrefix) => {
         const hashIndex = baseLink.lastIndexOf('#');
-        const originalName = hashIndex !== -1 ? decodeURIComponent(baseLink.substring(hashIndex + 1)) : '';
+        const originalName =
+            hashIndex !== -1 ? decodeURIComponent(baseLink.substring(hashIndex + 1)) : '';
         const base = hashIndex !== -1 ? baseLink.substring(0, hashIndex) : baseLink;
         if (originalName.startsWith(namePrefix)) {
             return baseLink;
@@ -363,7 +390,7 @@ export function prependNodeName(link, prefix) {
             const newBase64Part = btoa(unescape(encodeURIComponent(newJsonString)));
             return 'vmess://' + newBase64Part;
         } catch (e) {
-            console.error("为 vmess 节点添加名称前缀失败，将回退到通用方法。", e);
+            console.error('为 vmess 节点添加名称前缀失败，将回退到通用方法。', e);
             return appendToFragment(link, prefix);
         }
     }
@@ -387,7 +414,7 @@ export function createTimeoutFetch(input, init = {}, timeout = 10000) {
     const { cf, ...requestInit } = init;
     const request = new Request(input, {
         ...requestInit,
-        signal: controller.signal
+        signal: controller.signal,
     });
     const fetchPromise = cf ? fetch(request, { cf }) : fetch(request);
 
@@ -407,11 +434,7 @@ export function createTimeoutFetch(input, init = {}, timeout = 10000) {
  * @returns {Promise<Response>} 响应
  */
 export async function retryFetch(input, init = {}, options = {}) {
-    const {
-        maxRetries = 3,
-        timeout = 10000,
-        baseDelay = 1000
-    } = options;
+    const { maxRetries = 3, timeout = 10000, baseDelay = 1000 } = options;
 
     let lastError;
 
@@ -428,17 +451,18 @@ export async function retryFetch(input, init = {}, options = {}) {
 
             // 计算延迟时间（指数退避）
             const delay = baseDelay * Math.pow(2, attempt);
-            console.warn(`[Retry] Request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms:`, error.message);
+            console.warn(
+                `[Retry] Request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms:`,
+                error.message
+            );
 
             // 等待延迟
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise((resolve) => setTimeout(resolve, delay));
         }
     }
 
     throw lastError;
 }
-
-
 
 /**
  * 安全的存储操作包装器
@@ -468,7 +492,7 @@ export function log(level, message, data = null) {
         timestamp,
         level,
         message,
-        data
+        data,
     };
 
     switch (level) {
@@ -497,9 +521,22 @@ export async function getCallbackToken(env) {
     const secret = env.COOKIE_SECRET || 'default-callback-secret';
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
-    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode('callback-static-data'));
-    return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    const signature = await crypto.subtle.sign(
+        'HMAC',
+        cryptoKey,
+        encoder.encode('callback-static-data')
+    );
+    return Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
 }
 
 /**
@@ -525,10 +562,16 @@ export function migrateConfigSettings(config) {
         migratedConfig.enableTrafficNode = toBoolean(migratedConfig.enableTrafficNode);
     }
     // [Migration] 映射旧名到新名（如果新名不存在且旧名存在）
-    if (!migratedConfig.hasOwnProperty('builtinSkipCertVerify') && migratedConfig.hasOwnProperty('transformBackendScv')) {
+    if (
+        !migratedConfig.hasOwnProperty('builtinSkipCertVerify') &&
+        migratedConfig.hasOwnProperty('transformBackendScv')
+    ) {
         migratedConfig.builtinSkipCertVerify = toBoolean(migratedConfig.transformBackendScv);
     }
-    if (!migratedConfig.hasOwnProperty('builtinEnableUdp') && migratedConfig.hasOwnProperty('transformBackendUdp')) {
+    if (
+        !migratedConfig.hasOwnProperty('builtinEnableUdp') &&
+        migratedConfig.hasOwnProperty('transformBackendUdp')
+    ) {
         migratedConfig.builtinEnableUdp = toBoolean(migratedConfig.transformBackendUdp);
     }
 
@@ -539,12 +582,13 @@ export function migrateConfigSettings(config) {
         migratedConfig.builtinEnableUdp = toBoolean(migratedConfig.builtinEnableUdp);
     }
     if (migratedConfig.hasOwnProperty('builtinLoonSkipCertVerify')) {
-        migratedConfig.builtinLoonSkipCertVerify = toBoolean(migratedConfig.builtinLoonSkipCertVerify);
+        migratedConfig.builtinLoonSkipCertVerify = toBoolean(
+            migratedConfig.builtinLoonSkipCertVerify
+        );
     }
 
     return migratedConfig;
 }
-
 
 /**
  * 创建标准JSON响应
@@ -558,8 +602,8 @@ export function createJsonResponse(data, status = 200, headers = {}) {
         status,
         headers: {
             'Content-Type': 'application/json; charset=utf-8',
-            ...headers
-        }
+            ...headers,
+        },
     });
 }
 
@@ -616,7 +660,7 @@ export const JSON_BODY_LIMITS = {
     auth: 16 * 1024,
     small: 128 * 1024,
     normal: 1024 * 1024,
-    large: 5 * 1024 * 1024
+    large: 5 * 1024 * 1024,
 };
 
 export class RequestBodyTooLargeError extends Error {
@@ -629,7 +673,8 @@ export class RequestBodyTooLargeError extends Error {
 }
 
 export async function readJsonWithLimit(request, limitBytes = JSON_BODY_LIMITS.normal) {
-    const contentLength = request?.headers?.get?.('Content-Length') || request?.headers?.get?.('content-length');
+    const contentLength =
+        request?.headers?.get?.('Content-Length') || request?.headers?.get?.('content-length');
     if (contentLength) {
         const declaredBytes = Number(contentLength);
         if (Number.isFinite(declaredBytes) && declaredBytes > limitBytes) {
@@ -666,12 +711,15 @@ export function createErrorResponse(error, status = 500) {
         message = error;
     }
 
-    return createJsonResponse({
-        success: false,
-        error: message,
-        code,
-        details
-    }, status);
+    return createJsonResponse(
+        {
+            success: false,
+            error: message,
+            code,
+            details,
+        },
+        status
+    );
 }
 
 /**
@@ -700,7 +748,7 @@ export function base64EncodeUtf8(str) {
     if (!str) return '';
     try {
         const bytes = new TextEncoder().encode(str);
-        const binString = Array.from(bytes, b => String.fromCharCode(b)).join('');
+        const binString = Array.from(bytes, (b) => String.fromCharCode(b)).join('');
         return btoa(binString);
     } catch (e) {
         console.error('[Utils] base64EncodeUtf8 failed:', e);
@@ -715,7 +763,7 @@ export function base64DecodeUtf8(base64) {
     if (!base64) return '';
     try {
         const binString = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
-        const bytes = Uint8Array.from(binString, m => m.charCodeAt(0));
+        const bytes = Uint8Array.from(binString, (m) => m.charCodeAt(0));
         return new TextDecoder().decode(bytes);
     } catch (e) {
         console.error('[Utils] base64DecodeUtf8 failed:', e);

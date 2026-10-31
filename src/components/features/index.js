@@ -14,15 +14,14 @@ export { default as ThemeToggle } from './ThemeToggle.vue';
 
 // 组件列表
 export const FeatureComponents = {
-  // Dashboard组件
-  Dashboard,
-  DashboardContainer,
-  SaveIndicator,
-  Overview,
+    // Dashboard组件
+    Dashboard,
+    DashboardContainer,
+    SaveIndicator,
+    Overview,
 
-
-  // 其他功能组件
-  ThemeToggle
+    // 其他功能组件
+    ThemeToggle,
 };
 
 // 默认导出

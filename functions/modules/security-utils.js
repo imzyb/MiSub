@@ -1,6 +1,7 @@
 const REDACTED = '[REDACTED]';
 
-const SENSITIVE_KEY_PATTERN = /(token|secret|password|passwd|pwd|key|cookie|authorization|auth|credential|webhook|uuid|url)$/i;
+const SENSITIVE_KEY_PATTERN =
+    /(token|secret|password|passwd|pwd|key|cookie|authorization|auth|credential|webhook|uuid|url)$/i;
 const URL_KEY_PATTERN = /(url|uri|link|endpoint)$/i;
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:']);
 const MAX_SAFE_REDIRECTS = 3;
@@ -16,7 +17,7 @@ export function redactSensitiveValue(value) {
 
 export function redactSensitiveObject(value, seen = new WeakSet()) {
     if (value === null || value === undefined) return value;
-    if (Array.isArray(value)) return value.map(item => redactSensitiveObject(item, seen));
+    if (Array.isArray(value)) return value.map((item) => redactSensitiveObject(item, seen));
     if (typeof value !== 'object') return value;
     if (seen.has(value)) return REDACTED;
     seen.add(value);
@@ -43,7 +44,7 @@ export function redactUrl(value) {
         if (url.username) url.username = REDACTED;
         if (url.password) url.password = REDACTED;
         if (url.search) url.search = '';
-        const pathParts = url.pathname.split('/').map(part => {
+        const pathParts = url.pathname.split('/').map((part) => {
             if (!part) return part;
             if (part.length >= 12 || /^[A-Za-z0-9_-]{8,}$/.test(part)) return REDACTED;
             return part;
@@ -61,7 +62,10 @@ export function validatePublicFetchUrl(value) {
     try {
         url = new URL(String(value || '').trim());
     } catch (_) {
-        return { ok: false, error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.' };
+        return {
+            ok: false,
+            error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.',
+        };
     }
 
     if (!ALLOWED_FETCH_PROTOCOLS.has(url.protocol)) {
@@ -74,7 +78,10 @@ export function validatePublicFetchUrl(value) {
         return { ok: false, error: 'URL host is not allowed.' };
     }
     if (!isIpLiteral(url.hostname) && !isAllowedExternalHostname(url.hostname)) {
-        return { ok: false, error: 'URL host must be a public IP literal or explicitly allowed external hostname.' };
+        return {
+            ok: false,
+            error: 'URL host must be a public IP literal or explicitly allowed external hostname.',
+        };
     }
     return { ok: true, url };
 }
@@ -90,10 +97,12 @@ export async function safeFetchPublicUrl(inputUrl, init = {}, options = {}) {
 
     let currentUrl = validation.url.toString();
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-        const response = await fetch(new Request(currentUrl, {
-            ...init,
-            redirect: 'manual'
-        }));
+        const response = await fetch(
+            new Request(currentUrl, {
+                ...init,
+                redirect: 'manual',
+            })
+        );
 
         if (!isRedirectStatus(response.status)) {
             return response;
@@ -129,7 +138,10 @@ export function validatePublicNetworkUrl(value) {
     try {
         url = new URL(String(value || '').trim());
     } catch (_) {
-        return { ok: false, error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.' };
+        return {
+            ok: false,
+            error: 'Invalid or missing URL parameter. Must be a valid HTTP/HTTPS URL.',
+        };
     }
 
     if (!ALLOWED_FETCH_PROTOCOLS.has(url.protocol)) {
@@ -169,18 +181,24 @@ function isRedirectStatus(status) {
 }
 
 function normalizeHostname(hostname) {
-    return String(hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    return String(hostname || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^\[|\]$/g, '')
+        .replace(/\.$/, '');
 }
 
 function isAllowedExternalHostname(hostname) {
     const normalized = normalizeHostname(hostname);
-    return normalized === 'raw.githubusercontent.com'
-        || normalized === 'github.com'
-        || normalized === 'gist.githubusercontent.com'
-        || normalized === 'api.github.com'
-        || normalized.endsWith('.githubusercontent.com')
-        || normalized.endsWith('.github.com')
-        || normalized.endsWith('.github.io');
+    return (
+        normalized === 'raw.githubusercontent.com' ||
+        normalized === 'github.com' ||
+        normalized === 'gist.githubusercontent.com' ||
+        normalized === 'api.github.com' ||
+        normalized.endsWith('.githubusercontent.com') ||
+        normalized.endsWith('.github.com') ||
+        normalized.endsWith('.github.io')
+    );
 }
 
 function isIpLiteral(hostname) {
@@ -205,11 +223,11 @@ function isBlockedHostname(hostname) {
 function parseIpv4(hostname) {
     const parts = hostname.split('.');
     if (parts.length !== 4) return null;
-    const nums = parts.map(part => {
+    const nums = parts.map((part) => {
         if (!/^\d+$/.test(part)) return NaN;
         return Number(part);
     });
-    if (nums.some(num => !Number.isInteger(num) || num < 0 || num > 255)) return null;
+    if (nums.some((num) => !Number.isInteger(num) || num < 0 || num > 255)) return null;
     return nums;
 }
 
@@ -233,8 +251,8 @@ function isBlockedIpv6(hostname) {
     if (!hextets) return true;
 
     const [first, second] = hextets;
-    if (hextets.every(part => part === 0)) return true;
-    if (hextets.slice(0, 7).every(part => part === 0) && hextets[7] === 1) return true;
+    if (hextets.every((part) => part === 0)) return true;
+    if (hextets.slice(0, 7).every((part) => part === 0) && hextets[7] === 1) return true;
 
     // IANA special-purpose / non-global ranges. Public fetch should only allow
     // global IPv6 literals; GitHub allowlisted hostnames cover needed DNS use.
@@ -287,11 +305,21 @@ function parseIpv6(value) {
 
 function parseEmbeddedIpv4(hextets) {
     if (!Array.isArray(hextets) || hextets.length !== 8) return null;
-    if (hextets.slice(0, 5).every(part => part === 0) && hextets[5] === 0xffff) {
-        return [(hextets[6] >> 8) & 255, hextets[6] & 255, (hextets[7] >> 8) & 255, hextets[7] & 255];
+    if (hextets.slice(0, 5).every((part) => part === 0) && hextets[5] === 0xffff) {
+        return [
+            (hextets[6] >> 8) & 255,
+            hextets[6] & 255,
+            (hextets[7] >> 8) & 255,
+            hextets[7] & 255,
+        ];
     }
-    if (hextets.slice(0, 6).every(part => part === 0)) {
-        return [(hextets[6] >> 8) & 255, hextets[6] & 255, (hextets[7] >> 8) & 255, hextets[7] & 255];
+    if (hextets.slice(0, 6).every((part) => part === 0)) {
+        return [
+            (hextets[6] >> 8) & 255,
+            hextets[6] & 255,
+            (hextets[7] >> 8) & 255,
+            hextets[7] & 255,
+        ];
     }
     return null;
 }

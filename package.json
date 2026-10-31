@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "format": "prettier --write \"functions/**/*.js\" \"src/**/*.{js,vue}\" \"tests/**/*.js\" \"docs/**/*.md\"",
+    "format:check": "prettier --check \"functions/**/*.js\" \"src/**/*.{js,vue}\" \"tests/**/*.js\" \"docs/**/*.md\""
   },
   "dependencies": {
     "dompurify": "^3.2.6",
@@ -28,6 +30,7 @@
     "happy-dom": "^20.0.11",
     "miniflare": "^4.20250803.0",
     "playwright": "^1.60.0",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4.1.12",
     "terser": "^5.48.0",
     "vite": "^7.1.2",

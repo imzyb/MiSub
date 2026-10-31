@@ -1,212 +1,285 @@
 <script setup>
-import { ref, defineAsyncComponent } from 'vue';
-import { useDataStore } from '../stores/useDataStore.js';
-import { useManualNodes } from '../composables/useManualNodes.js';
-import { useNodeForms } from '../composables/useNodeForms.js'; // Added
-import { useToastStore } from '../stores/toast.js';
-import { extractNodeName } from '../lib/utils.js';
-import ManualNodePanel from '../components/nodes/ManualNodePanel.vue';
-import Modal from '../components/forms/Modal.vue';
-import ManualNodeEditModal from '../components/modals/ManualNodeEditModal.vue';
-import ManualNodeDedupModal from '../components/modals/ManualNodeDedupModal.vue';
-import SubscriptionImportModal from '../components/modals/SubscriptionImportModal.vue';
-import BatchGroupModal from '../components/modals/BatchGroupModal.vue'; // Added
-import { useI18n } from '../i18n/index.js';
+    import { ref, defineAsyncComponent } from 'vue';
+    import { useDataStore } from '../stores/useDataStore.js';
+    import { useManualNodes } from '../composables/useManualNodes.js';
+    import { useNodeForms } from '../composables/useNodeForms.js'; // Added
+    import { useToastStore } from '../stores/toast.js';
+    import { extractNodeName } from '../lib/utils.js';
+    import ManualNodePanel from '../components/nodes/ManualNodePanel.vue';
+    import Modal from '../components/forms/Modal.vue';
+    import ManualNodeEditModal from '../components/modals/ManualNodeEditModal.vue';
+    import ManualNodeDedupModal from '../components/modals/ManualNodeDedupModal.vue';
+    import SubscriptionImportModal from '../components/modals/SubscriptionImportModal.vue';
+    import BatchGroupModal from '../components/modals/BatchGroupModal.vue'; // Added
+    import { useI18n } from '../i18n/index.js';
+    import { readRawPreference, writeRawPreference } from '../utils/local-preference.js';
 
-const GroupManagementModal = defineAsyncComponent(() => import('../components/modals/GroupManagementModal.vue'));
+    const GroupManagementModal = defineAsyncComponent(
+        () => import('../components/modals/GroupManagementModal.vue')
+    );
 
-const dataStore = useDataStore();
-const { showToast } = useToastStore();
-const { markDirty } = dataStore;
-const { t } = useI18n();
+    const dataStore = useDataStore();
+    const { showToast } = useToastStore();
+    const { markDirty } = dataStore;
+    const { t } = useI18n();
 
-// Component Logic Reuse
-const isSortingNodes = ref(false);
-const manualNodeViewMode = ref(localStorage.getItem('manualNodeViewMode') || 'card');
-const showDeleteNodesModal = ref(false);
-const showBatchDeleteModal = ref(false);
-const batchDeleteIds = ref([]);
-const showSubscriptionImportModal = ref(false);
-const showDedupModal = ref(false);
-const dedupPlan = ref(null);
-const showBatchGroupModal = ref(false); // Added
-const batchGroupIds = ref([]); // Added
-const showGroupManagementModal = ref(false); // 分组管理模态框
+    // Component Logic Reuse
+    const isSortingNodes = ref(false);
+    const manualNodeViewMode = ref(readRawPreference('manualNodeViewMode') || 'card');
+    const showDeleteNodesModal = ref(false);
+    const showBatchDeleteModal = ref(false);
+    const batchDeleteIds = ref([]);
+    const showSubscriptionImportModal = ref(false);
+    const showDedupModal = ref(false);
+    const dedupPlan = ref(null);
+    const showBatchGroupModal = ref(false); // Added
+    const batchGroupIds = ref([]); // Added
+    const showGroupManagementModal = ref(false); // 分组管理模态框
 
-const {
-  manualNodes, manualNodesCurrentPage, manualNodesTotalPages, paginatedManualNodes, searchTerm,
-  changeManualNodesPage, addNode, updateNode, deleteNode, deleteAllNodes,
-  addNodesFromBulk, autoSortNodes, deduplicateNodes, buildDedupPlan, applyDedupPlan,
-  reorderManualNodes,
-  manualNodeGroups, renameGroup, deleteGroup, reorderGroups,
-  activeGroupFilter, setGroupFilter, batchUpdateGroup, batchDeleteNodes,
-  manualNodesPerPage,
-  pingResults, pingingNodes, pingNodeId, pingAllNodes
-} = useManualNodes(markDirty);
+    const {
+        manualNodes,
+        manualNodesCurrentPage,
+        manualNodesTotalPages,
+        paginatedManualNodes,
+        searchTerm,
+        changeManualNodesPage,
+        addNode,
+        updateNode,
+        deleteNode,
+        deleteAllNodes,
+        addNodesFromBulk,
+        autoSortNodes,
+        deduplicateNodes,
+        buildDedupPlan,
+        applyDedupPlan,
+        reorderManualNodes,
+        manualNodeGroups,
+        renameGroup,
+        deleteGroup,
+        reorderGroups,
+        activeGroupFilter,
+        setGroupFilter,
+        batchUpdateGroup,
+        batchDeleteNodes,
+        manualNodesPerPage,
+        pingResults,
+        pingingNodes,
+        pingNodeId,
+        pingAllNodes,
+        sortNodesByLatency,
+    } = useManualNodes(markDirty);
 
-const handleSearchTermUpdate = (val) => {
-  searchTerm.value = val;
-};
+    const handleSearchTermUpdate = (val) => {
+        searchTerm.value = val;
+    };
 
-const {
-  showModal: showNodeModal,
-  isNew: isNewNode,
-  editingNode,
-  openAdd: handleAddNode,
-  openEdit: handleEditNode,
-  handleUrlInput: handleNodeUrlInput,
-  handleSave: handleSaveNode
-} = useNodeForms({ addNode, updateNode });
+    const {
+        showModal: showNodeModal,
+        isNew: isNewNode,
+        editingNode,
+        openAdd: handleAddNode,
+        openEdit: handleEditNode,
+        handleUrlInput: handleNodeUrlInput,
+        handleSave: handleSaveNode,
+    } = useNodeForms({ addNode, updateNode });
 
-// Actions
-const setViewMode = (mode) => {
-  manualNodeViewMode.value = mode;
-  localStorage.setItem('manualNodeViewMode', mode);
-};
+    // Actions
+    const setViewMode = (mode) => {
+        manualNodeViewMode.value = mode;
+        writeRawPreference('manualNodeViewMode', mode);
+    };
 
-const handleDeleteNodeWithCleanup = (nodeId) => {
-  deleteNode(nodeId);
-  // cleanupNodes 已在 deleteNode 内部通过 removeManualNodeFromProfiles 实现
-};
+    const handleDeleteNodeWithCleanup = (nodeId) => {
+        deleteNode(nodeId);
+        // cleanupNodes 已在 deleteNode 内部通过 removeManualNodeFromProfiles 实现
+    };
 
-const handleDeleteAllNodesWithCleanup = () => {
-  deleteAllNodes();
-  // cleanupAllNodes 已在 deleteAllNodes 内部通过 removeManualNodeFromProfiles 实现
-  showDeleteNodesModal.value = false;
-};
+    const handleDeleteAllNodesWithCleanup = () => {
+        deleteAllNodes();
+        // cleanupAllNodes 已在 deleteAllNodes 内部通过 removeManualNodeFromProfiles 实现
+        showDeleteNodesModal.value = false;
+    };
 
-const handleAutoSortNodes = () => {
-  autoSortNodes();
-  showToast(t('manualNodes.sortedByRegion'), 'success');
-};
+    const handleAutoSortNodes = () => {
+        autoSortNodes();
+        showToast(t('manualNodes.sortedByRegion'), 'success');
+    };
 
-const handleDeduplicateNodes = () => {
-  const plan = buildDedupPlan();
-  if (!plan || plan.removeCount === 0) {
-    showToast(t('manualNodes.noDuplicates'), 'info');
-    return;
-  }
-  dedupPlan.value = plan;
-  showDedupModal.value = true;
-};
+    const handleSortByLatency = () => {
+        const ok = sortNodesByLatency();
+        showToast(
+            ok ? t('manualNodes.sortByLatencyDone') : t('manualNodes.sortByLatencyNoData'),
+            ok ? 'success' : 'warning'
+        );
+    };
 
-// Old Handlers Removed
+    const handleDeduplicateNodes = () => {
+        const plan = buildDedupPlan();
+        if (!plan || plan.removeCount === 0) {
+            showToast(t('manualNodes.noDuplicates'), 'info');
+            return;
+        }
+        dedupPlan.value = plan;
+        showDedupModal.value = true;
+    };
 
-const handleOpenBatchGroupModal = (ids) => {
-  batchGroupIds.value = ids;
-  showBatchGroupModal.value = true;
-};
+    // Old Handlers Removed
 
-const handleBatchGroupConfirm = (groupName) => {
-  batchUpdateGroup(batchGroupIds.value, groupName);
-  batchGroupIds.value = [];
-  // Ideally we should also clear selection in ManualNodePanel, but we don't have direct access.
-  // We can emit an event or use a ref, but ManualNodePanel handles selection internally.
-  // Actually, ManualNodePanel.vue creates its own `selectedNodeIds`.
-  // If we want to clear selection, we need to force re-render or expose a method.
-  // But for now, let's just do the update. User can clear selection manually.
-  // OR we can improve ManualNodePanel to clear selection when `batch-update-group` is done?
-  // But here we are calling `batchUpdateGroup` composable directly.
-  // Let's modify ManualNodePanel later if needed.
-};
+    const handleOpenBatchGroupModal = (ids) => {
+        batchGroupIds.value = ids;
+        showBatchGroupModal.value = true;
+    };
 
-const handleBatchDeleteRequest = (ids) => {
-  if (ids && ids.length > 0) {
-    batchDeleteIds.value = ids;
-    showBatchDeleteModal.value = true;
-  }
-};
+    const handleBatchGroupConfirm = (groupName) => {
+        batchUpdateGroup(batchGroupIds.value, groupName);
+        batchGroupIds.value = [];
+        // Ideally we should also clear selection in ManualNodePanel, but we don't have direct access.
+        // We can emit an event or use a ref, but ManualNodePanel handles selection internally.
+        // Actually, ManualNodePanel.vue creates its own `selectedNodeIds`.
+        // If we want to clear selection, we need to force re-render or expose a method.
+        // But for now, let's just do the update. User can clear selection manually.
+        // OR we can improve ManualNodePanel to clear selection when `batch-update-group` is done?
+        // But here we are calling `batchUpdateGroup` composable directly.
+        // Let's modify ManualNodePanel later if needed.
+    };
 
-const confirmBatchDelete = () => {
-  batchDeleteNodes(batchDeleteIds.value);
-  batchDeleteIds.value = [];
-  showBatchDeleteModal.value = false;
-};
+    const handleBatchDeleteRequest = (ids) => {
+        if (ids && ids.length > 0) {
+            batchDeleteIds.value = ids;
+            showBatchDeleteModal.value = true;
+        }
+    };
 
-// 分组管理处理函数
-const handleOpenGroupManagement = () => {
-  showGroupManagementModal.value = true;
-};
+    const confirmBatchDelete = () => {
+        batchDeleteNodes(batchDeleteIds.value);
+        batchDeleteIds.value = [];
+        showBatchDeleteModal.value = false;
+    };
 
-const handleGroupRename = (oldName, newName) => {
-  renameGroup(oldName, newName);
-  showToast(t('manualNodes.groupRenamed', { oldName, newName }), 'success');
-};
+    // 分组管理处理函数
+    const handleOpenGroupManagement = () => {
+        showGroupManagementModal.value = true;
+    };
 
-const handleGroupDelete = (groupName) => {
-  deleteGroup(groupName);
-  showToast(t('manualNodes.groupDeleted', { groupName }), 'success');
-};
+    const handleGroupRename = (oldName, newName) => {
+        renameGroup(oldName, newName);
+        showToast(t('manualNodes.groupRenamed', { oldName, newName }), 'success');
+    };
 
-const handleGroupReorder = (newOrder) => {
-  reorderGroups(newOrder);
-  showToast(t('manualNodes.groupOrderUpdated'), 'success');
-};
+    const handleGroupDelete = (groupName) => {
+        deleteGroup(groupName);
+        showToast(t('manualNodes.groupDeleted', { groupName }), 'success');
+    };
 
+    const handleGroupReorder = (newOrder) => {
+        reorderGroups(newOrder);
+        showToast(t('manualNodes.groupOrderUpdated'), 'success');
+    };
 </script>
 
 <template>
-  <div class="max-w-(--breakpoint-xl) mx-auto">
+    <div class="max-w-(--breakpoint-xl) mx-auto">
+        <ManualNodePanel
+            :manual-nodes="manualNodes"
+            :paginated-manual-nodes="paginatedManualNodes"
+            :current-page="manualNodesCurrentPage"
+            :total-pages="manualNodesTotalPages"
+            :is-sorting="isSortingNodes"
+            :search-term="searchTerm"
+            :view-mode="manualNodeViewMode"
+            :groups="manualNodeGroups"
+            :active-group-filter="activeGroupFilter"
+            :items-per-page="manualNodesPerPage"
+            @update:items-per-page="(val) => (manualNodesPerPage = val)"
+            @add="handleAddNode"
+            @delete="handleDeleteNodeWithCleanup"
+            @edit="(id) => handleEditNode(manualNodes.find((n) => n.id === id))"
+            @change-page="changeManualNodesPage"
+            @update:search-term="handleSearchTermUpdate"
+            @update:view-mode="setViewMode"
+            @toggle-sort="isSortingNodes = !isSortingNodes"
+            @mark-dirty="markDirty"
+            @auto-sort="handleAutoSortNodes"
+            @deduplicate="handleDeduplicateNodes"
+            @import="showSubscriptionImportModal = true"
+            @delete-all="showDeleteNodesModal = true"
+            @reorder="reorderManualNodes"
+            @rename-group="renameGroup"
+            @set-group-filter="setGroupFilter"
+            @batch-update-group="(ids, group) => batchUpdateGroup(ids, group)"
+            @batch-delete-nodes="handleBatchDeleteRequest"
+            @open-batch-group-modal="handleOpenBatchGroupModal"
+            @manage-groups="handleOpenGroupManagement"
+            :ping-results="pingResults"
+            :pinging-nodes="pingingNodes"
+            @ping="pingNodeId"
+            @ping-all="pingAllNodes"
+            @sort-by-latency="handleSortByLatency"
+        />
 
+        <ManualNodeEditModal
+            v-model:show="showNodeModal"
+            :is-new="isNewNode"
+            :editing-node="editingNode"
+            :groups="manualNodeGroups"
+            @confirm="handleSaveNode"
+            @input-url="handleNodeUrlInput"
+        />
+        <ManualNodeDedupModal
+            v-model:show="showDedupModal"
+            :plan="dedupPlan"
+            @confirm="
+                applyDedupPlan(dedupPlan);
+                showDedupModal = false;
+                dedupPlan = null;
+            "
+        />
 
-    <ManualNodePanel :manual-nodes="manualNodes" :paginated-manual-nodes="paginatedManualNodes"
-      :current-page="manualNodesCurrentPage" :total-pages="manualNodesTotalPages" :is-sorting="isSortingNodes"
-      :search-term="searchTerm" :view-mode="manualNodeViewMode" :groups="manualNodeGroups"
-      :active-group-filter="activeGroupFilter" :items-per-page="manualNodesPerPage"
-      @update:items-per-page="val => manualNodesPerPage = val"
-      @add="handleAddNode" @delete="handleDeleteNodeWithCleanup"
-      @edit="(id) => handleEditNode(manualNodes.find(n => n.id === id))" @change-page="changeManualNodesPage"
-      @update:search-term="handleSearchTermUpdate" @update:view-mode="setViewMode"
-      @toggle-sort="isSortingNodes = !isSortingNodes" @mark-dirty="markDirty" @auto-sort="handleAutoSortNodes"
-      @deduplicate="handleDeduplicateNodes" @import="showSubscriptionImportModal = true"
-      @delete-all="showDeleteNodesModal = true" @reorder="reorderManualNodes" @rename-group="renameGroup"
-      @set-group-filter="setGroupFilter"
-      @batch-update-group="(ids, group) => batchUpdateGroup(ids, group)"
-      @batch-delete-nodes="handleBatchDeleteRequest"
-      @open-batch-group-modal="handleOpenBatchGroupModal"
-      @manage-groups="handleOpenGroupManagement"
-      :ping-results="pingResults"
-      :pinging-nodes="pingingNodes"
-      @ping="pingNodeId"
-      @ping-all="pingAllNodes"
-    />
+        <BatchGroupModal
+            v-model:show="showBatchGroupModal"
+            :groups="manualNodeGroups"
+            @confirm="handleBatchGroupConfirm"
+        />
 
-    <ManualNodeEditModal v-model:show="showNodeModal" :is-new="isNewNode" :editing-node="editingNode"
-      :groups="manualNodeGroups" @confirm="handleSaveNode" @input-url="handleNodeUrlInput" />
-    <ManualNodeDedupModal v-model:show="showDedupModal" :plan="dedupPlan"
-      @confirm="applyDedupPlan(dedupPlan); showDedupModal = false; dedupPlan = null" />
-    
-    <BatchGroupModal v-model:show="showBatchGroupModal" :groups="manualNodeGroups" @confirm="handleBatchGroupConfirm" />
+        <GroupManagementModal
+            v-model:show="showGroupManagementModal"
+            :groups="manualNodeGroups"
+            @rename="handleGroupRename"
+            @delete="handleGroupDelete"
+            @reorder="handleGroupReorder"
+        />
 
-    <GroupManagementModal 
-      v-model:show="showGroupManagementModal" 
-      :groups="manualNodeGroups" 
-      @rename="handleGroupRename"
-      @delete="handleGroupDelete"
-      @reorder="handleGroupReorder"
-    />
+        <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
+            <template #title>
+                <h3 class="text-lg font-bold text-red-500">
+                    {{ t('manualNodes.deleteAllConfirmTitle') }}
+                </h3>
+            </template>
+            <template #body>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('manualNodes.deleteAllConfirmBody') }}
+                </p>
+            </template>
+        </Modal>
 
-    <Modal v-model:show="showDeleteNodesModal" @confirm="handleDeleteAllNodesWithCleanup">
-      <template #title>
-        <h3 class="text-lg font-bold text-red-500">{{ t('manualNodes.deleteAllConfirmTitle') }}</h3>
-      </template>
-      <template #body>
-        <p class="text-sm text-gray-400">{{ t('manualNodes.deleteAllConfirmBody') }}</p>
-      </template>
-    </Modal>
+        <Modal v-model:show="showBatchDeleteModal" @confirm="confirmBatchDelete">
+            <template #title>
+                <h3 class="text-lg font-bold text-red-500">
+                    {{ t('manualNodes.batchDeleteConfirmTitle') }}
+                </h3>
+            </template>
+            <template #body>
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ t('manualNodes.batchDeleteConfirmBody', { count: batchDeleteIds.length }) }}
+                </p>
+            </template>
+        </Modal>
 
-    <Modal v-model:show="showBatchDeleteModal" @confirm="confirmBatchDelete">
-      <template #title>
-        <h3 class="text-lg font-bold text-red-500">{{ t('manualNodes.batchDeleteConfirmTitle') }}</h3>
-      </template>
-      <template #body>
-        <p class="text-sm text-gray-600 dark:text-gray-300">
-          {{ t('manualNodes.batchDeleteConfirmBody', { count: batchDeleteIds.length }) }}
-        </p>
-      </template>
-    </Modal>
-
-    <SubscriptionImportModal :show="showSubscriptionImportModal" @update:show="showSubscriptionImportModal = $event"
-      :add-nodes-from-bulk="addNodesFromBulk" :groups="manualNodeGroups" />
-  </div>
+        <SubscriptionImportModal
+            :show="showSubscriptionImportModal"
+            @update:show="showSubscriptionImportModal = $event"
+            :add-nodes-from-bulk="addNodesFromBulk"
+            :groups="manualNodeGroups"
+        />
+    </div>
 </template>

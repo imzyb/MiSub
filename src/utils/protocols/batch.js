@@ -17,7 +17,7 @@ export function batchConvertClashProxies(proxies) {
                 name: proxy.name || 'Unknown',
                 url: url,
                 type: proxy.type,
-                original: proxy
+                original: proxy,
             });
         }
     }

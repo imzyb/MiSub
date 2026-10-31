@@ -10,7 +10,8 @@ import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
 /**
  * 节点协议正则表达式
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard|naive\+https?|naive\+quic):\/\//i;
+export const NODE_PROTOCOL_REGEX =
+    /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|snell|anytls|socks5|socks|wireguard|naive\+https?|naive\+quic|mierus):\/\//i;
 
 /**
  * 判断代理是否指向本机/未指定地址。
@@ -30,24 +31,36 @@ export function isLocalProxyEndpoint(proxy) {
         }
     }
 
-    host = String(host).trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
-    return host === 'localhost'
-        || host === '::1'
-        || host === '::'
-        || host === '0.0.0.0'
-        || /^127(?:\.\d{1,3}){3}$/.test(host)
-        || /^::ffff:127(?:\.\d{1,3}){3}$/.test(host);
+    host = String(host)
+        .trim()
+        .toLowerCase()
+        .replace(/^\[|\]$/g, '')
+        .replace(/\.$/, '');
+    return (
+        host === 'localhost' ||
+        host === '::1' ||
+        host === '::' ||
+        host === '0.0.0.0' ||
+        /^127(?:\.\d{1,3}){3}$/.test(host) ||
+        /^::ffff:127(?:\.\d{1,3}){3}$/.test(host)
+    );
 }
 
 function normalizeBase64(input) {
-    let normalized = String(input || '').replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    let normalized = String(input || '')
+        .replace(/\s+/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
     const padding = normalized.length % 4;
     if (padding) normalized += '='.repeat(4 - padding);
     return normalized;
 }
 
 function base64UrlSafeEncodeUtf8(str) {
-    return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    return btoa(unescape(encodeURIComponent(str)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
 }
 
 function base64UrlSafeDecodeUtf8(str) {
@@ -65,9 +78,12 @@ function updateSsrRemarks(link, updater) {
 
         const mainPart = decoded.substring(0, queryIndex + queryMarker.length);
         const params = new URLSearchParams(decoded.substring(queryIndex + queryMarker.length));
-        const oldRemarks = params.get('remarks') ? base64UrlSafeDecodeUtf8(params.get('remarks')) : '';
+        const oldRemarks = params.get('remarks')
+            ? base64UrlSafeDecodeUtf8(params.get('remarks'))
+            : '';
         const newRemarks = updater(oldRemarks);
-        if (!newRemarks || newRemarks === oldRemarks) return `ssr://${base64UrlSafeEncodeUtf8(decoded)}`;
+        if (!newRemarks || newRemarks === oldRemarks)
+            return `ssr://${base64UrlSafeEncodeUtf8(decoded)}`;
         params.set('remarks', base64UrlSafeEncodeUtf8(newRemarks));
         return `ssr://${base64UrlSafeEncodeUtf8(mainPart + params.toString())}`;
     } catch (e) {
@@ -126,7 +142,7 @@ export function prependNodeName(link, prefix) {
             const newBase64Part = btoa(unescape(encodeURIComponent(newJsonString)));
             return 'vmess://' + newBase64Part;
         } catch (e) {
-            console.error("为 vmess 节点添加名称前缀失败，将回退到通用方法。", e);
+            console.error('为 vmess 节点添加名称前缀失败，将回退到通用方法。', e);
             return appendToFragment(link, prefix);
         }
     }
@@ -147,14 +163,15 @@ export function addFlagEmoji(link) {
     if (!link) return link;
     const appendEmoji = (name) => {
         if (!name) return name;
-        
+
         // 更全面的 Emoji 检测正则 (涵盖国旗、地区符号等)
-        const HAS_EMOJI_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]{2,}\u{E007F}/u;
+        const HAS_EMOJI_REGEX =
+            /[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]{2,}\u{E007F}|[\u{1F30D}-\u{1F30F}]/u;
         if (HAS_EMOJI_REGEX.test(name)) return name;
 
         const metadata = extractNodeMetadata(name);
         if (!metadata.flag) return name;
-        
+
         return `${metadata.flag} ${name}`;
     };
 
@@ -166,7 +183,9 @@ export function addFlagEmoji(link) {
         try {
             const base64Part = link.substring('vmess://'.length);
             const binaryString = atob(normalizeBase64(base64Part));
-            const decodedStr = new TextDecoder('utf-8').decode(new Uint8Array(Array.from(binaryString, c => c.charCodeAt(0))));
+            const decodedStr = new TextDecoder('utf-8').decode(
+                new Uint8Array(Array.from(binaryString, (c) => c.charCodeAt(0)))
+            );
             const nodeConfig = JSON.parse(decodedStr);
             if (nodeConfig.ps) {
                 const updatedPs = appendEmoji(nodeConfig.ps);
@@ -184,7 +203,7 @@ export function addFlagEmoji(link) {
         const hashIndex = link.lastIndexOf('#');
         let originalName = '';
         let basePart = link;
-        
+
         if (hashIndex !== -1) {
             basePart = link.substring(0, hashIndex);
             const rawName = link.substring(hashIndex + 1);
@@ -192,7 +211,7 @@ export function addFlagEmoji(link) {
                 // [关键修复] VLESS/Trojan 节点名通常被层层编码，这里需要确保解码透彻
                 originalName = decodeURIComponent(rawName);
                 if (originalName.includes('%')) {
-                     originalName = decodeURIComponent(originalName);
+                    originalName = decodeURIComponent(originalName);
                 }
             } catch (e) {
                 originalName = rawName;
@@ -204,7 +223,9 @@ export function addFlagEmoji(link) {
                 const protocol = protocolMatch[1];
                 const rest = link.substring(protocol.length + 3);
                 const atIdx = rest.lastIndexOf('@');
-                const hostPortPart = (atIdx !== -1 ? rest.substring(atIdx + 1) : rest).split(/[?#]/)[0];
+                const hostPortPart = (atIdx !== -1 ? rest.substring(atIdx + 1) : rest).split(
+                    /[?#]/
+                )[0];
                 originalName = hostPortPart.split(':')[0] || 'Node';
             }
         }
@@ -212,7 +233,7 @@ export function addFlagEmoji(link) {
         if (!originalName) return link;
         const newName = appendEmoji(originalName);
         if (newName === originalName && hashIndex === -1) return link;
-        
+
         return `${basePart}#${encodeURIComponent(newName)}`;
     }
 }
@@ -228,7 +249,7 @@ export function removeFlagEmoji(link) {
             /\u{1F3F4}[\u{E0061}-\u{E007A}]{2,}\u{E007F}/gu, // 标签序列旗帜
             /\u{1F3F3}\uFE0F?\u200D\u{1F308}/gu, // 彩虹旗
             /\u{1F3F3}\uFE0F?\u200D\u{26A7}/gu, // 跨性别旗
-            /[\u{1F3F1}\u{1F3F3}\u{1F3F4}\u{1F6A9}\u{1F3C1}\u{1F38C}]/gu // 常见旗帜符号
+            /[\u{1F3F1}\u{1F3F3}\u{1F3F4}\u{1F6A9}\u{1F3C1}\u{1F38C}]/gu, // 常见旗帜符号
         ];
         for (const pattern of patterns) {
             cleaned = cleaned.replace(pattern, '');
@@ -246,7 +267,11 @@ export function removeFlagEmoji(link) {
             while (base64Part.length % 4 !== 0) {
                 base64Part += '=';
             }
-            return JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(base64Part), c => c.charCodeAt(0))));
+            return JSON.parse(
+                new TextDecoder('utf-8').decode(
+                    Uint8Array.from(atob(base64Part), (c) => c.charCodeAt(0))
+                )
+            );
         } catch (e) {
             return null;
         }
@@ -328,10 +353,13 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
         });
 
         // 解码 query 中的常用字段
-        nodeUrl = nodeUrl.replace(/([?&](?:obfs-password|auth|password)=)([^&]+)/gi, (match, prefix, value) => {
-            const decoded = safeDecode(value);
-            return shouldKeepRaw(decoded) ? match : `${prefix}${decoded}`;
-        });
+        nodeUrl = nodeUrl.replace(
+            /([?&](?:obfs-password|auth|password)=)([^&]+)/gi,
+            (match, prefix, value) => {
+                const decoded = safeDecode(value);
+                return shouldKeepRaw(decoded) ? match : `${prefix}${decoded}`;
+            }
+        );
 
         return normalizeFragment(nodeUrl);
     }
@@ -351,7 +379,11 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
     }
 
     // 2. 其他协议的 Base64 修复逻辑
-    if (!nodeUrl.startsWith('ss://') && !nodeUrl.startsWith('vless://') && !nodeUrl.startsWith('trojan://')) {
+    if (
+        !nodeUrl.startsWith('ss://') &&
+        !nodeUrl.startsWith('vless://') &&
+        !nodeUrl.startsWith('trojan://')
+    ) {
         return nodeUrl;
     }
 
@@ -380,7 +412,7 @@ export function fixNodeUrlEncoding(nodeUrl, options = {}) {
 /**
  * 净化节点名称以兼容 YAML Flow Style
  * 防止 Subconverter 生成的 YAML 包含非法起始字符（如 *）
- * @param {string} nodeUrl 
+ * @param {string} nodeUrl
  * @returns {string} processedNodeUrl
  */
 export function sanitizeNodeForYaml(nodeUrl) {
@@ -394,7 +426,8 @@ export function sanitizeNodeForYaml(nodeUrl) {
         // We replace them with full-width equivalents or '★' for *
         const unsafeStartRegex = /^([*&!\[\]\{\},:?#%|>@\-])/;
         if (unsafeStartRegex.test(name)) {
-            return name.replace(/^[*]/, '★')
+            return name
+                .replace(/^[*]/, '★')
                 .replace(/^&/, '＆')
                 .replace(/^!/, '！')
                 .replace(/^\[/, '【')
@@ -425,7 +458,9 @@ export function sanitizeNodeForYaml(nodeUrl) {
             while (base64Part.length % 4 !== 0) {
                 base64Part += '=';
             }
-            const jsonString = new TextDecoder('utf-8').decode(Uint8Array.from(atob(base64Part), c => c.charCodeAt(0)));
+            const jsonString = new TextDecoder('utf-8').decode(
+                Uint8Array.from(atob(base64Part), (c) => c.charCodeAt(0))
+            );
             const nodeConfig = JSON.parse(jsonString);
 
             if (nodeConfig.ps) {

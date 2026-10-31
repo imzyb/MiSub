@@ -10,13 +10,18 @@
 import { StorageFactory, SettingsCache, STORAGE_TYPES } from '../storage-adapter.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS } from './config.js';
 import { KV_KEY_RULE_TEMPLATES, listRuleTemplates } from './rule-template-handler.js';
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from './utils.js';
 
 export const BACKUP_TYPE = 'misub-backup';
 export const BACKUP_VERSION = 1;
 export const BACKUP_SCOPES = {
     DATA_ONLY: 'dataOnly',
-    DATA_AND_SETTINGS: 'dataAndSettings'
+    DATA_AND_SETTINGS: 'dataAndSettings',
 };
 
 const RESTORE_SNAPSHOT_KEY = 'misub_restore_snapshot_latest';
@@ -37,7 +42,7 @@ const DEFAULT_WEBDAV_CONFIG = {
     lastBackupAt: null,
     lastBackupStatus: null,
     lastBackupMessage: '',
-    lastBackupFile: ''
+    lastBackupFile: '',
 };
 
 function cloneJson(value) {
@@ -45,7 +50,9 @@ function cloneJson(value) {
 }
 
 function normalizeScope(scope) {
-    return scope === BACKUP_SCOPES.DATA_AND_SETTINGS ? BACKUP_SCOPES.DATA_AND_SETTINGS : BACKUP_SCOPES.DATA_ONLY;
+    return scope === BACKUP_SCOPES.DATA_AND_SETTINGS
+        ? BACKUP_SCOPES.DATA_AND_SETTINGS
+        : BACKUP_SCOPES.DATA_ONLY;
 }
 
 function normalizeWebdavConfig(settings = {}) {
@@ -80,7 +87,7 @@ async function getStorage(env) {
     const storageType = await StorageFactory.getStorageType(env);
     return {
         storageType,
-        storageAdapter: StorageFactory.createAdapter(env, storageType)
+        storageAdapter: StorageFactory.createAdapter(env, storageType),
     };
 }
 
@@ -88,23 +95,24 @@ async function readBusinessData(storageAdapter) {
     const [subscriptions, profiles, ruleTemplates] = await Promise.all([
         typeof storageAdapter.getAllSubscriptions === 'function'
             ? storageAdapter.getAllSubscriptions()
-            : storageAdapter.get(KV_KEY_SUBS).then(value => value || []),
+            : storageAdapter.get(KV_KEY_SUBS).then((value) => value || []),
         typeof storageAdapter.getAllProfiles === 'function'
             ? storageAdapter.getAllProfiles()
-            : storageAdapter.get(KV_KEY_PROFILES).then(value => value || []),
-        listRuleTemplates(storageAdapter).catch(() => [])
+            : storageAdapter.get(KV_KEY_PROFILES).then((value) => value || []),
+        listRuleTemplates(storageAdapter).catch(() => []),
     ]);
 
     return {
         subscriptions: Array.isArray(subscriptions) ? subscriptions : [],
         profiles: Array.isArray(profiles) ? profiles : [],
-        ruleTemplates: Array.isArray(ruleTemplates) ? ruleTemplates : []
+        ruleTemplates: Array.isArray(ruleTemplates) ? ruleTemplates : [],
     };
 }
 
 export async function buildBackupPayload(env, options = {}) {
     const { storageAdapter, storageType } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || await SettingsCache.get(env) || {};
+    const settings =
+        (await storageAdapter.get(KV_KEY_SETTINGS)) || (await SettingsCache.get(env)) || {};
     const backupConfig = normalizeWebdavConfig(settings);
     const scope = normalizeScope(options.scope || backupConfig.backupScope);
     const businessData = await readBusinessData(storageAdapter);
@@ -117,14 +125,14 @@ export async function buildBackupPayload(env, options = {}) {
         exportedAt: new Date().toISOString(),
         source: {
             storageType,
-            trigger: options.trigger || 'manual'
+            trigger: options.trigger || 'manual',
         },
         data: {
             subscriptions: cloneJson(businessData.subscriptions),
             profiles: cloneJson(businessData.profiles),
             ruleTemplates: cloneJson(businessData.ruleTemplates),
-            settings: null
-        }
+            settings: null,
+        },
     };
 
     if (scope === BACKUP_SCOPES.DATA_AND_SETTINGS) {
@@ -148,8 +156,11 @@ export function normalizeBackupPayload(raw) {
                 subscriptions: Array.isArray(raw.data.subscriptions) ? raw.data.subscriptions : [],
                 profiles: Array.isArray(raw.data.profiles) ? raw.data.profiles : [],
                 ruleTemplates: Array.isArray(raw.data.ruleTemplates) ? raw.data.ruleTemplates : [],
-                settings: raw.data.settings && typeof raw.data.settings === 'object' ? raw.data.settings : null
-            }
+                settings:
+                    raw.data.settings && typeof raw.data.settings === 'object'
+                        ? raw.data.settings
+                        : null,
+            },
         };
     }
 
@@ -163,11 +174,14 @@ export function normalizeBackupPayload(raw) {
             exportedAt: raw.exportedAt || new Date().toISOString(),
             source: { storageType: 'legacy-local', trigger: 'import' },
             data: {
-                subscriptions: [...raw.subscriptions, ...(Array.isArray(raw.manualNodes) ? raw.manualNodes : [])],
+                subscriptions: [
+                    ...raw.subscriptions,
+                    ...(Array.isArray(raw.manualNodes) ? raw.manualNodes : []),
+                ],
                 profiles: Array.isArray(raw.profiles) ? raw.profiles : [],
                 ruleTemplates: Array.isArray(raw.ruleTemplates) ? raw.ruleTemplates : [],
-                settings: null
-            }
+                settings: null,
+            },
         };
     }
 
@@ -180,14 +194,26 @@ async function syncCollection(storageAdapter, type, items) {
     const key = isProfiles ? KV_KEY_PROFILES : KV_KEY_SUBS;
 
     if (storageAdapter.type !== STORAGE_TYPES.KV) {
-        const getAll = isProfiles ? storageAdapter.getAllProfiles?.bind(storageAdapter) : storageAdapter.getAllSubscriptions?.bind(storageAdapter);
-        const putItem = isProfiles ? storageAdapter.putProfile?.bind(storageAdapter) : storageAdapter.putSubscription?.bind(storageAdapter);
-        const deleteItem = isProfiles ? storageAdapter.deleteProfileById?.bind(storageAdapter) : storageAdapter.deleteSubscriptionById?.bind(storageAdapter);
+        const getAll = isProfiles
+            ? storageAdapter.getAllProfiles?.bind(storageAdapter)
+            : storageAdapter.getAllSubscriptions?.bind(storageAdapter);
+        const putItem = isProfiles
+            ? storageAdapter.putProfile?.bind(storageAdapter)
+            : storageAdapter.putSubscription?.bind(storageAdapter);
+        const deleteItem = isProfiles
+            ? storageAdapter.deleteProfileById?.bind(storageAdapter)
+            : storageAdapter.deleteSubscriptionById?.bind(storageAdapter);
 
         if (getAll && putItem && deleteItem) {
             const currentItems = await getAll();
-            const finalMap = new Map(finalItems.filter(item => item?.id).map(item => [item.id, item]));
-            const currentMap = new Map((Array.isArray(currentItems) ? currentItems : []).filter(item => item?.id).map(item => [item.id, item]));
+            const finalMap = new Map(
+                finalItems.filter((item) => item?.id).map((item) => [item.id, item])
+            );
+            const currentMap = new Map(
+                (Array.isArray(currentItems) ? currentItems : [])
+                    .filter((item) => item?.id)
+                    .map((item) => [item.id, item])
+            );
 
             for (const item of finalMap.values()) {
                 const existing = currentMap.get(item.id);
@@ -209,8 +235,11 @@ async function syncCollection(storageAdapter, type, items) {
 
 async function createPreRestoreSnapshot(env, storageAdapter, scope) {
     const snapshot = await buildBackupPayload(env, {
-        scope: scope === BACKUP_SCOPES.DATA_AND_SETTINGS ? BACKUP_SCOPES.DATA_AND_SETTINGS : BACKUP_SCOPES.DATA_ONLY,
-        trigger: 'pre-restore'
+        scope:
+            scope === BACKUP_SCOPES.DATA_AND_SETTINGS
+                ? BACKUP_SCOPES.DATA_AND_SETTINGS
+                : BACKUP_SCOPES.DATA_ONLY,
+        trigger: 'pre-restore',
     });
     await storageAdapter.put(RESTORE_SNAPSHOT_KEY, snapshot);
     return snapshot;
@@ -227,14 +256,17 @@ export async function restoreBackupPayload(env, rawPayload, options = {}) {
 
     await syncCollection(storageAdapter, 'subscriptions', payload.data.subscriptions);
     await syncCollection(storageAdapter, 'profiles', payload.data.profiles);
-    await storageAdapter.put(KV_KEY_RULE_TEMPLATES, Array.isArray(payload.data.ruleTemplates) ? payload.data.ruleTemplates : []);
+    await storageAdapter.put(
+        KV_KEY_RULE_TEMPLATES,
+        Array.isArray(payload.data.ruleTemplates) ? payload.data.ruleTemplates : []
+    );
 
     if (scope === BACKUP_SCOPES.DATA_AND_SETTINGS && payload.data.settings) {
-        const currentSettings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+        const currentSettings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
         const restoredSettings = sanitizeSettingsForRestore(payload.data.settings);
         const finalSettings = {
             ...restoredSettings,
-            webdavBackup: currentSettings.webdavBackup
+            webdavBackup: currentSettings.webdavBackup,
         };
         await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
         SettingsCache.clear();
@@ -248,14 +280,17 @@ export async function restoreBackupPayload(env, rawPayload, options = {}) {
             subscriptions: payload.data.subscriptions.length,
             profiles: payload.data.profiles.length,
             ruleTemplates: payload.data.ruleTemplates.length,
-            settings: scope === BACKUP_SCOPES.DATA_AND_SETTINGS && !!payload.data.settings
-        }
+            settings: scope === BACKUP_SCOPES.DATA_AND_SETTINGS && !!payload.data.settings,
+        },
     };
 }
 
 function joinWebdavPath(base, path) {
     const trimmedBase = String(base || '').replace(/\/+$/, '');
-    const parts = String(path || '').split('/').filter(Boolean).map(part => encodeURIComponent(part));
+    const parts = String(path || '')
+        .split('/')
+        .filter(Boolean)
+        .map((part) => encodeURIComponent(part));
     return [trimmedBase, ...parts].join('/');
 }
 
@@ -310,7 +345,9 @@ async function webdavFetch(config, path, init = {}) {
 }
 
 async function ensureRemoteDirectory(config) {
-    const parts = String(config.remotePath || '/MiSub').split('/').filter(Boolean);
+    const parts = String(config.remotePath || '/MiSub')
+        .split('/')
+        .filter(Boolean);
     let current = '';
     for (const part of parts) {
         current += `/${part}`;
@@ -321,7 +358,10 @@ async function ensureRemoteDirectory(config) {
     }
 }
 
-export function formatBackupFilename(template = DEFAULT_WEBDAV_CONFIG.filenameTemplate, now = new Date()) {
+export function formatBackupFilename(
+    template = DEFAULT_WEBDAV_CONFIG.filenameTemplate,
+    now = new Date()
+) {
     // Keep backup names stable at UTC+8 regardless of the Worker/runtime
     // timezone (Cloudflare Workers normally exposes UTC).
     const utcPlus8 = new Date(now.getTime() + BACKUP_TIMEZONE_OFFSET_MS);
@@ -333,7 +373,7 @@ export function formatBackupFilename(template = DEFAULT_WEBDAV_CONFIG.filenameTe
 
 async function updateBackupStatus(env, patch) {
     const { storageAdapter } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
     const webdavBackup = { ...normalizeWebdavConfig(settings), ...patch };
     await storageAdapter.put(KV_KEY_SETTINGS, { ...settings, webdavBackup });
     SettingsCache.clear();
@@ -342,13 +382,13 @@ async function updateBackupStatus(env, patch) {
 
 export async function performWebdavBackup(env, options = {}) {
     const { storageAdapter } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
     const config = normalizeWebdavConfig(settings);
     assertSafeWebdavConfig(config);
 
     const payload = await buildBackupPayload(env, {
         scope: options.scope || config.backupScope,
-        trigger: options.trigger || 'manual'
+        trigger: options.trigger || 'manual',
     });
     const filename = formatBackupFilename(config.filenameTemplate);
     const remotePath = `${String(config.remotePath || '/MiSub').replace(/\/+$/, '')}/${filename}`;
@@ -359,7 +399,7 @@ export async function performWebdavBackup(env, options = {}) {
         const response = await webdavFetch(config, remotePath, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body
+            body,
         });
         if (!response.ok && response.status !== 201 && response.status !== 204) {
             throw new Error(`WebDAV 上传失败: HTTP ${response.status}`);
@@ -369,7 +409,7 @@ export async function performWebdavBackup(env, options = {}) {
             lastBackupAt: payload.exportedAt,
             lastBackupStatus: 'success',
             lastBackupMessage: '备份成功',
-            lastBackupFile: remotePath
+            lastBackupFile: remotePath,
         });
 
         return {
@@ -378,13 +418,13 @@ export async function performWebdavBackup(env, options = {}) {
             file: remotePath,
             size: body.length,
             scope: payload.scope,
-            timestamp: payload.exportedAt
+            timestamp: payload.exportedAt,
         };
     } catch (error) {
         await updateBackupStatus(env, {
             lastBackupAt: new Date().toISOString(),
             lastBackupStatus: 'failed',
-            lastBackupMessage: error.message || '备份失败'
+            lastBackupMessage: error.message || '备份失败',
         });
         throw error;
     }
@@ -392,7 +432,7 @@ export async function performWebdavBackup(env, options = {}) {
 
 export async function handleWebdavBackupStatus(env) {
     const { storageAdapter } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
     const config = normalizeWebdavConfig(settings);
     const { password, ...safeConfig } = config;
     return createJsonResponse({ success: true, data: safeConfig });
@@ -402,36 +442,60 @@ export async function handleWebdavBackupTest(request, env) {
     if (request.method !== 'POST') return createErrorResponse('Method Not Allowed', 405);
     try {
         const { storageAdapter } = await getStorage(env);
-        const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
-        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch(e => { if (e?.status === 413) throw e; return {}; });
-        const config = { ...normalizeWebdavConfig(settings), ...(body?.webdavBackup || body || {}) };
+        const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch((e) => {
+            if (e?.status === 413) throw e;
+            return {};
+        });
+        const config = {
+            ...normalizeWebdavConfig(settings),
+            ...(body?.webdavBackup || body || {}),
+        };
         assertSafeWebdavConfig(config);
         await ensureRemoteDirectory(config);
         return createJsonResponse({ success: true, message: 'WebDAV 连接测试成功' });
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || 'WebDAV 连接测试失败' }, error.status || 400);
+        return createJsonResponse(
+            { success: false, message: error.message || 'WebDAV 连接测试失败' },
+            error.status || 400
+        );
     }
 }
 
 export async function handleManualWebdavBackup(request, env) {
     if (request.method !== 'POST') return createErrorResponse('Method Not Allowed', 405);
     try {
-        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch(e => { if (e?.status === 413) throw e; return {}; });
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch((e) => {
+            if (e?.status === 413) throw e;
+            return {};
+        });
         const result = await performWebdavBackup(env, { scope: body.scope, trigger: 'manual' });
         return createJsonResponse(result);
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || '备份失败' }, error.status || 500);
+        return createJsonResponse(
+            { success: false, message: error.message || '备份失败' },
+            error.status || 500
+        );
     }
 }
 
 export async function handleBackupExport(request, env) {
     if (request.method !== 'POST') return createErrorResponse('Method Not Allowed', 405);
     try {
-        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch(e => { if (e?.status === 413) throw e; return {}; });
-        const payload = await buildBackupPayload(env, { scope: body.scope, trigger: 'local-export' });
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large).catch((e) => {
+            if (e?.status === 413) throw e;
+            return {};
+        });
+        const payload = await buildBackupPayload(env, {
+            scope: body.scope,
+            trigger: 'local-export',
+        });
         return createJsonResponse({ success: true, exportData: payload });
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || '导出失败' }, error.status || 500);
+        return createJsonResponse(
+            { success: false, message: error.message || '导出失败' },
+            error.status || 500
+        );
     }
 }
 
@@ -443,30 +507,33 @@ export async function handleBackupRestore(request, env) {
         const result = await restoreBackupPayload(env, payload, { scope: body?.scope });
         return createJsonResponse(result);
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || '恢复失败' }, error.status || 400);
+        return createJsonResponse(
+            { success: false, message: error.message || '恢复失败' },
+            error.status || 400
+        );
     }
 }
 
 export async function listWebdavBackupFiles(env) {
     const { storageAdapter } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
     const config = normalizeWebdavConfig(settings);
     const remoteDir = String(config.remotePath || '/MiSub').replace(/\/+$/, '');
     const response = await webdavFetch(config, remoteDir || '/', {
         method: 'PROPFIND',
-        headers: { Depth: '1' }
+        headers: { Depth: '1' },
     });
     if (!response.ok) throw new Error(`列出 WebDAV 备份失败: HTTP ${response.status}`);
 
     const xml = await response.text();
     const hrefs = Array.from(xml.matchAll(/<[^:>]*:?href[^>]*>([^<]+)<\/[^:>]*:?href>/gi))
-        .map(match => normalizeWebdavHref(config.endpoint, match[1]))
+        .map((match) => normalizeWebdavHref(config.endpoint, match[1]))
         .filter(Boolean);
     const files = hrefs
-        .filter(href => href.endsWith('.json') && href.includes(BACKUP_FILENAME_PREFIX))
-        .map(href => ({
+        .filter((href) => href.endsWith('.json') && href.includes(BACKUP_FILENAME_PREFIX))
+        .map((href) => ({
             path: href,
-            name: href.split('/').filter(Boolean).pop()
+            name: href.split('/').filter(Boolean).pop(),
         }))
         .sort((a, b) => String(b.name).localeCompare(String(a.name)));
 
@@ -479,13 +546,16 @@ export async function handleWebdavBackupList(request, env) {
         const files = await listWebdavBackupFiles(env);
         return createJsonResponse({ success: true, data: files });
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || '获取备份列表失败', data: [] }, 400);
+        return createJsonResponse(
+            { success: false, message: error.message || '获取备份列表失败', data: [] },
+            400
+        );
     }
 }
 
 export async function fetchWebdavBackupFile(env, filePath) {
     const { storageAdapter } = await getStorage(env);
-    const settings = await storageAdapter.get(KV_KEY_SETTINGS) || {};
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
     const config = normalizeWebdavConfig(settings);
     const response = await webdavFetch(config, filePath, { method: 'GET' });
     if (!response.ok) throw new Error(`读取 WebDAV 备份失败: HTTP ${response.status}`);
@@ -496,10 +566,14 @@ export async function handleWebdavRestore(request, env) {
     if (request.method !== 'POST') return createErrorResponse('Method Not Allowed', 405);
     try {
         const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
-        const payload = body.payload || (body.file ? await fetchWebdavBackupFile(env, body.file) : null);
+        const payload =
+            body.payload || (body.file ? await fetchWebdavBackupFile(env, body.file) : null);
         const result = await restoreBackupPayload(env, payload, { scope: body.scope });
         return createJsonResponse(result);
     } catch (error) {
-        return createJsonResponse({ success: false, message: error.message || '恢复失败' }, error.status || 400);
+        return createJsonResponse(
+            { success: false, message: error.message || '恢复失败' },
+            error.status || 400
+        );
     }
 }

@@ -20,7 +20,8 @@ function buildProxyLine(proxy) {
         }
         const sni = proxy.servername ?? proxy.sni;
         if (sni !== undefined) extras.push(`tls-host=${sni}`);
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('tls-verification=false');
         return `trojan=${server}:${port}, password=${proxy.password || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'ss' || type === 'shadowsocks') {
@@ -29,9 +30,10 @@ function buildProxyLine(proxy) {
         const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
         if (plugin === 'obfs-local' || proxy.obfs) {
             extras.push(`obfs=${proxy.obfs || opts.mode}`);
-            if (proxy['obfs-host'] || opts.host) extras.push(`obfs-host=${proxy['obfs-host'] || opts.host}`);
+            if (proxy['obfs-host'] || opts.host)
+                extras.push(`obfs-host=${proxy['obfs-host'] || opts.host}`);
         } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
-            extras.push((opts.tls || opts.mode === 'websocket-tls') ? 'obfs=wss' : 'obfs=ws');
+            extras.push(opts.tls || opts.mode === 'websocket-tls' ? 'obfs=wss' : 'obfs=ws');
             if (opts.path) extras.push(`obfs-uri=${opts.path}`);
             if (opts.host) extras.push(`obfs-host=${opts.host}`);
         }
@@ -52,7 +54,8 @@ function buildProxyLine(proxy) {
             if (hasTlsLayer) extras.push('over-tls=true');
             if (sni !== undefined) extras.push(`tls-host=${sni}`);
         }
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('tls-verification=false');
         return `vmess=${server}:${port}, method=${normalizeQxVmessMethod(proxy.cipher)}, password=${proxy.uuid || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'vless') {
@@ -72,7 +75,8 @@ function buildProxyLine(proxy) {
             extras.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=grpc');
             if (hostValue !== undefined) extras.push(`obfs-host=${hostValue}`);
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (!hasTlsLayer && grpcOpts?.['grpc-service-name']) extras.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
+            if (!hasTlsLayer && grpcOpts?.['grpc-service-name'])
+                extras.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
         } else if (transport === 'xhttp' || proxy['xhttp-opts']) {
             extras.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=http');
             const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
@@ -86,11 +90,14 @@ function buildProxyLine(proxy) {
 
         if (isReality) {
             const realityOpts = proxy['reality-opts'] || {};
-            if (realityOpts['public-key']) extras.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
-            if (realityOpts['short-id']) extras.push(`reality-hex-shortid=${realityOpts['short-id']}`);
+            if (realityOpts['public-key'])
+                extras.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
+            if (realityOpts['short-id'])
+                extras.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
         if (proxy.flow) extras.push(`vless-flow=${proxy.flow}`);
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('tls-verification=false');
         return `vless=${server}:${port}, password=${proxy.uuid || ''}${extras.length ? `, ${extras.join(', ')}` : ''}, tag=${name}`;
     }
     if (type === 'http' || type === 'https') {
@@ -118,13 +125,14 @@ function buildProxyLine(proxy) {
             const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
             extras.push(`alpn=${alpn}`);
         }
-        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) extras.push('tls-verification=false');
+        if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true)
+            extras.push('tls-verification=false');
         return `tuic=${server}:${port}, ${extras.join(', ')}, tag=${name}`;
     }
     if (type === 'anytls') {
         const extras = [`password=${proxy.password || ''}`];
         extras.push('over-tls=true');
-        
+
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) {
             extras.push('tls-verification=false');
         } else {
@@ -138,8 +146,10 @@ function buildProxyLine(proxy) {
 
         if (proxy.security === 'reality' || proxy['reality-opts']) {
             const realityOpts = proxy['reality-opts'] || {};
-            if (realityOpts['public-key']) extras.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
-            if (realityOpts['short-id']) extras.push(`reality-hex-shortid=${realityOpts['short-id']}`);
+            if (realityOpts['public-key'])
+                extras.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
+            if (realityOpts['short-id'])
+                extras.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
 
         extras.push(`fast-open=${proxy.tfo ? 'true' : 'false'}`);
@@ -153,12 +163,19 @@ function buildProxyLine(proxy) {
 function buildPolicyLine(group) {
     const type = String(group.type || 'select').toLowerCase();
     const rawMembers = Array.isArray(group.members) ? group.members.filter(Boolean) : [];
-    const members = (['url-test', 'fallback', 'load-balance'].includes(type)
-        ? rawMembers.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()))
-        : rawMembers).join(', ');
+    const members = (
+        ['url-test', 'fallback', 'load-balance'].includes(type)
+            ? rawMembers.filter(
+                  (member) =>
+                      !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(
+                          String(member).toUpperCase()
+                      )
+              )
+            : rawMembers
+    ).join(', ');
     const tolerance = group.options?.tolerance || 50;
     const interval = group.options?.interval || 300;
-    
+
     if (type === 'url-test' || type === 'url-latency-benchmark') {
         return `url-latency-benchmark=${group.name}, ${members}, check-interval=${interval}, tolerance=${tolerance}`;
     }
@@ -183,7 +200,9 @@ function buildRuleLine(rule) {
 }
 
 function normalizeQxVmessMethod(method) {
-    const normalized = String(method || '').trim().toLowerCase();
+    const normalized = String(method || '')
+        .trim()
+        .toLowerCase();
     if (!normalized || normalized === 'auto') return 'none';
     return normalized;
 }
@@ -193,16 +212,22 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
     const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
     const proxyUrls = nodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
-        ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
+    const proxies =
+        Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
+            ? normalizedModel.proxies
+            : urlsToClashProxies(proxyUrls);
 
     // Extraction of remote rules for Quantumult X
-    const remoteRules = normalizedModel.rules.filter(r => String(r.type).toUpperCase() === 'RULE-SET' && r.value.startsWith('http'));
-    const filterRemoteLines = remoteRules.map(r => `filter_remote, ${r.value}, tag=${r.policy}, force-policy=${r.policy}, update-interval=86400, enabled=true`);
-    const localRules = normalizedModel.rules.filter(r => !remoteRules.includes(r));
+    const remoteRules = normalizedModel.rules.filter(
+        (r) => String(r.type).toUpperCase() === 'RULE-SET' && r.value.startsWith('http')
+    );
+    const filterRemoteLines = remoteRules.map(
+        (r) =>
+            `filter_remote, ${r.value}, tag=${r.policy}, force-policy=${r.policy}, update-interval=86400, enabled=true`
+    );
+    const localRules = normalizedModel.rules.filter((r) => !remoteRules.includes(r));
 
     return [
         '[general]',
@@ -220,7 +245,7 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
         '',
         '[policy]',
         ...normalizedModel.groups
-            .filter(group => Array.isArray(group.members) && group.members.length > 0)
+            .filter((group) => Array.isArray(group.members) && group.members.length > 0)
             .map(buildPolicyLine)
             .filter(Boolean),
         '',
@@ -229,6 +254,6 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
         '',
         '[filter_local]',
         ...localRules.map(buildRuleLine).filter(Boolean),
-        ''
+        '',
     ].join('\n');
 }

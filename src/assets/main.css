@@ -6,17 +6,20 @@
   --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  --color-primary: var(--color-primary-500);
-  --color-primary-50: var(--color-primary-50);
-  --color-primary-100: var(--color-primary-100);
-  --color-primary-200: var(--color-primary-200);
-  --color-primary-300: var(--color-primary-300);
-  --color-primary-400: var(--color-primary-400);
-  --color-primary-500: var(--color-primary-500);
-  --color-primary-600: var(--color-primary-600);
-  --color-primary-700: var(--color-primary-700);
-  --color-primary-800: var(--color-primary-800);
-  --color-primary-900: var(--color-primary-900);
+  /* 这里必须写真实色值：写成 var(--color-primary-N) 会产出
+     `--color-primary-N: var(--color-primary-N)` 的自引用声明（无效值）。
+     下方 :root 保留同名定义，作为运行时可覆盖的权威来源。 */
+  --color-primary: #7170ff;
+  --color-primary-50: #f5f6ff;
+  --color-primary-100: #ebedff;
+  --color-primary-200: #d8dcff;
+  --color-primary-300: #b8bfff;
+  --color-primary-400: #929bff;
+  --color-primary-500: #7170ff;
+  --color-primary-600: #5e6ad2;
+  --color-primary-700: #4f59b8;
+  --color-primary-800: #424a94;
+  --color-primary-900: #373d75;
 }
 
 :root {
@@ -62,6 +65,12 @@
   --misub-radius-lg: 0.75rem;
   --misub-radius-xl: 1rem;
   --misub-radius-pill: 9999px;
+
+  /* Semantic status glows (announcement cards, decorative accents). */
+  --glow-info: rgba(99, 102, 241, 0.15);
+  --glow-success: rgba(16, 185, 129, 0.15);
+  --glow-warning: rgba(245, 158, 11, 0.15);
+  --glow-danger: rgba(244, 63, 94, 0.15);
 
   /* Keep overlays above fixed app chrome while preserving room for menus/toasts. */
   --z-nav: 20;
@@ -268,7 +277,7 @@
 }
 
 .nav-action-btn {
-  @apply p-2 rounded-lg transition-colors duration-150 focus:outline-none;
+  @apply p-2 rounded-lg transition-colors duration-150 focus-visible:outline-none;
   min-width: 2.25rem;
   min-height: 2.25rem;
 }
@@ -282,11 +291,11 @@
 }
 
 .nav-action-focus {
-  @apply focus:ring-2 focus:ring-primary-500/30;
+  @apply focus-visible:ring-2 focus-visible:ring-primary-500/30;
 }
 
 .nav-action-focus-danger {
-  @apply focus:ring-2 focus:ring-red-500/40;
+  @apply focus-visible:ring-2 focus-visible:ring-red-500/40;
 }
 
 .nav-tab-shell {
@@ -324,7 +333,7 @@
 }
 
 .nav-mobile-item-inactive {
-  @apply text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300;
+  @apply text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200;
 }
 
 .nav-mobile-icon-wrap {
@@ -446,6 +455,30 @@ textarea {
 @media (max-width: 768px) {
   .ios-fixed-header {
     transform: translateZ(0);
+  }
+}
+
+/* ============================================
+   触控目标（Touch Target）
+   粗指针设备（手机 / 平板 / 触屏本）下保证最小可点击尺寸，避免图标按钮过小导致误触。
+   桌面端（fine pointer）不受影响，视觉密度保持不变。
+   - .touch-target     → 44px（图标按钮 / 主操作，Apple HIG 建议值）
+   - .touch-target-min → 24px（密集芯片按钮，WCAG 2.5.8 AA 底线）
+   ============================================ */
+@media (pointer: coarse) {
+  .touch-target {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .touch-target-min {
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+  }
+
+  .nav-action-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
 }
 

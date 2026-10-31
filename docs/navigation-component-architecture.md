@@ -5,21 +5,21 @@
 ## 组件分层
 
 - `src/components/layout/NavBar.vue`
-  - 现代布局导航容器（桌面浮岛 + 移动顶部/底部）
-  - 负责路由导航项渲染
+    - 现代布局导航容器（桌面浮岛 + 移动顶部/底部）
+    - 负责路由导航项渲染
 - `src/components/layout/Header.vue`
-  - 经典布局头部容器
-  - 负责经典布局下的品牌区和动作区挂载
+    - 经典布局头部容器
+    - 负责经典布局下的品牌区和动作区挂载
 - `src/components/layout/BrandLogo.vue`
-  - 品牌 Logo 原子组件（图标 + 文案）
-  - 两种布局共用
+    - 品牌 Logo 原子组件（图标 + 文案）
+    - 两种布局共用
 - `src/components/layout/NavActionGroup.vue`
-  - 顶部动作区组合组件（主题、设置、切换布局、登出、外链、登录）
-  - 通过 props 控制不同场景展示
+    - 顶部动作区组合组件（主题、设置、切换布局、登出、外链、登录）
+    - 通过 props 控制不同场景展示
 - `src/components/layout/LoginEntryButton.vue`
-  - 登录入口按钮原子组件
+    - 登录入口按钮原子组件
 - `src/components/layout/ExternalRepoButton.vue`
-  - GitHub 外链按钮原子组件
+    - GitHub 外链按钮原子组件
 
 ## 样式来源
 
@@ -33,8 +33,8 @@
 ## 配置来源
 
 - 导航菜单与图标常量：`src/constants/navigation.js`
-  - `MAIN_NAV_ITEMS`
-  - `NAV_ICONS`
+    - `MAIN_NAV_ITEMS`
+    - `NAV_ICONS`
 
 ## 使用建议
 

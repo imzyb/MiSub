@@ -5,5 +5,5 @@ export {
     parseLoonConfig,
     validateGeneratedUrl,
     parseSurgeConfig,
-    parseQuantumultXConfig
+    parseQuantumultXConfig,
 } from './protocols/index.js';

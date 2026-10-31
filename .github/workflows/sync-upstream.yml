@@ -1,0 +1,39 @@
+name: 自动同步上游 MiSub
+
+on:
+  schedule:
+    # 每天北京时间 08:00（UTC 00:00）检查一次
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 可在 Actions 页面手动触发
+
+permissions:
+  contents: write  # 允许 push 回 fork
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 git 身份
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 同步上游 imzyb/MiSub
+        run: |
+          git remote add upstream https://github.com/imzyb/MiSub.git
+          git fetch upstream main
+          LOCAL=$(git rev-parse HEAD)
+          REMOTE=$(git rev-parse upstream/main)
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "✅ 已是最新，无需同步"
+          else
+            echo "🔁 检测到上游更新，开始同步..."
+            git merge upstream/main --no-edit
+            git push origin main
+            echo "✅ 已推送，Cloudflare Pages 将自动重新构建"
+          fi

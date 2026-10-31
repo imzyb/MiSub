@@ -9,7 +9,7 @@ export const SUBSCRIPTION_FORMATS = {
     SURGE: 'surge',
     LOON: 'loon',
     QUANX: 'quanx',
-    SINGBOX: 'singbox'
+    SINGBOX: 'singbox',
 };
 
 export const NODE_PROTOCOLS = {
@@ -23,7 +23,7 @@ export const NODE_PROTOCOLS = {
     HY: 'hy',
     TUIC: 'tuic',
     ANYTLS: 'anytls',
-    SOCKS5: 'socks5'
+    SOCKS5: 'socks5',
 };
 
 export const USER_AGENT_MAPPING = [
@@ -47,5 +47,5 @@ export const USER_AGENT_MAPPING = [
     ['quantumult', SUBSCRIPTION_FORMATS.QUANX],
 
     // 最后才匹配通用的 clash，作为向下兼容
-    ['clash', SUBSCRIPTION_FORMATS.CLASH]
+    ['clash', SUBSCRIPTION_FORMATS.CLASH],
 ];

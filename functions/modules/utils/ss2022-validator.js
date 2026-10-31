@@ -77,7 +77,7 @@ export function validateSS2022Node(nodeUrl) {
         if (!expectedLength) {
             return {
                 valid: true,
-                warning: `未知的 SS 2022 加密方式: ${cipher}`
+                warning: `未知的 SS 2022 加密方式: ${cipher}`,
             };
         }
 
@@ -97,8 +97,8 @@ export function validateSS2022Node(nodeUrl) {
                 error: `SS 2022 密码不是有效的 Base64: ${e.message}`,
                 details: {
                     cipher,
-                    password: password.substring(0, 20) + '...'
-                }
+                    password: password.substring(0, 20) + '...',
+                },
             };
         }
 
@@ -124,8 +124,8 @@ export function validateSS2022Node(nodeUrl) {
                     expectedKeyLength: expectedLength,
                     actualKeyLength: keyBytes,
                     suggestedCipher,
-                    suggestion
-                }
+                    suggestion,
+                },
             };
         }
 
@@ -133,7 +133,7 @@ export function validateSS2022Node(nodeUrl) {
     } catch (e) {
         return {
             valid: true,
-            warning: `验证 SS 节点时出错: ${e.message}`
+            warning: `验证 SS 节点时出错: ${e.message}`,
         };
     }
 }
@@ -150,7 +150,7 @@ export function fixSS2022Node(nodeUrl) {
         return {
             fixed: false,
             originalUrl: nodeUrl,
-            reason: validation.valid ? '节点配置正确,无需修复' : '无法自动修复'
+            reason: validation.valid ? '节点配置正确,无需修复' : '无法自动修复',
         };
     }
 
@@ -184,14 +184,14 @@ export function fixSS2022Node(nodeUrl) {
             changes: {
                 from: validation.details.cipher,
                 to: validation.details.suggestedCipher,
-                reason: validation.details.suggestion
-            }
+                reason: validation.details.suggestion,
+            },
         };
     } catch (e) {
         return {
             fixed: false,
             originalUrl: nodeUrl,
-            error: `修复失败: ${e.message}`
+            error: `修复失败: ${e.message}`,
         };
     }
 }
@@ -212,7 +212,7 @@ export function validateNodeList(nodeUrls) {
         invalid: 0,
         warnings: 0,
         invalidNodes: [],
-        warningNodes: []
+        warningNodes: [],
     };
 
     nodeUrls.forEach((url, index) => {
@@ -224,14 +224,14 @@ export function validateNodeList(nodeUrls) {
                 index,
                 url,
                 error: validation.error,
-                details: validation.details
+                details: validation.details,
             });
         } else if (validation.warning) {
             results.warnings++;
             results.warningNodes.push({
                 index,
                 url,
-                warning: validation.warning
+                warning: validation.warning,
             });
         } else {
             results.valid++;

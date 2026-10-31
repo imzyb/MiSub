@@ -2,6 +2,7 @@
  * 错误处理工具函数
  * @author MiSub Team
  */
+import { t } from '../i18n/index.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -16,10 +17,10 @@ export function createApiError(error, context = 'Unknown') {
 
     return {
         success: false,
-        message: error.message || '未知错误',
+        message: error.message || t('errors.unknown'),
         error: error.name || 'Error',
         context,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
     };
 }
 
@@ -30,7 +31,7 @@ export function createApiError(error, context = 'Unknown') {
  * @returns {Promise<Object>} 错误信息
  */
 export async function handleApiResponseError(response, context = 'API Request') {
-    let errorMessage = `请求失败 (${response.status})`;
+    let errorMessage = t('errors.requestFailedWithStatus', { status: response.status });
 
     try {
         const errorData = await response.json();

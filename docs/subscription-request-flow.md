@@ -31,9 +31,9 @@ API 路径 `/api/*` 总是优先进入 `handleApiRequest(request, env)`，不会
 1. 记录请求方法、路径和 User-Agent（路径会脱敏）。
 2. 通过 `StorageFactory.createAdapter()` 获取存储适配器。
 3. 并行读取：
-   - `KV_KEY_SETTINGS`
-   - 所有订阅源 `getAllSubscriptions()`
-   - 所有订阅组 `getAllProfiles()`
+    - `KV_KEY_SETTINGS`
+    - 所有订阅源 `getAllSubscriptions()`
+    - 所有订阅组 `getAllProfiles()`
 4. 将默认设置与存储设置合并，并执行 `migrateConfigSettings()`。
 5. 如果订阅组 ID 仍是旧格式，执行 `migrateProfileIds()` 并异步写回。
 6. 将 `context.storage` 与 `context.accessLogPersistenceMode` 挂到请求上下文。
@@ -71,9 +71,9 @@ API 路径 `/api/*` 总是优先进入 `handleApiRequest(request, env)`，不会
 
 - 3 段及以上：跳过第一段，将第二段视为 token，第三段视为 profile 标识。
 - 2 段：
-  - 第一段等于 `profileToken` 或 `mytoken` 时，按 `/{token}/{profileId}` 处理。
-  - 第一段为 `sub` 时，按 `/sub/{token}` 处理。
-  - 其他情况兜底按 `/{token}/{profileId}` 处理，后续再校验 token。
+    - 第一段等于 `profileToken` 或 `mytoken` 时，按 `/{token}/{profileId}` 处理。
+    - 第一段为 `sub` 时，按 `/sub/{token}` 处理。
+    - 其他情况兜底按 `/{token}/{profileId}` 处理，后续再校验 token。
 - 1 段：该段就是 token。
 
 ## 5. profile 模式与全量 token 模式
@@ -86,13 +86,13 @@ API 路径 `/api/*` 总是优先进入 `handleApiRequest(request, env)`，不会
 2. 按 `customId` 或 `id` 查找订阅组。
 3. 订阅组必须存在且 `enabled` 为真。
 4. 如果设置了 `expiresAt` 且已过期：
-   - 只返回一个过期提示伪节点。
-   - 文件名仍使用订阅组名称。
+    - 只返回一个可解析的过期提示占位节点（节点名称为“您的订阅已到期”）。
+    - 文件名仍使用订阅组名称。
 5. 未过期时：
-   - 按订阅组中 `subscriptions` 的顺序选择 HTTP 订阅源。
-   - 支持订阅组内对象覆盖，例如 `{ id, exclude, operators, ... }`。
-   - 按订阅组中 `manualNodes` 的顺序选择手动节点。
-   - 仅加入启用状态、URL 类型匹配的项目。
+    - 按订阅组中 `subscriptions` 的顺序选择 HTTP 订阅源。
+    - 支持订阅组内对象覆盖，例如 `{ id, exclude, operators, ... }`。
+    - 按订阅组中 `manualNodes` 的顺序选择手动节点。
+    - 仅加入启用状态、URL 类型匹配的项目。
 
 profile 模式下，如果访问日志开启且不是 `callback_token`/内部请求，会异步增加订阅组下载计数：
 
@@ -120,16 +120,16 @@ profile 模式下，如果访问日志开启且不是 `callback_token`/内部请
 优先级：
 
 1. URL 参数：
-   - `target=...`
-   - 或存在 `clash`、`singbox`、`surge`、`loon`、`base64`、`v2ray`、`trojan`、`quanx`、`egern`、`nodes` 等参数。
-   - `v2ray` 和 `trojan` 会归一为 `base64`。
-   - `target=surge&ver=N` 会保留版本，`target=surge` 默认使用 `surge&ver=4`。
+    - `target=...`
+    - 或存在 `clash`、`singbox`、`surge`、`loon`、`base64`、`v2ray`、`trojan`、`quanx`、`egern`、`nodes` 等参数。
+    - `v2ray` 和 `trojan` 会归一为 `base64`。
+    - `target=surge&ver=N` 会保留版本，`target=surge` 默认使用 `surge&ver=4`。
 2. User-Agent：
-   - Mihomo/Meta/Clash/Stash/NekoBox 等默认 `clash`。
-   - Sing-box 默认 `singbox`。
-   - Shadowrocket、v2rayN、v2rayNG 默认 `base64`。
-   - Loon 默认 `loon`。
-   - Quantumult X 默认 `quanx`。
+    - Mihomo/Meta/Clash/Stash/NekoBox 等默认 `clash`。
+    - Sing-box 默认 `singbox`。
+    - Shadowrocket、v2rayN、v2rayNG 默认 `base64`。
+    - Loon 默认 `loon`。
+    - Quantumult X 默认 `quanx`。
 3. 默认回退：`base64`。
 
 转换引擎由 `resolveEffectiveEngine()` 决定：
@@ -147,10 +147,10 @@ profile 模式下，如果访问日志开启且不是 `callback_token`/内部请
 1. 全局：`config.transformConfigMode` + `config.transformConfig`。
 2. 订阅组：`currentProfile.transformConfigMode` + `currentProfile.transformConfig`，可覆盖全局。
 3. `resolveTemplateSource()` 将模板分为：
-   - `none`
-   - `builtin:*`
-   - `custom:*`
-   - remote URL
+    - `none`
+    - `builtin:*`
+    - `custom:*`
+    - remote URL
 
 规则等级 `ruleLevel`：
 
@@ -211,8 +211,8 @@ URL 参数可以覆盖部分转换行为：
 
 1. 修复节点 URL 编码：`fixNodeUrlEncoding()`。
 2. 如果订阅项有名称，将名称写入节点：
-   - VMess 会尝试修改 base64 JSON 中的 `ps`。
-   - 其他协议修改 URL fragment。
+    - VMess 会尝试修改 base64 JSON 中的 `ps`。
+    - 其他协议修改 URL fragment。
 3. 如果启用分组名前缀，且未启用智能重命名模板，则加分组名前缀。
 4. 如果启用手动节点前缀，且未启用智能重命名模板，则加手动节点前缀。
 5. 执行订阅源级转换：算子链 + include/exclude 过滤。
@@ -232,23 +232,23 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 单源请求步骤：
 
 1. User-Agent：
-   - 优先使用订阅项 `customUserAgent`。
-   - 否则由 `getProcessedUserAgent(userAgent, sub.url)` 生成。
+    - 优先使用订阅项 `customUserAgent`。
+    - 否则由 `getProcessedUserAgent(userAgent, sub.url)` 生成。
 2. 拉取代理：
-   - 如果订阅项配置 `fetchProxy`，通过 `buildFetchProxyUrl()` 包装原始订阅地址。
+    - 如果订阅项配置 `fetchProxy`，通过 `buildFetchProxyUrl()` 包装原始订阅地址。
 3. 发起 fetch，并跟随重定向。
 4. 如果开启内置跳过证书校验，会附加 Cloudflare `cf` 相关跳过证书参数。
 5. 非 OK 响应：
-   - 写入空运行时信息。
-   - 如果开启单源节点缓存，回退使用单源缓存。
+    - 写入空运行时信息。
+    - 如果开启单源节点缓存，回退使用单源缓存。
 6. OK 响应：
-   - 读取 `arrayBuffer()`。
-   - 先按 UTF-8 解码为文本。
-   - 尝试识别并解码 Base64。
-   - 使用统一 `parseNodeList(text)` 解析节点，保证与预览链路一致。
-   - 如果解析结果为空，会再尝试将原始 buffer 转 base64 后解码再解析。
-   - 执行订阅源级转换：算子链 + include/exclude 过滤。
-   - 只将真实代理节点计入单源节点缓存和运行时统计。
+    - 读取 `arrayBuffer()`。
+    - 先按 UTF-8 解码为文本。
+    - 尝试识别并解码 Base64。
+    - 使用统一 `parseNodeList(text)` 解析节点，保证与预览链路一致。
+    - 如果解析结果为空，会再尝试将原始 buffer 转 base64 后解码再解析。
+    - 执行订阅源级转换：算子链 + include/exclude 过滤。
+    - 只将真实代理节点计入单源节点缓存和运行时统计。
 
 真实代理协议包括：
 
@@ -283,11 +283,11 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 运行时信息：
 
 - 成功解析真实节点后，记录：
-  - `nodeCount`
-  - `userInfo`，来自响应头 `subscription-userinfo`
+    - `nodeCount`
+    - `userInfo`，来自响应头 `subscription-userinfo`
 - 会写入：
-  - 当前请求上下文 `context.currentSubscriptionRuntimeInfo`
-  - 存储中的订阅项 `nodeCount`、`userInfo`、`lastUpdate`、`lastError: null`
+    - 当前请求上下文 `context.currentSubscriptionRuntimeInfo`
+    - 存储中的订阅项 `nodeCount`、`userInfo`、`lastUpdate`、`lastError: null`
 - 写入通过 `context.waitUntil()` 异步执行，不阻塞响应。
 
 ## 11. 组合节点治理
@@ -299,9 +299,9 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 3. 去重，保留首次出现。
 4. 根据 emoji 配置决定是否移除旗帜 emoji。
 5. 选择组合级算子链：
-   - 订阅组 `operators`
-   - 全局 `defaultOperators`
-   - 旧版 `nodeTransform` 桥接为算子链
+    - 订阅组 `operators`
+    - 全局 `defaultOperators`
+    - 旧版 `nodeTransform` 桥接为算子链
 6. 执行组合级算子链。
 7. 应用订阅组级 include/exclude。
 8. 应用全局 include/exclude。
@@ -328,8 +328,8 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 - `Cache-Control: no-store, no-cache`
 - `X-MiSub-Mode: node-export-plain`
 - 如有流量信息，附加：
-  - `Subscription-Userinfo`
-  - `Profile-Update-Interval`
+    - `Subscription-Userinfo`
+    - `Profile-Update-Interval`
 
 这是给第三方转换器使用的数据源格式。
 
@@ -341,20 +341,20 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 2. 将 MiSub 已预处理后的节点列表作为内联 `url` 参数传给 subconverter。
 3. 节点用 `|` 拼接，避免部分后端只解析首行或报 No nodes found。
 4. 透传/设置：
-   - `target`
-   - `meta`
-   - `udp`
-   - `emoji`
-   - `scv`
-   - `sort`
-   - `tfo`
-   - `list`
-   - `config`（仅 remote 模板）
-   - `filename`
+    - `target`
+    - `meta`
+    - `udp`
+    - `emoji`
+    - `scv`
+    - `sort`
+    - `tfo`
+    - `list`
+    - `config`（仅 remote 模板）
+    - `filename`
 5. 返回 302：
-   - `Location: {externalUrl}`
-   - `Cache-Control: no-store, no-cache`
-   - `X-MiSub-Mode: external-redirect-v2`
+    - `Location: {externalUrl}`
+    - `Cache-Control: no-store, no-cache`
+    - `X-MiSub-Mode: external-redirect-v2`
 
 如果使用 builtin 模板但选择第三方转换，会返回警告头：
 
@@ -382,27 +382,27 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 流程：
 
 1. 构造 `builtinOptions`：
-   - User-Agent、URL 参数、Hiddify 兼容标记。
-   - 文件名。
-   - 更新间隔。
-   - `skipCertVerify`、`enableUdp`、`enableTfo`。
-   - `ruleLevel`。
-   - 是否 Meta 核心。
+    - User-Agent、URL 参数、Hiddify 兼容标记。
+    - 文件名。
+    - 更新间隔。
+    - `skipCertVerify`、`enableUdp`、`enableTfo`。
+    - `ruleLevel`。
+    - 是否 Meta 核心。
 2. 调用 `ProcessorService.renderOutput()`。
 3. 先用 `transformBuiltinSubscription()` 生成基础格式内容。
 4. 如配置模板且不是 Hiddify 兼容模式：
-   - builtin 模板从注册表读取。
-   - custom 模板从规则模板存储读取。
-   - remote 模板通过模板缓存读取。
-   - ini 模板按目标格式渲染 Clash/Singbox/Surge/Loon/QuanX/Egern。
+    - builtin 模板从注册表读取。
+    - custom 模板从规则模板存储读取。
+    - remote 模板通过模板缓存读取。
+    - ini 模板按目标格式渲染 Clash/Singbox/Surge/Loon/QuanX/Egern。
 5. `list=true` 时，从内置输出中提取节点片段。
 6. 返回最终内容，并设置：
-   - 标准 `Content-Disposition`，同时支持 ASCII fallback 与 UTF-8 `filename*`。
-   - 正确 `Content-Type`。
-   - `Cache-Control: no-store, no-cache`。
-   - `X-MiSub-Mode: builtin-{targetFormat}`。
-   - 聚合缓存头。
-   - 如有流量信息，附加 `Subscription-Userinfo` 与 `Profile-Update-Interval`。
+    - 标准 `Content-Disposition`，同时支持 ASCII fallback 与 UTF-8 `filename*`。
+    - 正确 `Content-Type`。
+    - `Cache-Control: no-store, no-cache`。
+    - `X-MiSub-Mode: builtin-{targetFormat}`。
+    - 聚合缓存头。
+    - 如有流量信息，附加 `Subscription-Userinfo` 与 `Profile-Update-Interval`。
 
 如果内置转换失败，会回退到 base64 输出。
 

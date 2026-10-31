@@ -1,7 +1,7 @@
 /**
  * 内置 Loon 配置生成器 (加强版)
  * 不依赖外部 subconverter，直接将节点 URL 转换为高质量 Loon 配置
- * 
+ *
  * 增强功能：
  * 1. 区域分流 (🇭🇰 香港, 🇯🇵 日本, 🇺🇸 美国等)
  * 2. 自动测速分组
@@ -12,7 +12,14 @@
 
 import { urlToClashProxy, urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
+import {
+    POLICY_GROUPS,
+    getBuiltinRules,
+    getRemoteProviderDefinitions,
+    DEFAULT_SELECT_GROUP,
+    DEFAULT_RELAY_GROUP,
+    pruneProxyGroups,
+} from './builtin-rules-provider.js';
 
 /**
  * 清理控制字符
@@ -85,9 +92,9 @@ function clashProxyToLoonResult(proxy) {
         parts.push(String(port));
         parts.push(proxy.cipher || 'aes-128-gcm');
         parts.push(loonQuote(proxy.password || ''));
-        
+
         if (proxy.udp) parts.push('udp-relay=true');
-        
+
         // 插件支持
         const plugin = proxy.plugin || '';
         const opts = proxy['plugin-opts'] || proxy.pluginOpts || {};
@@ -111,7 +118,7 @@ function clashProxyToLoonResult(proxy) {
         parts.push(String(port));
         parts.push(proxy.cipher || 'auto');
         parts.push(`"${proxy.uuid || ''}"`);
-        
+
         // 官方文档 VMess WS 示例中包含了 alterId=0
         parts.push('alterId=0');
 
@@ -135,14 +142,15 @@ function clashProxyToLoonResult(proxy) {
 
         if (proxy.network) {
             parts.push(`transport=${proxy.network}`);
-            
+
             if (proxy.network === 'ws') {
                 const wsOpts = proxy['ws-opts'] || proxy.wsOpts;
                 if (wsOpts?.path) parts.push(`path=${loonQuote(wsOpts.path)}`);
                 if (wsOpts?.headers?.Host) parts.push(`host=${loonQuote(wsOpts.headers.Host)}`);
             } else if (proxy.network === 'grpc') {
                 const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-                if (grpcOpts?.['grpc-service-name']) parts.push(`grpc-service-name=${loonQuote(grpcOpts['grpc-service-name'])}`);
+                if (grpcOpts?.['grpc-service-name'])
+                    parts.push(`grpc-service-name=${loonQuote(grpcOpts['grpc-service-name'])}`);
             } else if (proxy.network === 'xhttp') {
                 const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
                 if (xhttpOpts?.path) parts.push(`path=${loonQuote(xhttpOpts.path)}`);
@@ -159,8 +167,10 @@ function clashProxyToLoonResult(proxy) {
             const realityOpts = proxy['reality-opts'] || proxy.realityOpts;
             if (realityOpts) {
                 parts.push('reality=true');
-                if (realityOpts['public-key']) parts.push(`public-key=${loonQuote(realityOpts['public-key'])}`);
-                if (realityOpts['short-id']) parts.push(`short-id=${loonQuote(realityOpts['short-id'])}`);
+                if (realityOpts['public-key'])
+                    parts.push(`public-key=${loonQuote(realityOpts['public-key'])}`);
+                if (realityOpts['short-id'])
+                    parts.push(`short-id=${loonQuote(realityOpts['short-id'])}`);
             }
         }
         appendTlsParams(parts, proxy);
@@ -169,7 +179,7 @@ function clashProxyToLoonResult(proxy) {
         parts.push(server);
         parts.push(String(port));
         parts.push(loonQuote(proxy.password || ''));
-        
+
         // 深度审计：官方文档 Trojan WS 示例并没有 over-tls=true
         // Trojan 本身即为 TLS 协议，手动添加可能导致二次包裹错误
 
@@ -205,20 +215,30 @@ function clashProxyToLoonResult(proxy) {
         if (proxy['public-key']) parts.push(`public-key=${proxy['public-key']}`);
         if (proxy.mtu) parts.push(`mtu=${proxy.mtu}`);
         if (proxy.reserved) {
-            const reserved = Array.isArray(proxy.reserved) ? proxy.reserved.join('/') : proxy.reserved;
+            const reserved = Array.isArray(proxy.reserved)
+                ? proxy.reserved.join('/')
+                : proxy.reserved;
             parts.push(`client-id=${reserved}`);
         }
+    } else if (type === 'anytls') {
+        parts.push(`${name} = anytls`);
+        parts.push(server);
+        parts.push(String(port));
+        parts.push(loonQuote(proxy.password || ''));
+        appendTlsParams(parts, proxy);
     } else if (type === 'snell') {
         parts.push(`${name} = snell`);
         parts.push(server);
         parts.push(String(port));
-        if (proxy.psk || proxy.password) parts.push(`psk=${loonQuote(proxy.psk || proxy.password)}`);
+        if (proxy.psk || proxy.password)
+            parts.push(`psk=${loonQuote(proxy.psk || proxy.password)}`);
         if (proxy.version) parts.push(`version=${proxy.version}`);
         if (proxy.reuse !== undefined) parts.push(`reuse=${proxy.reuse}`);
         if (proxy.tfo !== undefined) parts.push(`tfo=${proxy.tfo}`);
         const obfsOpts = proxy['obfs-opts'];
         if (obfsOpts) {
-            if (obfsOpts.mode && obfsOpts.mode !== 'none') parts.push(`obfs=${loonQuote(obfsOpts.mode)}`);
+            if (obfsOpts.mode && obfsOpts.mode !== 'none')
+                parts.push(`obfs=${loonQuote(obfsOpts.mode)}`);
             if (obfsOpts.host) parts.push(`obfs-host=${loonQuote(obfsOpts.host)}`);
         }
     } else {
@@ -229,7 +249,10 @@ function clashProxyToLoonResult(proxy) {
     if (proxy.tfo) {
         // Loon 大部分节点使用 fast-open=true
         // 注意：Snell 在上面已经处理过 tfo= 了，这里避免冲突
-        if (type !== 'snell' && !parts.some(p => p.startsWith('fast-open=') || p.startsWith('tfo='))) {
+        if (
+            type !== 'snell' &&
+            !parts.some((p) => p.startsWith('fast-open=') || p.startsWith('tfo='))
+        ) {
             parts.push('fast-open=true');
         }
     }
@@ -259,7 +282,6 @@ function appendTlsParams(parts, proxy) {
     }
 }
 
-
 /**
  * 生成内置 Loon 配置
  */
@@ -271,14 +293,14 @@ export function generateBuiltinLoonConfig(nodeList, options = {}) {
         skipCertVerify = false,
         enableUdp = false,
         enableTfo = false,
-        ruleLevel = 'std'
+        ruleLevel = 'std',
     } = options;
 
     const cleanedNodeList = cleanControlChars(nodeList);
     const nodeUrls = cleanedNodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
 
     const proxyLines = [];
     const proxyNames = [];
@@ -290,9 +312,8 @@ export function generateBuiltinLoonConfig(nodeList, options = {}) {
 
     // 应用 UDP 开关
     // (已在 urlsToClashProxies 中全局处理)
-    
-    for (const clashProxy of proxies) {
 
+    for (const clashProxy of proxies) {
         const baseName = sanitizeNodeName(clashProxy.name);
         const uniqueName = getUniqueName(baseName, usedNames);
         clashProxy.name = uniqueName;
@@ -327,17 +348,22 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
     const policyFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
     let abstractGroups = policyFactory(proxiesWithMetadata, options);
     if (levelKey === 'RELAY') {
-        abstractGroups = abstractGroups.map(group => group.name === '🔗 链式代理'
-            ? { ...group, type: 'relay', proxies: ['入口节点', '落地节点'] }
-            : group
+        abstractGroups = abstractGroups.map((group) =>
+            group.name === '🔗 链式代理'
+                ? { ...group, type: 'relay', proxies: ['入口节点', '落地节点'] }
+                : group
         );
-        if (!abstractGroups.some(group => group.name === '落地节点')) {
-            const proxyNames = proxiesWithMetadata.map(proxy => proxy.name);
-            abstractGroups.splice(abstractGroups.findIndex(group => group.name === '入口节点') + 1, 0, {
-                name: '落地节点',
-                type: 'select',
-                proxies: ['♻️ 自动选择', '👋 手动切换', 'DIRECT', ...proxyNames]
-            });
+        if (!abstractGroups.some((group) => group.name === '落地节点')) {
+            const proxyNames = proxiesWithMetadata.map((proxy) => proxy.name);
+            abstractGroups.splice(
+                abstractGroups.findIndex((group) => group.name === '入口节点') + 1,
+                0,
+                {
+                    name: '落地节点',
+                    type: 'select',
+                    proxies: ['♻️ 自动选择', '👋 手动切换', 'DIRECT', ...proxyNames],
+                }
+            );
         }
     }
     abstractGroups = pruneProxyGroups(abstractGroups, proxiesWithMetadata);
@@ -363,14 +389,17 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
         '🇬🇧 英国节点': `${iconRepo}/United_Kingdom.png`,
     };
 
-    const proxyGroupLines = abstractGroups.map(group => {
+    const proxyGroupLines = abstractGroups.map((group) => {
         let type = group.type === 'url-test' ? 'url-test' : 'select';
         if (group.type === 'fallback') type = 'fallback';
         if (group.type === 'relay') type = 'relay';
 
         const proxies = group.proxies.join(', ');
         const icon = groupIcons[group.name] ? `, icon=${groupIcons[group.name]}` : '';
-        const extra = type === 'url-test' || type === 'fallback' ? `, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50` : '';
+        const extra =
+            type === 'url-test' || type === 'fallback'
+                ? `, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50`
+                : '';
         return `${group.name} = ${type}, ${proxies}${extra}${icon}`;
     });
 
@@ -384,7 +413,7 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
         'IP-CIDR,172.16.0.0/12,DIRECT',
         'IP-CIDR,192.168.0.0/16,DIRECT',
         ...builtinRuleLines,
-        `FINAL,${levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP}`
+        `FINAL,${levelKey === 'RELAY' ? DEFAULT_RELAY_GROUP : DEFAULT_SELECT_GROUP}`,
     ];
     sections.push(`[Rule]\n${ruleLines.filter(Boolean).join('\n')}`);
 

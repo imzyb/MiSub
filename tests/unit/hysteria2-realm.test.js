@@ -37,12 +37,13 @@ describe('Hysteria2 realm support', () => {
             'realm-id': 'cxxxx-79cf9c5e2b5a',
             token: 'public',
             'server-url': 'https://realm.hy2.io',
-            'stun-servers': ['stun.sip.us:3478', 'stun.nextcloud.com:3478']
+            'stun-servers': ['stun.sip.us:3478', 'stun.nextcloud.com:3478'],
         });
     });
 
     it('renders realm-opts into built-in Clash YAML output', () => {
-        const node = 'hysteria2://cxxxx-79cf9c5e2b5a@realm.hy2.io:443?insecure=1&realm-id=cxxxx-79cf9c5e2b5a&realm-token=public&realm-server=https%3A%2F%2Frealm.hy2.io&stun-servers=stun.sip.us%3A3478%2Cstun.nextcloud.com%3A3478#hy2realms';
+        const node =
+            'hysteria2://cxxxx-79cf9c5e2b5a@realm.hy2.io:443?insecure=1&realm-id=cxxxx-79cf9c5e2b5a&realm-token=public&realm-server=https%3A%2F%2Frealm.hy2.io&stun-servers=stun.sip.us%3A3478%2Cstun.nextcloud.com%3A3478#hy2realms';
         const rendered = generateBuiltinClashConfig(node, { ruleLevel: 'minimal' });
         const config = yaml.load(rendered);
         expect(config.proxies[0]['realm-opts']).toEqual({
@@ -50,7 +51,7 @@ describe('Hysteria2 realm support', () => {
             'realm-id': 'cxxxx-79cf9c5e2b5a',
             token: 'public',
             'server-url': 'https://realm.hy2.io',
-            'stun-servers': ['stun.sip.us:3478', 'stun.nextcloud.com:3478']
+            'stun-servers': ['stun.sip.us:3478', 'stun.nextcloud.com:3478'],
         });
     });
 });

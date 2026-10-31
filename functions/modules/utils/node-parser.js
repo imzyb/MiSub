@@ -9,13 +9,16 @@ import { parseNodeInfo, extractNodeRegion } from './geo-utils.js';
 // 所以需要向上两级找到 functions/utils/
 import { fixNodeUrlEncoding } from '../../utils/node-utils.js';
 import { convertClashProxyToUrl } from '../../utils/clash-to-url.js';
+import { extractSingboxNodes } from './singbox-to-url.js';
 import { validateSS2022Node, fixSS2022Node } from './ss2022-validator.js';
 import { extractNodeMetadata } from './metadata-extractor.js';
+import { parseV2rayNLink } from './v2rayn-parser.js';
 
 /**
  * 支持的节点协议正则表达式
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2|hy2|hysteria|tuic|snell|naive\+https?|naive\+quic|socks5|socks|http|anytls|wireguard):\/\//i;
+export const NODE_PROTOCOL_REGEX =
+    /^(ss|ssr|vmess|vless|trojan|hysteria2|hy2|hysteria|tuic|snell|naive\+https?|naive\+quic|socks5|socks|http|anytls|wireguard|mierus):\/\//i;
 
 /**
  * 尝试解析 Surge 或 Quantumult X 格式的节点字符串
@@ -25,7 +28,9 @@ function parseSurgeOrQxLine(line) {
     if (!line || line.startsWith('#') || line.startsWith(';')) return null;
 
     // Surge 格式: "name = protocol, server, port, key=value, ..."
-    let match = line.match(/^([^=]+?)\s*=\s*(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*,\s*([^,]+?)\s*,\s*(\d+)(.*)$/i);
+    let match = line.match(
+        /^([^=]+?)\s*=\s*(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*,\s*([^,]+?)\s*,\s*(\d+)(.*)$/i
+    );
     if (match) {
         const proxy = {
             name: match[1].trim(),
@@ -35,7 +40,7 @@ function parseSurgeOrQxLine(line) {
         };
         const extraParams = match[5];
         if (extraParams) {
-            const parts = extraParams.split(',').map(p => p.trim());
+            const parts = extraParams.split(',').map((p) => p.trim());
             let positionalIndex = 0;
             for (const p of parts) {
                 if (!p) continue;
@@ -44,8 +49,14 @@ function parseSurgeOrQxLine(line) {
                     const k = kv[0].trim().toLowerCase();
                     let v = kv.slice(1).join('=').trim();
                     if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-                    
-                    if (k === 'password' || k === 'auth' || k === 'psk' || k === 'username' || k === 'uuid') {
+
+                    if (
+                        k === 'password' ||
+                        k === 'auth' ||
+                        k === 'psk' ||
+                        k === 'username' ||
+                        k === 'uuid'
+                    ) {
                         if (proxy.type === 'vless' || proxy.type === 'vmess') proxy.uuid = v;
                         else if (proxy.type === 'snell') proxy.psk = v;
                         else proxy.password = v;
@@ -59,9 +70,16 @@ function parseSurgeOrQxLine(line) {
                     }
                     if (k === 'sni') proxy.sni = v;
                     if (k === 'skip-cert-verify' && v === 'true') proxy.skipCertVerify = true;
-                    if (k === 'encrypt-method' || k === 'cipher' || k === 'method') proxy.cipher = v;
-                    if (k === 'obfs') { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.mode = v; }
-                    if (k === 'obfs-host') { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.host = v; }
+                    if (k === 'encrypt-method' || k === 'cipher' || k === 'method')
+                        proxy.cipher = v;
+                    if (k === 'obfs') {
+                        proxy.pluginOpts = proxy.pluginOpts || {};
+                        proxy.pluginOpts.mode = v;
+                    }
+                    if (k === 'obfs-host') {
+                        proxy.pluginOpts = proxy.pluginOpts || {};
+                        proxy.pluginOpts.host = v;
+                    }
                     if (k === 'version') proxy.version = parseInt(v);
                     if (k === 'reuse' && v === 'true') proxy.reuse = true;
                     if (k === 'tfo' && v === 'true') proxy.tfo = true;
@@ -76,7 +94,12 @@ function parseSurgeOrQxLine(line) {
                         else if (positionalIndex === 1) proxy.password = val;
                     } else if (proxy.type === 'vmess' || proxy.type === 'vless') {
                         if (positionalIndex === 0) proxy.uuid = val;
-                    } else if (proxy.type === 'trojan' || proxy.type.startsWith('hysteria') || proxy.type === 'hy2' || proxy.type === 'tuic') {
+                    } else if (
+                        proxy.type === 'trojan' ||
+                        proxy.type.startsWith('hysteria') ||
+                        proxy.type === 'hy2' ||
+                        proxy.type === 'tuic'
+                    ) {
                         if (positionalIndex === 0) proxy.password = val;
                     } else if (proxy.type === 'snell') {
                         if (positionalIndex === 0) proxy.psk = val;
@@ -89,7 +112,9 @@ function parseSurgeOrQxLine(line) {
     }
 
     // QX 格式: "protocol=server:port, key=value, ..., tag=name"
-    match = line.match(/^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*=\s*([^,:]+?)\s*:\s*(\d+)(.*)$/i);
+    match = line.match(
+        /^(shadowsocks|ss|ssr|vmess|vless|trojan|hysteria2?|hy2|hysteria|tuic|snell|anytls|socks5|http|https|wireguard)\s*=\s*([^,:]+?)\s*:\s*(\d+)(.*)$/i
+    );
     if (match) {
         const proxy = {
             name: 'Untitled',
@@ -99,7 +124,7 @@ function parseSurgeOrQxLine(line) {
         };
         const extraParams = match[4];
         if (extraParams) {
-            const parts = extraParams.split(',').map(p => p.trim());
+            const parts = extraParams.split(',').map((p) => p.trim());
             for (const p of parts) {
                 if (!p) continue;
                 const kv = p.split('=');
@@ -107,9 +132,15 @@ function parseSurgeOrQxLine(line) {
                     const k = kv[0].trim().toLowerCase();
                     let v = kv.slice(1).join('=').trim();
                     if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-                    
+
                     if (k === 'tag') proxy.name = v;
-                    if (k === 'password' || k === 'auth' || k === 'psk' || k === 'username' || k === 'uuid') {
+                    if (
+                        k === 'password' ||
+                        k === 'auth' ||
+                        k === 'psk' ||
+                        k === 'username' ||
+                        k === 'uuid'
+                    ) {
                         if (proxy.type === 'vless' || proxy.type === 'vmess') proxy.uuid = v;
                         else proxy.password = v;
                     }
@@ -124,7 +155,10 @@ function parseSurgeOrQxLine(line) {
                     }
                     if (k === 'obfs') {
                         if (v === 'over-tls') proxy.tls = true;
-                        else { proxy.pluginOpts = proxy.pluginOpts || {}; proxy.pluginOpts.mode = v; }
+                        else {
+                            proxy.pluginOpts = proxy.pluginOpts || {};
+                            proxy.pluginOpts.mode = v;
+                        }
                     }
                     if (k === 'vless-flow') proxy.flow = v;
                     if (k === 'reality-base64-pubkey' || k === 'reality-pubkey') {
@@ -135,6 +169,10 @@ function parseSurgeOrQxLine(line) {
                         proxy['reality-opts'] = proxy['reality-opts'] || {};
                         proxy['reality-opts']['short-id'] = v;
                     }
+                    if (k === 'reality-support-x25519mlkem768' || k === 'support-x25519mlkem768') {
+                        proxy['reality-opts'] = proxy['reality-opts'] || {};
+                        proxy['reality-opts']['support-x25519mlkem768'] = v === 'true' || v === '1';
+                    }
                     if (k === 'version') proxy.version = parseInt(v);
                     if (k === 'reuse' && v === 'true') proxy.reuse = true;
                     if (k === 'tfo' && v === 'true') proxy.tfo = true;
@@ -144,7 +182,7 @@ function parseSurgeOrQxLine(line) {
         }
         return proxy;
     }
-    
+
     return null;
 }
 
@@ -157,6 +195,20 @@ export function extractValidNodes(text) {
 
     let nodes = [];
 
+    // 0. 尝试解析为 sing-box / JSON 配置（outbounds 列表）
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{')) {
+        try {
+            const jsonObj = JSON.parse(trimmed);
+            if (jsonObj && Array.isArray(jsonObj.outbounds)) {
+                nodes = extractSingboxNodes(jsonObj);
+                if (nodes.length > 0) return nodes;
+            }
+        } catch (e) {
+            console.debug('[NodeParser] JSON parse failed, trying other formats:', e);
+        }
+    }
+
     // 1. 尝试解析为 Clash YAML
     // 只有当包含 proxies 关键字时才尝试，避免普通文本解析报错
     const lowerText = text.toLowerCase();
@@ -167,7 +219,7 @@ export function extractValidNodes(text) {
             const proxies = yamlObj.proxies || yamlObj.Proxy;
 
             if (Array.isArray(proxies)) {
-                proxies.forEach(proxy => {
+                proxies.forEach((proxy) => {
                     const url = convertClashProxyToUrl(proxy);
                     if (url) nodes.push(url);
                 });
@@ -206,9 +258,16 @@ export function extractValidNodes(text) {
     const lines = processedText
         .replace(/\r\n/g, '\n')
         .split('\n')
-        .map(line => line.trim());
+        .map((line) => line.trim());
 
     for (const line of lines) {
+        // v2rayN 私有分享格式：v2rayn://<protocol>/<base64url(JSON)>
+        if (/^v2rayn:\/\//i.test(line)) {
+            const converted = parseV2rayNLink(line);
+            if (converted) nodes.push(converted);
+            continue;
+        }
+
         if (NODE_PROTOCOL_REGEX.test(line)) {
             nodes.push(line);
             continue;
@@ -233,10 +292,14 @@ export function extractValidNodes(text) {
  */
 const SUPPORTED_SS_CIPHERS = [
     'none',
-    'aes-128-gcm', 'aes-256-gcm',
-    'chacha20-poly1305', 'chacha20-ietf-poly1305',
+    'aes-128-gcm',
+    'aes-256-gcm',
+    'chacha20-poly1305',
+    'chacha20-ietf-poly1305',
     'xchacha20-ietf-poly1305',
-    '2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', '2022-blake3-chacha20-poly1305'
+    '2022-blake3-aes-128-gcm',
+    '2022-blake3-aes-256-gcm',
+    '2022-blake3-chacha20-poly1305',
 ];
 
 /**
@@ -254,210 +317,220 @@ function isValidUUID(uuid) {
 export function parseNodeList(content, options = {}) {
     const validNodes = extractValidNodes(content);
 
-    return validNodes.map(nodeUrl => {
-        // 1. 修复编码 (如 Hysteria2 密码)
-        let fixedUrl = fixNodeUrlEncoding(nodeUrl, options);
+    return validNodes
+        .map((nodeUrl) => {
+            // 1. 修复编码 (如 Hysteria2 密码)
+            let fixedUrl = fixNodeUrlEncoding(nodeUrl, options);
 
-        // 2. [新增] 验证和修复 SS 2022 节点 & 过滤传统 SS 算法
-        let ss2022Warning = null;
-        if (fixedUrl.startsWith('ss://')) {
-            // 2.1 提取加密算法
-            let method = '';
-            try {
-                let body = fixedUrl.substring(5); // remove ss://
-                const hashIndex = body.indexOf('#');
-                if (hashIndex !== -1) body = body.substring(0, hashIndex);
-
-                // 处理 user@server:port 格式 (明文)
-                const atIndex = body.lastIndexOf('@');
-                if (atIndex !== -1 && !body.includes('://')) { // 排除 SIP002 base64 整体编码可能包含 @
-                    // 明文格式通常不常见用于订阅，多见于手动配置
-                    // userInfo = method:password
-                    const userInfo = body.substring(0, atIndex);
-                    // 还要考虑是否是 Base64 编码的 userInfo
-                    // 尝试简单判断: 包含 : 可能是明文，否则可能是 Base64
-                    if (userInfo.includes(':')) {
-                        method = userInfo.split(':')[0];
-                    } else {
-                        // Base64 解码 userInfo
-                        try {
-                            const decodedUser = atob(userInfo);
-                            if (decodedUser.includes(':')) method = decodedUser.split(':')[0];
-                        } catch (e) {
-                            console.debug('[NodeParser] Failed to decode SS user info:', e);
-                        }
-                    }
-                } else {
-                    // 处理 Base64 格式 (SIP002) ss://base64(method:password@server:port)
-                    // 或者 ss://base64(method:password)@server:port (旧式)
-                    try {
-                        let decoded = atob(body);
-                        // 格式: method:password@server:port
-                        if (decoded.includes('@')) {
-                            const userInfo = decoded.split('@')[0];
-                            if (userInfo.includes(':')) method = userInfo.split(':')[0];
-                        }
-                    } catch (e) {
-                        // 如果整体解码失败，可能是旧式 ss://userInfoBase64@server:port
-                        const atIndex = body.lastIndexOf('@');
-                        if (atIndex !== -1) {
-                            const userInfoBase64 = body.substring(0, atIndex);
-                            try {
-                                const decodedUser = atob(userInfoBase64);
-                                if (decodedUser.includes(':')) method = decodedUser.split(':')[0];
-                            } catch (e2) {
-                                console.debug('[NodeParser] Failed to decode SS user info fallback:', e2);
-                            }
-                        } else {
-                            console.debug('[NodeParser] Failed to decode SS payload:', e);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.debug('[NodeParser] Failed to extract SS cipher:', e);
-            }
-
-            // 2.2 验证加密算法
-            if (method) {
-                const normalizedMethod = method.toLowerCase();
-                if (!SUPPORTED_SS_CIPHERS.includes(normalizedMethod)) {
-                    return null;
-                }
-            }
-
-            const validation = validateSS2022Node(fixedUrl);
-
-            // ... (rest of SS2022 validation)
-
-            if (!validation.valid && validation.details?.suggestedCipher) {
-                // 尝试自动修复
-                const fixResult = fixSS2022Node(fixedUrl);
-                if (fixResult.fixed) {
-                    fixedUrl = fixResult.fixedUrl;
-                    ss2022Warning = {
-                        type: 'ss2022_auto_fixed',
-                        message: `已自动修复: ${fixResult.changes.from} → ${fixResult.changes.to}`,
-                        originalCipher: fixResult.changes.from,
-                        fixedCipher: fixResult.changes.to
-                    };
-                    console.warn(`[SS 2022] 自动修复节点: ${fixResult.changes.reason}`);
-                } else {
-                    ss2022Warning = {
-                        type: 'ss2022_invalid',
-                        message: validation.error,
-                        details: validation.details
-                    };
-                    console.error(`[SS 2022] 节点验证失败:`, validation.details);
-                }
-            } else if (validation.warning) {
-                ss2022Warning = {
-                    type: 'ss2022_warning',
-                    message: validation.warning
-                };
-            }
-        }
-
-        // 3. 添加 Emoji (已移至 applyNodeTransformPipeline 统一处理，遵循配置)
-        // fixedUrl = addFlagEmoji(fixedUrl);
-
-        // 4. 解析信息
-        const nodeInfo = parseNodeInfo(fixedUrl);
-
-        // 5. [新增] 严格 UUID 验证 (过滤 auto: 开头的垃圾节点)
-        // 仅针对 VLESS 和 VMess (VMess 通常在 parseNodeInfo 内部处理，这里主要处理 VLESS 链接中的 UUID)
-        let isValidNode = true;
-        if (nodeInfo.protocol === 'vless') {
-            // VLESS 链接格式: 
-            // 1. 标准: vless://uuid@host:port
-            // 2. Base64: vless://base64(uuid@host:port)
-            let id = null;
-
-            // 尝试标准格式 vless://uuid@host:port 优先
-            const matchStandard = fixedUrl.match(/^vless:\/\/([0-9a-fA-F-]{36})@/);
-
-            if (matchStandard) {
-                id = matchStandard[1];
-            } else {
-                // 尝试从 @ 前面提取 (可能是非标准 uuid 或 Base64)
-                const matchAnyUser = fixedUrl.match(/^vless:\/\/([^@]+)@/);
-                if (matchAnyUser) {
-                    const userPart = matchAnyUser[1];
-                    // 检查是否像是 Base64 编码 (长度较长且只包含 Base64 字符)
-                    const base64Regex = /^[A-Za-z0-9+/=_-]+$/;
-                    if (userPart.length > 40 && base64Regex.test(userPart)) {
-                        // 可能是 Base64 编码的内容，尝试解码
-                        try {
-                            let safeBody = userPart.replace(/-/g, '+').replace(/_/g, '/');
-                            while (safeBody.length % 4) {
-                                safeBody += '=';
-                            }
-                            const decoded = atob(safeBody);
-                            // 解码后检查是否包含 auto: 等无效前缀
-                            if (decoded.startsWith('auto:')) {
-                                id = decoded; // 这样后面 validation 会失败
-                            } else {
-                                // 解码成功但不是 auto: 开头，可能是正常 UUID
-                                id = decoded;
-                            }
-                        } catch (e) {
-                            // Base64 解码失败，使用原始 userPart 作为 ID
-                            id = userPart;
-                        }
-                    } else {
-                        // 不像 Base64，直接使用 userPart 作为 ID
-                        id = userPart;
-                    }
-                }
-            }
-
-            if (id) {
-                // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
-                if (String(id).startsWith('auto:')) {
-                    isValidNode = false;
-                }
-            }
-        } else if (nodeInfo.protocol === 'vmess') {
-            // 对于 vmess，parseNodeInfo 并不返回具体配置，我们需要简单检查一下
-            // 如果是 vmess://(base64)，解码后看 id
-            if (fixedUrl.startsWith('vmess://')) {
+            // 2. [新增] 验证和修复 SS 2022 节点 & 过滤传统 SS 算法
+            let ss2022Warning = null;
+            if (fixedUrl.startsWith('ss://')) {
+                // 2.1 提取加密算法
+                let method = '';
                 try {
-                    const base64Part = fixedUrl.substring(8);
-                    // Use robust Base64 decoding (URL safe + padding)
-                    let safeBody = base64Part.replace(/-/g, '+').replace(/_/g, '/');
-                    while (safeBody.length % 4) {
-                        safeBody += '=';
-                    }
-                    const jsonStr = atob(safeBody);
-                    const config = JSON.parse(jsonStr);
-                    // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
-                    if (config && config.id && String(config.id).startsWith('auto:')) {
-                        isValidNode = false;
+                    let body = fixedUrl.substring(5); // remove ss://
+                    const hashIndex = body.indexOf('#');
+                    if (hashIndex !== -1) body = body.substring(0, hashIndex);
+
+                    // 处理 user@server:port 格式 (明文)
+                    const atIndex = body.lastIndexOf('@');
+                    if (atIndex !== -1 && !body.includes('://')) {
+                        // 排除 SIP002 base64 整体编码可能包含 @
+                        // 明文格式通常不常见用于订阅，多见于手动配置
+                        // userInfo = method:password
+                        const userInfo = body.substring(0, atIndex);
+                        // 还要考虑是否是 Base64 编码的 userInfo
+                        // 尝试简单判断: 包含 : 可能是明文，否则可能是 Base64
+                        if (userInfo.includes(':')) {
+                            method = userInfo.split(':')[0];
+                        } else {
+                            // Base64 解码 userInfo
+                            try {
+                                const decodedUser = atob(userInfo);
+                                if (decodedUser.includes(':')) method = decodedUser.split(':')[0];
+                            } catch (e) {
+                                console.debug('[NodeParser] Failed to decode SS user info:', e);
+                            }
+                        }
+                    } else {
+                        // 处理 Base64 格式 (SIP002) ss://base64(method:password@server:port)
+                        // 或者 ss://base64(method:password)@server:port (旧式)
+                        try {
+                            let decoded = atob(body);
+                            // 格式: method:password@server:port
+                            if (decoded.includes('@')) {
+                                const userInfo = decoded.split('@')[0];
+                                if (userInfo.includes(':')) method = userInfo.split(':')[0];
+                            }
+                        } catch (e) {
+                            // 如果整体解码失败，可能是旧式 ss://userInfoBase64@server:port
+                            const atIndex = body.lastIndexOf('@');
+                            if (atIndex !== -1) {
+                                const userInfoBase64 = body.substring(0, atIndex);
+                                try {
+                                    const decodedUser = atob(userInfoBase64);
+                                    if (decodedUser.includes(':'))
+                                        method = decodedUser.split(':')[0];
+                                } catch (e2) {
+                                    console.debug(
+                                        '[NodeParser] Failed to decode SS user info fallback:',
+                                        e2
+                                    );
+                                }
+                            } else {
+                                console.debug('[NodeParser] Failed to decode SS payload:', e);
+                            }
+                        }
                     }
                 } catch (e) {
-                    console.debug('[NodeParser] VMess decode failed, keeping original node:', e);
+                    console.debug('[NodeParser] Failed to extract SS cipher:', e);
+                }
+
+                // 2.2 验证加密算法
+                if (method) {
+                    const normalizedMethod = method.toLowerCase();
+                    if (!SUPPORTED_SS_CIPHERS.includes(normalizedMethod)) {
+                        return null;
+                    }
+                }
+
+                const validation = validateSS2022Node(fixedUrl);
+
+                // ... (rest of SS2022 validation)
+
+                if (!validation.valid && validation.details?.suggestedCipher) {
+                    // 尝试自动修复
+                    const fixResult = fixSS2022Node(fixedUrl);
+                    if (fixResult.fixed) {
+                        fixedUrl = fixResult.fixedUrl;
+                        ss2022Warning = {
+                            type: 'ss2022_auto_fixed',
+                            message: `已自动修复: ${fixResult.changes.from} → ${fixResult.changes.to}`,
+                            originalCipher: fixResult.changes.from,
+                            fixedCipher: fixResult.changes.to,
+                        };
+                        console.warn(`[SS 2022] 自动修复节点: ${fixResult.changes.reason}`);
+                    } else {
+                        ss2022Warning = {
+                            type: 'ss2022_invalid',
+                            message: validation.error,
+                            details: validation.details,
+                        };
+                        console.error(`[SS 2022] 节点验证失败:`, validation.details);
+                    }
+                } else if (validation.warning) {
+                    ss2022Warning = {
+                        type: 'ss2022_warning',
+                        message: validation.warning,
+                    };
                 }
             }
-        }
 
-        if (!isValidNode) {
-            return null;
-        }
+            // 3. 添加 Emoji (已移至 applyNodeTransformPipeline 统一处理，遵循配置)
+            // fixedUrl = addFlagEmoji(fixedUrl);
 
-        // 6. 添加元数据提取 (Intelligence)
-        const metadata = extractNodeMetadata(nodeInfo.name);
+            // 4. 解析信息
+            const nodeInfo = parseNodeInfo(fixedUrl);
 
-        const result = {
-            url: fixedUrl,
-            ...nodeInfo,
-            metadata: metadata
-        };
+            // 5. [新增] 严格 UUID 验证 (过滤 auto: 开头的垃圾节点)
+            // 仅针对 VLESS 和 VMess (VMess 通常在 parseNodeInfo 内部处理，这里主要处理 VLESS 链接中的 UUID)
+            let isValidNode = true;
+            if (nodeInfo.protocol === 'vless') {
+                // VLESS 链接格式:
+                // 1. 标准: vless://uuid@host:port
+                // 2. Base64: vless://base64(uuid@host:port)
+                let id = null;
 
-        if (ss2022Warning) {
-            result.warning = ss2022Warning;
-        }
+                // 尝试标准格式 vless://uuid@host:port 优先
+                const matchStandard = fixedUrl.match(/^vless:\/\/([0-9a-fA-F-]{36})@/);
 
-        return result;
-    }).filter(node => node !== null); // 过滤掉无效节点
+                if (matchStandard) {
+                    id = matchStandard[1];
+                } else {
+                    // 尝试从 @ 前面提取 (可能是非标准 uuid 或 Base64)
+                    const matchAnyUser = fixedUrl.match(/^vless:\/\/([^@]+)@/);
+                    if (matchAnyUser) {
+                        const userPart = matchAnyUser[1];
+                        // 检查是否像是 Base64 编码 (长度较长且只包含 Base64 字符)
+                        const base64Regex = /^[A-Za-z0-9+/=_-]+$/;
+                        if (userPart.length > 40 && base64Regex.test(userPart)) {
+                            // 可能是 Base64 编码的内容，尝试解码
+                            try {
+                                let safeBody = userPart.replace(/-/g, '+').replace(/_/g, '/');
+                                while (safeBody.length % 4) {
+                                    safeBody += '=';
+                                }
+                                const decoded = atob(safeBody);
+                                // 解码后检查是否包含 auto: 等无效前缀
+                                if (decoded.startsWith('auto:')) {
+                                    id = decoded; // 这样后面 validation 会失败
+                                } else {
+                                    // 解码成功但不是 auto: 开头，可能是正常 UUID
+                                    id = decoded;
+                                }
+                            } catch (e) {
+                                // Base64 解码失败，使用原始 userPart 作为 ID
+                                id = userPart;
+                            }
+                        } else {
+                            // 不像 Base64，直接使用 userPart 作为 ID
+                            id = userPart;
+                        }
+                    }
+                }
+
+                if (id) {
+                    // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
+                    if (String(id).startsWith('auto:')) {
+                        isValidNode = false;
+                    }
+                }
+            } else if (nodeInfo.protocol === 'vmess') {
+                // 对于 vmess，parseNodeInfo 并不返回具体配置，我们需要简单检查一下
+                // 如果是 vmess://(base64)，解码后看 id
+                if (fixedUrl.startsWith('vmess://')) {
+                    try {
+                        const base64Part = fixedUrl.substring(8);
+                        // Use robust Base64 decoding (URL safe + padding)
+                        let safeBody = base64Part.replace(/-/g, '+').replace(/_/g, '/');
+                        while (safeBody.length % 4) {
+                            safeBody += '=';
+                        }
+                        const jsonStr = atob(safeBody);
+                        const config = JSON.parse(jsonStr);
+                        // 放宽校验：仅过滤掉明显的 auto: 占位符，不过滤非标准 UUID (部分机场使用短 ID)
+                        if (config && config.id && String(config.id).startsWith('auto:')) {
+                            isValidNode = false;
+                        }
+                    } catch (e) {
+                        console.debug(
+                            '[NodeParser] VMess decode failed, keeping original node:',
+                            e
+                        );
+                    }
+                }
+            }
+
+            if (!isValidNode) {
+                return null;
+            }
+
+            // 6. 添加元数据提取 (Intelligence)
+            const metadata = extractNodeMetadata(nodeInfo.name);
+
+            const result = {
+                url: fixedUrl,
+                ...nodeInfo,
+                metadata: metadata,
+            };
+
+            if (ss2022Warning) {
+                result.warning = ss2022Warning;
+            }
+
+            return result;
+        })
+        .filter((node) => node !== null); // 过滤掉无效节点
 }
 
 /**
@@ -466,7 +539,7 @@ export function parseNodeList(content, options = {}) {
 export function calculateProtocolStats(nodes) {
     const stats = {};
     const total = nodes.length;
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
         const protocol = node.protocol || 'unknown';
         stats[protocol] = (stats[protocol] || 0) + 1;
     });
@@ -482,7 +555,7 @@ export function calculateProtocolStats(nodes) {
 export function calculateRegionStats(nodes) {
     const stats = {};
     const total = nodes.length;
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
         const region = extractNodeRegion(node.name || '');
         stats[region] = (stats[region] || 0) + 1;
     });
@@ -498,7 +571,7 @@ export function calculateRegionStats(nodes) {
 export function removeDuplicateNodes(nodes) {
     if (!Array.isArray(nodes)) return [];
     const seen = new Set();
-    return nodes.filter(node => {
+    return nodes.filter((node) => {
         const url = node.url || '';
         if (seen.has(url)) return false;
         seen.add(url);
@@ -547,7 +620,7 @@ export function parseSnellUrl(url) {
             name: name,
             server: server,
             port: port,
-            psk: psk
+            psk: psk,
         };
 
         // 解析查询参数
@@ -598,7 +671,7 @@ export function validateSnellNode(url) {
                 return {
                     valid: false,
                     error: `端口号无效: ${portNumber} (范围: 1-65535)`,
-                    details: { port: portNumber }
+                    details: { port: portNumber },
                 };
             }
         }
@@ -613,7 +686,7 @@ export function validateSnellNode(url) {
             return {
                 valid: false,
                 error: 'Snell 节点缺少必需参数 (server/port/psk)',
-                details: { server: proxy.server, port: proxy.port, psk: !!proxy.psk }
+                details: { server: proxy.server, port: proxy.port, psk: !!proxy.psk },
             };
         }
 
@@ -622,7 +695,7 @@ export function validateSnellNode(url) {
             return {
                 valid: false,
                 error: `Snell 版本号无效: ${proxy.version} (支持 1-5)`,
-                details: { version: proxy.version }
+                details: { version: proxy.version },
             };
         }
 
@@ -633,7 +706,7 @@ export function validateSnellNode(url) {
                 return {
                     valid: false,
                     error: `不支持的混淆模式: ${proxy['obfs-opts'].mode} (支持: ${validObfsModes.join(', ')})`,
-                    details: { obfsMode: proxy['obfs-opts'].mode }
+                    details: { obfsMode: proxy['obfs-opts'].mode },
                 };
             }
         }
@@ -643,7 +716,7 @@ export function validateSnellNode(url) {
             return {
                 valid: false,
                 error: `端口号无效: ${proxy.port} (范围: 1-65535)`,
-                details: { port: proxy.port }
+                details: { port: proxy.port },
             };
         }
 

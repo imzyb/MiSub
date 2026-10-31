@@ -102,7 +102,7 @@ export function convertShadowsocksRToUrl(proxy) {
             proxy.protocol || 'origin',
             proxy.cipher || 'rc4-md5',
             proxy.obfs || 'plain',
-            password64
+            password64,
         ].join(':');
 
         // 可选参数
@@ -119,9 +119,7 @@ export function convertShadowsocksRToUrl(proxy) {
             params.push(`group=${base64Encode(proxy.group)}`);
         }
 
-        const fullStr = params.length > 0
-            ? `${baseStr}/?${params.join('&')}`
-            : baseStr;
+        const fullStr = params.length > 0 ? `${baseStr}/?${params.join('&')}` : baseStr;
 
         return `ssr://${base64Encode(fullStr)}`;
     } catch (e) {

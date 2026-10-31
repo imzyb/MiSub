@@ -52,7 +52,7 @@ function handleApiError(error, context = '') {
         success: false,
         error: errorMessage,
         errorType: errorType,
-        status
+        status,
     };
 }
 
@@ -78,16 +78,16 @@ function normalizeApiFailure(data, fallbackMessage = t('settings.operationFailed
         error,
         errorType: data?.errorType || (status ? 'server' : 'unknown'),
         status,
-        data
+        data,
     };
 }
 export async function fetchInitialData() {
+    let timeoutId;
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
+        timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
 
         const data = await api.get('/api/data', { signal: controller.signal });
-        clearTimeout(timeoutId);
 
         // 检查新的认证状态响应 (200 OK with authenticated: false)
         if (data && data.authenticated === false) {
@@ -97,6 +97,8 @@ export async function fetchInitialData() {
         return { success: true, data };
     } catch (error) {
         return handleApiError(error, 'fetchInitialData');
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -109,7 +111,7 @@ export async function login(password) {
             return {
                 success: false,
                 error: error.data?.message || error.data?.error || t('settings.loginFailed'),
-                errorType: 'auth'
+                errorType: 'auth',
             };
         }
         return handleApiError(error, 'login');
@@ -121,7 +123,11 @@ export async function saveMisubs(misubs, profiles) {
     try {
         // 数据预验证
         if (!Array.isArray(misubs) || !Array.isArray(profiles)) {
-            return { success: false, error: t('settings.dataFormatInvalid'), errorType: 'validation' };
+            return {
+                success: false,
+                error: t('settings.dataFormatInvalid'),
+                errorType: 'validation',
+            };
         }
 
         return await api.post('/api/misubs', { misubs, profiles });
@@ -131,9 +137,10 @@ export async function saveMisubs(misubs, profiles) {
 }
 
 export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = false, userAgent = '') {
+    let timeoutId;
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+        timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
 
         const payload = { url: subUrl };
         if (fetchProxy) {
@@ -147,7 +154,6 @@ export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = fals
         }
 
         const data = await api.post('/api/node_count', payload, { signal: controller.signal });
-        clearTimeout(timeoutId);
 
         if (data?.success === false) {
             return normalizeApiFailure(data, t('settings.updateNodeInfoFailed'));
@@ -156,6 +162,8 @@ export async function fetchNodeCount(subUrl, fetchProxy = '', plusAsSpace = fals
         return { success: true, data }; // data 包含 { count, userInfo }
     } catch (error) {
         return handleApiError(error, 'fetchNodeCount');
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -169,11 +177,23 @@ export async function fetchSettings() {
 }
 
 export async function fetchPublicConfig() {
+    let timeoutId;
     try {
-        const data = await api.get('/api/public_config');
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 8000);
+        const headers =
+            typeof window !== 'undefined' && window.location?.pathname
+                ? { 'X-MiSub-Path': window.location.pathname }
+                : undefined;
+        const data = await api.get('/api/public_config', {
+            signal: controller.signal,
+            headers,
+        });
         return { success: true, data };
     } catch (error) {
         return handleApiError(error, 'fetchPublicConfig');
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -197,19 +217,22 @@ export async function resetSettings() {
     }
 }
 
-
 /**
  * 批量更新订阅的节点信息
  * @param {string[]} subscriptionIds - 要更新的订阅ID数组
  * @returns {Promise<Object>} - 更新结果
  */
 export async function batchUpdateNodes(subscriptionIds) {
+    let timeoutId;
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
+        timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
 
-        const result = await api.post('/api/batch_update_nodes', { subscriptionIds }, { signal: controller.signal });
-        clearTimeout(timeoutId);
+        const result = await api.post(
+            '/api/batch_update_nodes',
+            { subscriptionIds },
+            { signal: controller.signal }
+        );
 
         if (result?.success === false) {
             return normalizeApiFailure(result, '批量更新节点信息失败');
@@ -218,6 +241,8 @@ export async function batchUpdateNodes(subscriptionIds) {
         return result;
     } catch (error) {
         return handleApiError(error, 'batchUpdateNodes');
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -234,7 +259,7 @@ export async function migrateToD1() {
                 success: false,
                 error: error.message,
                 errorType: 'server',
-                details: error.data?.details || error.data?.errors
+                details: error.data?.details || error.data?.errors,
             };
         }
         return handleApiError(error, 'migrateToD1');
@@ -258,7 +283,7 @@ export async function migrateLegacyD1() {
                 success: false,
                 error: error.message,
                 errorType: 'server',
-                details: error.data?.details || error.data?.errors
+                details: error.data?.details || error.data?.errors,
             };
         }
         return handleApiError(error, 'migrateLegacyD1');
@@ -274,14 +299,20 @@ export async function fetchGithubLatestRelease(repo) {
 }
 
 export async function testSubconverterBackend(backend, target = 'clash') {
+    let timeoutId;
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-        const data = await api.post('/api/subconverter/test', { backend, target }, { signal: controller.signal });
-        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => controller.abort(), 30000);
+        const data = await api.post(
+            '/api/subconverter/test',
+            { backend, target },
+            { signal: controller.signal }
+        );
         return data;
     } catch (error) {
         return handleApiError(error, 'testSubconverterBackend');
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 

@@ -1,197 +1,218 @@
 <script setup>
-import { computed } from 'vue';
-import draggable from 'vuedraggable';
-import ManualNodeCard from '../ManualNodeCard.vue';
-import ManualNodeList from '../ManualNodeList.vue';
-import PanelPagination from '@/components/shared/PanelPagination.vue';
-import EmptyState from '@/components/ui/EmptyState.vue';
-import { useI18n } from '@/i18n/index.js';
+    import { computed } from 'vue';
+    import draggable from 'vuedraggable';
+    import ManualNodeCard from '../ManualNodeCard.vue';
+    import ManualNodeList from '../ManualNodeList.vue';
+    import PanelPagination from '@/components/shared/PanelPagination.vue';
+    import EmptyState from '@/components/ui/EmptyState.vue';
+    import { useI18n } from '@/i18n/index.js';
 
-const { t } = useI18n();
+    const { t } = useI18n();
 
-const props = defineProps({
-  manualNodes: { type: Array, default: () => [] },
-  paginatedNodes: { type: Array, default: () => [] },
-  filteredNodes: { type: Array, default: () => [] },
-  localSearchTerm: { type: String, default: '' },
-  isSorting: { type: Boolean, default: false },
-  viewMode: { type: String, default: 'card' },
-  isSelectionMode: { type: Boolean, default: false },
-  selectedNodeIds: { type: Object, required: true },
-  searchPage: { type: Number, default: 1 },
-  searchTotalPages: { type: Number, default: 1 },
-  basePage: { type: Number, default: 1 },
-  baseTotalPages: { type: Number, default: 1 },
-  draggableManualNodes: { type: Array, default: () => [] },
-  itemsPerPage: { type: Number, default: 24 }, // Added
-  pingResults: { type: Object, default: () => ({}) },
-  pingingNodes: { type: Object, default: () => new Set() },
-  compactGrid: { type: Boolean, default: false }
-});
+    const props = defineProps({
+        manualNodes: { type: Array, default: () => [] },
+        paginatedNodes: { type: Array, default: () => [] },
+        filteredNodes: { type: Array, default: () => [] },
+        localSearchTerm: { type: String, default: '' },
+        isSorting: { type: Boolean, default: false },
+        viewMode: { type: String, default: 'card' },
+        isSelectionMode: { type: Boolean, default: false },
+        selectedNodeIds: { type: Object, required: true },
+        searchPage: { type: Number, default: 1 },
+        searchTotalPages: { type: Number, default: 1 },
+        basePage: { type: Number, default: 1 },
+        baseTotalPages: { type: Number, default: 1 },
+        draggableManualNodes: { type: Array, default: () => [] },
+        itemsPerPage: { type: Number, default: 24 }, // Added
+        pingResults: { type: Object, default: () => ({}) },
+        pingingNodes: { type: Object, default: () => new Set() },
+        compactGrid: { type: Boolean, default: false },
+    });
 
-const emit = defineEmits([
-  'update:draggableManualNodes',
-  'toggle-select',
-  'edit',
-  'delete',
-  'sort-end',
-  'change-page',
-  'update:itemsPerPage', // Added
-  'set-group-filter', // Added
-  'ping'
-]);
+    const emit = defineEmits([
+        'update:draggableManualNodes',
+        'toggle-select',
+        'edit',
+        'delete',
+        'sort-end',
+        'change-page',
+        'update:itemsPerPage', // Added
+        'set-group-filter', // Added
+        'ping',
+    ]);
 
-const draggableModel = computed({
-  get: () => props.draggableManualNodes,
-  set: (val) => emit('update:draggableManualNodes', val)
-});
+    const draggableModel = computed({
+        get: () => props.draggableManualNodes,
+        set: (val) => emit('update:draggableManualNodes', val),
+    });
 
-const displayPage = computed(() => (props.localSearchTerm ? props.searchPage : props.basePage));
-const displayTotalPages = computed(() => (props.localSearchTerm ? props.searchTotalPages : props.baseTotalPages));
+    const displayPage = computed(() => (props.localSearchTerm ? props.searchPage : props.basePage));
+    const displayTotalPages = computed(() =>
+        props.localSearchTerm ? props.searchTotalPages : props.baseTotalPages
+    );
 
-const handleChangePage = (page) => {
-  let p = parseInt(page, 10);
-  if (isNaN(p)) return;
-  // Let parent handle boundaries if needed, but safe to clamp here for UI feedback
-  if (p < 1) p = 1;
-  if (p > displayTotalPages.value) p = displayTotalPages.value;
-  emit('change-page', p);
-};
+    const handleChangePage = (page) => {
+        let p = parseInt(page, 10);
+        if (isNaN(p)) return;
+        // Let parent handle boundaries if needed, but safe to clamp here for UI feedback
+        if (p < 1) p = 1;
+        if (p > displayTotalPages.value) p = displayTotalPages.value;
+        emit('change-page', p);
+    };
 </script>
 
 <template>
-  <div v-if="manualNodes.length > 0" :class="{ 'pb-48': isSelectionMode }">
-    <!-- 如果有搜索词，显示搜索提示 -->
-    <div v-if="localSearchTerm && filteredNodes.length === 0" class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-400">
-      {{ t('manualNodes.noSearchResult', { keyword: localSearchTerm }) }}
-    </div>
-    
-    <div v-if="isSorting">
-      <!-- 排序模式保持原有扁平列表，方便跨组排序 -->
-      <div v-if="viewMode === 'card'">
-        <draggable 
-          tag="div" 
-          class="grid gap-4"
-          :class="compactGrid ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3'"
-          v-model="draggableModel" 
-          item-key="id" 
-          animation="300" 
-          @end="emit('sort-end')"
+    <div v-if="manualNodes.length > 0" :class="{ 'pb-48': isSelectionMode }">
+        <!-- 如果有搜索词，显示搜索提示 -->
+        <div
+            v-if="localSearchTerm && filteredNodes.length === 0"
+            class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-400"
         >
-          <template #item="{ element: node }">
-            <div class="cursor-move">
-              <ManualNodeCard 
-                :node="node" 
-                :is-selection-mode="isSelectionMode"
-                :is-selected="selectedNodeIds.has(node.id)"
-                :ping-result="pingResults[node.id]"
-                :is-pinging="pingingNodes.has(node.id)"
-                @toggle-select="emit('toggle-select', node.id)"
-                @edit="emit('edit', node.id)" 
-                @delete="emit('delete', node.id)"
-                @filter-group="emit('set-group-filter', $event)"
-                @ping="emit('ping', node.id)" />
-            </div>
-          </template>
-        </draggable>
-      </div>
-      <div v-else class="space-y-3">
-        <draggable 
-          tag="div" 
-          class="space-y-2" 
-          v-model="draggableModel" 
-          item-key="id" 
-          animation="300" 
-          @end="emit('sort-end')"
-        >
-          <template #item="{ element: node, index }">
-            <div class="cursor-move">
-              <ManualNodeList
-                :node="node"
-                :index="index + 1"
-                class="list-item-animation"
-                :style="{ '--delay-index': Math.min(index, 20) }"
-                :ping-result="pingResults[node.id]"
-                :is-pinging="pingingNodes.has(node.id)"
-                @edit="emit('edit', node.id)"
-                @delete="emit('delete', node.id)"
-                @filter-group="emit('set-group-filter', $event)"
-                @ping="emit('ping', node.id)"
-              />
-            </div>
-          </template>
-        </draggable>
-      </div>
-    </div>
-
-    <div v-else>
-      <!-- Flat List Display (No Groups) -->
-      <div v-if="viewMode === 'card'" class="grid gap-4" :class="compactGrid ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3'">
-        <div 
-          v-for="(node, index) in paginatedNodes" 
-          :key="node.id"
-          class="list-item-animation"
-          :style="{ '--delay-index': Math.min(index, 20) }"
-        >
-          <ManualNodeCard 
-            :node="node" 
-            :is-selection-mode="isSelectionMode"
-            :is-selected="selectedNodeIds.has(node.id)"
-            :ping-result="pingResults[node.id]"
-            :is-pinging="pingingNodes.has(node.id)"
-            @toggle-select="emit('toggle-select', node.id)"
-            @edit="emit('edit', node.id)" 
-            @delete="emit('delete', node.id)" 
-            @filter-group="emit('set-group-filter', $event)" 
-            @ping="emit('ping', node.id)"
-          />
+            {{ t('manualNodes.noSearchResult', { keyword: localSearchTerm }) }}
         </div>
-      </div>
-      <div v-else class="space-y-3">
-        <ManualNodeList
-          v-for="(node, index) in paginatedNodes"
-          :key="node.id"
-          :node="node"
-          :index="paginatedNodes.indexOf(node) + 1" 
-          class="list-item-animation"
-          :style="{ '--delay-index': Math.min(index, 20) }"
-          :is-selection-mode="isSelectionMode"
-          :is-selected="selectedNodeIds.has(node.id)"
-          :ping-result="pingResults[node.id]"
-          :is-pinging="pingingNodes.has(node.id)"
-          @toggle-select="emit('toggle-select', node.id)"
-          @edit="emit('edit', node.id)"
-          @delete="emit('delete', node.id)"
-          @filter-group="emit('set-group-filter', $event)"
-          @ping="emit('ping', node.id)"
+
+        <div v-if="isSorting">
+            <!-- 排序模式保持原有扁平列表，方便跨组排序 -->
+            <div v-if="viewMode === 'card'">
+                <draggable
+                    tag="div"
+                    class="grid gap-4"
+                    :class="
+                        compactGrid
+                            ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2'
+                            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3'
+                    "
+                    v-model="draggableModel"
+                    item-key="id"
+                    animation="300"
+                    @end="emit('sort-end')"
+                >
+                    <template #item="{ element: node }">
+                        <div class="cursor-move">
+                            <ManualNodeCard
+                                :node="node"
+                                :is-selection-mode="isSelectionMode"
+                                :is-selected="selectedNodeIds.has(node.id)"
+                                :ping-result="pingResults[node.id]"
+                                :is-pinging="pingingNodes.has(node.id)"
+                                @toggle-select="emit('toggle-select', node.id)"
+                                @edit="emit('edit', node.id)"
+                                @delete="emit('delete', node.id)"
+                                @filter-group="emit('set-group-filter', $event)"
+                                @ping="emit('ping', node.id)"
+                            />
+                        </div>
+                    </template>
+                </draggable>
+            </div>
+            <div v-else class="space-y-3">
+                <draggable
+                    tag="div"
+                    class="space-y-2"
+                    v-model="draggableModel"
+                    item-key="id"
+                    animation="300"
+                    @end="emit('sort-end')"
+                >
+                    <template #item="{ element: node, index }">
+                        <div class="cursor-move">
+                            <ManualNodeList
+                                :node="node"
+                                :index="index + 1"
+                                class="list-item-animation"
+                                :style="{ '--delay-index': Math.min(index, 20) }"
+                                :ping-result="pingResults[node.id]"
+                                :is-pinging="pingingNodes.has(node.id)"
+                                @edit="emit('edit', node.id)"
+                                @delete="emit('delete', node.id)"
+                                @filter-group="emit('set-group-filter', $event)"
+                                @ping="emit('ping', node.id)"
+                            />
+                        </div>
+                    </template>
+                </draggable>
+            </div>
+        </div>
+
+        <div v-else>
+            <!-- Flat List Display (No Groups) -->
+            <div
+                v-if="viewMode === 'card'"
+                class="grid gap-4"
+                :class="
+                    compactGrid
+                        ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2'
+                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3'
+                "
+            >
+                <div
+                    v-for="(node, index) in paginatedNodes"
+                    :key="node.id"
+                    class="list-item-animation"
+                    :style="{ '--delay-index': Math.min(index, 20) }"
+                >
+                    <ManualNodeCard
+                        :node="node"
+                        :is-selection-mode="isSelectionMode"
+                        :is-selected="selectedNodeIds.has(node.id)"
+                        :ping-result="pingResults[node.id]"
+                        :is-pinging="pingingNodes.has(node.id)"
+                        @toggle-select="emit('toggle-select', node.id)"
+                        @edit="emit('edit', node.id)"
+                        @delete="emit('delete', node.id)"
+                        @filter-group="emit('set-group-filter', $event)"
+                        @ping="emit('ping', node.id)"
+                    />
+                </div>
+            </div>
+            <div v-else class="space-y-3">
+                <ManualNodeList
+                    v-for="(node, index) in paginatedNodes"
+                    :key="node.id"
+                    :node="node"
+                    :index="paginatedNodes.indexOf(node) + 1"
+                    class="list-item-animation"
+                    :style="{ '--delay-index': Math.min(index, 20) }"
+                    :is-selection-mode="isSelectionMode"
+                    :is-selected="selectedNodeIds.has(node.id)"
+                    :ping-result="pingResults[node.id]"
+                    :is-pinging="pingingNodes.has(node.id)"
+                    @toggle-select="emit('toggle-select', node.id)"
+                    @edit="emit('edit', node.id)"
+                    @delete="emit('delete', node.id)"
+                    @filter-group="emit('set-group-filter', $event)"
+                    @ping="emit('ping', node.id)"
+                />
+            </div>
+        </div>
+
+        <PanelPagination
+            variant="panel"
+            :current-page="displayPage"
+            :total-pages="displayTotalPages"
+            :total-items="filteredNodes.length"
+            :items-per-page="itemsPerPage"
+            :show-items-per-page="true"
+            :show-total-items="true"
+            @change-page="handleChangePage"
+            @update:items-per-page="emit('update:itemsPerPage', $event)"
         />
-      </div>
     </div>
-    
-    <PanelPagination
-      variant="panel"
-      :current-page="displayPage"
-      :total-pages="displayTotalPages"
-      :total-items="filteredNodes.length"
-      :items-per-page="itemsPerPage"
-      :show-items-per-page="true"
-      :show-total-items="true"
-      @change-page="handleChangePage"
-      @update:items-per-page="emit('update:itemsPerPage', $event)"
-    />
-  </div>
-    <div v-else class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-6 dark:border-gray-700 dark:bg-gray-900/50">
-      <EmptyState 
-        :title="t('manualNodes.empty')"
-        :description="t('manualNodes.emptyDesc')"
-      icon="node" 
-      :total-count="0" 
-    />
-  </div>
+    <div
+        v-else
+        class="rounded-xl border border-dashed border-gray-300 bg-white/60 py-6 dark:border-gray-700 dark:bg-gray-900/50"
+    >
+        <EmptyState
+            :title="t('manualNodes.empty')"
+            :description="t('manualNodes.emptyDesc')"
+            icon="node"
+            :total-count="0"
+        />
+    </div>
 </template>
 
 <style scoped>
-.cursor-move {
-  cursor: move;
-}
+    .cursor-move {
+        cursor: move;
+    }
 </style>

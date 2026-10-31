@@ -1,26 +1,27 @@
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted, getCurrentInstance } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import { DEFAULT_SETTINGS } from '../constants/default-settings.js';
 import { fetchSettings, saveSettings, resetSettings } from '../lib/api.js';
 import { useBackupLogic } from './useBackupLogic.js';
 import { t, setLocale } from '../i18n/index.js';
+import { confirmAction } from './useConfirm.js';
 
 function normalizeExternalApiConfig(value) {
     const defaults = DEFAULT_SETTINGS.externalApi;
     const externalApi = value && typeof value === 'object' ? value : {};
     const tokens = Array.isArray(externalApi.tokens)
         ? externalApi.tokens
-            .map((item, index) => ({
-                name: String(item?.name || `token-${index + 1}`).trim() || `token-${index + 1}`,
-                token: String(item?.token || '').trim()
-            }))
-            .filter((item) => item.token || item.name)
+              .map((item, index) => ({
+                  name: String(item?.name || `token-${index + 1}`).trim() || `token-${index + 1}`,
+                  token: String(item?.token || '').trim(),
+              }))
+              .filter((item) => item.token || item.name)
         : [];
 
     return {
         ...defaults,
         ...externalApi,
-        tokens: tokens.length > 0 ? tokens : defaults.tokens.map((item) => ({ ...item }))
+        tokens: tokens.length > 0 ? tokens : defaults.tokens.map((item) => ({ ...item })),
     };
 }
 
@@ -45,18 +46,37 @@ export function useSettingsLogic() {
     const isLoading = ref(false);
     const isSaving = ref(false);
     const showMigrationModal = ref(false);
+    const restartCountdown = ref(null);
+    let reloadTimer = null;
+
+    const clearReloadTimer = () => {
+        if (reloadTimer !== null) {
+            clearInterval(reloadTimer);
+            reloadTimer = null;
+        }
+    };
+
+    if (getCurrentInstance()) {
+        onUnmounted(clearReloadTimer);
+    }
 
     // 嵌套配置对象
     const disguiseConfig = ref({
         enabled: false,
         pageType: 'default',
-        redirectUrl: ''
+        redirectUrl: '',
     });
-
 
     // ========== 计算属性 ==========
     const hasWhitespace = computed(() => {
-        const fieldsCheck = ['FileName', 'mytoken', 'profileToken', 'transformConfig', 'BotToken', 'ChatID'];
+        const fieldsCheck = [
+            'FileName',
+            'mytoken',
+            'profileToken',
+            'transformConfig',
+            'BotToken',
+            'ChatID',
+        ];
         for (const key of fieldsCheck) {
             if (settings.value[key] && /\s/.test(settings.value[key])) return true;
         }
@@ -82,7 +102,7 @@ export function useSettingsLogic() {
                     disguiseConfig.value = {
                         enabled: settings.value.disguise.enabled ?? false,
                         pageType: settings.value.disguise.pageType ?? 'default',
-                        redirectUrl: settings.value.disguise.redirectUrl ?? ''
+                        redirectUrl: settings.value.disguise.redirectUrl ?? '',
                     };
                 }
 
@@ -127,10 +147,11 @@ export function useSettingsLogic() {
             const settingsToSave = {
                 ...settings.value,
                 externalApi: normalizeExternalApiConfig(settings.value.externalApi),
-                disguise: disguiseConfig.value
+                disguise: disguiseConfig.value,
             };
 
-            settingsToSave.ruleLevel = settingsToSave.ruleLevel || settingsToSave.clashRuleLevel || 'std';
+            settingsToSave.ruleLevel =
+                settingsToSave.ruleLevel || settingsToSave.clashRuleLevel || 'std';
 
             delete settingsToSave.prefixConfig;
             delete settingsToSave.prependSubName;
@@ -140,7 +161,15 @@ export function useSettingsLogic() {
             const result = await saveSettings(settingsToSave);
             if (result.success) {
                 showToast(t('settings.savedReloading'), 'success');
-                setTimeout(() => window.location.reload(), 1500);
+                clearReloadTimer();
+                restartCountdown.value = 3;
+                reloadTimer = setInterval(() => {
+                    restartCountdown.value -= 1;
+                    if (restartCountdown.value <= 0) {
+                        clearReloadTimer();
+                        window.location.reload();
+                    }
+                }, 1000);
                 return true;
             } else {
                 throw new Error(result.error || t('settings.saveFailed'));
@@ -166,11 +195,19 @@ export function useSettingsLogic() {
      * 处理恢复出厂设置
      */
     const handleReset = async () => {
-        if (!confirm(t('settings.resetConfirm'))) {
+        const firstConfirmed = await confirmAction({
+            message: t('settings.resetConfirm'),
+            variant: 'danger',
+        });
+        if (!firstConfirmed) {
             return;
         }
-        
-        if (!confirm(t('settings.resetConfirmAgain'))) {
+
+        const secondConfirmed = await confirmAction({
+            message: t('settings.resetConfirmAgain'),
+            variant: 'danger',
+        });
+        if (!secondConfirmed) {
             return;
         }
 
@@ -196,6 +233,7 @@ export function useSettingsLogic() {
         isLoading,
         isSaving,
         showMigrationModal,
+        restartCountdown,
         hasWhitespace,
         isStorageTypeValid,
         loadSettings,

@@ -2,7 +2,8 @@ import { getBuiltinTemplate } from './builtin-template-registry.js';
 import { renderEgernFromIniTemplate } from './template-pipeline.js';
 
 export function generateBuiltinEgernConfig(nodeList, options = {}) {
-    const templateEntry = getBuiltinTemplate('clash_misub_minimal') || getBuiltinTemplate('clash_acl4ssr_lite');
+    const templateEntry =
+        getBuiltinTemplate('clash_misub_minimal') || getBuiltinTemplate('clash_acl4ssr_lite');
     if (!templateEntry?.content) {
         throw new Error('No builtin template available for Egern');
     }
@@ -17,6 +18,6 @@ export function generateBuiltinEgernConfig(nodeList, options = {}) {
         skipCertVerify: options.skipCertVerify,
         enableUdp: options.enableUdp,
         enableTfo: options.enableTfo,
-        addFlagEmoji: options.addFlagEmoji
+        addFlagEmoji: options.addFlagEmoji,
     });
 }

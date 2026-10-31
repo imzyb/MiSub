@@ -17,11 +17,18 @@ const EMOJI_FLAG_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
  */
 export function extractNodeMetadata(name) {
     if (!name || typeof name !== 'string') {
-        return { originalName: name, cleanName: name, multiplier: 1.0, tags: [], region: '其他', flag: '' };
+        return {
+            originalName: name,
+            cleanName: name,
+            multiplier: 1.0,
+            tags: [],
+            region: '其他',
+            flag: '',
+        };
     }
 
     let cleanName = name;
-    
+
     // 1. 提取倍率 (Multiplier)
     let multiplier = 1.0;
     const mMatch = name.match(MULTIPLIER_REGEX);
@@ -35,10 +42,10 @@ export function extractNodeMetadata(name) {
     // 优先提取现有的国旗 Emoji
     const flagMatches = name.match(EMOJI_FLAG_REGEX);
     const flag = flagMatches ? flagMatches[0] : '';
-    
+
     // 使用已有的 geo-utils 识别地区
     const region = extractNodeRegion(name);
-    
+
     // 如果名称里没有国旗但识别出了地区，尝试根据地区补全国旗
     const autoFlag = flag || getRegionEmoji(region);
 
@@ -68,6 +75,6 @@ export function extractNodeMetadata(name) {
         multiplier,
         region,
         flag: autoFlag,
-        tags: Array.from(new Set(tags))
+        tags: Array.from(new Set(tags)),
     };
 }

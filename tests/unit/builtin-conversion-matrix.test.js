@@ -4,7 +4,7 @@ import {
     resolveBuiltinEngineFlags,
     resolveEffectiveEngine,
     resolveExternalTemplateConfigUrl,
-    resolveTemplateSource
+    resolveTemplateSource,
 } from '../../functions/modules/subscription/main-handler.js';
 
 const NODE_LIST = 'trojan://pass@1.1.1.1:443#HK-01';
@@ -12,18 +12,27 @@ const HIDDIFY_UA = 'HiddifyNext/4.1.1 (android) like ClashMeta v2ray sing-box';
 
 const storageAdapter = {
     get: vi.fn().mockResolvedValue(null),
-    put: vi.fn()
+    put: vi.fn(),
 };
 
 describe('Builtin conversion matrix characterization', () => {
     beforeEach(() => {
-        vi.stubGlobal('fetch', vi.fn(async () => new Response(`
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(
+                        `
 [Proxy Group]
 MyGroup = select, HK-01, DIRECT
 
 [Rule]
 MATCH,MyGroup
-`, { status: 200 })));
+`,
+                        { status: 200 }
+                    )
+            )
+        );
     });
 
     afterEach(() => {
@@ -32,37 +41,47 @@ MATCH,MyGroup
     });
 
     it('keeps the current engine selection precedence', () => {
-        expect(resolveEffectiveEngine({
-            searchParams: new URLSearchParams('engine=external'),
-            profileEngineMode: 'builtin',
-            globalEngineMode: 'builtin'
-        })).toBe('external');
+        expect(
+            resolveEffectiveEngine({
+                searchParams: new URLSearchParams('engine=external'),
+                profileEngineMode: 'builtin',
+                globalEngineMode: 'builtin',
+            })
+        ).toBe('external');
 
-        expect(resolveEffectiveEngine({
-            searchParams: new URLSearchParams('builtin=external'),
-            profileEngineMode: 'builtin',
-            globalEngineMode: 'builtin'
-        })).toBe('external');
+        expect(
+            resolveEffectiveEngine({
+                searchParams: new URLSearchParams('builtin=external'),
+                profileEngineMode: 'builtin',
+                globalEngineMode: 'builtin',
+            })
+        ).toBe('external');
 
-        expect(resolveEffectiveEngine({
-            searchParams: new URLSearchParams('builtin=1'),
-            profileEngineMode: 'external',
-            globalEngineMode: 'external'
-        })).toBe('builtin');
+        expect(
+            resolveEffectiveEngine({
+                searchParams: new URLSearchParams('builtin=1'),
+                profileEngineMode: 'external',
+                globalEngineMode: 'external',
+            })
+        ).toBe('builtin');
 
-        expect(resolveEffectiveEngine({
-            searchParams: new URLSearchParams(''),
-            userAgent: HIDDIFY_UA,
-            profileEngineMode: '',
-            globalEngineMode: 'external'
-        })).toBe('builtin');
+        expect(
+            resolveEffectiveEngine({
+                searchParams: new URLSearchParams(''),
+                userAgent: HIDDIFY_UA,
+                profileEngineMode: '',
+                globalEngineMode: 'external',
+            })
+        ).toBe('builtin');
 
-        expect(resolveEffectiveEngine({
-            searchParams: new URLSearchParams('target=singbox'),
-            userAgent: HIDDIFY_UA,
-            profileEngineMode: '',
-            globalEngineMode: 'external'
-        })).toBe('external');
+        expect(
+            resolveEffectiveEngine({
+                searchParams: new URLSearchParams('target=singbox'),
+                userAgent: HIDDIFY_UA,
+                profileEngineMode: '',
+                globalEngineMode: 'external',
+            })
+        ).toBe('external');
     });
 
     it('documents builtin versus remote template source handling', () => {
@@ -71,21 +90,33 @@ MATCH,MyGroup
         expect(resolveExternalTemplateConfigUrl(builtinSource)).toBe('');
 
         const remoteSource = resolveTemplateSource('https://example.com/template.ini?token=***');
-        expect(remoteSource).toEqual({ kind: 'remote', value: 'https://example.com/template.ini?token=***' });
-        expect(resolveExternalTemplateConfigUrl(remoteSource)).toBe('https://example.com/template.ini?token=***');
+        expect(remoteSource).toEqual({
+            kind: 'remote',
+            value: 'https://example.com/template.ini?token=***',
+        });
+        expect(resolveExternalTemplateConfigUrl(remoteSource)).toBe(
+            'https://example.com/template.ini?token=***'
+        );
 
         expect(resolveTemplateSource('')).toEqual({ kind: 'none', value: '' });
     });
 
     it('disables builtin engine flags while external engine mode is active', () => {
-        expect(resolveBuiltinEngineFlags({ builtinSkipCertVerify: true, builtinEnableUdp: true }, true)).toEqual({
+        expect(
+            resolveBuiltinEngineFlags({ builtinSkipCertVerify: true, builtinEnableUdp: true }, true)
+        ).toEqual({
             shouldSkipCertificateVerify: false,
-            shouldEnableUdp: false
+            shouldEnableUdp: false,
         });
 
-        expect(resolveBuiltinEngineFlags({ builtinSkipCertVerify: true, builtinEnableUdp: true }, false)).toEqual({
+        expect(
+            resolveBuiltinEngineFlags(
+                { builtinSkipCertVerify: true, builtinEnableUdp: true },
+                false
+            )
+        ).toEqual({
             shouldSkipCertificateVerify: true,
-            shouldEnableUdp: true
+            shouldEnableUdp: true,
         });
     });
 
@@ -94,28 +125,28 @@ MATCH,MyGroup
             {
                 targetFormat: 'clash',
                 contentType: 'application/x-yaml; charset=utf-8',
-                marker: 'proxy-groups:'
+                marker: 'proxy-groups:',
             },
             {
                 targetFormat: 'singbox',
                 contentType: 'application/json; charset=utf-8',
-                marker: '"outbounds"'
+                marker: '"outbounds"',
             },
             {
                 targetFormat: 'surge&ver=4',
                 contentType: 'text/plain; charset=utf-8',
-                marker: '[Proxy Group]'
+                marker: '[Proxy Group]',
             },
             {
                 targetFormat: 'loon',
                 contentType: 'text/plain; charset=utf-8',
-                marker: '[Proxy Group]'
+                marker: '[Proxy Group]',
             },
             {
                 targetFormat: 'quanx',
                 contentType: 'text/plain; charset=utf-8',
-                marker: '[policy]'
-            }
+                marker: '[policy]',
+            },
         ];
 
         for (const item of cases) {
@@ -127,7 +158,7 @@ MATCH,MyGroup
                 builtinOptions: { ruleLevel: 'std', enableUdp: true, skipCertVerify: false },
                 templateSource: { kind: 'builtin', value: 'clash_acl4ssr_lite' },
                 managedConfigUrl: `https://example.com/sub?target=${encodeURIComponent(item.targetFormat)}&builtin=1`,
-                storageAdapter
+                storageAdapter,
             });
 
             expect(result.contentType).toBe(item.contentType);
@@ -147,11 +178,11 @@ MATCH,MyGroup
                 ruleLevel: 'std',
                 userAgent: HIDDIFY_UA,
                 hiddifyCompatible: true,
-                searchParams: new URLSearchParams('')
+                searchParams: new URLSearchParams(''),
             },
             templateSource: { kind: 'builtin', value: 'clash_acl4ssr_lite' },
             managedConfigUrl: '',
-            storageAdapter
+            storageAdapter,
         });
 
         expect(result.contentType).toBe('application/x-yaml; charset=utf-8');
@@ -171,7 +202,7 @@ MATCH,MyGroup
             builtinOptions: {},
             templateSource: { kind: 'none', value: '' },
             managedConfigUrl: '',
-            storageAdapter
+            storageAdapter,
         });
 
         expect(result.contentType).toBe('text/plain; charset=utf-8');

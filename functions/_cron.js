@@ -36,27 +36,32 @@ export async function onRequest(context) {
                 result = await performSubscriptionSync(env);
         }
 
-        return new Response(JSON.stringify({
-            success: true,
-            cronType,
-            timestamp: new Date().toISOString(),
-            ...result
-        }), {
-            headers: { 'Content-Type': 'application/json' }
-        });
-
+        return new Response(
+            JSON.stringify({
+                success: true,
+                cronType,
+                timestamp: new Date().toISOString(),
+                ...result,
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' },
+            }
+        );
     } catch (error) {
         console.error(`[Cron Error] ${cronType}:`, error);
 
-        return new Response(JSON.stringify({
-            success: false,
-            cronType,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+            JSON.stringify({
+                success: false,
+                cronType,
+                error: error.message,
+                timestamp: new Date().toISOString(),
+            }),
+            {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            }
+        );
     }
 }
 
@@ -70,7 +75,7 @@ async function performSubscriptionSync(env) {
         timestamp: new Date().toISOString(),
         totalSubscriptions: 0,
         successfulSyncs: 0,
-        failedSyncs: 0
+        failedSyncs: 0,
     };
 
     try {
@@ -88,7 +93,6 @@ async function performSubscriptionSync(env) {
                 results.failedSyncs++;
             }
         }
-
     } catch (error) {
         console.error('[Cron] Subscription sync error:', error);
         results.error = error.message;
@@ -111,7 +115,7 @@ async function performFullSync(env) {
 
     return {
         ...result,
-        type: 'full-sync'
+        type: 'full-sync',
     };
 }
 
@@ -136,7 +140,7 @@ async function performTrafficCheck(env) {
     return {
         checkedSubscriptions: subscriptions.length,
         warnings: trafficResults.length,
-        details: trafficResults
+        details: trafficResults,
     };
 }
 
@@ -158,7 +162,7 @@ async function getAllSubscriptions(env) {
     if (env.DB) {
         try {
             const { results } = await env.DB.prepare(
-                "SELECT * FROM subscriptions WHERE enabled = 1"
+                'SELECT * FROM subscriptions WHERE enabled = 1'
             ).all();
             return results;
         } catch (error) {

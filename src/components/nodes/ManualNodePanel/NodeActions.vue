@@ -1,179 +1,352 @@
 <script setup>
-import { computed } from 'vue';
-import MoreActionsMenu from '@/components/shared/MoreActionsMenu.vue';
-import { useI18n } from '@/i18n/index.js';
+    import { computed } from 'vue';
+    import MoreActionsMenu from '@/components/shared/MoreActionsMenu.vue';
+    import { useI18n } from '@/i18n/index.js';
+    import { DEFAULT_GROUP_KEY } from '@/composables/manual-nodes/groups.js';
 
-const { t } = useI18n();
+    const { t } = useI18n();
 
-const props = defineProps({
-  manualNodesCount: {
-    type: Number,
-    default: 0
-  },
-  filteredNodesCount: {
-    type: Number,
-    default: 0
-  },
-  searchTerm: {
-    type: String,
-    default: ''
-  },
-  activeGroupFilter: {
-    type: String,
-    default: null
-  },
-  manualNodeGroups: {
-    type: Array,
-    default: () => []
-  },
-  viewMode: {
-    type: String,
-    default: 'card'
-  },
-  isSorting: {
-    type: Boolean,
-    default: false
-  },
-  isSelectionMode: {
-    type: Boolean,
-    default: false
-  }
-});
+    const props = defineProps({
+        manualNodesCount: {
+            type: Number,
+            default: 0,
+        },
+        filteredNodesCount: {
+            type: Number,
+            default: 0,
+        },
+        searchTerm: {
+            type: String,
+            default: '',
+        },
+        activeGroupFilter: {
+            type: String,
+            default: null,
+        },
+        manualNodeGroups: {
+            type: Array,
+            default: () => [],
+        },
+        viewMode: {
+            type: String,
+            default: 'card',
+        },
+        isSorting: {
+            type: Boolean,
+            default: false,
+        },
+        isSelectionMode: {
+            type: Boolean,
+            default: false,
+        },
+    });
 
-const emit = defineEmits([
-  'update:searchTerm',
-  'update:viewMode',
-  'set-group-filter',
-  'add',
-  'import',
-  'auto-sort',
-  'deduplicate',
-  'toggle-sort',
-  'delete-all',
-  'toggle-selection-mode',
-  'ping-all',
-  'manage-groups'
-]);
+    const emit = defineEmits([
+        'update:searchTerm',
+        'update:viewMode',
+        'set-group-filter',
+        'add',
+        'import',
+        'auto-sort',
+        'deduplicate',
+        'toggle-sort',
+        'delete-all',
+        'toggle-selection-mode',
+        'ping-all',
+        'sort-by-latency',
+        'manage-groups',
+    ]);
 
-const searchModel = computed({
-  get: () => props.searchTerm,
-  set: (val) => emit('update:searchTerm', val)
-});
+    const searchModel = computed({
+        get: () => props.searchTerm,
+        set: (val) => emit('update:searchTerm', val),
+    });
 </script>
 
 <template>
-  <div class="mb-4 min-w-0 rounded-xl border border-gray-100/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-gray-900/70">
-    <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-    <div class="flex min-w-0 flex-wrap items-center gap-3">
-      <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('manualNodes.title') }}</h2>
-      <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">{{ manualNodesCount }}</span>
-      
-      <!-- Mobile Group Filter -->
-       <div
-         data-testid="manual-node-mobile-groups"
-         class="flex w-full min-w-0 items-center gap-2 overflow-x-auto py-1 no-scrollbar md:hidden"
-       >
-         <button 
-           @click="emit('set-group-filter', null)"
-           class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
-           :class="!activeGroupFilter ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'"
-         >{{ t('manualNodes.allGroups') }}</button>
-         <button 
-           @click="emit('set-group-filter', '默认')"
-           class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
-           :class="activeGroupFilter === '默认' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'"
-         >{{ t('manualNodes.ungrouped') }}</button>
-         <button 
-           v-for="group in manualNodeGroups" 
-           :key="group"
-          @click="emit('set-group-filter', activeGroupFilter === group ? null : group)"
-          class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
-          :class="activeGroupFilter === group ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'"
-        >
-          {{ group }}
-        </button>
-      </div>
-
-      <span v-if="searchTerm" class="mt-2 w-full rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 sm:mt-0 sm:w-auto">
-        {{ t('manualNodes.searchResult', { keyword: searchTerm, filtered: filteredNodesCount, total: manualNodesCount }) }}
-      </span>
-    </div>
     <div
-      data-testid="manual-node-toolbar-actions"
-      class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap"
+        class="mb-4 min-w-0 rounded-xl border border-gray-100/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-gray-900/70"
     >
+        <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 flex-wrap items-center gap-3">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                    {{ t('manualNodes.title') }}
+                </h2>
+                <span
+                    class="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200"
+                    >{{ manualNodesCount }}</span
+                >
 
+                <!-- Mobile Group Filter -->
+                <div
+                    data-testid="manual-node-mobile-groups"
+                    class="flex w-full min-w-0 items-center gap-2 overflow-x-auto py-1 no-scrollbar md:hidden"
+                >
+                    <button
+                        @click="emit('set-group-filter', null)"
+                        class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
+                        :class="
+                            !activeGroupFilter
+                                ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700'
+                                : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                        "
+                    >
+                        {{ t('manualNodes.allGroups') }}
+                    </button>
+                    <button
+                        @click="emit('set-group-filter', DEFAULT_GROUP_KEY)"
+                        class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
+                        :class="
+                            activeGroupFilter === DEFAULT_GROUP_KEY
+                                ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700'
+                                : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                        "
+                    >
+                        {{ t('manualNodes.ungrouped') }}
+                    </button>
+                    <button
+                        v-for="group in manualNodeGroups"
+                        :key="group"
+                        @click="
+                            emit('set-group-filter', activeGroupFilter === group ? null : group)
+                        "
+                        class="px-2.5 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0 whitespace-nowrap"
+                        :class="
+                            activeGroupFilter === group
+                                ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700'
+                                : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                        "
+                    >
+                        {{ group }}
+                    </button>
+                </div>
 
-      <div
-        data-testid="manual-node-search"
-        class="relative min-w-0 grow basis-full sm:basis-auto lg:min-w-[240px]"
-      >
-        <input 
-          type="text" 
-          v-model="searchModel"
-          :placeholder="t('manualNodes.searchPlaceholder')"
-          class="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm shadow-xs focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 dark:border-white/10 dark:bg-white/5"
-        />
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-      </div>
-      <div class="p-0.5 bg-gray-200 dark:bg-gray-700 misub-radius-md flex items-center shrink-0">
-        <button @click="emit('update:viewMode', 'card')" class="view-mode-toggle p-1.5 misub-radius-sm transition-colors flex items-center justify-center" :class="viewMode === 'card' ? 'bg-white dark:bg-gray-900 text-indigo-600' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-        </button>
-        <button @click="emit('update:viewMode', 'list')" class="view-mode-toggle p-1.5 misub-radius-sm transition-colors flex items-center justify-center" :class="viewMode === 'list' ? 'bg-white dark:bg-gray-900 text-indigo-600' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
-        </button>
-      </div>
-      <button @click="emit('ping-all')" class="shrink-0 rounded-lg bg-green-500/10 px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-500/20 dark:text-green-400">{{ t('actions.pingAll') }}</button>
-      <button @click="emit('add')" class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700">{{ t('actions.add') }}</button>
-      <MoreActionsMenu menu-width-class="w-36">
-        <template #menu="{ close }">
-          <button
-            @click="emit('toggle-selection-mode'); close()"
-            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
-            :class="isSelectionMode ? 'text-indigo-600 dark:text-indigo-400' : ''"
-          >
-            {{ isSelectionMode ? t('actions.exitBatch') : t('actions.bulkActions') }}
-          </button>
-          <div class="border-t border-gray-100 dark:border-gray-700/50 my-1"></div>
-          <button @click="emit('import'); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">{{ t('actions.importSubscription') }}</button>
-          <button @click="emit('manage-groups'); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">{{ t('actions.manageGroups') }}</button>
-          <button @click="emit('auto-sort'); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">{{ t('actions.autoSort') }}</button>
-          <button @click="emit('deduplicate'); close()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">{{ t('actions.deduplicate') }}</button>
-          <button
-            @click="emit('toggle-sort'); close()"
-            class="w-full text-left px-4 py-2 text-sm transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            {{ isSorting ? t('actions.finishSort') : t('actions.manualSort') }}
-          </button>
-          <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-          <button @click="emit('delete-all'); close()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10">{{ t('actions.clearAll') }}</button>
-        </template>
-      </MoreActionsMenu>
+                <span
+                    v-if="searchTerm"
+                    class="mt-2 w-full rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 sm:mt-0 sm:w-auto"
+                >
+                    {{
+                        t('manualNodes.searchResult', {
+                            keyword: searchTerm,
+                            filtered: filteredNodesCount,
+                            total: manualNodesCount,
+                        })
+                    }}
+                </span>
+            </div>
+            <div
+                data-testid="manual-node-toolbar-actions"
+                class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap"
+            >
+                <div
+                    data-testid="manual-node-search"
+                    class="relative min-w-0 grow basis-full sm:basis-auto lg:min-w-[240px]"
+                >
+                    <input
+                        type="text"
+                        v-model="searchModel"
+                        :placeholder="t('manualNodes.searchPlaceholder')"
+                        class="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm shadow-xs focus:border-indigo-500 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-indigo-500 dark:border-white/10 dark:bg-white/5"
+                        :aria-label="t('manualNodes.searchLabel')"
+                    />
+                    <svg
+                        class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                    </svg>
+                </div>
+                <div
+                    class="p-0.5 bg-gray-200 dark:bg-gray-700 misub-radius-md flex items-center shrink-0"
+                >
+                    <button
+                        @click="emit('update:viewMode', 'card')"
+                        class="view-mode-toggle p-1.5 misub-radius-sm transition-colors flex items-center justify-center touch-target"
+                        :class="
+                            viewMode === 'card'
+                                ? 'bg-white dark:bg-gray-900 text-indigo-600'
+                                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'
+                        "
+                        :aria-label="t('common.cardView')"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                        >
+                            <path
+                                d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                            />
+                        </svg>
+                    </button>
+                    <button
+                        @click="emit('update:viewMode', 'list')"
+                        class="view-mode-toggle p-1.5 misub-radius-sm transition-colors flex items-center justify-center touch-target"
+                        :class="
+                            viewMode === 'list'
+                                ? 'bg-white dark:bg-gray-900 text-indigo-600'
+                                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'
+                        "
+                        :aria-label="t('common.listView')"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </button>
+                </div>
+                <button
+                    @click="emit('ping-all')"
+                    class="shrink-0 rounded-lg bg-green-500/10 px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-500/20 dark:text-green-400"
+                >
+                    {{ t('actions.pingAll') }}
+                </button>
+                <button
+                    @click="emit('add')"
+                    class="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+                >
+                    {{ t('actions.add') }}
+                </button>
+                <MoreActionsMenu menu-width-class="w-36">
+                    <template #menu="{ close }">
+                        <button
+                            @click="
+                                emit('toggle-selection-mode');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+                            :class="isSelectionMode ? 'text-indigo-600 dark:text-indigo-400' : ''"
+                        >
+                            {{
+                                isSelectionMode ? t('actions.exitBatch') : t('actions.bulkActions')
+                            }}
+                        </button>
+                        <div class="border-t border-gray-100 dark:border-gray-700/50 my-1"></div>
+                        <button
+                            @click="
+                                emit('import');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ t('actions.importSubscription') }}
+                        </button>
+                        <button
+                            @click="
+                                emit('manage-groups');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ t('actions.manageGroups') }}
+                        </button>
+                        <button
+                            @click="
+                                emit('auto-sort');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ t('actions.autoSort') }}
+                        </button>
+                        <button
+                            @click="
+                                emit('sort-by-latency');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ t('actions.sortByLatency') }}
+                        </button>
+                        <button
+                            @click="
+                                emit('deduplicate');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ t('actions.deduplicate') }}
+                        </button>
+                        <button
+                            @click="
+                                emit('toggle-sort');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            {{ isSorting ? t('actions.finishSort') : t('actions.manualSort') }}
+                        </button>
+                        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                        <button
+                            @click="
+                                emit('delete-all');
+                                close();
+                            "
+                            class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10"
+                        >
+                            {{ t('actions.clearAll') }}
+                        </button>
+                    </template>
+                </MoreActionsMenu>
+            </div>
+        </div>
+
+        <!-- Group Filter Chips (New Line) -->
+        <div
+            class="hidden md:flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/80 dark:border-white/10 overflow-x-auto no-scrollbar mask-gradient-r pb-1"
+        >
+            <button
+                @click="emit('set-group-filter', null)"
+                class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
+                :class="
+                    !activeGroupFilter
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                "
+            >
+                {{ t('manualNodes.allGroups') }}
+            </button>
+            <button
+                @click="emit('set-group-filter', DEFAULT_GROUP_KEY)"
+                class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
+                :class="
+                    activeGroupFilter === DEFAULT_GROUP_KEY
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                "
+            >
+                {{ t('manualNodes.ungrouped') }}
+            </button>
+            <button
+                v-for="group in manualNodeGroups"
+                :key="group"
+                @click="emit('set-group-filter', activeGroupFilter === group ? null : group)"
+                class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
+                :class="
+                    activeGroupFilter === group
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                "
+            >
+                {{ group }}
+            </button>
+        </div>
     </div>
-  </div>
-  
-  <!-- Group Filter Chips (New Line) -->
-  <div class="hidden md:flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/80 dark:border-white/10 overflow-x-auto no-scrollbar mask-gradient-r pb-1">
-    <button 
-      @click="emit('set-group-filter', null)"
-      class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
-      :class="!activeGroupFilter ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'"
-    >{{ t('manualNodes.allGroups') }}</button>
-    <button 
-      @click="emit('set-group-filter', '默认')"
-      class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
-      :class="activeGroupFilter === '默认' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'"
-    >{{ t('manualNodes.ungrouped') }}</button>
-    <button 
-      v-for="group in manualNodeGroups" 
-      :key="group"
-      @click="emit('set-group-filter', activeGroupFilter === group ? null : group)"
-      class="px-3 py-1 text-xs font-medium misub-radius-md transition-all border shrink-0"
-      :class="activeGroupFilter === group ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'"
-    >
-      {{ group }}
-    </button>
-  </div>
-  </div>
 </template>

@@ -5,7 +5,14 @@
 
 import { urlToClashProxy, urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
-import { POLICY_GROUPS, getBuiltinRules, getRemoteProviderDefinitions, DEFAULT_SELECT_GROUP, DEFAULT_RELAY_GROUP, pruneProxyGroups } from './builtin-rules-provider.js';
+import {
+    POLICY_GROUPS,
+    getBuiltinRules,
+    getRemoteProviderDefinitions,
+    DEFAULT_SELECT_GROUP,
+    DEFAULT_RELAY_GROUP,
+    pruneProxyGroups,
+} from './builtin-rules-provider.js';
 
 const ICON_REPO = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
 
@@ -18,7 +25,7 @@ function cleanControlChars(str) {
 function sanitizeNodeName(name) {
     if (!name) return 'Untitled';
     let safe = cleanControlChars(name);
-    // QuanX lines are comma-separated and uses = for key-value. 
+    // QuanX lines are comma-separated and uses = for key-value.
     // Semicolons and quotes can also be problematic in some versions.
     safe = safe.replace(/,/g, ' ').replace(/=/g, '-').replace(/;/g, ' ').replace(/["']/g, '');
     safe = safe.replace(/\s+/g, ' ').trim();
@@ -51,7 +58,9 @@ function appendQxTlsParams(extraParts, proxy) {
 }
 
 function normalizeQxVmessMethod(method) {
-    const normalized = String(method || '').trim().toLowerCase();
+    const normalized = String(method || '')
+        .trim()
+        .toLowerCase();
     if (!normalized || normalized === 'auto') return 'none';
     return normalized;
 }
@@ -75,9 +84,10 @@ function buildQxLine(proxy) {
 
         if (plugin === 'obfs-local' || proxy.obfs) {
             extraParts.push(`obfs=${proxy.obfs || opts.mode}`);
-            if (proxy['obfs-host'] || opts.host) extraParts.push(`obfs-host=${proxy['obfs-host'] || opts.host}`);
+            if (proxy['obfs-host'] || opts.host)
+                extraParts.push(`obfs-host=${proxy['obfs-host'] || opts.host}`);
         } else if (plugin === 'v2ray-plugin' || opts.mode === 'websocket') {
-            extraParts.push((opts.tls || opts.mode === 'websocket-tls') ? 'obfs=wss' : 'obfs=ws');
+            extraParts.push(opts.tls || opts.mode === 'websocket-tls' ? 'obfs=wss' : 'obfs=ws');
             if (opts.path) extraParts.push(`obfs-uri=${opts.path}`);
             if (opts.host) extraParts.push(`obfs-host=${opts.host}`);
         }
@@ -120,8 +130,10 @@ function buildQxLine(proxy) {
         } else {
             extraParts.push('over-tls=true');
         }
-        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
-        if (proxy.obfs) extraParts.push(`obfs=${proxy.obfs}, obfs-host=${proxy['obfs-host'] || ''}`);
+        if (proxy.sni || proxy.servername)
+            extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
+        if (proxy.obfs)
+            extraParts.push(`obfs=${proxy.obfs}, obfs-host=${proxy['obfs-host'] || ''}`);
         if (proxy.tfo) extraParts.push('fast-open=true');
         appendQxTlsParams(extraParts, proxy);
         return `trojan=${server}:${port}, password=${password}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
@@ -146,7 +158,8 @@ function buildQxLine(proxy) {
             extraParts.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=grpc');
             if (hostValue) extraParts.push(`obfs-host=${hostValue}`);
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
-            if (!hasTlsLayer && grpcOpts?.['grpc-service-name']) extraParts.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
+            if (!hasTlsLayer && grpcOpts?.['grpc-service-name'])
+                extraParts.push(`obfs-uri=${grpcOpts['grpc-service-name']}`);
         } else if (transport === 'xhttp' || proxy['xhttp-opts']) {
             // QX 不直接支持 xhttp，尝试映射为 http(s) 以提高兼容性
             extraParts.push(hasTlsLayer ? 'obfs=over-tls' : 'obfs=http');
@@ -161,8 +174,10 @@ function buildQxLine(proxy) {
 
         if (isReality) {
             const realityOpts = proxy['reality-opts'] || {};
-            if (realityOpts['public-key']) extraParts.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
-            if (realityOpts['short-id']) extraParts.push(`reality-hex-shortid=${realityOpts['short-id']}`);
+            if (realityOpts['public-key'])
+                extraParts.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
+            if (realityOpts['short-id'])
+                extraParts.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
 
         if (proxy.flow) extraParts.push(`vless-flow=${proxy.flow}`);
@@ -175,7 +190,8 @@ function buildQxLine(proxy) {
         const password = proxy.password || '';
         const extraParts = [];
         if (type === 'https') extraParts.push('over-tls=true');
-        if (proxy.sni || proxy.servername) extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
+        if (proxy.sni || proxy.servername)
+            extraParts.push(`tls-host=${proxy.sni || proxy.servername}`);
         appendQxTlsParams(extraParts, proxy);
         return `http=${server}:${port}, username=${username}, password=${password}${extraParts.length > 0 ? `, ${extraParts.join(', ')}` : ''}, tag=${name}`;
     }
@@ -205,7 +221,7 @@ function buildQxLine(proxy) {
     if (type === 'anytls') {
         const extraParts = [`password=${proxy.password || ''}`];
         extraParts.push('over-tls=true');
-        
+
         if (proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true) {
             extraParts.push('tls-verification=false');
         } else {
@@ -218,8 +234,10 @@ function buildQxLine(proxy) {
 
         if (proxy.security === 'reality' || proxy['reality-opts']) {
             const realityOpts = proxy['reality-opts'] || {};
-            if (realityOpts['public-key']) extraParts.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
-            if (realityOpts['short-id']) extraParts.push(`reality-hex-shortid=${realityOpts['short-id']}`);
+            if (realityOpts['public-key'])
+                extraParts.push(`reality-base64-pubkey=${realityOpts['public-key']}`);
+            if (realityOpts['short-id'])
+                extraParts.push(`reality-hex-shortid=${realityOpts['short-id']}`);
         }
 
         extraParts.push(`fast-open=${proxy.tfo ? 'true' : 'false'}`);
@@ -238,14 +256,14 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         skipCertVerify = false,
         enableUdp = false,
         enableTfo = false,
-        ruleLevel = 'std'
+        ruleLevel = 'std',
     } = options;
 
     const cleanedNodeList = cleanControlChars(nodeList);
     const nodeUrls = cleanedNodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
 
     const proxyLines = [];
     const proxiesWithMetadata = [];
@@ -256,7 +274,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     // 应用 UDP 开关
     // (已在 urlsToClashProxies 中全局处理)
-    
+
     for (const clashProxy of proxies) {
         const baseName = sanitizeNodeName(clashProxy.name);
         clashProxy.name = getUniqueName(baseName, usedNames);
@@ -277,7 +295,9 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         sections.push(`#!MANAGED-CONFIG ${managedConfigUrl} interval=${interval} strict=false`);
     }
 
-    sections.push(`[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8`);
+    sections.push(
+        `[general]\nserver_check_url = http://www.gstatic.com/generate_204\nexcluded_routes = 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8`
+    );
     sections.push(`[dns]\nno-ipv6\nserver = 223.5.5.5\nserver = 119.29.29.29`);
     sections.push(`[server_remote]`);
     sections.push(`[server_local]\n${proxyLines.join('\n')}`);
@@ -290,7 +310,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
     const groupIcons = {
         [DEFAULT_SELECT_GROUP]: `${ICON_REPO}/Proxy.png`,
         [DEFAULT_RELAY_GROUP]: `${ICON_REPO}/Proxy.png`,
-        '自动选择': `${ICON_REPO}/Speedtest.png`,
+        自动选择: `${ICON_REPO}/Speedtest.png`,
         '🔯 故障转移': `${ICON_REPO}/Relay.png`,
         '🎬 视频广告': `${ICON_REPO}/Reject.png`,
         '🎥 流媒体': `${ICON_REPO}/Video.png`,
@@ -307,7 +327,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         '🇬🇧 英国节点': `${ICON_REPO}/United_Kingdom.png`,
     };
 
-    const groupLines = abstractGroups.map(group => {
+    const groupLines = abstractGroups.map((group) => {
         const normalizePolicyMember = (member) => {
             const upper = String(member || '').toUpperCase();
             if (upper === 'DIRECT') return 'direct';
@@ -331,19 +351,21 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     const rawRules = getBuiltinRules(levelKey, 'quanx');
     const remoteRules = rawRules
-        .filter(r => r.startsWith('filter_remote'))
-        .map(r => r.replace(/^filter_remote,\s*/i, ''));
+        .filter((r) => r.startsWith('filter_remote'))
+        .map((r) => r.replace(/^filter_remote,\s*/i, ''));
     const localRules = rawRules
-        .filter(r => !r.startsWith('filter_remote'))
-        .map(rule => rule
-            .replace(/^HOST-SUFFIX/i, 'host-suffix')
-            .replace(/^HOST-KEYWORD/i, 'host-keyword')
-            .replace(/^HOST,/i, 'host,')
-            .replace(/^IP-CIDR/i, 'ip-cidr')
-            .replace(/^GEOIP/i, 'geoip')
-            .replace(/^FINAL/i, 'final')
-            .replace(/,\s*DIRECT\b/g, ', direct')
-            .replace(/,\s*REJECT\b/g, ', reject'));
+        .filter((r) => !r.startsWith('filter_remote'))
+        .map((rule) =>
+            rule
+                .replace(/^HOST-SUFFIX/i, 'host-suffix')
+                .replace(/^HOST-KEYWORD/i, 'host-keyword')
+                .replace(/^HOST,/i, 'host,')
+                .replace(/^IP-CIDR/i, 'ip-cidr')
+                .replace(/^GEOIP/i, 'geoip')
+                .replace(/^FINAL/i, 'final')
+                .replace(/,\s*DIRECT\b/g, ', direct')
+                .replace(/,\s*REJECT\b/g, ', reject')
+        );
 
     const localRuleLines = [
         '; 基础分流',
@@ -354,7 +376,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
         'ip-cidr, 100.64.0.0/10, direct',
         'ip-cidr, 172.16.0.0/12, direct',
         'ip-cidr, 192.168.0.0/16, direct',
-        ...localRules
+        ...localRules,
     ];
 
     sections.push(`[filter_remote]\n${remoteRules.join('\n')}`);

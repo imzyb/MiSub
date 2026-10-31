@@ -29,7 +29,12 @@ function parseGroupLine(line) {
     if (parts.length < 2) return null;
 
     const name = parts[0].trim();
-    const bodyParts = parts.slice(1).join('=').split(',').map(part => part.trim()).filter(Boolean);
+    const bodyParts = parts
+        .slice(1)
+        .join('=')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
     if (bodyParts.length === 0) return null;
 
     const type = bodyParts[0];
@@ -49,38 +54,44 @@ function parseGroupLine(line) {
 }
 
 function parseRuleLine(line) {
-    const parts = line.split(',').map(part => part.trim()).filter(Boolean);
+    const parts = line
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
     if (parts.length < 2) return null;
 
     return {
         type: parts[0].toLowerCase(),
         value: parts.length > 2 ? parts[1] : '',
         policy: parts.length > 2 ? parts[2] : parts[1],
-        extras: parts.length > 3 ? parts.slice(3) : []
+        extras: parts.length > 3 ? parts.slice(3) : [],
     };
 }
 
 function parseAclRuleSetLine(line) {
     const raw = line.replace(/^ruleset=/i, '');
-    const parts = raw.split(',').map(part => part.trim());
+    const parts = raw.split(',').map((part) => part.trim());
     if (parts.length < 2) return null;
 
     const policy = parts[0];
     let source = parts.slice(1).join(',');
-    
+
     // Clean up protocol prefixes like clash-classic:, surge:, etc.
     source = source.replace(/^(clash-classic|surge|quanx|loon|sing-box|singbox):/i, '');
-    
+
     if (source.startsWith('[]')) {
         const inlineValue = source.slice(2);
-        const inlineParts = inlineValue.split(',').map(part => part.trim()).filter(Boolean);
+        const inlineParts = inlineValue
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean);
         const type = (inlineParts[0] || '').toLowerCase();
         return {
             type,
             value: inlineParts[1] || '',
             policy,
             source: 'inline',
-            extras: inlineParts.slice(2)
+            extras: inlineParts.slice(2),
         };
     }
 
@@ -89,13 +100,16 @@ function parseAclRuleSetLine(line) {
         value: pinRemoteRuleUrl(source),
         policy,
         source: 'remote',
-        extras: []
+        extras: [],
     };
 }
 
 function parseAclProxyGroupLine(line) {
     const raw = line.replace(/^custom_proxy_group=/i, '');
-    const parts = raw.split('`').map(part => part.trim()).filter(Boolean);
+    const parts = raw
+        .split('`')
+        .map((part) => part.trim())
+        .filter(Boolean);
     if (parts.length < 2) return null;
 
     const name = parts[0];
@@ -115,7 +129,11 @@ function parseAclProxyGroupLine(line) {
         }
         // 支持纯数字或带逗号的数字序列（如 300 或 300,,50）
         if (/^\d+(?:,\s*\d*)*$/.test(part)) {
-            const nums = part.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+            const nums = part
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map(Number);
             if (nums.length > 0) {
                 if (!options.interval) options.interval = nums[0];
                 if (nums.length > 1 && !options.tolerance) options.tolerance = nums[1];
@@ -129,7 +147,7 @@ function parseAclProxyGroupLine(line) {
             continue;
         }
         if (part === ',') continue;
-        
+
         // 兜底：如果既不是特殊的 [] 开头也不是已知格式，尝试作为成员或正则识别
         if (part && !part.includes('=')) {
             // 如果包含正则特殊字符，视为过滤器
@@ -144,16 +162,35 @@ function parseAclProxyGroupLine(line) {
     return { name, type, members, filters, options };
 }
 
+/**
+ * 解析链式代理声明。
+ * 语法：custom_chain_proxy=<落地组名>`<前置组名>[`<落地副本名前缀>]
+ * 前缀省略时默认为 "<落地组名> - "。
+ */
+function parseChainProxyLine(line) {
+    const raw = line.replace(/^\s*/, '').replace(/^custom_chain_proxy=/i, '');
+    const parts = raw.split('`');
+    const group = (parts[0] || '').trim();
+    const entry = (parts[1] || '').trim();
+    if (!group || !entry || group === entry) return null;
+    // 前缀不 trim：允许以空格结尾（如 "CHAIN: "），否则无法表达分隔符。
+    return { group, entry, prefix: parts.length > 2 ? parts[2] : '' };
+}
+
 export function parseIniTemplate(templateText, options = {}) {
     const sections = parseIniSections(templateText);
     const aclCustomLines = sections.get('custom') || [];
     const parsedAclGroups = aclCustomLines
-        .filter(line => /^custom_proxy_group=/i.test(line.trim()))
+        .filter((line) => /^custom_proxy_group=/i.test(line.trim()))
         .map(parseAclProxyGroupLine)
         .filter(Boolean);
     const parsedAclRules = aclCustomLines
-        .filter(line => /^ruleset=/i.test(line.trim()))
+        .filter((line) => /^ruleset=/i.test(line.trim()))
         .map(parseAclRuleSetLine)
+        .filter(Boolean);
+    const parsedChainProxy = aclCustomLines
+        .filter((line) => /^custom_chain_proxy=/i.test(line.trim()))
+        .map(parseChainProxyLine)
         .filter(Boolean);
 
     const groups = (sections.get('proxy group') || [])
@@ -173,7 +210,7 @@ export function parseIniTemplate(templateText, options = {}) {
             // [逻辑说明] ruleLevel 在 INI 模式下暂不直接影响生成，因为 INI 自带了 hardcoded rules。
             // 仅作为元数据打包进 TemplateModel，供未来动态模板扩展使用。
             ruleLevel: options.ruleLevel || 'std',
-            isMeta: Boolean(options.isMeta)
+            isMeta: Boolean(options.isMeta),
         },
         proxies: options.proxies || [],
         groups,
@@ -184,7 +221,8 @@ export function parseIniTemplate(templateText, options = {}) {
             skipCertVerify: Boolean(options.skipCertVerify),
             enableUdp: Boolean(options.enableUdp),
             customDnsOverride: options.customDnsOverride || '',
-            dnsMode: options.dnsMode || 'clean'
-        }
+            dnsMode: options.dnsMode || 'clean',
+        },
+        extras: parsedChainProxy.length > 0 ? { chainProxy: parsedChainProxy } : {},
     });
 }

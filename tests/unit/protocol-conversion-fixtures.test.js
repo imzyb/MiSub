@@ -29,13 +29,67 @@ const expectParseOnly = (url, expected) => {
     expect(stripGeneratedFields(batched)).toMatchObject(expected);
 };
 
-const base64UrlSafeEncode = (value) => Buffer.from(value, 'utf8')
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
+const base64UrlSafeEncode = (value) =>
+    Buffer.from(value, 'utf8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
 
 describe('protocol conversion fixtures', () => {
+    it('brackets bare IPv6 servers in Clash proxy URLs and round-trips them', () => {
+        expectRoundTrip(
+            {
+                name: 'IPv6 VLESS',
+                type: 'vless',
+                server: '2001:db8::1',
+                port: 443,
+                uuid: '00000000-0000-0000-0000-000000000001',
+            },
+            {
+                name: 'IPv6 VLESS',
+                type: 'vless',
+                server: '2001:db8::1',
+                port: 443,
+            }
+        );
+    });
+
+    it('preserves TLS and certificate settings on Clash HTTP proxies through URL round-trip', () => {
+        expectRoundTrip(
+            {
+                name: 'TLS HTTP',
+                type: 'http',
+                server: 'proxy.example.com',
+                port: 443,
+                tls: true,
+                'skip-cert-verify': true,
+                servername: 'proxy.example.com',
+            },
+            {
+                name: 'TLS HTTP',
+                type: 'http',
+                server: 'proxy.example.com',
+                port: 443,
+                tls: true,
+                'skip-cert-verify': true,
+                servername: 'proxy.example.com',
+                sni: 'proxy.example.com',
+            }
+        );
+    });
+
+    it('parses plain HTTP proxy URIs as HTTP proxies with credentials', () => {
+        expectParseOnly('http://alice:p%40ss%3Aword@proxy.example.com:8080#plain-http', {
+            name: 'plain-http',
+            type: 'http',
+            server: 'proxy.example.com',
+            port: 8080,
+            username: 'alice',
+            password: 'p@ss:word',
+        });
+    });
+
     it('preserves common proxy fields across Clash proxy -> URL -> Clash proxy round trips', () => {
         const fixtures = [
             {
@@ -49,8 +103,8 @@ describe('protocol conversion fixtures', () => {
                     plugin: 'obfs',
                     'plugin-opts': {
                         mode: 'tls',
-                        host: 'cdn.example.com'
-                    }
+                        host: 'cdn.example.com',
+                    },
                 },
                 expected: {
                     name: 'Fixture SS Obfs',
@@ -62,9 +116,9 @@ describe('protocol conversion fixtures', () => {
                     plugin: 'obfs',
                     'plugin-opts': {
                         mode: 'tls',
-                        host: 'cdn.example.com'
-                    }
-                }
+                        host: 'cdn.example.com',
+                    },
+                },
             },
             {
                 proxy: {
@@ -77,7 +131,7 @@ describe('protocol conversion fixtures', () => {
                     obfs: 'http_simple',
                     password: 'ssr-pass',
                     'obfs-param': 'download.example.com',
-                    'protocol-param': '32:token'
+                    'protocol-param': '32:token',
                 },
                 expected: {
                     name: 'Fixture SSR',
@@ -89,8 +143,8 @@ describe('protocol conversion fixtures', () => {
                     obfs: 'http_simple',
                     password: 'ssr-pass',
                     'obfs-param': 'download.example.com',
-                    'protocol-param': '32:token'
-                }
+                    'protocol-param': '32:token',
+                },
             },
             {
                 proxy: {
@@ -107,8 +161,8 @@ describe('protocol conversion fixtures', () => {
                     'client-fingerprint': 'chrome',
                     'ws-opts': {
                         path: '/ws',
-                        headers: { Host: 'front.example.com' }
-                    }
+                        headers: { Host: 'front.example.com' },
+                    },
                 },
                 expected: {
                     name: 'Fixture VMess WS',
@@ -124,9 +178,9 @@ describe('protocol conversion fixtures', () => {
                     'client-fingerprint': 'chrome',
                     'ws-opts': {
                         path: '/ws',
-                        headers: { Host: 'front.example.com' }
-                    }
-                }
+                        headers: { Host: 'front.example.com' },
+                    },
+                },
             },
             {
                 proxy: {
@@ -144,12 +198,12 @@ describe('protocol conversion fixtures', () => {
                     'reality-opts': {
                         'public-key': 'public-key-value',
                         'short-id': 'abcd',
-                        'spider-x': '/'
+                        'spider-x': '/',
                     },
                     'grpc-opts': {
                         'grpc-service-name': 'update',
-                        'grpc-mode': 'gun'
-                    }
+                        'grpc-mode': 'gun',
+                    },
                 },
                 expected: {
                     name: 'Fixture VLESS Reality',
@@ -167,13 +221,13 @@ describe('protocol conversion fixtures', () => {
                     'reality-opts': {
                         'public-key': 'public-key-value',
                         'short-id': 'abcd',
-                        'spider-x': '/'
+                        'spider-x': '/',
                     },
                     'grpc-opts': {
                         'grpc-service-name': 'update',
-                        'grpc-mode': 'gun'
-                    }
-                }
+                        'grpc-mode': 'gun',
+                    },
+                },
             },
             {
                 proxy: {
@@ -187,8 +241,8 @@ describe('protocol conversion fixtures', () => {
                     'skip-cert-verify': true,
                     'ws-opts': {
                         path: '/trojan',
-                        headers: { Host: 'trojan-front.example.com' }
-                    }
+                        headers: { Host: 'trojan-front.example.com' },
+                    },
                 },
                 expected: {
                     name: 'Fixture Trojan WS',
@@ -202,9 +256,9 @@ describe('protocol conversion fixtures', () => {
                     'skip-cert-verify': true,
                     'ws-opts': {
                         path: '/trojan',
-                        headers: { Host: 'trojan-front.example.com' }
-                    }
-                }
+                        headers: { Host: 'trojan-front.example.com' },
+                    },
+                },
             },
             {
                 proxy: {
@@ -222,8 +276,8 @@ describe('protocol conversion fixtures', () => {
                         'realm-id': 'realm-id-value',
                         token: 'realm-token-value',
                         'server-url': 'https://realm.example.com',
-                        'stun-servers': ['stun.example.com:3478', 'stun2.example.com:3478']
-                    }
+                        'stun-servers': ['stun.example.com:3478', 'stun2.example.com:3478'],
+                    },
                 },
                 expected: {
                     name: 'Fixture HY2 Realm',
@@ -241,9 +295,9 @@ describe('protocol conversion fixtures', () => {
                         'realm-id': 'realm-id-value',
                         token: 'realm-token-value',
                         'server-url': 'https://realm.example.com',
-                        'stun-servers': ['stun.example.com:3478', 'stun2.example.com:3478']
-                    }
-                }
+                        'stun-servers': ['stun.example.com:3478', 'stun2.example.com:3478'],
+                    },
+                },
             },
             {
                 proxy: {
@@ -259,7 +313,7 @@ describe('protocol conversion fixtures', () => {
                     'congestion-controller': 'bbr',
                     'udp-relay-mode': 'native',
                     'zero-rtt-handshake': true,
-                    heartbeat: '10s'
+                    heartbeat: '10s',
                 },
                 expected: {
                     name: 'Fixture TUIC',
@@ -276,8 +330,8 @@ describe('protocol conversion fixtures', () => {
                     'udp-relay-mode': 'native',
                     'zero-rtt-handshake': true,
                     'reduce-rtt': true,
-                    heartbeat: '10s'
-                }
+                    heartbeat: '10s',
+                },
             },
             {
                 proxy: {
@@ -286,7 +340,7 @@ describe('protocol conversion fixtures', () => {
                     server: 'socks.example.com',
                     port: 1080,
                     username: 'user',
-                    password: 'p@ss:word'
+                    password: 'p@ss:word',
                 },
                 expected: {
                     name: 'Fixture SOCKS5',
@@ -295,8 +349,8 @@ describe('protocol conversion fixtures', () => {
                     port: 1080,
                     username: 'user',
                     password: 'p@ss:word',
-                    udp: false
-                }
+                    udp: false,
+                },
             },
             {
                 proxy: {
@@ -310,9 +364,9 @@ describe('protocol conversion fixtures', () => {
                     tfo: true,
                     'obfs-opts': {
                         mode: 'tls',
-                        host: 'snell-front.example.com'
+                        host: 'snell-front.example.com',
                     },
-                    ecn: true
+                    ecn: true,
                 },
                 expected: {
                     name: 'Fixture Snell',
@@ -325,10 +379,10 @@ describe('protocol conversion fixtures', () => {
                     tfo: true,
                     'obfs-opts': {
                         mode: 'tls',
-                        host: 'snell-front.example.com'
+                        host: 'snell-front.example.com',
                     },
-                    ecn: true
-                }
+                    ecn: true,
+                },
             },
             {
                 proxy: {
@@ -340,8 +394,9 @@ describe('protocol conversion fixtures', () => {
                     sni: 'anytls-sni.example.com',
                     alpn: ['h2', 'http/1.1'],
                     'skip-cert-verify': true,
-                    pinnedPeerCertSha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-                    padding: true
+                    pinnedPeerCertSha256:
+                        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                    padding: true,
                 },
                 expected: {
                     name: 'Fixture AnyTLS',
@@ -353,9 +408,10 @@ describe('protocol conversion fixtures', () => {
                     sni: 'anytls-sni.example.com',
                     alpn: ['h2', 'http/1.1'],
                     'skip-cert-verify': true,
-                    pinnedPeerCertSha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-                    udp: true
-                }
+                    pinnedPeerCertSha256:
+                        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                    udp: true,
+                },
             },
             {
                 proxy: {
@@ -371,7 +427,7 @@ describe('protocol conversion fixtures', () => {
                     mtu: 1280,
                     dns: ['1.1.1.1', '2606:4700:4700::1111'],
                     'persistent-keepalive': 25,
-                    'preshared-key': 'psk-value'
+                    'preshared-key': 'psk-value',
                 },
                 expected: {
                     name: 'Fixture WireGuard',
@@ -388,9 +444,9 @@ describe('protocol conversion fixtures', () => {
                     mtu: 1280,
                     dns: ['1.1.1.1', '2606:4700:4700::1111'],
                     'persistent-keepalive': 25,
-                    'preshared-key': 'psk-value'
-                }
-            }
+                    'preshared-key': 'psk-value',
+                },
+            },
         ];
 
         for (const fixture of fixtures) {
@@ -399,19 +455,21 @@ describe('protocol conversion fixtures', () => {
     });
 
     it('preserves parse-only protocol contracts for supported import schemes', () => {
-        const ssdUrl = `ssd://${base64UrlSafeEncode(JSON.stringify({
-            encryption: 'aes-256-gcm',
-            password: 'shared-pass',
-            servers: [
-                {
-                    server: 'ssd.example.com',
-                    port: 8443,
-                    remarks: 'Fixture SSD',
-                    plugin: 'obfs-local',
-                    plugin_options: 'cdn.example.com'
-                }
-            ]
-        }))}`;
+        const ssdUrl = `ssd://${base64UrlSafeEncode(
+            JSON.stringify({
+                encryption: 'aes-256-gcm',
+                password: 'shared-pass',
+                servers: [
+                    {
+                        server: 'ssd.example.com',
+                        port: 8443,
+                        remarks: 'Fixture SSD',
+                        plugin: 'obfs-local',
+                        plugin_options: 'cdn.example.com',
+                    },
+                ],
+            })
+        )}`;
 
         const fixtures = [
             {
@@ -425,15 +483,15 @@ describe('protocol conversion fixtures', () => {
                     password: 'shared-pass',
                     plugin: 'obfs-local',
                     'plugin-opts': {
-                        host: 'cdn.example.com'
-                    }
-                }
+                        host: 'cdn.example.com',
+                    },
+                },
             },
             {
                 url: 'https://user:p%40ss%3Aword@https.example.com:443?sni=https-sni.example.com&allowInsecure=1#Fixture%20HTTPS',
                 expected: {
                     name: 'Fixture HTTPS',
-                    type: 'https',
+                    type: 'http',
                     server: 'https.example.com',
                     port: 443,
                     username: 'user',
@@ -441,8 +499,8 @@ describe('protocol conversion fixtures', () => {
                     servername: 'https-sni.example.com',
                     sni: 'https-sni.example.com',
                     'skip-cert-verify': true,
-                    udp: false
-                }
+                    udp: false,
+                },
             },
             {
                 url: 'socks5://user:p%40ss%3Aword@socks-tls.example.com:1081?tls=1&sni=socks-sni.example.com&allowInsecure=1#Fixture%20SOCKS5%20TLS',
@@ -456,8 +514,8 @@ describe('protocol conversion fixtures', () => {
                     udp: false,
                     servername: 'socks-sni.example.com',
                     sni: 'socks-sni.example.com',
-                    'skip-cert-verify': true
-                }
+                    'skip-cert-verify': true,
+                },
             },
             {
                 url: 'anytls://anytls-parse-pass@anytls-parse.example.com:443?sni=anytls-sni.example.com&pinnedPeerCertSha256=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789#Fixture%20AnyTLS%20Pinned',
@@ -469,15 +527,45 @@ describe('protocol conversion fixtures', () => {
                     password: 'anytls-parse-pass',
                     servername: 'anytls-sni.example.com',
                     sni: 'anytls-sni.example.com',
-                    pinnedPeerCertSha256: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-                    udp: true
-                }
-            }
+                    pinnedPeerCertSha256:
+                        'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+                    udp: true,
+                },
+            },
         ];
 
         for (const fixture of fixtures) {
             expectParseOnly(fixture.url, fixture.expected);
         }
+    });
+
+    it('preserves TLS and certificate settings through the builtin Clash subscription output', () => {
+        const clashConfig = `
+proxies:
+  - name: TLS HTTP
+    type: http
+    server: proxy.example.com
+    port: 443
+    tls: true
+    skip-cert-verify: true
+    servername: proxy.example.com
+`;
+        const nodes = extractValidNodes(clashConfig);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0]).toMatch(/https:/);
+        expect(nodes[0]).toContain('allowInsecure=1');
+
+        const generated = yaml.load(
+            generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false })
+        );
+        expect(generated.proxies[0]).toMatchObject({
+            name: 'TLS HTTP',
+            type: 'http',
+            server: 'proxy.example.com',
+            port: 443,
+            tls: true,
+            'skip-cert-verify': true,
+        });
     });
 
     it('preserves VLESS gRPC service options from Clash YAML through URL and builtin Clash output', () => {
@@ -507,15 +595,17 @@ proxies:
         expect(nodes[0]).toContain('serviceName=update');
         expect(nodes[0]).toContain('mode=gun');
 
-        const fullConfig = yaml.load(generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false }));
+        const fullConfig = yaml.load(
+            generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false })
+        );
         expect(fullConfig.proxies[0]).toMatchObject({
             name: 'JP-1',
             type: 'vless',
             network: 'grpc',
             'grpc-opts': {
                 'grpc-service-name': 'update',
-                'grpc-mode': 'gun'
-            }
+                'grpc-mode': 'gun',
+            },
         });
     });
 
@@ -543,7 +633,9 @@ proxies:
         expect(nodes[0]).toContain('mode=gun');
         expect(nodes[0]).toContain('fp=chrome');
 
-        const fullConfig = yaml.load(generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false }));
+        const fullConfig = yaml.load(
+            generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false })
+        );
         expect(fullConfig.proxies[0]).toMatchObject({
             name: 'Trojan gRPC',
             type: 'trojan',
@@ -553,8 +645,8 @@ proxies:
             'skip-cert-verify': true,
             'grpc-opts': {
                 'grpc-service-name': 'gateway',
-                'grpc-mode': 'gun'
-            }
+                'grpc-mode': 'gun',
+            },
         });
     });
 
@@ -564,13 +656,40 @@ proxies:
 
         expect(parsed).toMatchObject({
             type: 'hysteria2',
-            ports: '20000-30000'
+            ports: '20000-30000',
         });
 
         const [batched] = urlsToClashProxies([url], { addFlagEmoji: false });
         expect(stripGeneratedFields(batched)).toMatchObject({
             type: 'hysteria2',
-            ports: '20000-30000'
+            ports: '20000-30000',
+        });
+    });
+
+    it('preserves Hysteria2 port hopping through URL and builtin Clash output', () => {
+        const clashConfig = `
+proxies:
+  - name: HY2 hopping
+    type: hysteria2
+    server: hy2.example.com
+    port: 443
+    password: secret
+    ports: 20000-30000
+    hop-interval: 30
+`;
+
+        const nodes = extractValidNodes(clashConfig);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0]).toContain('ports=20000-30000');
+        expect(nodes[0]).toContain('hop-interval=30');
+
+        const fullConfig = yaml.load(
+            generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false })
+        );
+        expect(fullConfig.proxies[0]).toMatchObject({
+            type: 'hysteria2',
+            ports: '20000-30000',
+            'hop-interval': '30',
         });
     });
 
@@ -599,14 +718,16 @@ proxies:
         expect(nodes[0]).toContain('down=200%20Mbps');
         expect(nodes[0]).toContain('fast_open=1');
 
-        const fullConfig = yaml.load(generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false }));
+        const fullConfig = yaml.load(
+            generateBuiltinClashConfig(nodes.join('\n'), { addFlagEmoji: false })
+        );
         expect(fullConfig.proxies[0]).toMatchObject({
             name: 'HY2 full',
             type: 'hysteria2',
             ports: '20000-30000',
             up: '100 Mbps',
             down: '200 Mbps',
-            'fast-open': true
+            'fast-open': true,
         });
     });
 
@@ -623,7 +744,7 @@ proxies:
                     sni: 'hy-sni.example.com',
                     'skip-cert-verify': true,
                     up: 100,
-                    down: 200
+                    down: 200,
                 },
                 urlPattern: /^hysteria:\/\/hy-pass@hy\.example\.com:8443\?/,
                 requiredParts: [
@@ -632,8 +753,8 @@ proxies:
                     'insecure=1',
                     'up=100',
                     'down=200',
-                    '#Fixture%20Hysteria%20Legacy'
-                ]
+                    '#Fixture%20Hysteria%20Legacy',
+                ],
             },
             {
                 proxy: {
@@ -642,10 +763,11 @@ proxies:
                     server: 'http.example.com',
                     port: 8080,
                     username: 'user',
-                    password: 'p@ss:word'
+                    password: 'p@ss:word',
                 },
-                urlPattern: /^http:\/\/user:p%40ss%3Aword@http\.example\.com:8080#Fixture%20HTTP%20Export$/,
-                requiredParts: []
+                urlPattern:
+                    /^http:\/\/user:p%40ss%3Aword@http\.example\.com:8080#Fixture%20HTTP%20Export$/,
+                requiredParts: [],
             },
             {
                 proxy: {
@@ -656,15 +778,15 @@ proxies:
                     username: 'user',
                     password: 'p@ss:word',
                     padding: true,
-                    'extra-headers': 'Host: naive-front.example.com'
+                    'extra-headers': 'Host: naive-front.example.com',
                 },
                 urlPattern: /^naive\+https:\/\/user:p%40ss%3Aword@naive\.example\.com:443\?/,
                 requiredParts: [
                     'padding=true',
                     'extra-headers=Host%3A%20naive-front.example.com',
-                    '#Fixture%20Naive%20Export'
-                ]
-            }
+                    '#Fixture%20Naive%20Export',
+                ],
+            },
         ];
 
         for (const fixture of fixtures) {
@@ -673,8 +795,17 @@ proxies:
             for (const part of fixture.requiredParts) {
                 expect(url).toContain(part);
             }
-            expect(urlToClashProxy(url)).toBeNull();
-            expect(urlsToClashProxies([url])).toEqual([]);
+            if (fixture.proxy.type === 'http') {
+                expect(urlToClashProxy(url)).toMatchObject({
+                    type: 'http',
+                    username: 'user',
+                    password: 'p@ss:word',
+                });
+                expect(urlsToClashProxies([url])).toHaveLength(1);
+            } else {
+                expect(urlToClashProxy(url)).toBeNull();
+                expect(urlsToClashProxies([url])).toEqual([]);
+            }
         }
     });
 });

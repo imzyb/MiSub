@@ -3,7 +3,7 @@ import { resolveNodeListWithCache } from '../../functions/modules/subscription/c
 
 function createStorage(cachedData) {
     return {
-        get: vi.fn().mockResolvedValue(cachedData)
+        get: vi.fn().mockResolvedValue(cachedData),
     };
 }
 
@@ -17,13 +17,13 @@ describe('resolveNodeListWithCache', () => {
                 nodes: 'trojan://password@1.2.3.4:443#HK-01',
                 timestamp: Date.now(),
                 nodeCount: 1,
-                sources: ['airport']
+                sources: ['airport'],
             }),
             cacheKey: 'node_cache_token_test',
             forceRefresh: false,
             refreshNodes,
             context,
-            targetMisubsCount: 1
+            targetMisubsCount: 1,
         });
 
         expect(result.combinedNodeList).toBe('trojan://password@1.2.3.4:443#HK-01');
@@ -41,13 +41,13 @@ describe('resolveNodeListWithCache', () => {
                 nodes: '',
                 timestamp: Date.now(),
                 nodeCount: 0,
-                sources: ['airport']
+                sources: ['airport'],
             }),
             cacheKey: 'node_cache_token_test',
             forceRefresh: false,
             refreshNodes,
             context: {},
-            targetMisubsCount: 1
+            targetMisubsCount: 1,
         });
 
         expect(result.combinedNodeList).toBe('trojan://password@1.2.3.4:443#HK-01');
@@ -65,14 +65,14 @@ describe('resolveNodeListWithCache', () => {
                 nodes: 'trojan://cached@example.com:443#Cached\n',
                 timestamp: Date.now(),
                 nodeCount: 2,
-                sources: ['airport']
+                sources: ['airport'],
             }),
             cacheKey: 'node_cache_token_test',
             forceRefresh: false,
             refreshNodes,
             context: {},
             targetMisubsCount: 1,
-            expectedNodeCount: 156
+            expectedNodeCount: 156,
         });
 
         expect(result.combinedNodeList).toBe('trojan://fresh@example.com:443#Fresh');
@@ -82,23 +82,24 @@ describe('resolveNodeListWithCache', () => {
 
     it('ignores the known partial-result signature even when no expected node count is available', async () => {
         const refreshNodes = vi.fn().mockResolvedValue('trojan://fresh@example.com:443#Fresh');
-        const partialNodes = [
-            'trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99',
-            'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111'
-        ].join('\n') + '\n';
+        const partialNodes =
+            [
+                'trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99',
+                'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
+            ].join('\n') + '\n';
 
         const result = await resolveNodeListWithCache({
             storageAdapter: createStorage({
                 nodes: partialNodes,
                 timestamp: Date.now(),
                 nodeCount: 2,
-                sources: ['airport']
+                sources: ['airport'],
             }),
             cacheKey: 'node_cache_token_test',
             forceRefresh: false,
             refreshNodes,
             context: {},
-            targetMisubsCount: 1
+            targetMisubsCount: 1,
         });
 
         expect(result.combinedNodeList).toBe('trojan://fresh@example.com:443#Fresh');

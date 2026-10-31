@@ -4,7 +4,7 @@ import { transformBuiltinSubscription } from '../../functions/modules/subscripti
 
 const NODE_LIST = [
     'trojan://password@1.2.3.4:443?sni=example.com#HK-01',
-    'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.5:8388#JP-01'
+    'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.5:8388#JP-01',
 ].join('\n');
 
 describe('Builtin target smoke output', () => {
@@ -12,7 +12,7 @@ describe('Builtin target smoke output', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'clash', {
             fileName: 'Smoke Clash',
             ruleLevel: 'std',
-            managedConfigUrl: 'https://example.com/sub?target=clash&builtin=1'
+            managedConfigUrl: 'https://example.com/sub?target=clash&builtin=1',
         });
         const parsed = yaml.load(rendered);
 
@@ -27,13 +27,13 @@ describe('Builtin target smoke output', () => {
     it('renders parseable Sing-box JSON with outbounds and route', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'singbox', {
             fileName: 'Smoke Singbox',
-            ruleLevel: 'std'
+            ruleLevel: 'std',
         });
         const parsed = JSON.parse(rendered);
 
         expect(Array.isArray(parsed.outbounds)).toBe(true);
-        expect(parsed.outbounds.some(outbound => outbound.type === 'trojan')).toBe(true);
-        expect(parsed.outbounds.some(outbound => outbound.type === 'shadowsocks')).toBe(true);
+        expect(parsed.outbounds.some((outbound) => outbound.type === 'trojan')).toBe(true);
+        expect(parsed.outbounds.some((outbound) => outbound.type === 'shadowsocks')).toBe(true);
         expect(parsed.route).toBeTruthy();
         expect(typeof parsed.route.final).toBe('string');
     });
@@ -42,7 +42,7 @@ describe('Builtin target smoke output', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'surge&ver=4', {
             fileName: 'Smoke Surge',
             ruleLevel: 'std',
-            managedConfigUrl: 'https://example.com/sub?target=surge&ver=4&builtin=1'
+            managedConfigUrl: 'https://example.com/sub?target=surge&ver=4&builtin=1',
         });
 
         expect(rendered).toContain('[Proxy]');
@@ -55,7 +55,7 @@ describe('Builtin target smoke output', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'loon', {
             fileName: 'Smoke Loon',
             ruleLevel: 'std',
-            managedConfigUrl: 'https://example.com/sub?target=loon&builtin=1'
+            managedConfigUrl: 'https://example.com/sub?target=loon&builtin=1',
         });
 
         expect(rendered).toContain('[Proxy]');
@@ -68,7 +68,7 @@ describe('Builtin target smoke output', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'quanx', {
             fileName: 'Smoke QuanX',
             ruleLevel: 'std',
-            managedConfigUrl: 'https://example.com/sub?target=quanx&builtin=1'
+            managedConfigUrl: 'https://example.com/sub?target=quanx&builtin=1',
         });
 
         expect(rendered).toContain('[server_local]');
@@ -83,7 +83,7 @@ describe('Builtin target smoke output', () => {
         const rendered = transformBuiltinSubscription(NODE_LIST, 'egern', {
             fileName: 'Smoke Egern',
             ruleLevel: 'std',
-            managedConfigUrl: 'https://example.com/sub?target=egern&builtin=1'
+            managedConfigUrl: 'https://example.com/sub?target=egern&builtin=1',
         });
         const parsed = yaml.load(rendered);
 
@@ -104,7 +104,7 @@ describe('Builtin target smoke output', () => {
             const rendered = transformBuiltinSubscription(node, target, {
                 fileName: `Emoji ${target}`,
                 ruleLevel: 'std',
-                addFlagEmoji: false
+                addFlagEmoji: false,
             });
 
             expect(rendered, target).toContain('HKNode');

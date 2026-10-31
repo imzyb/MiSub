@@ -15,25 +15,26 @@ function getCrypto() {
 
 function bytesToHex(buffer) {
     return Array.from(new Uint8Array(buffer))
-        .map(byte => byte.toString(16).padStart(2, '0'))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
         .join('');
 }
 
 function bytesToBase64Url(bytes) {
     let binary = '';
-    bytes.forEach(byte => {
+    bytes.forEach((byte) => {
         binary += String.fromCharCode(byte);
     });
-    const base64 = typeof btoa === 'function'
-        ? btoa(binary)
-        : Buffer.from(binary, 'binary').toString('base64');
+    const base64 =
+        typeof btoa === 'function'
+            ? btoa(binary)
+            : Buffer.from(binary, 'binary').toString('base64');
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function encodeUtf8Base64(text) {
     const bytes = new TextEncoder().encode(String(text || ''));
     let binary = '';
-    bytes.forEach(byte => {
+    bytes.forEach((byte) => {
         binary += String.fromCharCode(byte);
     });
     return typeof btoa === 'function'
@@ -42,12 +43,15 @@ function encodeUtf8Base64(text) {
 }
 
 function base64UrlToBytes(value) {
-    const base64 = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = String(value || '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const binary = typeof atob === 'function'
-        ? atob(padded)
-        : Buffer.from(padded, 'base64').toString('binary');
-    return Uint8Array.from(binary, char => char.charCodeAt(0));
+    const binary =
+        typeof atob === 'function'
+            ? atob(padded)
+            : Buffer.from(padded, 'base64').toString('binary');
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
 function encodePayload(payload) {
@@ -137,16 +141,15 @@ function purgeExpiredMemoryEntries(now = Date.now()) {
 export function countNodeLines(nodesText = '') {
     return String(nodesText || '')
         .split(/\r?\n+/)
-        .map(line => line.trim())
-        .filter(Boolean)
-        .length;
+        .map((line) => line.trim())
+        .filter(Boolean).length;
 }
 
 export function shouldUseExternalNodesCallback({
     inlineUrlLength = 0,
     nodeCount = 0,
     maxInlineUrlLength = DEFAULT_MAX_INLINE_URL_LENGTH,
-    maxInlineNodeCount = DEFAULT_MAX_INLINE_NODE_COUNT
+    maxInlineNodeCount = DEFAULT_MAX_INLINE_NODE_COUNT,
 } = {}) {
     return Number(inlineUrlLength) > maxInlineUrlLength || Number(nodeCount) > maxInlineNodeCount;
 }
@@ -160,7 +163,12 @@ export async function hashExternalNodes(nodesText) {
     return sha256Hex(String(nodesText || ''));
 }
 
-export async function putExternalNodes({ env = {}, profileId = 'default', nodesText = '', ttlSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS } = {}) {
+export async function putExternalNodes({
+    env = {},
+    profileId = 'default',
+    nodesText = '',
+    ttlSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS,
+} = {}) {
     const normalizedNodes = String(nodesText || '');
     const nodeHash = await hashExternalNodes(normalizedNodes);
     const cacheKey = buildExternalNodesCacheKey(profileId, nodeHash);
@@ -183,7 +191,7 @@ export async function putExternalNodes({ env = {}, profileId = 'default', nodesT
         }
         await d1Adapter.put(cacheKey, {
             value: normalizedNodes,
-            expiresAt: Date.now() + ttlSeconds * 1000
+            expiresAt: Date.now() + ttlSeconds * 1000,
         });
         return { cacheKey, nodeHash, reused: false, storage: 'd1' };
     }
@@ -196,7 +204,7 @@ export async function putExternalNodes({ env = {}, profileId = 'default', nodesT
     }
     cache.set(cacheKey, {
         value: normalizedNodes,
-        expiresAt: Date.now() + ttlSeconds * 1000
+        expiresAt: Date.now() + ttlSeconds * 1000,
     });
     return { cacheKey, nodeHash, reused: false, storage: 'memory' };
 }
@@ -223,14 +231,19 @@ export async function getExternalNodes({ env = {}, profileId = 'default', nodeHa
     return entry?.expiresAt > Date.now() ? entry.value : null;
 }
 
-export async function createExternalNodesToken({ profileId, nodeHash, secret, expiresInSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS } = {}) {
+export async function createExternalNodesToken({
+    profileId,
+    nodeHash,
+    secret,
+    expiresInSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS,
+} = {}) {
     if (!secret) {
         throw new Error('external nodes callback secret is missing');
     }
     const payload = {
         profileId: String(profileId || 'default'),
         nodeHash: String(nodeHash || ''),
-        exp: Math.floor(Date.now() / 1000) + Number(expiresInSeconds)
+        exp: Math.floor(Date.now() / 1000) + Number(expiresInSeconds),
     };
     const encodedPayload = encodePayload(payload);
     const signature = await hmacSha256Base64Url(encodedPayload, secret);
@@ -278,19 +291,26 @@ export function buildExternalNodesCallbackUrl(requestUrl, token, { encoding } = 
     return callbackUrl.toString();
 }
 
-export async function prepareExternalNodesCallback({ env = {}, requestUrl, profileId = 'default', nodesText = '', ttlSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS, encoding } = {}) {
+export async function prepareExternalNodesCallback({
+    env = {},
+    requestUrl,
+    profileId = 'default',
+    nodesText = '',
+    ttlSeconds = DEFAULT_EXTERNAL_NODES_TTL_SECONDS,
+    encoding,
+} = {}) {
     const secret = resolveExternalNodesCallbackSecret(env);
     const stored = await putExternalNodes({ env, profileId, nodesText, ttlSeconds });
     const token = await createExternalNodesToken({
         profileId,
         nodeHash: stored.nodeHash,
         secret,
-        expiresInSeconds: ttlSeconds
+        expiresInSeconds: ttlSeconds,
     });
     return {
         ...stored,
         token,
-        callbackUrl: buildExternalNodesCallbackUrl(requestUrl, token, { encoding })
+        callbackUrl: buildExternalNodesCallbackUrl(requestUrl, token, { encoding }),
     };
 }
 
@@ -310,7 +330,11 @@ export async function handleExternalNodesCallbackRequest(request, env = {}) {
         return new Response(message, { status });
     }
 
-    const nodesText = await getExternalNodes({ env, profileId: payload.profileId, nodeHash: payload.nodeHash });
+    const nodesText = await getExternalNodes({
+        env,
+        profileId: payload.profileId,
+        nodeHash: payload.nodeHash,
+    });
     if (nodesText === null || nodesText === undefined) {
         return new Response('External nodes callback cache expired or missing', { status: 410 });
     }
@@ -320,13 +344,13 @@ export async function handleExternalNodesCallbackRequest(request, env = {}) {
     const headers = {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-store, no-cache',
-        'X-MiSub-Mode': 'external-nodes-callback'
+        'X-MiSub-Mode': 'external-nodes-callback',
     };
     if (encoding === 'base64') {
         headers['X-MiSub-Callback-Encoding'] = 'base64';
     }
 
     return new Response(responseText, {
-        headers
+        headers,
     });
 }

@@ -1,60 +1,93 @@
 import { describe, it, expect } from 'vitest';
 import yaml from 'js-yaml';
 import { parseIniTemplate } from '../../functions/modules/subscription/template-parsers/ini-template-parser.js';
-import { renderClashFromIniTemplate, renderLoonFromIniTemplate, renderQuanxFromIniTemplate, renderSingboxFromIniTemplate, renderSurgeFromIniTemplate } from '../../functions/modules/subscription/template-pipeline.js';
+import {
+    renderClashFromIniTemplate,
+    renderLoonFromIniTemplate,
+    renderQuanxFromIniTemplate,
+    renderSingboxFromIniTemplate,
+    renderSurgeFromIniTemplate,
+} from '../../functions/modules/subscription/template-pipeline.js';
 import { getBuiltinTemplate } from '../../functions/modules/subscription/builtin-template-registry.js';
 import { PINNED_RULE_REVISIONS } from '../../functions/modules/subscription/builtin-rules-provider.js';
 
-const SS2022_V2RAY_PLUGIN_NODE = 'ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206TldSak1UVmxNVFZtTWpnMU5HRTVaRGsxT1dJd1pUUm1ZbVJrTnpkaU5qTT0@cf.090227.xyz:8080?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dss.2227tsj.workers.dev%3Bpath%3D%2F%3Fenc%5C%3D2022-blake3-aes-256-gcm%3Bmux%3D0#2022-blake3-aes-256-gcm';
+const SS2022_V2RAY_PLUGIN_NODE =
+    'ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206TldSak1UVmxNVFZtTWpnMU5HRTVaRGsxT1dJd1pUUm1ZbVJrTnpkaU5qTT0@cf.090227.xyz:8080?plugin=v2ray-plugin%3Bmode%3Dwebsocket%3Bhost%3Dss.2227tsj.workers.dev%3Bpath%3D%2F%3Fenc%5C%3D2022-blake3-aes-256-gcm%3Bmux%3D0#2022-blake3-aes-256-gcm';
 
 describe('Template pipeline', () => {
     it('uses current DNS server objects in sing-box templates', () => {
-        const rendered = renderSingboxFromIniTemplate(`
+        const rendered = renderSingboxFromIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, Trojan WS, DIRECT
 
 [Rule]
 MATCH,节点选择
-        `, {
-            proxies: [{
-                name: 'Trojan WS', type: 'trojan', server: 'trojan.example.com', port: 443,
-                password: 'secret', network: 'ws', 'ws-opts': { path: '/ws', headers: { Host: 'edge.example.com' } }
-            }]
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'Trojan WS',
+                        type: 'trojan',
+                        server: 'trojan.example.com',
+                        port: 443,
+                        password: 'secret',
+                        network: 'ws',
+                        'ws-opts': { path: '/ws', headers: { Host: 'edge.example.com' } },
+                    },
+                ],
+            }
+        );
         const parsed = JSON.parse(rendered);
-        const trojan = parsed.outbounds.find(outbound => outbound.tag === 'Trojan WS');
+        const trojan = parsed.outbounds.find((outbound) => outbound.tag === 'Trojan WS');
 
-        expect(parsed.dns.servers).toEqual(expect.arrayContaining([
-            expect.objectContaining({ type: 'udp', server: '223.5.5.5', server_port: 53 })
-        ]));
-        expect(parsed.dns.rules).toEqual(expect.arrayContaining([
-            expect.objectContaining({ rule_set: ['geosite-cn'], action: 'route', server: 'dns-cn-1' })
-        ]));
-        expect(parsed.route.rule_set).toEqual(expect.arrayContaining([
-            expect.objectContaining({ tag: 'geosite-cn', type: 'remote', format: 'binary' })
-        ]));
-        expect(parsed.dns.servers.every(server => !Object.hasOwn(server, 'address'))).toBe(true);
+        expect(parsed.dns.servers).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ type: 'udp', server: '223.5.5.5', server_port: 53 }),
+            ])
+        );
+        expect(parsed.dns.rules).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    rule_set: ['geosite-cn'],
+                    action: 'route',
+                    server: 'dns-cn-1',
+                }),
+            ])
+        );
+        expect(parsed.route.rule_set).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ tag: 'geosite-cn', type: 'remote', format: 'binary' }),
+            ])
+        );
+        expect(parsed.dns.servers.every((server) => !Object.hasOwn(server, 'address'))).toBe(true);
         expect(trojan).toBeDefined();
     });
 
     it('uses SIP003 v2ray-plugin fields instead of an invalid Shadowsocks transport', () => {
-        const rendered = renderSingboxFromIniTemplate(`
+        const rendered = renderSingboxFromIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, SS2022, DIRECT
 
 [Rule]
 MATCH,节点选择
-        `, { nodeList: SS2022_V2RAY_PLUGIN_NODE });
+        `,
+            { nodeList: SS2022_V2RAY_PLUGIN_NODE }
+        );
         const parsed = JSON.parse(rendered);
-        const ssNode = parsed.outbounds.find(outbound => outbound.type === 'shadowsocks');
+        const ssNode = parsed.outbounds.find((outbound) => outbound.type === 'shadowsocks');
 
         expect(ssNode?.plugin).toBe('v2ray-plugin');
-        expect(ssNode?.plugin_opts).toBe('mode=websocket;host=ss.2227tsj.workers.dev;path=/?enc=2022-blake3-aes-256-gcm');
+        expect(ssNode?.plugin_opts).toBe(
+            'mode=websocket;host=ss.2227tsj.workers.dev;path=/?enc=2022-blake3-aes-256-gcm'
+        );
         expect(ssNode?.transport).toBeUndefined();
     });
 
     it('should parse limited ini template into unified model', () => {
-        const model = parseIniTemplate(`
+        const model = parseIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, HK-01, JP-01, DIRECT
 自动选择 = url-test, HK-01, JP-01, url=http://www.gstatic.com/generate_204, interval=300
@@ -63,10 +96,12 @@ MATCH,节点选择
 DOMAIN-SUFFIX,google.com,节点选择
 GEOIP,CN,DIRECT
 MATCH,节点选择
-        `, {
-            fileName: 'Demo',
-            targetFormat: 'clash'
-        });
+        `,
+            {
+                fileName: 'Demo',
+                targetFormat: 'clash',
+            }
+        );
 
         expect(model.groups).toHaveLength(2);
         expect(model.rules).toHaveLength(3);
@@ -75,20 +110,35 @@ MATCH,节点选择
     });
 
     it('should render clash yaml from limited ini template', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, HK-01, JP-01, DIRECT
 
 [Rule]
 DOMAIN-SUFFIX,google.com,节点选择
 MATCH,节点选择
-        `, {
-            proxies: [
-                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' },
-                { name: 'JP-01', type: 'trojan', server: '2.2.2.2', port: 443, password: 'pass' }
-            ],
-            managedConfigUrl: 'https://example.com/sub'
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'HK-01',
+                        type: 'trojan',
+                        server: '1.1.1.1',
+                        port: 443,
+                        password: 'pass',
+                    },
+                    {
+                        name: 'JP-01',
+                        type: 'trojan',
+                        server: '2.2.2.2',
+                        port: 443,
+                        password: 'pass',
+                    },
+                ],
+                managedConfigUrl: 'https://example.com/sub',
+            }
+        );
 
         const parsed = yaml.load(rendered);
         expect(parsed['proxy-groups'][0].name).toBe('节点选择');
@@ -97,70 +147,108 @@ MATCH,节点选择
     });
 
     it('should exclude DIRECT from auto-select groups when rendering templates', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, 自动选择, DIRECT
 自动选择 = url-test, HK-01, JP-01, DIRECT
 
 [Rule]
 MATCH,节点选择
-        `, {
-            proxies: [
-                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' },
-                { name: 'JP-01', type: 'trojan', server: '2.2.2.2', port: 443, password: 'pass' }
-            ]
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'HK-01',
+                        type: 'trojan',
+                        server: '1.1.1.1',
+                        port: 443,
+                        password: 'pass',
+                    },
+                    {
+                        name: 'JP-01',
+                        type: 'trojan',
+                        server: '2.2.2.2',
+                        port: 443,
+                        password: 'pass',
+                    },
+                ],
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const autoSelectGroup = parsed['proxy-groups'].find(group => group.name === '自动选择');
+        const autoSelectGroup = parsed['proxy-groups'].find((group) => group.name === '自动选择');
         expect(autoSelectGroup.proxies).toEqual(['HK-01', 'JP-01']);
         expect(autoSelectGroup.proxies).not.toContain('DIRECT');
     });
 
     it('adds fail-closed AI service groups without changing a normal Main group', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [Proxy Group]
 Main = select, HK-01, DIRECT
 
 [Rule]
 MATCH,Main
-        `, {
-            proxies: [
-                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' }
-            ]
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'HK-01',
+                        type: 'trojan',
+                        server: '1.1.1.1',
+                        port: 443,
+                        password: 'pass',
+                    },
+                ],
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const aiGroups = parsed['proxy-groups'].filter(group => String(group.name).startsWith('🤖'));
+        const aiGroups = parsed['proxy-groups'].filter((group) =>
+            String(group.name).startsWith('🤖')
+        );
         expect(aiGroups.length).toBeGreaterThan(3);
-        expect(aiGroups.every(group => !group.proxies.includes('DIRECT'))).toBe(true);
-        expect(parsed['proxy-groups'].find(group => group.name === 'Main').proxies).toContain('DIRECT');
+        expect(aiGroups.every((group) => !group.proxies.includes('DIRECT'))).toBe(true);
+        expect(parsed['proxy-groups'].find((group) => group.name === 'Main').proxies).toContain(
+            'DIRECT'
+        );
         expect(parsed.rules).toContain('DOMAIN-SUFFIX,anthropic.com,🤖 Claude');
     });
 
     it('should keep Clash template relay-like groups as plain select without dialer-proxy', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [Proxy Group]
 🔗 链式代理 = select, 入口节点, HK-01, DIRECT
 入口节点 = select, HK-01, DIRECT
 
 [Rule]
 MATCH,🔗 链式代理
-        `, {
-            proxies: [
-                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' }
-            ]
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'HK-01',
+                        type: 'trojan',
+                        server: '1.1.1.1',
+                        port: 443,
+                        password: 'pass',
+                    },
+                ],
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const relayLikeGroup = parsed['proxy-groups'].find(group => group.name === '🔗 链式代理');
+        const relayLikeGroup = parsed['proxy-groups'].find((group) => group.name === '🔗 链式代理');
         expect(relayLikeGroup.type).toBe('select');
         expect(relayLikeGroup.proxies).toEqual(['入口节点', 'HK-01', 'DIRECT']);
         expect(relayLikeGroup['dialer-proxy']).toBeUndefined();
     });
 
     it('should merge duplicate proxy groups with the same name before rendering', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [Proxy Group]
 节点选择 = select, HK-01
 节点选择 = select, JP-01, DIRECT
@@ -168,15 +256,29 @@ MATCH,🔗 链式代理
 
 [Rule]
 MATCH,节点选择
-        `, {
-            proxies: [
-                { name: 'HK-01', type: 'trojan', server: '1.1.1.1', port: 443, password: 'pass' },
-                { name: 'JP-01', type: 'trojan', server: '2.2.2.2', port: 443, password: 'pass' }
-            ]
-        });
+        `,
+            {
+                proxies: [
+                    {
+                        name: 'HK-01',
+                        type: 'trojan',
+                        server: '1.1.1.1',
+                        port: 443,
+                        password: 'pass',
+                    },
+                    {
+                        name: 'JP-01',
+                        type: 'trojan',
+                        server: '2.2.2.2',
+                        port: 443,
+                        password: 'pass',
+                    },
+                ],
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const selectGroups = parsed['proxy-groups'].filter(group => group.name === '节点选择');
+        const selectGroups = parsed['proxy-groups'].filter((group) => group.name === '节点选择');
         expect(selectGroups).toHaveLength(1);
         expect(selectGroups[0].proxies).toContain('HK-01');
         expect(selectGroups[0].proxies).toContain('JP-01');
@@ -187,34 +289,88 @@ MATCH,节点选择
         const builtinTemplate = getBuiltinTemplate('clash_acl4ssr_full');
         const model = parseIniTemplate(builtinTemplate.content, {
             fileName: 'ACL4SSR',
-            targetFormat: 'clash'
+            targetFormat: 'clash',
         });
 
         expect(model.groups.length).toBeGreaterThan(10);
-        expect(model.rules.some(rule => rule.type === 'rule-set')).toBe(true);
-        expect(model.groups.some(group => group.name === '🚀 节点选择')).toBe(true);
+        expect(model.rules.some((rule) => rule.type === 'rule-set')).toBe(true);
+        expect(model.groups.some((group) => group.name === '🚀 节点选择')).toBe(true);
     });
 
+    it('omits Clash-only VMess udp_relay_mode from sing-box template output', () => {
+        const vmessConfig = btoa(
+            JSON.stringify({
+                v: '2',
+                ps: 'VMessNode',
+                add: 'vmess.example.com',
+                port: '443',
+                id: 'safe-uuid',
+                aid: '0',
+                net: 'tcp',
+                type: 'none',
+                tls: '',
+            })
+        );
+        const rendered = renderSingboxFromIniTemplate(
+            '[Proxy Group]\\nNode = select, VMessNode\\n[Rule]\\nMATCH,Node',
+            {
+                nodeList: `vmess://${vmessConfig}`,
+                targetFormat: 'singbox',
+            }
+        );
+        const parsed = JSON.parse(rendered);
+        const vmess = parsed.outbounds.find((outbound) => outbound.tag === 'VMessNode');
+        expect(vmess?.udp_relay_mode).toBeUndefined();
+    });
+
+    it('omits Clash-only TUIC udp_relay_mode from sing-box template output', () => {
+        const rendered = renderSingboxFromIniTemplate(
+            '[Proxy Group]\\nNode = select, TUICNode\\n[Rule]\\nMATCH,Node',
+            {
+                proxies: [
+                    {
+                        name: 'TUICNode',
+                        type: 'tuic',
+                        server: 'tuic.example.com',
+                        port: 443,
+                        uuid: 'safe-uuid',
+                        password: 'safe-pass',
+                        'udp-relay-mode': 'native',
+                    },
+                ],
+                targetFormat: 'singbox',
+            }
+        );
+        const parsed = JSON.parse(rendered);
+        const tuic = parsed.outbounds.find((outbound) => outbound.tag === 'TUICNode');
+        expect(tuic?.udp_relay_mode).toBeUndefined();
+    });
     it('should render sing-box json from ACL4SSR custom template', () => {
         const builtinTemplate = getBuiltinTemplate('clash_acl4ssr_full');
         const rendered = renderSingboxFromIniTemplate(builtinTemplate.content, {
             nodeList: [
                 'trojan://password@1.2.3.4:443#HK-01',
-                'vmess://eyJ2IjoiMiIsInBzIjoiSlAtMDEiLCJhZGQiOiIxLjIuMy41IiwicG9ydCI6IjQ0MyIsImlkIjoidXVpZC0xMjM0IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIiwidGxzIjoidGxzIn0'
+                'vmess://eyJ2IjoiMiIsInBzIjoiSlAtMDEiLCJhZGQiOiIxLjIuMy41IiwicG9ydCI6IjQ0MyIsImlkIjoidXVpZC0xMjM0IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIiwidGxzIjoidGxzIn0',
             ].join('\n'),
-            targetFormat: 'singbox'
+            targetFormat: 'singbox',
         });
         const parsed = JSON.parse(rendered);
 
         expect(Array.isArray(parsed.outbounds)).toBe(true);
-        expect(parsed.outbounds.some(outbound => outbound.tag === '🚀 节点选择')).toBe(true);
-        expect(parsed.outbounds.some(outbound => outbound.tag === '🇭🇰 HK-01')).toBe(true);
-        expect(parsed.outbounds.some(outbound => outbound.tag === '🇯🇵 JP-01' && outbound.type === 'vmess')).toBe(true);
+        expect(parsed.outbounds.some((outbound) => outbound.tag === '🚀 节点选择')).toBe(true);
+        expect(parsed.outbounds.some((outbound) => outbound.tag === '🇭🇰 HK-01')).toBe(true);
+        expect(
+            parsed.outbounds.some(
+                (outbound) => outbound.tag === '🇯🇵 JP-01' && outbound.type === 'vmess'
+            )
+        ).toBe(true);
         expect(Array.isArray(parsed.route.rule_set)).toBe(true);
         expect(parsed.route.rule_set.length).toBeGreaterThan(0);
-        const aclRuleSets = parsed.route.rule_set.filter(ruleSet => String(ruleSet.url).endsWith('.list'));
+        const aclRuleSets = parsed.route.rule_set.filter((ruleSet) =>
+            String(ruleSet.url).endsWith('.list')
+        );
         expect(aclRuleSets.length).toBeGreaterThan(0);
-        expect(aclRuleSets.every(ruleSet => ruleSet.format === 'source')).toBe(true);
+        expect(aclRuleSets.every((ruleSet) => ruleSet.format === 'source')).toBe(true);
     });
 
     it('should render surge config sections from ACL4SSR custom template', () => {
@@ -222,9 +378,9 @@ MATCH,节点选择
         const rendered = renderSurgeFromIniTemplate(builtinTemplate.content, {
             nodeList: [
                 'trojan://password@1.2.3.4:443#HK-01',
-                'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.5:8388#JP-01'
+                'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.5:8388#JP-01',
             ].join('\n'),
-            targetFormat: 'surge&ver=4'
+            targetFormat: 'surge&ver=4',
         });
 
         expect(rendered).toContain('[Proxy]');
@@ -240,12 +396,21 @@ MATCH,节点选择
             'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.5:8388#JP-01',
             'vmess://eyJ2IjoiMiIsInBzIjoiVVMtMDEiLCJhZGQiOiIxLjIuMy42IiwicG9ydCI6IjQ0MyIsImlkIjoidXVpZC01Njc4IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwiaG9zdCI6ImV4YW1wbGUuY29tIiwicGF0aCI6Ii93cyIsInRscyI6InRscyJ9',
             'vless://uuid-9999@1.2.3.7:443?security=reality&type=grpc&serviceName=edge&pbk=testpublickey&sid=abcd&sni=example.com#SG-01',
-            'wireguard://privatekey@1.2.3.8:51820?publickey=peerpub&reserved=1,2,3&address=172.16.0.2/32#WG-01'
+            'wireguard://privatekey@1.2.3.8:51820?publickey=peerpub&reserved=1,2,3&address=172.16.0.2/32#WG-01',
         ].join('\n');
 
-        const loonRendered = renderLoonFromIniTemplate(builtinTemplate.content, { nodeList, targetFormat: 'loon' });
-        const quanxRendered = renderQuanxFromIniTemplate(builtinTemplate.content, { nodeList, targetFormat: 'quanx' });
-        const surgeRendered = renderSurgeFromIniTemplate(builtinTemplate.content, { nodeList, targetFormat: 'surge&ver=4' });
+        const loonRendered = renderLoonFromIniTemplate(builtinTemplate.content, {
+            nodeList,
+            targetFormat: 'loon',
+        });
+        const quanxRendered = renderQuanxFromIniTemplate(builtinTemplate.content, {
+            nodeList,
+            targetFormat: 'quanx',
+        });
+        const surgeRendered = renderSurgeFromIniTemplate(builtinTemplate.content, {
+            nodeList,
+            targetFormat: 'surge&ver=4',
+        });
 
         expect(loonRendered).toContain('[Proxy]');
         expect(loonRendered).toContain('[Proxy Group]');
@@ -254,80 +419,119 @@ MATCH,节点选择
         expect(loonRendered).toContain('grpc-service-name=edge');
         expect(loonRendered).toContain('reality=true');
         expect(loonRendered).toContain('WG-01 = wireguard');
-        expect(loonRendered).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list, policy=🤖 AI 服务, enabled=true`);
+        expect(loonRendered).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list, policy=🤖 AI 服务, enabled=true`
+        );
         expect(loonRendered).toContain('🚀 节点选择 = select');
         expect(quanxRendered).toContain('[server_local]');
         expect(quanxRendered).toContain('[policy]');
         expect(quanxRendered).toContain('[filter_remote]');
         expect(quanxRendered).toContain('[filter_local]');
-        expect(quanxRendered).toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=wss, obfs-uri=/ws, obfs-host=example.com, tag=🇺🇸 US-01');
-        expect(quanxRendered).not.toContain('vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=ws,');
-        expect(quanxRendered).toContain(`filter_remote, https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list, tag=🤖 AI 服务, force-policy=🤖 AI 服务, update-interval=86400, enabled=true`);
+        expect(quanxRendered).toContain(
+            'vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=wss, obfs-uri=/ws, obfs-host=example.com, tag=🇺🇸 US-01'
+        );
+        expect(quanxRendered).not.toContain(
+            'vmess=1.2.3.6:443, method=none, password=uuid-5678, obfs=ws,'
+        );
+        expect(quanxRendered).toContain(
+            `filter_remote, https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list, tag=🤖 AI 服务, force-policy=🤖 AI 服务, update-interval=86400, enabled=true`
+        );
         expect(quanxRendered).toContain('static=🚀 节点选择');
         expect(surgeRendered).not.toContain('SG-01 = vless');
         expect(surgeRendered).toContain('WG-01 = wireguard');
-        expect(surgeRendered).toContain(`RULE-SET,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list,🤖 AI 服务`);
+        expect(surgeRendered).toContain(
+            `RULE-SET,https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Ruleset/OpenAi.list,🤖 AI 服务`
+        );
         expect(surgeRendered).toContain('🚀 节点选择 = select');
     });
 
     it('should render Loon vmess and trojan proxies with compatible syntax', () => {
-        const loonRendered = renderLoonFromIniTemplate(`
+        const loonRendered = renderLoonFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup` , {
-            nodeList: [
-                'vmess://eyJ2IjoiMiIsInBzIjoiVk1FU1MtV1MiLCJhZGQiOiJzYWFzLnNpbi5mYW4iLCJwb3J0IjoiNDQzIiwiaWQiOiIwYTRhMGJhMS1iZjAyLTQyOTgtYmYxNi0xOWExZjg2MzkzZmEiLCJhaWQiOiIwIiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoia3lqcC5zdG9vLnVzLmNpIiwicGF0aCI6Ii92bWVzcy1hcmdvP2VkPTI1NjAiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJreWpwLnN0b28udXMuY2kiLCJmcCI6ImZpcmVmb3gifQ==',
-                'trojan://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Ftrojan-argo%3Fed%3D2560#Trojan-WS'
-            ].join('\n'),
-            targetFormat: 'loon'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList: [
+                    'vmess://eyJ2IjoiMiIsInBzIjoiVk1FU1MtV1MiLCJhZGQiOiJzYWFzLnNpbi5mYW4iLCJwb3J0IjoiNDQzIiwiaWQiOiIwYTRhMGJhMS1iZjAyLTQyOTgtYmYxNi0xOWExZjg2MzkzZmEiLCJhaWQiOiIwIiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoia3lqcC5zdG9vLnVzLmNpIiwicGF0aCI6Ii92bWVzcy1hcmdvP2VkPTI1NjAiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJreWpwLnN0b28udXMuY2kiLCJmcCI6ImZpcmVmb3gifQ==',
+                    'trojan://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Ftrojan-argo%3Fed%3D2560#Trojan-WS',
+                ].join('\n'),
+                targetFormat: 'loon',
+            }
+        );
 
-        expect(loonRendered).toContain('VMESS-WS = vmess, saas.sin.fan, 443, auto, "0a4a0ba1-bf02-4298-bf16-19a1f86393fa", 0, over-tls=true, transport=ws, path=/vmess-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci');
-        expect(loonRendered).toContain('Trojan-WS = trojan, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/trojan-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci');
+        expect(loonRendered).toContain(
+            'VMESS-WS = vmess, saas.sin.fan, 443, auto, "0a4a0ba1-bf02-4298-bf16-19a1f86393fa", 0, over-tls=true, transport=ws, path=/vmess-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci'
+        );
+        expect(loonRendered).toContain(
+            'Trojan-WS = trojan, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/trojan-argo?ed=2560, host=kyjp.stoo.us.ci, sni=kyjp.stoo.us.ci'
+        );
         expect(loonRendered).not.toContain(', tls=true');
         expect(loonRendered).not.toContain('password=0a4a0ba1-bf02-4298-bf16-19a1f86393fa');
     });
 
     it('should render Loon vless ws with path host and over-tls syntax', () => {
-        const loonRendered = renderLoonFromIniTemplate(`
+        const loonRendered = renderLoonFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: 'vless://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?encryption=none&security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Fvless-argo%3Fed%3D2560#VLESS-WS',
-            targetFormat: 'loon'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList:
+                    'vless://0a4a0ba1-bf02-4298-bf16-19a1f86393fa@saas.sin.fan:443?encryption=none&security=tls&sni=kyjp.stoo.us.ci&fp=firefox&insecure=0&allowInsecure=0&type=ws&host=kyjp.stoo.us.ci&path=%2Fvless-argo%3Fed%3D2560#VLESS-WS',
+                targetFormat: 'loon',
+            }
+        );
 
-        expect(loonRendered).toContain('VLESS-WS = vless, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/vless-argo?ed=2560, host=kyjp.stoo.us.ci, over-tls=true, sni=kyjp.stoo.us.ci');
+        expect(loonRendered).toContain(
+            'VLESS-WS = vless, saas.sin.fan, 443, 0a4a0ba1-bf02-4298-bf16-19a1f86393fa, transport=ws, path=/vless-argo?ed=2560, host=kyjp.stoo.us.ci, over-tls=true, sni=kyjp.stoo.us.ci'
+        );
         expect(loonRendered).not.toContain(', tls=true');
     });
 
     it('should render Loon anytls syntax', () => {
-        const loonRendered = renderLoonFromIniTemplate(`
+        const loonRendered = renderLoonFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: 'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-HK',
-            targetFormat: 'loon'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList:
+                    'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-HK',
+                targetFormat: 'loon',
+            }
+        );
 
-        expect(loonRendered).toContain('AnyTLS-HK = anytls, 156.239.232.67, 443, 9d6c62f6-e38d-4146-ab3e-d40568555f89, sni=xkhkfree.99887766.best, alpn=h2,h3, skip-cert-verify=true');
+        expect(loonRendered).toContain(
+            'AnyTLS-HK = anytls, 156.239.232.67, 443, 9d6c62f6-e38d-4146-ab3e-d40568555f89, sni=xkhkfree.99887766.best, alpn=h2,h3, skip-cert-verify=true'
+        );
     });
 
     it('should render Surge tuic syntax for sample nodes', () => {
-        const surgeRendered = renderSurgeFromIniTemplate(`
+        const surgeRendered = renderSurgeFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: 'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-Surge',
-            targetFormat: 'surge&ver=4'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList:
+                    'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-Surge',
+                targetFormat: 'surge&ver=4',
+            }
+        );
 
-        expect(surgeRendered).toContain('TUIC-Surge = tuic, 5.45.102.158, 39689, token=a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-control=bbr, udp-relay=true, alpn=h3, skip-cert-verify=true');
+        expect(surgeRendered).toContain(
+            'TUIC-Surge = tuic, 5.45.102.158, 39689, token=a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-control=bbr, udp-relay=true, alpn=h3, skip-cert-verify=true'
+        );
     });
 
     it('should skip vless nodes when rendering Surge configs', () => {
-        const surgeRendered = renderSurgeFromIniTemplate(`
+        const surgeRendered = renderSurgeFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: 'vless://uuid-9999@1.2.3.7:443?security=reality&type=grpc&serviceName=edge&pbk=testpublickey&sid=abcd&sni=example.com#SG-01',
-            targetFormat: 'surge&ver=4'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList:
+                    'vless://uuid-9999@1.2.3.7:443?security=reality&type=grpc&serviceName=edge&pbk=testpublickey&sid=abcd&sni=example.com#SG-01',
+                targetFormat: 'surge&ver=4',
+            }
+        );
 
         expect(surgeRendered).not.toContain('SG-01 = vless');
         expect(surgeRendered).not.toContain('grpc-service-name=edge');
@@ -335,12 +539,15 @@ custom_proxy_group=TestGroup`, {
     });
 
     it('should render QuanX DNS using syntax accepted by Quantumult X', () => {
-        const quanxRendered = renderQuanxFromIniTemplate(`
+        const quanxRendered = renderQuanxFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'quanx'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'quanx',
+            }
+        );
 
         expect(quanxRendered).toContain('[dns]');
         expect(quanxRendered).toContain('no-ipv6');
@@ -351,55 +558,84 @@ custom_proxy_group=TestGroup`, {
     });
 
     it('should render QuanX tuic and anytls syntax while skipping unsupported hysteria2', () => {
-        const quanxRendered = renderQuanxFromIniTemplate(`
+        const quanxRendered = renderQuanxFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: [
-                'hysteria2://a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:11416?security=tls&alpn=h3&insecure=1&mport=&sni=www.bing.com#HY2-QX',
-                'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-QX',
-                'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-QX'
-            ].join('\n'),
-            targetFormat: 'quanx'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList: [
+                    'hysteria2://a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:11416?security=tls&alpn=h3&insecure=1&mport=&sni=www.bing.com#HY2-QX',
+                    'tuic://a276f4e4-08b4-4a03-bfe8-f36ef17ad133:a276f4e4-08b4-4a03-bfe8-f36ef17ad133@5.45.102.158:39689?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&allow_insecure=1&allowInsecure=1#TUIC-QX',
+                    'anytls://9d6c62f6-e38d-4146-ab3e-d40568555f89@156.239.232.67:443/?sni=xkhkfree.99887766.best&alpn=h2%2Ch3&allowInsecure=1#AnyTLS-QX',
+                ].join('\n'),
+                targetFormat: 'quanx',
+            }
+        );
 
         expect(quanxRendered).not.toContain('hysteria2=');
-        expect(quanxRendered).toContain('tuic=5.45.102.158:39689, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUIC-QX');
-        expect(quanxRendered).toContain('anytls=156.239.232.67:443, password=9d6c62f6-e38d-4146-ab3e-d40568555f89, over-tls=true, tls-verification=false, tls-host=xkhkfree.99887766.best, fast-open=false, udp-relay=true, tag=🌍 AnyTLS-QX');
+        expect(quanxRendered).toContain(
+            'tuic=5.45.102.158:39689, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, a276f4e4-08b4-4a03-bfe8-f36ef17ad133, sni=www.bing.com, congestion-controller=bbr, udp-relay=native, alpn=h3, tls-verification=false, tag=🌍 TUIC-QX'
+        );
+        expect(quanxRendered).toContain(
+            'anytls=156.239.232.67:443, password=9d6c62f6-e38d-4146-ab3e-d40568555f89, over-tls=true, tls-verification=false, tls-host=xkhkfree.99887766.best, fast-open=false, udp-relay=true, tag=🌍 AnyTLS-QX'
+        );
     });
 
     it('should render QuanX VLESS TLS, REALITY and XTLS Vision syntax from templates', () => {
-        const quanxRendered = renderQuanxFromIniTemplate(`
+        const quanxRendered = renderQuanxFromIniTemplate(
+            `
 [Proxy]
-custom_proxy_group=TestGroup`, {
-            nodeList: [
-                'vless://11111111-1111-4111-8111-111111111111@tls.example.com:443?security=tls&sni=tls.example.com&type=tcp#VLESS-TLS',
-                'vless://22222222-2222-4222-8222-222222222222@reality.example.com:443?security=reality&sni=addons.mozilla.org&pbk=testpublickey&sid=abcdef&type=tcp#VLESS-Reality',
-                'vless://33333333-3333-4333-8333-333333333333@vision.example.com:443?security=tls&sni=vision.example.com&flow=xtls-rprx-vision&type=tcp#VLESS-Vision'
-            ].join('\n'),
-            targetFormat: 'quanx'
-        });
+custom_proxy_group=TestGroup`,
+            {
+                nodeList: [
+                    'vless://11111111-1111-4111-8111-111111111111@tls.example.com:443?security=tls&sni=tls.example.com&type=tcp#VLESS-TLS',
+                    'vless://22222222-2222-4222-8222-222222222222@reality.example.com:443?security=reality&sni=addons.mozilla.org&pbk=testpublickey&sid=abcdef&type=tcp#VLESS-Reality',
+                    'vless://33333333-3333-4333-8333-333333333333@vision.example.com:443?security=tls&sni=vision.example.com&flow=xtls-rprx-vision&type=tcp#VLESS-Vision',
+                ].join('\n'),
+                targetFormat: 'quanx',
+            }
+        );
 
-        expect(quanxRendered).toContain('vless=tls.example.com:443, password=11111111-1111-4111-8111-111111111111, method=none, obfs=over-tls, obfs-host=tls.example.com, tag=🌍 VLESS-TLS');
-        expect(quanxRendered).toContain('vless=reality.example.com:443, password=22222222-2222-4222-8222-222222222222, method=none, obfs=over-tls, obfs-host=addons.mozilla.org, reality-base64-pubkey=testpublickey, reality-hex-shortid=abcdef, tag=🌍 VLESS-Reality');
-        expect(quanxRendered).toContain('vless=vision.example.com:443, password=33333333-3333-4333-8333-333333333333, method=none, obfs=over-tls, obfs-host=vision.example.com, vless-flow=xtls-rprx-vision, tag=🌍 VLESS-Vision');
+        expect(quanxRendered).toContain(
+            'vless=tls.example.com:443, password=11111111-1111-4111-8111-111111111111, method=none, obfs=over-tls, obfs-host=tls.example.com, tag=🌍 VLESS-TLS'
+        );
+        expect(quanxRendered).toContain(
+            'vless=reality.example.com:443, password=22222222-2222-4222-8222-222222222222, method=none, obfs=over-tls, obfs-host=addons.mozilla.org, reality-base64-pubkey=testpublickey, reality-hex-shortid=abcdef, tag=🌍 VLESS-Reality'
+        );
+        expect(quanxRendered).toContain(
+            'vless=vision.example.com:443, password=33333333-3333-4333-8333-333333333333, method=none, obfs=over-tls, obfs-host=vision.example.com, vless-flow=xtls-rprx-vision, tag=🌍 VLESS-Vision'
+        );
         expect(quanxRendered).not.toContain('over-tls=true');
         expect(quanxRendered).not.toContain('tls-host=vision.example.com');
     });
 
     it('should render QuanX vmess ws tls tag at the end in template output', () => {
-        const vmessConfig = Buffer.from(JSON.stringify({
-            v: '2', ps: 'VMESS 节点', add: 'ip.sb', port: '443',
-            id: '6f4e029b-099f-45f6-afd2-33f0e8f86f15', aid: '0', scy: 'auto',
-            net: 'ws', type: 'none', host: 'gbwarp.owg.dpdns.org', path: '/vmess-argo?ed=2560',
-            tls: 'tls', sni: 'gbwarp.owg.dpdns.org'
-        })).toString('base64');
+        const vmessConfig = Buffer.from(
+            JSON.stringify({
+                v: '2',
+                ps: 'VMESS 节点',
+                add: 'ip.sb',
+                port: '443',
+                id: '6f4e029b-099f-45f6-afd2-33f0e8f86f15',
+                aid: '0',
+                scy: 'auto',
+                net: 'ws',
+                type: 'none',
+                host: 'gbwarp.owg.dpdns.org',
+                path: '/vmess-argo?ed=2560',
+                tls: 'tls',
+                sni: 'gbwarp.owg.dpdns.org',
+            })
+        ).toString('base64');
         const quanxRendered = renderQuanxFromIniTemplate(`[Proxy]`, {
             nodeList: `vmess://${vmessConfig}`,
-            targetFormat: 'quanx'
+            targetFormat: 'quanx',
         });
-        const line = quanxRendered.split('\n').find(item => item.startsWith('vmess='));
+        const line = quanxRendered.split('\n').find((item) => item.startsWith('vmess='));
 
-        expect(line).toBe('vmess=ip.sb:443, method=none, password=6f4e029b-099f-45f6-afd2-33f0e8f86f15, obfs=wss, obfs-uri=/vmess-argo?ed=2560, obfs-host=gbwarp.owg.dpdns.org, tag=🌍 VMESS 节点');
+        expect(line).toBe(
+            'vmess=ip.sb:443, method=none, password=6f4e029b-099f-45f6-afd2-33f0e8f86f15, obfs=wss, obfs-uri=/vmess-argo?ed=2560, obfs-host=gbwarp.owg.dpdns.org, tag=🌍 VMESS 节点'
+        );
         expect(line).not.toContain('tag=🌍 VMESS 节点, obfs=');
         expect(line).not.toContain('over-tls=true');
         expect(line).not.toContain('tls-host=');
@@ -409,12 +645,24 @@ custom_proxy_group=TestGroup`, {
         const template = `
 [Proxy]
 custom_proxy_group=TestGroup`;
-        const surgeRendered = renderSurgeFromIniTemplate(template, { nodeList: SS2022_V2RAY_PLUGIN_NODE, targetFormat: 'surge&ver=4' });
-        const loonRendered = renderLoonFromIniTemplate(template, { nodeList: SS2022_V2RAY_PLUGIN_NODE, targetFormat: 'loon' });
-        const quanxRendered = renderQuanxFromIniTemplate(template, { nodeList: SS2022_V2RAY_PLUGIN_NODE, targetFormat: 'quanx' });
-        const singboxRendered = renderSingboxFromIniTemplate(template, { nodeList: SS2022_V2RAY_PLUGIN_NODE, targetFormat: 'singbox' });
+        const surgeRendered = renderSurgeFromIniTemplate(template, {
+            nodeList: SS2022_V2RAY_PLUGIN_NODE,
+            targetFormat: 'surge&ver=4',
+        });
+        const loonRendered = renderLoonFromIniTemplate(template, {
+            nodeList: SS2022_V2RAY_PLUGIN_NODE,
+            targetFormat: 'loon',
+        });
+        const quanxRendered = renderQuanxFromIniTemplate(template, {
+            nodeList: SS2022_V2RAY_PLUGIN_NODE,
+            targetFormat: 'quanx',
+        });
+        const singboxRendered = renderSingboxFromIniTemplate(template, {
+            nodeList: SS2022_V2RAY_PLUGIN_NODE,
+            targetFormat: 'singbox',
+        });
         const singbox = JSON.parse(singboxRendered);
-        const ssOutbound = singbox.outbounds.find(outbound => outbound.type === 'shadowsocks');
+        const ssOutbound = singbox.outbounds.find((outbound) => outbound.type === 'shadowsocks');
 
         expect(surgeRendered).toContain('encrypt-method=2022-blake3-aes-256-gcm');
         expect(surgeRendered).toContain('ws=true');
@@ -433,7 +681,9 @@ custom_proxy_group=TestGroup`;
 
         expect(ssOutbound?.method).toBe('2022-blake3-aes-256-gcm');
         expect(ssOutbound?.plugin).toBe('v2ray-plugin');
-        expect(ssOutbound?.plugin_opts).toBe('mode=websocket;host=ss.2227tsj.workers.dev;path=/?enc=2022-blake3-aes-256-gcm');
+        expect(ssOutbound?.plugin_opts).toBe(
+            'mode=websocket;host=ss.2227tsj.workers.dev;path=/?enc=2022-blake3-aes-256-gcm'
+        );
         expect(ssOutbound?.transport).toBeUndefined();
         expect(ssOutbound?.tls).toBeUndefined();
     });
@@ -444,88 +694,140 @@ custom_proxy_group=TestGroup`;
             nodeList: [
                 'trojan://password@1.2.3.4:443#HK-01',
                 'trojan://password@1.2.3.5:443#JP-01',
-                'trojan://password@1.2.3.6:443#US-01'
+                'trojan://password@1.2.3.6:443#US-01',
             ].join('\n'),
-            targetFormat: 'clash'
+            targetFormat: 'clash',
         });
 
         const parsed = yaml.load(rendered);
         const providers = parsed['rule-providers'] || {};
-        const providerUrls = Object.values(providers).map(provider => provider.url);
+        const providerUrls = Object.values(providers).map((provider) => provider.url);
 
         expect(providerUrls.length).toBeGreaterThan(0);
-        expect(providerUrls.some(url => String(url).includes('/Clash/Providers/Ruleset/YouTube.yaml'))).toBe(true);
-        expect(providerUrls.some(url => String(url).includes('/Clash/Providers/ProxyGFWlist.yaml'))).toBe(true);
-        expect(providerUrls.some(url => String(url).includes('/Clash/BanAD.list'))).toBe(true);
-        expect(Object.values(providers).some(provider => provider.url.includes('/Clash/BanAD.list') && provider.format === 'text')).toBe(true);
+        expect(
+            providerUrls.some((url) =>
+                String(url).includes('/Clash/Providers/Ruleset/YouTube.yaml')
+            )
+        ).toBe(true);
+        expect(
+            providerUrls.some((url) => String(url).includes('/Clash/Providers/ProxyGFWlist.yaml'))
+        ).toBe(true);
+        expect(providerUrls.some((url) => String(url).includes('/Clash/BanAD.list'))).toBe(true);
+        expect(
+            Object.values(providers).some(
+                (provider) =>
+                    provider.url.includes('/Clash/BanAD.list') && provider.format === 'text'
+            )
+        ).toBe(true);
     });
 
     it('should map only ACL4SSR lists with existing provider YAML files to provider URLs', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=📲 电报消息,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Telegram.list
 ruleset=🚀 节点选择,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ProxyGFWlist.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(
+            (provider) => provider.url
+        );
 
-        expect(providerUrls).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/Telegram.yaml`);
-        expect(providerUrls).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ProxyGFWlist.yaml`);
+        expect(providerUrls).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/Telegram.yaml`
+        );
+        expect(providerUrls).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ProxyGFWlist.yaml`
+        );
     });
 
     it('keeps ACL4SSR root list rules inline when provider YAML files are missing', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list
 ruleset=🛑 广告拦截,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(
+            (provider) => provider.url
+        );
 
-        const localAreaProvider = Object.values(parsed['rule-providers'] || {}).find(provider => provider.url.includes('/Clash/LocalAreaNetwork.list'));
-        const banAdProvider = Object.values(parsed['rule-providers'] || {}).find(provider => provider.url.includes('/Clash/BanAD.list'));
+        const localAreaProvider = Object.values(parsed['rule-providers'] || {}).find((provider) =>
+            provider.url.includes('/Clash/LocalAreaNetwork.list')
+        );
+        const banAdProvider = Object.values(parsed['rule-providers'] || {}).find((provider) =>
+            provider.url.includes('/Clash/BanAD.list')
+        );
 
-        expect(providerUrls).not.toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/LocalAreaNetwork.yaml`);
-        expect(providerUrls).not.toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/BanAD.yaml`);
-        expect(localAreaProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/localareanetwork_0.list' });
-        expect(banAdProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/banad_1.list' });
+        expect(providerUrls).not.toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/LocalAreaNetwork.yaml`
+        );
+        expect(providerUrls).not.toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Ruleset/BanAD.yaml`
+        );
+        expect(localAreaProvider).toMatchObject({
+            behavior: 'classical',
+            format: 'text',
+            path: './ruleset/localareanetwork_0.list',
+        });
+        expect(banAdProvider).toMatchObject({
+            behavior: 'classical',
+            format: 'text',
+            path: './ruleset/banad_1.list',
+        });
         expect(parsed.rules).toContain('RULE-SET,localareanetwork_0,🎯 全球直连');
         expect(parsed.rules).toContain('RULE-SET,banad_1,🛑 广告拦截');
     });
 
     it('maps ACL4SSR root IP lists to matching ipcidr provider YAML files', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaCompanyIp.list
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaIp.list
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaIpV6.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
         const providers = Object.values(parsed['rule-providers'] || {});
-        const providerUrls = providers.map(provider => provider.url);
+        const providerUrls = providers.map((provider) => provider.url);
 
-        expect(providerUrls).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaCompanyIp.yaml`);
-        expect(providerUrls).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaIp.yaml`);
-        expect(providerUrls).toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaIpV6.yaml`);
-        expect(providerUrls).not.toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/ChinaCompanyIp.list`);
+        expect(providerUrls).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaCompanyIp.yaml`
+        );
+        expect(providerUrls).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaIp.yaml`
+        );
+        expect(providerUrls).toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/ChinaIpV6.yaml`
+        );
+        expect(providerUrls).not.toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/ChinaCompanyIp.list`
+        );
 
         for (const provider of providers) {
             expect(provider).toMatchObject({ behavior: 'ipcidr' });
@@ -535,62 +837,91 @@ custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
     });
 
     it('keeps ACL4SSR Download list as a text provider because YAML comments out most rules', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=📥 下载服务,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Download.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
 custom_proxy_group=📥 下载服务\`select\`[]🚀 节点选择\`[]DIRECT
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
         const providers = parsed['rule-providers'] || {};
-        const downloadProvider = Object.values(providers).find(provider => provider.url.includes('/Clash/Download.list'));
+        const downloadProvider = Object.values(providers).find((provider) =>
+            provider.url.includes('/Clash/Download.list')
+        );
 
-        expect(Object.values(providers).map(provider => provider.url)).not.toContain(`https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Download.yaml`);
-        expect(downloadProvider).toMatchObject({ behavior: 'classical', format: 'text', path: './ruleset/download_0.list' });
+        expect(Object.values(providers).map((provider) => provider.url)).not.toContain(
+            `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@${PINNED_RULE_REVISIONS.ACL4SSR}/Clash/Providers/Download.yaml`
+        );
+        expect(downloadProvider).toMatchObject({
+            behavior: 'classical',
+            format: 'text',
+            path: './ruleset/download_0.list',
+        });
         expect(parsed.rules).toContain('RULE-SET,download_0,📥 下载服务');
     });
 
     it('keeps non-ACL4SSR raw GitHub rule URLs unchanged', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Apple.list
 ruleset=🎯 全球直连,https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Microsoft.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
-        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(provider => provider.url);
+        const providerUrls = Object.values(parsed['rule-providers'] || {}).map(
+            (provider) => provider.url
+        );
 
-        expect(providerUrls).toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Apple.list');
-        expect(providerUrls).toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Microsoft.list');
-        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Providers/Apple.yaml');
-        expect(providerUrls).not.toContain('https://raw.githubusercontent.com/szkane/ClashRuleSet/main/Clash/Providers/Ruleset/Microsoft.yaml');
-        expect(Object.values(parsed['rule-providers'] || {})).toEqual(expect.arrayContaining([
-            expect.objectContaining({ format: 'text', path: './ruleset/apple_0.list' }),
-            expect.objectContaining({ format: 'text', path: './ruleset/microsoft_1.list' })
-        ]));
+        expect(providerUrls).toContain(
+            'https://cdn.jsdelivr.net/gh/szkane/ClashRuleSet@main/Clash/Apple.list'
+        );
+        expect(providerUrls).toContain(
+            'https://cdn.jsdelivr.net/gh/szkane/ClashRuleSet@main/Clash/Microsoft.list'
+        );
+        expect(providerUrls).not.toContain(
+            'https://cdn.jsdelivr.net/gh/szkane/ClashRuleSet@main/Clash/Providers/Apple.yaml'
+        );
+        expect(providerUrls).not.toContain(
+            'https://cdn.jsdelivr.net/gh/szkane/ClashRuleSet@main/Clash/Providers/Ruleset/Microsoft.yaml'
+        );
+        expect(Object.values(parsed['rule-providers'] || {})).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ format: 'text', path: './ruleset/apple_0.list' }),
+                expect.objectContaining({ format: 'text', path: './ruleset/microsoft_1.list' }),
+            ])
+        );
     });
 
     it('uses short ACL4SSR file names as rule-provider name hints instead of rs fallback names', () => {
-        const rendered = renderClashFromIniTemplate(`
+        const rendered = renderClashFromIniTemplate(
+            `
 [custom]
 ruleset=🤖 AI 服务,https://rules.example.test/AI.list
 ruleset=🐟 漏网之鱼,[]FINAL
 custom_proxy_group=🚀 节点选择\`select\`[]DIRECT\`.*
 custom_proxy_group=🤖 AI 服务\`select\`[]🚀 节点选择\`[]DIRECT
-`, {
-            nodeList: 'trojan://password@1.2.3.4:443#HK-01',
-            targetFormat: 'clash'
-        });
+`,
+            {
+                nodeList: 'trojan://password@1.2.3.4:443#HK-01',
+                targetFormat: 'clash',
+            }
+        );
 
         const parsed = yaml.load(rendered);
         const providers = parsed['rule-providers'] || {};
@@ -601,7 +932,7 @@ custom_proxy_group=🤖 AI 服务\`select\`[]🚀 节点选择\`[]DIRECT
             behavior: 'classical',
             format: 'text',
             url: 'https://rules.example.test/AI.list',
-            path: './ruleset/ai_0.list'
+            path: './ruleset/ai_0.list',
         });
         expect(parsed.rules).toContain('RULE-SET,ai_0,🤖 AI 服务');
     });

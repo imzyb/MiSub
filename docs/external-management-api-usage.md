@@ -19,15 +19,15 @@
 
 ```json
 {
-  "externalApi": {
-    "enabled": true,
-    "tokens": [
-      {
-        "name": "default",
-        "token": "your-strong-random-token"
-      }
-    ]
-  }
+    "externalApi": {
+        "enabled": true,
+        "tokens": [
+            {
+                "name": "default",
+                "token": "your-strong-random-token"
+            }
+        ]
+    }
 }
 ```
 
@@ -35,11 +35,11 @@
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "forbidden",
-    "message": "External API is disabled"
-  }
+    "success": false,
+    "error": {
+        "code": "forbidden",
+        "message": "External API is disabled"
+    }
 }
 ```
 
@@ -47,11 +47,11 @@
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "unauthorized",
-    "message": "Invalid or missing bearer token"
-  }
+    "success": false,
+    "error": {
+        "code": "unauthorized",
+        "message": "Invalid or missing bearer token"
+    }
 }
 ```
 
@@ -96,14 +96,14 @@ curl -s \
 
 ```json
 {
-  "success": true,
-  "data": [],
-  "meta": {
-    "page": 1,
-    "pageSize": 50,
-    "total": 0,
-    "requestId": "req_xxx"
-  }
+    "success": true,
+    "data": [],
+    "meta": {
+        "page": 1,
+        "pageSize": 50,
+        "total": 0,
+        "requestId": "req_xxx"
+    }
 }
 ```
 

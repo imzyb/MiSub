@@ -4,11 +4,25 @@
  */
 
 import { StorageFactory } from '../../storage-adapter.js';
-import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
+import {
+    createJsonResponse,
+    createErrorResponse,
+    JSON_BODY_LIMITS,
+    readJsonWithLimit,
+} from '../utils.js';
 import { handleSubscriptionNodesRequest } from '../subscription-handler.js';
 import { debugTgNotification } from '../../services/notification-service.js';
-import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
-import { redactSensitiveObject, redactUrl, safeFetchPublicUrl, validatePublicFetchUrl } from '../security-utils.js';
+import {
+    parseNodeList,
+    calculateProtocolStats,
+    calculateRegionStats,
+} from '../utils/node-parser.js';
+import {
+    redactSensitiveObject,
+    redactUrl,
+    safeFetchPublicUrl,
+    validatePublicFetchUrl,
+} from '../security-utils.js';
 
 /**
  * 调试订阅信息和节点内容
@@ -27,7 +41,7 @@ export async function handleDebugSubscriptionRequest(request, env) {
             url: subscriptionUrl,
             subscriptionId,
             profileId,
-            userAgent = 'MiSub-Debug/1.0'
+            userAgent = 'MiSub-Debug/1.0',
         } = requestData;
 
         // 验证必需参数
@@ -39,16 +53,19 @@ export async function handleDebugSubscriptionRequest(request, env) {
         const nodeRequest = new Request('https://debug.local', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestData)
+            body: JSON.stringify(requestData),
         });
 
         const nodeResult = await handleSubscriptionNodesRequest(nodeRequest, env);
 
         if (!nodeResult.success) {
-            return createJsonResponse({
-                error: '获取订阅信息失败',
-                details: nodeResult.error
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '获取订阅信息失败',
+                    details: nodeResult.error,
+                },
+                400
+            );
         }
 
         // 生成详细的调试信息
@@ -57,45 +74,51 @@ export async function handleDebugSubscriptionRequest(request, env) {
                 providedUrl: !!subscriptionUrl,
                 providedSubscriptionId: !!subscriptionId,
                 providedProfileId: !!profileId,
-                userAgent: userAgent
+                userAgent: userAgent,
             },
             subscriptionInfo: {
                 totalSubscriptions: nodeResult.subscriptions?.length || 0,
-                successfulSubscriptions: nodeResult.subscriptions?.filter(s => s.success).length || 0,
-                failedSubscriptions: nodeResult.subscriptions?.filter(s => !s.success).length || 0
+                successfulSubscriptions:
+                    nodeResult.subscriptions?.filter((s) => s.success).length || 0,
+                failedSubscriptions:
+                    nodeResult.subscriptions?.filter((s) => !s.success).length || 0,
             },
             nodeInfo: {
                 totalNodes: nodeResult.totalCount || 0,
                 protocols: nodeResult.stats?.protocols || {},
-                regions: nodeResult.stats?.regions || {}
+                regions: nodeResult.stats?.regions || {},
             },
-            detailedSubscriptions: nodeResult.subscriptions?.map(sub => ({
-                name: sub.subscriptionName,
-                url: redactUrl(sub.url),
-                success: sub.success,
-                nodeCount: sub.nodes?.length || 0,
-                error: sub.error,
-                isManualNode: sub.isManualNode || false,
-                protocols: sub.success ? calculateProtocolStats(sub.nodes || []) : {},
-                regions: sub.success ? calculateRegionStats(sub.nodes || []) : {}
-            })) || [],
-            sampleNodes: (nodeResult.nodes || []).slice(0, 5).map(node => ({
+            detailedSubscriptions:
+                nodeResult.subscriptions?.map((sub) => ({
+                    name: sub.subscriptionName,
+                    url: redactUrl(sub.url),
+                    success: sub.success,
+                    nodeCount: sub.nodes?.length || 0,
+                    error: sub.error,
+                    isManualNode: sub.isManualNode || false,
+                    protocols: sub.success ? calculateProtocolStats(sub.nodes || []) : {},
+                    regions: sub.success ? calculateRegionStats(sub.nodes || []) : {},
+                })) || [],
+            sampleNodes: (nodeResult.nodes || []).slice(0, 5).map((node) => ({
                 name: node.name,
                 protocol: node.protocol,
                 region: node.region,
-                url: redactUrl(node.url) // 隐藏敏感信息
-            }))
+                url: redactUrl(node.url), // 隐藏敏感信息
+            })),
         };
 
         return createJsonResponse({
             success: true,
-            debugInfo
+            debugInfo,
         });
     } catch (e) {
-        return createJsonResponse({
-            error: `调试失败: ${e.message}`,
-            stack: e.stack
-        }, 500);
+        return createJsonResponse(
+            {
+                error: `调试失败: ${e.message}`,
+                stack: e.stack,
+            },
+            500
+        );
     }
 }
 
@@ -118,14 +141,14 @@ export async function handleSystemInfoRequest(request, env) {
         const [allSubscriptions, allProfiles] = await Promise.all([
             typeof storageAdapter.getAllSubscriptions === 'function'
                 ? storageAdapter.getAllSubscriptions()
-                : storageAdapter.get('misub_subscriptions_v1').then(res => res || []),
+                : storageAdapter.get('misub_subscriptions_v1').then((res) => res || []),
             typeof storageAdapter.getAllProfiles === 'function'
                 ? storageAdapter.getAllProfiles()
-                : storageAdapter.get('misub_profiles_v1').then(res => res || [])
+                : storageAdapter.get('misub_profiles_v1').then((res) => res || []),
         ]);
 
-        const activeSubscriptions = allSubscriptions.filter(sub => sub.enabled).length;
-        const activeProfiles = allProfiles.filter(profile => profile.enabled).length;
+        const activeSubscriptions = allSubscriptions.filter((sub) => sub.enabled).length;
+        const activeProfiles = allProfiles.filter((profile) => profile.enabled).length;
 
         const systemInfo = {
             environment: {
@@ -133,35 +156,35 @@ export async function handleSystemInfoRequest(request, env) {
                 availableFeatures: {
                     kv: storageType === 'kv',
                     d1: storageType === 'd1',
-                    dual: StorageFactory.hasDualStorage(env)
+                    dual: StorageFactory.hasDualStorage(env),
                 },
                 bindings: {
                     hasKv: !!StorageFactory.resolveKV(env),
                     hasD1: !!env.MISUB_DB,
                     hasAdminPassword: !!env.ADMIN_PASSWORD,
                     hasCookieSecret: !!env.COOKIE_SECRET,
-                    hasTelegramBot: !!env.TELEGRAM_BOT_TOKEN && !!env.TELEGRAM_CHAT_ID
-                }
+                    hasTelegramBot: !!env.TELEGRAM_BOT_TOKEN && !!env.TELEGRAM_CHAT_ID,
+                },
             },
             statistics: {
                 subscriptions: {
                     total: allSubscriptions.length,
                     active: activeSubscriptions,
-                    inactive: allSubscriptions.length - activeSubscriptions
+                    inactive: allSubscriptions.length - activeSubscriptions,
                 },
                 profiles: {
                     total: allProfiles.length,
                     active: activeProfiles,
-                    inactive: allProfiles.length - activeProfiles
-                }
+                    inactive: allProfiles.length - activeProfiles,
+                },
             },
             timestamp: new Date().toISOString(),
-            uptime: null // Cloudflare Workers 中没有 process.uptime
+            uptime: null, // Cloudflare Workers 中没有 process.uptime
         };
 
         return createJsonResponse({
             success: true,
-            systemInfo
+            systemInfo,
         });
     } catch (e) {
         return createErrorResponse(`获取系统信息失败: ${e.message}`, 500);
@@ -187,7 +210,7 @@ export async function handleStorageTestRequest(request, env) {
         const testValue = {
             timestamp: new Date().toISOString(),
             test: true,
-            storageType
+            storageType,
         };
 
         // 测试写入
@@ -212,33 +235,36 @@ export async function handleStorageTestRequest(request, env) {
             operations: {
                 write: {
                     success: true,
-                    time: writeTime
+                    time: writeTime,
                 },
                 read: {
                     success: isSuccessful,
-                    time: readTime
+                    time: readTime,
                 },
                 delete: {
                     success: true,
-                    time: deleteTime
-                }
+                    time: deleteTime,
+                },
             },
             overall: {
                 success: isSuccessful,
-                totalTime: writeTime + readTime + deleteTime
+                totalTime: writeTime + readTime + deleteTime,
             },
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         };
 
         return createJsonResponse({
             success: true,
-            testResults
+            testResults,
         });
     } catch (e) {
-        return createJsonResponse({
-            error: `存储测试失败: ${e.message}`,
-            storageType: await StorageFactory.getStorageType(env)
-        }, 500);
+        return createJsonResponse(
+            {
+                error: `存储测试失败: ${e.message}`,
+                storageType: await StorageFactory.getStorageType(env),
+            },
+            500
+        );
     }
 }
 
@@ -255,30 +281,37 @@ export async function handleExportDataRequest(request, env) {
 
     try {
         const requestData = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
-        const { includeSubscriptions = true, includeProfiles = true, includeSettings = false } = requestData;
+        const {
+            includeSubscriptions = true,
+            includeProfiles = true,
+            includeSettings = false,
+        } = requestData;
 
-        const storageAdapter = StorageFactory.createAdapter(env, await StorageFactory.getStorageType(env));
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
         const exportData = {
             exportInfo: {
                 timestamp: new Date().toISOString(),
                 version: '2.0.0',
-                storageType: await StorageFactory.getStorageType(env)
+                storageType: await StorageFactory.getStorageType(env),
             },
-            data: {}
+            data: {},
         };
 
         if (includeSubscriptions) {
-            const subscriptions = await storageAdapter.get('misub_subscriptions_v1') || [];
+            const subscriptions = (await storageAdapter.get('misub_subscriptions_v1')) || [];
             exportData.data.subscriptions = redactSensitiveObject(subscriptions);
         }
 
         if (includeProfiles) {
-            const profiles = await storageAdapter.get('misub_profiles_v1') || [];
+            const profiles = (await storageAdapter.get('misub_profiles_v1')) || [];
             exportData.data.profiles = redactSensitiveObject(profiles);
         }
 
         if (includeSettings) {
-            const settings = await storageAdapter.get('misub_settings_v1') || {};
+            const settings = (await storageAdapter.get('misub_settings_v1')) || {};
             exportData.data.settings = redactSensitiveObject(settings);
         }
 
@@ -291,8 +324,8 @@ export async function handleExportDataRequest(request, env) {
                 size: exportSize,
                 subscriptionsCount: exportData.data.subscriptions?.length || 0,
                 profilesCount: exportData.data.profiles?.length || 0,
-                settingsCount: Object.keys(exportData.data.settings || {}).length
-            }
+                settingsCount: Object.keys(exportData.data.settings || {}).length,
+            },
         });
     } catch (e) {
         return createErrorResponse(`数据导出失败: ${e.message}`, 500);
@@ -315,9 +348,12 @@ export async function handlePreviewContentRequest(request, env) {
         const { url, userAgent = 'MiSub-Preview/1.0', maxLength = 5000 } = requestData;
 
         if (!url) {
-            return createJsonResponse({
-                error: '请提供订阅URL'
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: '请提供订阅URL',
+                },
+                400
+            );
         }
 
         const urlValidation = validatePublicFetchUrl(url);
@@ -326,13 +362,16 @@ export async function handlePreviewContentRequest(request, env) {
         }
 
         const response = await safeFetchPublicUrl(urlValidation.url.toString(), {
-            headers: { 'User-Agent': userAgent }
+            headers: { 'User-Agent': userAgent },
         });
 
         if (!response.ok) {
-            return createJsonResponse({
-                error: `HTTP ${response.status}: ${response.statusText}`
-            }, 400);
+            return createJsonResponse(
+                {
+                    error: `HTTP ${response.status}: ${response.statusText}`,
+                },
+                400
+            );
         }
 
         const rawContent = await response.text();
@@ -344,14 +383,16 @@ export async function handlePreviewContentRequest(request, env) {
         let contentInfo = {
             originalLength: contentLength,
             isBase64,
-            contentType: 'unknown'
+            contentType: 'unknown',
         };
 
         if (isBase64) {
             try {
                 const cleanedContent = rawContent.replace(/\s/g, '');
                 const binaryString = atob(cleanedContent);
-                decodedContent = new TextDecoder('utf-8').decode(new Uint8Array([...binaryString].map(c => c.charCodeAt(0))));
+                decodedContent = new TextDecoder('utf-8').decode(
+                    new Uint8Array([...binaryString].map((c) => c.charCodeAt(0)))
+                );
                 contentInfo.decodedLength = decodedContent.length;
                 contentInfo.decodeSuccess = true;
             } catch (e) {
@@ -366,7 +407,9 @@ export async function handlePreviewContentRequest(request, env) {
         } else if (decodedContent.includes('outbounds') && decodedContent.includes('inbounds')) {
             contentInfo.contentType = 'singbox-config';
         } else {
-            const nodeMatches = decodedContent.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm);
+            const nodeMatches = decodedContent.match(
+                /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm
+            );
             if (nodeMatches) {
                 contentInfo.contentType = 'node-list';
                 contentInfo.nodeCount = nodeMatches.length;
@@ -374,15 +417,16 @@ export async function handlePreviewContentRequest(request, env) {
         }
 
         // 截取内容用于预览
-        const previewContent = decodedContent.length > maxLength
-            ? decodedContent.substring(0, maxLength) + '\n...[内容已截断]'
-            : decodedContent;
+        const previewContent =
+            decodedContent.length > maxLength
+                ? decodedContent.substring(0, maxLength) + '\n...[内容已截断]'
+                : decodedContent;
 
         return createJsonResponse({
             success: true,
             contentInfo,
             previewContent,
-            fullContent: request.fullExport ? decodedContent : null
+            fullContent: request.fullExport ? decodedContent : null,
         });
     } catch (e) {
         return createErrorResponse(`内容预览失败: ${e.message}`, e.status || 500);
@@ -404,14 +448,19 @@ export async function handleTestNotificationRequest(request, env) {
         const { botToken, chatId } = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
         const settings = { BotToken: botToken, ChatID: chatId };
 
-        const result = await debugTgNotification(settings, '🔔 <b>通知测试</b> 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。');
+        const result = await debugTgNotification(
+            settings,
+            '🔔 <b>通知测试</b> 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。'
+        );
 
         if (result.success) {
             return createJsonResponse({ success: true, detail: result.response });
         } else {
-            return createJsonResponse({ success: false, error: result.error, detail: result.response }, 400);
+            return createJsonResponse(
+                { success: false, error: result.error, detail: result.response },
+                400
+            );
         }
-
     } catch (e) {
         return createErrorResponse(e.message, e.status || 500);
     }

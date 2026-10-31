@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../src/stores/settings.js';
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }
 
@@ -27,6 +27,28 @@ describe('Data store settings cache', () => {
         sessionStorage.clear();
     });
 
+    it('shares one in-flight fetch result across concurrent fetchData calls', async () => {
+        let resolveRequest;
+        const responseData = { misubs: [], profiles: [], ruleTemplates: [], config: {} };
+        const fetchMock = vi.fn(
+            () =>
+                new Promise((resolve) => {
+                    resolveRequest = () => resolve(jsonResponse(responseData));
+                })
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        const dataStore = createStore();
+        const first = dataStore.fetchData();
+        const second = dataStore.fetchData();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        resolveRequest();
+        const [firstResult, secondResult] = await Promise.all([first, second]);
+        expect(firstResult).toBe(true);
+        expect(secondResult).toBe(true);
+        expect(dataStore.profiles).toEqual([]);
+    });
+
     it('updates the session data cache config after saving settings', async () => {
         const initialData = {
             misubs: [],
@@ -35,21 +57,24 @@ describe('Data store settings cache', () => {
             config: {
                 siteName: 'old site',
                 enablePublicPage: false,
-                transformConfig: 'https://example.com/old.ini'
-            }
+                transformConfig: 'https://example.com/old.ini',
+            },
         };
         const nextSettings = {
             siteName: 'new site',
             enablePublicPage: true,
-            transformConfig: 'https://example.com/new.ini'
+            transformConfig: 'https://example.com/new.ini',
         };
 
-        vi.stubGlobal('fetch', vi.fn(async (url) => {
-            if (url === '/api/settings') {
-                return jsonResponse({ success: true });
-            }
-            throw new Error(`Unexpected request: ${url}`);
-        }));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (url) => {
+                if (url === '/api/settings') {
+                    return jsonResponse({ success: true });
+                }
+                throw new Error(`Unexpected request: ${url}`);
+            })
+        );
 
         const dataStore = createStore();
         expect(dataStore.hydrateFromData(initialData)).toBe(true);

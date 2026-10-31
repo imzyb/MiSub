@@ -31,7 +31,8 @@ export function anonymizeLogToken(value, type = 'token') {
         hash2 = Math.imul(hash2, 0x811c9dc5) >>> 0;
     }
 
-    const fingerprint = `${hash1.toString(16).padStart(8, '0')}${hash2.toString(16).padStart(8, '0')}`.slice(0, 12);
+    const fingerprint =
+        `${hash1.toString(16).padStart(8, '0')}${hash2.toString(16).padStart(8, '0')}`.slice(0, 12);
     return `${normalizedType}:${fingerprint}`;
 }
 
@@ -40,20 +41,25 @@ function sanitizeLogEntry(logEntry = {}) {
     return {
         ...logEntry,
         type,
-        token: anonymizeLogToken(logEntry?.token, type)
+        token: anonymizeLogToken(logEntry?.token, type),
     };
 }
 
 async function resolvePrimaryLogStorage(env) {
     const storageType = await StorageFactory.getStorageType(env);
     const storage = StorageFactory.createAdapter(env, storageType);
-    if (!storage || typeof storage.get !== 'function' || typeof storage.put !== 'function' || typeof storage.delete !== 'function') {
+    if (
+        !storage ||
+        typeof storage.get !== 'function' ||
+        typeof storage.put !== 'function' ||
+        typeof storage.delete !== 'function'
+    ) {
         return null;
     }
 
     return {
         storageType: storage.type || storageType,
-        storage
+        storage,
     };
 }
 
@@ -68,7 +74,12 @@ function resolveLegacyLogStorage(env, primaryStorageType) {
     }
 
     const storage = StorageFactory.createAdapter(env, STORAGE_TYPES.KV);
-    if (!storage || typeof storage.get !== 'function' || typeof storage.put !== 'function' || typeof storage.delete !== 'function') {
+    if (
+        !storage ||
+        typeof storage.get !== 'function' ||
+        typeof storage.put !== 'function' ||
+        typeof storage.delete !== 'function'
+    ) {
         return null;
     }
 
@@ -96,15 +107,21 @@ async function saveLogBucketIndex(storage, keys) {
 async function readLogsFromStorage(storage) {
     const [bucketIndex, legacyLogs] = await Promise.all([
         getLogBucketIndex(storage),
-        storage.get(LOG_KV_KEY)
+        storage.get(LOG_KV_KEY),
     ]);
 
     const bucketEntries = await Promise.all(
-        bucketIndex.map(key => storage.get(key).then(raw => Array.isArray(raw) ? raw : []).catch(() => []))
+        bucketIndex.map((key) =>
+            storage
+                .get(key)
+                .then((raw) => (Array.isArray(raw) ? raw : []))
+                .catch(() => [])
+        )
     );
 
-    return [...bucketEntries.flat(), ...(Array.isArray(legacyLogs) ? legacyLogs : [])]
-        .filter(log => (Date.now() - log.timestamp) <= MAX_LOG_AGE_MS);
+    return [...bucketEntries.flat(), ...(Array.isArray(legacyLogs) ? legacyLogs : [])].filter(
+        (log) => Date.now() - log.timestamp <= MAX_LOG_AGE_MS
+    );
 }
 // 全局内存队列，用于削峰填谷和防写竞争
 let logBatch = [];
@@ -113,7 +130,7 @@ let recentLogFingerprints = new Map();
 let persistedLogTimestamps = [];
 
 function cleanupLogBudgets(now = Date.now()) {
-    persistedLogTimestamps = persistedLogTimestamps.filter(ts => (now - ts) < 60 * 1000);
+    persistedLogTimestamps = persistedLogTimestamps.filter((ts) => now - ts < 60 * 1000);
     for (const [fingerprint, expiresAt] of recentLogFingerprints.entries()) {
         if (expiresAt <= now) {
             recentLogFingerprints.delete(fingerprint);
@@ -173,7 +190,7 @@ export const LogService = {
         const enrichedLog = {
             id: crypto.randomUUID(),
             timestamp: Date.now(),
-            ...sanitizedLogEntry
+            ...sanitizedLogEntry,
         };
 
         // 放入全局内存队列
@@ -184,7 +201,7 @@ export const LogService = {
         if (!isFlushing) {
             isFlushing = true;
             // 简单的防抖：给并发请求一点时间累积日志
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
             await this._flush(env);
         }
 
@@ -220,7 +237,7 @@ export const LogService = {
             logs.unshift(...batchToFlush.reverse());
 
             // 1. 过滤过期日志 (30天)
-            logs = logs.filter(log => (now - log.timestamp) <= MAX_LOG_AGE_MS);
+            logs = logs.filter((log) => now - log.timestamp <= MAX_LOG_AGE_MS);
 
             // 2. 单桶限制数量，避免单 key 无限增长
             const perBucketLimit = Math.max(MAX_LOG_ENTRIES, 100);
@@ -235,10 +252,13 @@ export const LogService = {
                 bucketIndex.push(bucketKey);
             }
 
-            const validBucketKeys = bucketIndex.filter(key => {
+            const validBucketKeys = bucketIndex.filter((key) => {
                 const suffix = key.replace(LOG_BUCKET_PREFIX, '');
                 const bucketTime = Date.parse(`${suffix}T00:00:00Z`);
-                return !Number.isNaN(bucketTime) && (now - bucketTime) <= (MAX_LOG_AGE_MS + 24 * 60 * 60 * 1000);
+                return (
+                    !Number.isNaN(bucketTime) &&
+                    now - bucketTime <= MAX_LOG_AGE_MS + 24 * 60 * 60 * 1000
+                );
             });
 
             await saveLogBucketIndex(storage, validBucketKeys);
@@ -249,7 +269,7 @@ export const LogService = {
         } finally {
             // 检查是否有在刷盘期间新进来的日志
             if (logBatch.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise((resolve) => setTimeout(resolve, 500));
                 await this._flush(env);
             } else {
                 isFlushing = false;
@@ -294,18 +314,20 @@ export const LogService = {
                 storages.push(legacyStorage);
             }
 
-            await Promise.all(storages.map(async storage => {
-                const bucketIndex = await getLogBucketIndex(storage);
-                await Promise.all([
-                    storage.delete(LOG_KV_KEY),
-                    storage.delete(LOG_INDEX_KV_KEY),
-                    ...bucketIndex.map(key => storage.delete(key))
-                ]);
-            }));
+            await Promise.all(
+                storages.map(async (storage) => {
+                    const bucketIndex = await getLogBucketIndex(storage);
+                    await Promise.all([
+                        storage.delete(LOG_KV_KEY),
+                        storage.delete(LOG_INDEX_KV_KEY),
+                        ...bucketIndex.map((key) => storage.delete(key)),
+                    ]);
+                })
+            );
             return true;
         } catch (error) {
             console.error('[LogService] Failed to clear logs:', error);
             return false;
         }
-    }
+    },
 };

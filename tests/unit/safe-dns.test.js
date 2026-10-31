@@ -3,7 +3,7 @@ import {
     DNS_PROXY_GROUP,
     buildSingboxDnsConfig,
     resolveDnsPolicy,
-    resolveSafeDnsConfig
+    resolveSafeDnsConfig,
 } from '../../functions/modules/subscription/safe-dns.js';
 
 describe('shared split DNS policy', () => {
@@ -14,7 +14,7 @@ describe('shared split DNS policy', () => {
         expect(dns['nameserver-policy']['geosite:cn']).toEqual(['223.5.5.5', '119.29.29.29']);
         expect(dns.nameserver).toEqual([
             `udp://8.8.8.8:53#${DNS_PROXY_GROUP}`,
-            `udp://1.1.1.1:53#${DNS_PROXY_GROUP}`
+            `udp://1.1.1.1:53#${DNS_PROXY_GROUP}`,
         ]);
         expect(dns.fallback).toEqual([]);
         expect(dns['proxy-server-nameserver']).toEqual(['223.5.5.5', '119.29.29.29']);
@@ -24,14 +24,18 @@ describe('shared split DNS policy', () => {
         const dns = resolveSafeDnsConfig('', { mode: 'polluted' });
         const singbox = buildSingboxDnsConfig('', { mode: 'polluted' });
 
-        expect(dns.nameserver.every(server => server.startsWith('https://'))).toBe(true);
-        expect(dns.nameserver.every(server => server.endsWith(`#${DNS_PROXY_GROUP}`))).toBe(true);
-        expect(singbox.servers.some(server => server.type === 'https' && server.detour === DNS_PROXY_GROUP)).toBe(true);
+        expect(dns.nameserver.every((server) => server.startsWith('https://'))).toBe(true);
+        expect(dns.nameserver.every((server) => server.endsWith(`#${DNS_PROXY_GROUP}`))).toBe(true);
+        expect(
+            singbox.servers.some(
+                (server) => server.type === 'https' && server.detour === DNS_PROXY_GROUP
+            )
+        ).toBe(true);
         expect(singbox.final).toBe('dns-foreign-1');
         expect(singbox.rules[0]).toEqual({
             rule_set: ['geosite-cn'],
             action: 'route',
-            server: 'dns-cn-1'
+            server: 'dns-cn-1',
         });
     });
 
@@ -47,7 +51,7 @@ describe('shared split DNS policy', () => {
             mode: 'polluted',
             domestic: ['127.0.0.1'],
             foreign: ['udp://0.0.0.0:53#DIRECT'],
-            polluted: ['https://8.8.8.8/dns-query']
+            polluted: ['https://8.8.8.8/dns-query'],
         });
 
         expect(policy.domestic).toEqual(['223.5.5.5', '119.29.29.29']);

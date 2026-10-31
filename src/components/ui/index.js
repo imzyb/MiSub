@@ -16,17 +16,17 @@ export { default as Input } from './Input.vue';
 export { default as Switch } from './Switch.vue';
 
 export const UIComponents = {
-  Card,
-  LoadingSpinner,
-  EmptyState,
-  StatusIndicator,
-  Button,
-  ProgressiveDisclosure,
-  Toast,
-  SkeletonLoader,
-  SkeletonCard,
-  Input,
-  Switch
+    Card,
+    LoadingSpinner,
+    EmptyState,
+    StatusIndicator,
+    Button,
+    ProgressiveDisclosure,
+    Toast,
+    SkeletonLoader,
+    SkeletonCard,
+    Input,
+    Switch,
 };
 
 export default UIComponents;

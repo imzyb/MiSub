@@ -48,6 +48,7 @@ src/
 ```
 
 ### 关键区域说明
+
 - `src/views/`：页面级视图（仪表盘、设置、订阅等），负责页面整体布局。
 - `src/components/settings/sections/`：设置面板详情分区，新设定的 UI 组件建议放在此处。
 - `src/composables/`：跨组件复用的业务逻辑（如 `useSettingsLogic.js`, `useBackupLogic.js`）。
@@ -92,11 +93,12 @@ functions/
 ```
 
 ### 核心流程说明
+
 - `functions/[[path]].js`：
-  - 全局入口，拦截所有请求。
-  - **伪装逻辑**：调用 `disguise-handler.js`，根据配置决定是否伪装根路径或 SPA 路由。
-  - **路由分发**：将 `/api/*` 分发给 API 路由，`/sub/*` 分发给订阅处理，`/cron` 分发给定时任务。
-  - **SPA 回退**：处理前端路由的 `index.html` 返回。
+    - 全局入口，拦截所有请求。
+    - **伪装逻辑**：调用 `disguise-handler.js`，根据配置决定是否伪装根路径或 SPA 路由。
+    - **路由分发**：将 `/api/*` 分发给 API 路由，`/sub/*` 分发给订阅处理，`/cron` 分发给定时任务。
+    - **SPA 回退**：处理前端路由的 `index.html` 返回。
 
 - `functions/modules/api-router.js`：定义 API 路径到具体 Handlers 的映射，包含鉴权逻辑。
 - `functions/modules/subscription/main-handler.js`：处理 `/sub/*` 订阅请求的核心流程（获取、转换、缓存）。
@@ -113,7 +115,9 @@ functions/modules/
 ```
 
 #### 1. 处理器 (`functions/modules/handlers/`)
+
 这是 API 的具体实现层：
+
 ```
 functions/modules/handlers/
 ├─ disguise-handler.js      # [新增] 伪装页面逻辑处理器
@@ -126,6 +130,7 @@ functions/modules/handlers/
 ```
 
 #### 2. 订阅处理 (`functions/modules/subscription/`)
+
 ```
 functions/modules/subscription/
 ├─ main-handler.js          # 主订阅请求入口
@@ -138,13 +143,14 @@ functions/modules/subscription/
 ```
 
 functions/modules/utils/
-├─ node-cleaner.js          # [新增] 节点清洗与URL修复
-├─ node-parser.js           # 节点解析 (Parse Logic)
-├─ operator-runner.js       # [新增] 操作符执行引擎 (Core Runtime)
-├─ node-transformer.js      # 节点变换工具集
+├─ node-cleaner.js # [新增] 节点清洗与URL修复
+├─ node-parser.js # 节点解析 (Parse Logic)
+├─ operator-runner.js # [新增] 操作符执行引擎 (Core Runtime)
+├─ node-transformer.js # 节点变换工具集
 └─ ...
 
 ### 服务层 (`functions/services/`)
+
 ```
 functions/services/
 ├─ subscription-service.js  # 订阅核心业务 (生成、组合)
@@ -157,15 +163,18 @@ functions/services/
 ## 开发约定
 
 ### 1. 新功能开发
+
 - **UI**：新的 Vue 组件放入 `src/components/` 下对应分类，页面级组件放入 `src/views/`。
 - **API**：
-  1. 在 `functions/modules/handlers/` 创建新的 Handler 文件。
-  2. 在 `functions/modules/api-router.js` 中注册路由。
+    1. 在 `functions/modules/handlers/` 创建新的 Handler 文件。
+    2. 在 `functions/modules/api-router.js` 中注册路由。
 - **数据**：所有数据库操作**必须**通过 `functions/storage-adapter.js` 提供的 Adapter 实例进行，禁止直接调用 `env.KV` 或 `env.DB`，以保持 KV/D1 的兼容性。
 
 ### 2. 伪装与安全
+
 - 伪装逻辑位于 `functions/modules/handlers/disguise-handler.js`，在 `[[path]].js` 中被优先调用。
 - 涉及敏感操作的 API 需在 `api-router.js` 中添加 `authMiddleware` 保护。
 
 ### 3. 公共资源
+
 - 通用静态资源位于 `public/` 目录。

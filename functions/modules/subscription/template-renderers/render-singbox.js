@@ -21,6 +21,25 @@ function buildOutbound(proxy) {
     const serverPort = parsePort(proxy.port);
     if (!serverPort) return null;
 
+    if (type === 'http' || type === 'https') {
+        const outbound = {
+            tag,
+            type: 'http',
+            server,
+            server_port: serverPort,
+            username: proxy.username || undefined,
+            password: proxy.password || undefined,
+        };
+        if (type === 'https' || proxy.tls || proxy.sni || proxy.servername) {
+            outbound.tls = {
+                enabled: true,
+                server_name: proxy.servername ?? proxy.sni ?? server,
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
+            };
+        }
+        return outbound;
+    }
+
     if (type === 'trojan') {
         return {
             tag,
@@ -31,8 +50,8 @@ function buildOutbound(proxy) {
             tls: {
                 enabled: true,
                 server_name: proxy.servername ?? proxy.sni ?? server,
-                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
-            }
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
+            },
         };
     }
 
@@ -43,7 +62,7 @@ function buildOutbound(proxy) {
             server,
             server_port: serverPort,
             method: proxy.cipher || 'aes-128-gcm',
-            password: proxy.password || ''
+            password: proxy.password || '',
         };
         // sing-box 的 Shadowsocks 出站使用 SIP003 plugin/plugin_opts；
         // `transport` 仅属于 V2Ray 传输协议，SFA 会严格拒绝它。
@@ -68,9 +87,8 @@ function buildOutbound(proxy) {
             server_port: serverPort,
             uuid: proxy.uuid || '',
             security: proxy.cipher || 'auto',
-            udp_relay_mode: proxy['udp-relay-mode'] || 'native',
             congestion_control: proxy['congestion-control'] || 'cubic',
-            alter_id: Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0
+            alter_id: Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0,
         };
 
         const network = proxy.network || '';
@@ -79,20 +97,20 @@ function buildOutbound(proxy) {
             outbound.transport = {
                 type: 'ws',
                 path: wsOpts?.path || '/',
-                headers: wsOpts?.headers || {}
+                headers: wsOpts?.headers || {},
             };
         } else if (network === 'grpc') {
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
             outbound.transport = {
                 type: 'grpc',
-                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc'
+                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc',
             };
         } else if (network === 'h2' || network === 'http') {
             const opts = proxy[`${network}-opts`] || proxy[`${network}Opts`];
             outbound.transport = {
                 type: network === 'h2' ? 'h2' : 'http',
                 host: opts?.host ? (Array.isArray(opts.host) ? opts.host : [opts.host]) : [],
-                path: opts?.path || '/'
+                path: opts?.path || '/',
             };
         }
 
@@ -100,9 +118,10 @@ function buildOutbound(proxy) {
             outbound.tls = {
                 enabled: true,
                 server_name: proxy.servername ?? proxy.sni ?? server,
-                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
             };
-            if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
+            if (proxy.alpn)
+                outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
         }
         return outbound;
     }
@@ -113,7 +132,7 @@ function buildOutbound(proxy) {
             type: 'vless',
             server,
             server_port: serverPort,
-            uuid: proxy.uuid || ''
+            uuid: proxy.uuid || '',
         };
         if (proxy.flow) outbound.flow = proxy.flow;
 
@@ -123,20 +142,20 @@ function buildOutbound(proxy) {
             outbound.transport = {
                 type: 'ws',
                 path: wsOpts?.path || '/',
-                headers: wsOpts?.headers || {}
+                headers: wsOpts?.headers || {},
             };
         } else if (network === 'grpc') {
             const grpcOpts = proxy['grpc-opts'] || proxy.grpcOpts;
             outbound.transport = {
                 type: 'grpc',
-                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc'
+                service_name: grpcOpts?.['grpc-service-name'] || grpcOpts?.serviceName || 'grpc',
             };
         } else if (network === 'httpupgrade') {
             const httpupgradeOpts = proxy['httpupgrade-opts'] || proxy.httpupgradeOpts;
             outbound.transport = {
                 type: 'httpupgrade',
                 path: httpupgradeOpts?.path || '/',
-                host: httpupgradeOpts?.host || ''
+                host: httpupgradeOpts?.host || '',
             };
         }
 
@@ -144,14 +163,14 @@ function buildOutbound(proxy) {
             outbound.tls = {
                 enabled: true,
                 server_name: proxy.servername ?? proxy.sni ?? server,
-                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
             };
 
             const fingerprint = proxy['client-fingerprint'] || proxy.clientFingerprint || proxy.fp;
             if (fingerprint) {
                 outbound.tls.utls = {
                     enabled: true,
-                    fingerprint: fingerprint
+                    fingerprint: fingerprint,
                 };
             }
 
@@ -160,7 +179,7 @@ function buildOutbound(proxy) {
                 outbound.tls.reality = {
                     enabled: true,
                     public_key: realityOpts['public-key'] || realityOpts.publicKey || '',
-                    short_id: realityOpts['short-id'] || realityOpts.shortId || ''
+                    short_id: realityOpts['short-id'] || realityOpts.shortId || '',
                 };
                 if (realityOpts['spider-x'] || realityOpts.spiderX) {
                     outbound.tls.reality.spider_x = realityOpts['spider-x'] || realityOpts.spiderX;
@@ -180,8 +199,8 @@ function buildOutbound(proxy) {
             tls: {
                 enabled: true,
                 server_name: proxy.servername ?? proxy.sni ?? server,
-                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
-            }
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
+            },
         };
     }
 
@@ -196,16 +215,20 @@ function buildOutbound(proxy) {
             tls: {
                 enabled: true,
                 server_name: proxy.servername ?? proxy.sni ?? server,
-                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true
-            }
+                insecure: proxy['skip-cert-verify'] === true || proxy.skipCertVerify === true,
+            },
         };
         if (proxy.alpn) outbound.tls.alpn = Array.isArray(proxy.alpn) ? proxy.alpn : [proxy.alpn];
-        const congestionControl = proxy['congestion-control'] || proxy['congestion-controller'] || proxy.congestion;
+        const congestionControl =
+            proxy['congestion-control'] || proxy['congestion-controller'] || proxy.congestion;
         if (congestionControl) outbound.congestion_control = congestionControl;
-        if (proxy['udp-relay-mode']) outbound.udp_relay_mode = proxy['udp-relay-mode'];
-        if (proxy['udp-over-stream'] !== undefined) outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
+        // sing-box TUIC schema has no udp_relay_mode field.
+        if (proxy['udp-over-stream'] !== undefined)
+            outbound.udp_over_stream = Boolean(proxy['udp-over-stream']);
         if (proxy['zero-rtt-handshake'] !== undefined || proxy['reduce-rtt'] !== undefined) {
-            outbound.zero_rtt_handshake = Boolean(proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']);
+            outbound.zero_rtt_handshake = Boolean(
+                proxy['zero-rtt-handshake'] ?? proxy['reduce-rtt']
+            );
         }
         if (proxy.heartbeat) outbound.heartbeat = String(proxy.heartbeat);
         if (proxy.network) outbound.network = proxy.network;
@@ -218,10 +241,10 @@ function buildOutbound(proxy) {
             type: 'wireguard',
             server,
             server_port: serverPort,
-            local_address: Array.isArray(proxy.ip) ? proxy.ip : (proxy.ip ? [proxy.ip] : []),
+            local_address: Array.isArray(proxy.ip) ? proxy.ip : proxy.ip ? [proxy.ip] : [],
             private_key: proxy['private-key'] || '',
             peer_public_key: proxy['public-key'] || '',
-            pre_shared_key: proxy['preshared-key'] || ''
+            pre_shared_key: proxy['preshared-key'] || '',
         };
     }
 
@@ -237,15 +260,20 @@ function mapGroupType(type) {
 }
 
 function buildGroupOutbounds(groups) {
-    return groups.map(group => {
+    return groups.map((group) => {
         const mappedType = mapGroupType(group.type);
         const rawMembers = Array.isArray(group.members) ? group.members.filter(Boolean) : [];
         const outbound = {
             tag: sanitizeTag(group.name),
             type: mappedType,
             outbounds: ['urltest'].includes(mappedType)
-                ? rawMembers.filter(member => !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(String(member).toUpperCase()))
-                : rawMembers
+                ? rawMembers.filter(
+                      (member) =>
+                          !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'].includes(
+                              String(member).toUpperCase()
+                          )
+                  )
+                : rawMembers,
         };
 
         if (mappedType === 'urltest') {
@@ -266,65 +294,70 @@ function mapRuleToSingbox(rule) {
     if (type === 'rule-set') {
         return {
             rule_set: sanitizeTag(`${rule.policy}_${rule.value}`),
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     if (type === 'geoip') {
         const value = String(rule.value || 'cn').toLowerCase();
         return {
             rule_set: [`geoip-${value}`],
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     if (type === 'geosite') {
         const value = String(rule.value || 'cn').toLowerCase();
         return {
             rule_set: [`geosite-${value}`],
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     if (type === 'match' || type === 'final') {
         return {
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     if (type === 'domain-suffix') {
         return {
             domain_suffix: [rule.value],
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     if (type === 'domain-keyword') {
         return {
             domain_keyword: [rule.value],
-            outbound: rule.policy
+            outbound: rule.policy,
         };
     }
     return null;
 }
 
 function detectRuleSetFormat(url) {
-    const raw = String(url || '').trim().toLowerCase();
+    const raw = String(url || '')
+        .trim()
+        .toLowerCase();
     if (!raw) return 'source';
     return raw.endsWith('.srs') ? 'binary' : 'source';
 }
 
 function buildRuleSets(rules) {
     const remoteRuleSets = rules
-        .filter(rule => String(rule.type || '').toLowerCase() === 'rule-set' && rule.source === 'remote')
-        .map(rule => ({
+        .filter(
+            (rule) =>
+                String(rule.type || '').toLowerCase() === 'rule-set' && rule.source === 'remote'
+        )
+        .map((rule) => ({
             tag: sanitizeTag(`${rule.policy}_${rule.value}`),
             type: 'remote',
             format: detectRuleSetFormat(rule.value),
             url: pinRemoteRuleUrl(rule.value),
             update_interval: '24h',
-            download_detour: DNS_PROXY_GROUP
+            download_detour: DNS_PROXY_GROUP,
         }));
 
     const implicitRuleSets = [];
     const seen = new Set();
 
-    rules.forEach(rule => {
+    rules.forEach((rule) => {
         const type = String(rule.type || '').toLowerCase();
         if (type === 'geoip' || type === 'geosite') {
             const value = String(rule.value || 'cn').toLowerCase();
@@ -335,11 +368,16 @@ function buildRuleSets(rules) {
                     tag,
                     type: 'remote',
                     format: 'binary',
-                    url: type === 'geoip'
-                        ? pinRemoteRuleUrl(`https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-${value}.srs`)
-                        : pinRemoteRuleUrl(`https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-${value}.srs`),
+                    url:
+                        type === 'geoip'
+                            ? pinRemoteRuleUrl(
+                                  `https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-${value}.srs`
+                              )
+                            : pinRemoteRuleUrl(
+                                  `https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-${value}.srs`
+                              ),
                     update_interval: '24h',
-                    download_detour: DNS_PROXY_GROUP
+                    download_detour: DNS_PROXY_GROUP,
                 });
             }
         }
@@ -353,48 +391,56 @@ export function renderSingboxFromTemplateModel(model, options = {}) {
     const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
     const proxyUrls = nodeList
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
-    const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
-        ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
+    const proxies =
+        Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
+            ? normalizedModel.proxies
+            : urlsToClashProxies(proxyUrls);
     const proxyOutbounds = proxies.map(buildOutbound).filter(Boolean);
-    const groupOutbounds = buildGroupOutbounds(normalizedModel.groups.filter(g => Array.isArray(g.members) && g.members.length > 0));
+    const groupOutbounds = buildGroupOutbounds(
+        normalizedModel.groups.filter((g) => Array.isArray(g.members) && g.members.length > 0)
+    );
     const ruleSetObjects = [
         getSingboxDnsRuleSet(),
-        ...buildRuleSets(normalizedModel.rules).filter(ruleSet => ruleSet.tag !== SINGBOX_CN_RULE_SET)
+        ...buildRuleSets(normalizedModel.rules).filter(
+            (ruleSet) => ruleSet.tag !== SINGBOX_CN_RULE_SET
+        ),
     ];
     const routeRules = normalizedModel.rules.map(mapRuleToSingbox).filter(Boolean);
-    const defaultOutbound = normalizedModel.groups.find(group => group.name !== DNS_PROXY_GROUP)?.name || 'DIRECT';
+    const defaultOutbound =
+        normalizedModel.groups.find((group) => group.name !== DNS_PROXY_GROUP)?.name || 'DIRECT';
     const dnsConfig = buildSingboxDnsConfig(normalizedModel.settings?.customDnsOverride, {
         mode: normalizedModel.settings?.dnsMode,
-        proxyGroup: DNS_PROXY_GROUP
+        proxyGroup: DNS_PROXY_GROUP,
     });
 
     const config = {
         log: { level: 'info' },
         dns: dnsConfig,
-        inbounds: [{
-            type: 'tun',
-            tag: 'tun-in',
-            address: ['172.19.0.1/30'],
-            auto_route: true,
-            strict_route: true,
-            stack: 'mixed'
-        }],
+        inbounds: [
+            {
+                type: 'tun',
+                tag: 'tun-in',
+                address: ['172.19.0.1/30'],
+                auto_route: true,
+                strict_route: true,
+                stack: 'mixed',
+            },
+        ],
         outbounds: [
             { tag: 'DIRECT', type: 'direct' },
             { tag: 'REJECT', type: 'block' },
             ...proxyOutbounds,
-            ...groupOutbounds
+            ...groupOutbounds,
         ],
         route: {
             auto_detect_interface: true,
             default_domain_resolver: dnsConfig.servers[0]?.tag || 'dns-cn-1',
             final: defaultOutbound,
             rule_set: ruleSetObjects,
-            rules: routeRules
-        }
+            rules: routeRules,
+        },
     };
 
     return JSON.stringify(config, null, 2) + '\n';

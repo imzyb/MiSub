@@ -1,4 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { isChunkLoadError, shouldReloadForChunkError } from '../utils/chunk-reload.js';
+import { t } from '../i18n/index.js';
+
+/**
+ * 解析路由页标题。
+ *
+ * 路由表是**模块级常量**，只会在应用启动时求值一次，所以那里不能直接写
+ * `t('...')` —— 否则切换语言后标题永远是启动时的那个。约定：
+ * - 需要翻译的页面放 `meta.titleKey`（i18n key）
+ * - 品牌名等无需翻译的放 `meta.title`（字面量）
+ */
+export function translateRouteTitle(route, t) {
+    const key = route?.meta?.titleKey;
+    if (key) return t(key);
+    return route?.meta?.title ? String(route.meta.title) : '';
+}
 
 // Lazy load views for better performance
 const DashboardView = () => import('../views/DashboardView.vue');
@@ -9,48 +25,54 @@ const SettingsView = () => import('../views/SettingsView.vue');
 
 const HomeView = () => import('../views/HomeView.vue'); // [NEW] Wrapper View
 
+let authContextResolver = () => ({ state: 'loading', loginPath: '/login' });
+
+export function configureAuthGuard(resolver) {
+    authContextResolver = typeof resolver === 'function' ? resolver : authContextResolver;
+}
+
 const routes = [
     {
-        path: '/',  // Root path is HomeView (Smart Wrapper)
+        path: '/', // Root path is HomeView (Smart Wrapper)
         name: 'Home',
         component: HomeView,
-        meta: { title: '首页', isPublic: true } // Publicly accessible, view handles content
+        meta: { titleKey: 'pageTitles.home', isPublic: true }, // Publicly accessible, view handles content
     },
     {
         path: '/explore',
         name: 'Explore',
         component: HomeView,
-        meta: { title: '公开页', isPublic: true }
+        meta: { titleKey: 'pageTitles.publicPage', isPublic: true },
     },
     {
         path: '/dashboard',
         name: 'Dashboard',
         component: DashboardView,
-        meta: { title: '仪表盘' }
+        meta: { titleKey: 'pageTitles.dashboard', requiresAuth: true },
     },
     {
         path: '/dashboard/groups',
         name: 'SubscriptionGroups',
         component: SubscriptionGroupsView,
-        meta: { title: '订阅组' }
+        meta: { titleKey: 'pageTitles.groups', requiresAuth: true },
     },
     {
         path: '/dashboard/nodes',
         name: 'ManualNodes',
         component: ManualNodesView,
-        meta: { title: '手动节点' }
+        meta: { titleKey: 'pageTitles.nodes', requiresAuth: true },
     },
     {
         path: '/dashboard/subscriptions',
         name: 'MySubscriptions',
         component: MySubscriptionsView,
-        meta: { title: '我的订阅' }
+        meta: { titleKey: 'pageTitles.subscriptions', requiresAuth: true },
     },
     {
         path: '/dashboard/settings',
         name: 'Settings',
         component: SettingsView,
-        meta: { title: '设置' }
+        meta: { titleKey: 'pageTitles.settings', requiresAuth: true },
     },
     /* 
     // [REMOVED] Static /login route. 
@@ -59,7 +81,7 @@ const routes = [
         path: '/login',
         name: 'Login',
         component: () => import('../components/modals/Login.vue'),
-        meta: { title: '登录', isPublic: false } 
+        meta: { titleKey: 'pageTitles.login', isPublic: false } 
     }, 
     */
     {
@@ -67,8 +89,8 @@ const routes = [
         path: '/:pathMatch(.*)*',
         name: 'Entrance',
         component: () => import('../views/Entrance.vue'),
-        meta: { title: 'MiSub', isPublic: true } // Public, so Entrance.vue can decide what to render
-    }
+        meta: { title: 'MiSub', isPublic: true }, // Public, so Entrance.vue can decide what to render
+    },
 ];
 
 const router = createRouter({
@@ -80,51 +102,33 @@ const router = createRouter({
         } else {
             return { top: 0 };
         }
-    }
+    },
 });
 
 // 自动恢复动态 chunk 加载失败导致的白屏
 router.onError((error) => {
-    const message = error?.message || '';
-    if (message.includes('Failed to fetch dynamically imported module')
-        || message.includes('error loading dynamically imported module')) {
-        const reloadKey = 'misub:chunk-reload';
-        if (sessionStorage.getItem(reloadKey) !== '1') {
-            sessionStorage.setItem(reloadKey, '1');
-            window.location.reload();
-        }
+    if (isChunkLoadError(error?.message) && shouldReloadForChunkError()) {
+        window.location.reload();
     }
 });
 
 // Navigation guard
-router.beforeEach(async (to, from, next) => {
-    // Update title
+router.beforeEach((to) => {
     if (typeof document !== 'undefined') {
-        document.title = to.meta.title ? `${to.meta.title} - MISUB` : 'MISUB';
+        const title = translateRouteTitle(to, t);
+        document.title = title ? `${title} - MISUB` : 'MISUB';
     }
 
-    // Simple auth check: check if the user is visiting a protected route
-    // We rely on the session store state or a quick check.
-    // However, pinia stores are only available after app is mounted or inside guards if pinia instance is passed?
-    // Pinia is installed in main.js, so using it inside router.beforeEach (which is imported by main.js) might be tricky if called before app mount.
-    // BUT, router.beforeEach is called on navigation.
+    if (!to.meta.requiresAuth) return true;
 
-    // Better approach: Check if we are on the login page. If not, and we don't have a flagged session, maybe redirect?
-    // Actually, the sessionStore handles the initial check.
-    // Let's just rely on the API 401 response to kick the user out (handled in api.js -> sessionStore).
-    // BUT the user wants to populate the "enter operation interface" issue.
-    // The most reliable way is: if "not logged in" state is known, block access.
+    const context = authContextResolver() || {};
+    if (context.state === 'loading') return true;
+    if (context.state === 'loggedIn') return true;
 
-    // Ideally, we'd import the session store here, but circular dependencies might occur.
-    // Let's keep it simple: if the session check fails (which happens in App.vue or main.js), it redirects.
-    // But to prevent "flash of content", we can add a simple check if we are SURE we aren't logged in.
-
-    // For now, let's stick to the title update as the primary router responsibility, 
-    // and rely on the Backend Redirect (implemented in Step 1) and API 401 handling for security.
-    // The backend redirect covers the "refresh/direct link" case.
-    // The API 401 covers the "token expired while using" case.
-
-    next();
+    return {
+        path: context.loginPath || '/login',
+        query: { redirect: to.fullPath },
+    };
 });
 
 export default router;

@@ -33,15 +33,15 @@ External Management API 面向“外部系统受控接入”场景，用于让�
 
 ```json
 {
-  "externalApi": {
-    "enabled": true,
-    "tokens": [
-      {
-        "name": "default",
-        "token": "your-strong-random-token"
-      }
-    ]
-  }
+    "externalApi": {
+        "enabled": true,
+        "tokens": [
+            {
+                "name": "default",
+                "token": "your-strong-random-token"
+            }
+        ]
+    }
 }
 ```
 
@@ -70,8 +70,8 @@ Content-Type: application/json
 
 ```json
 {
-  "success": true,
-  "data": {}
+    "success": true,
+    "data": {}
 }
 ```
 
@@ -79,14 +79,14 @@ Content-Type: application/json
 
 ```json
 {
-  "success": true,
-  "data": [],
-  "meta": {
-    "page": 1,
-    "pageSize": 50,
-    "total": 2,
-    "requestId": "req_xxx"
-  }
+    "success": true,
+    "data": [],
+    "meta": {
+        "page": 1,
+        "pageSize": 50,
+        "total": 2,
+        "requestId": "req_xxx"
+    }
 }
 ```
 
@@ -94,11 +94,11 @@ Content-Type: application/json
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "unauthorized",
-    "message": "Invalid or missing bearer token"
-  }
+    "success": false,
+    "error": {
+        "code": "unauthorized",
+        "message": "Invalid or missing bearer token"
+    }
 }
 ```
 
@@ -120,24 +120,24 @@ Content-Type: application/json
 
 - `url` 不是 `http(s)`
 - `url` 必须匹配受支持的节点协议，如：
-  - `ss://`
-  - `ssr://`
-  - `vmess://`
-  - `vless://`
-  - `trojan://`
-  - `hysteria://`
-  - `hysteria2://`
-  - `hy://`
-  - `hy2://`
-  - `tuic://`
-  - `anytls://`
-  - `socks5://`
-  - `socks://`
-  - `snell://`
-  - `naive+https://`
-  - `naive+quic://`
-  - `naive+http://`
-  - `wireguard://`
+    - `ss://`
+    - `ssr://`
+    - `vmess://`
+    - `vless://`
+    - `trojan://`
+    - `hysteria://`
+    - `hysteria2://`
+    - `hy://`
+    - `hy2://`
+    - `tuic://`
+    - `anytls://`
+    - `socks5://`
+    - `socks://`
+    - `snell://`
+    - `naive+https://`
+    - `naive+quic://`
+    - `naive+http://`
+    - `wireguard://`
 
 不会返回任何远程订阅源。
 
@@ -216,27 +216,27 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "sub_xxx",
-  "type": "subscription",
-  "name": "Airport A",
-  "url": "https://example.com/sub",
-  "enabled": true,
-  "group": "HK",
-  "tags": ["prod"],
-  "userAgent": "",
-  "proxy": "",
-  "nodeCount": 128,
-  "userInfo": {
-    "upload": 1024,
-    "download": 2048,
-    "total": 4096,
-    "expire": 1790000000
-  },
-  "lastError": "",
-  "lastUpdate": "2026-07-10T18:05:00.000Z",
-  "sortIndex": 1,
-  "createdAt": "2026-07-10T18:00:00.000Z",
-  "updatedAt": "2026-07-10T18:05:00.000Z"
+    "id": "sub_xxx",
+    "type": "subscription",
+    "name": "Airport A",
+    "url": "https://example.com/sub",
+    "enabled": true,
+    "group": "HK",
+    "tags": ["prod"],
+    "userAgent": "",
+    "proxy": "",
+    "nodeCount": 128,
+    "userInfo": {
+        "upload": 1024,
+        "download": 2048,
+        "total": 4096,
+        "expire": 1790000000
+    },
+    "lastError": "",
+    "lastUpdate": "2026-07-10T18:05:00.000Z",
+    "sortIndex": 1,
+    "createdAt": "2026-07-10T18:00:00.000Z",
+    "updatedAt": "2026-07-10T18:05:00.000Z"
 }
 ```
 
@@ -244,18 +244,18 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "node_xxx",
-  "type": "manual_node",
-  "name": "HK-01",
-  "url": "vless://...",
-  "protocol": "vless",
-  "enabled": true,
-  "group": "HK",
-  "tags": ["manual"],
-  "remarks": "",
-  "sortIndex": 2,
-  "createdAt": "2026-07-10T18:00:00.000Z",
-  "updatedAt": "2026-07-10T18:00:00.000Z"
+    "id": "node_xxx",
+    "type": "manual_node",
+    "name": "HK-01",
+    "url": "vless://...",
+    "protocol": "vless",
+    "enabled": true,
+    "group": "HK",
+    "tags": ["manual"],
+    "remarks": "",
+    "sortIndex": 2,
+    "createdAt": "2026-07-10T18:00:00.000Z",
+    "updatedAt": "2026-07-10T18:00:00.000Z"
 }
 ```
 
@@ -263,18 +263,18 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "profile_xxx",
-  "name": "Main",
-  "description": "",
-  "enabled": true,
-  "isPublic": false,
-  "customId": "",
-  "subscriptionIds": ["sub_1"],
-  "manualNodeIds": ["node_1"],
-  "target": "clash",
-  "sortIndex": 1,
-  "createdAt": "2026-07-10T18:00:00.000Z",
-  "updatedAt": "2026-07-10T18:00:00.000Z"
+    "id": "profile_xxx",
+    "name": "Main",
+    "description": "",
+    "enabled": true,
+    "isPublic": false,
+    "customId": "",
+    "subscriptionIds": ["sub_1"],
+    "manualNodeIds": ["node_1"],
+    "target": "clash",
+    "sortIndex": 1,
+    "createdAt": "2026-07-10T18:00:00.000Z",
+    "updatedAt": "2026-07-10T18:00:00.000Z"
 }
 ```
 
@@ -289,12 +289,12 @@ Content-Type: application/json
 
 ```json
 {
-  "success": true,
-  "data": {
-    "deleted": true,
-    "id": "sub_xxx",
-    "removedFromProfiles": ["profile_1", "profile_2"]
-  }
+    "success": true,
+    "data": {
+        "deleted": true,
+        "id": "sub_xxx",
+        "removedFromProfiles": ["profile_1", "profile_2"]
+    }
 }
 ```
 

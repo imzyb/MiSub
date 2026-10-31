@@ -19,7 +19,7 @@ export function useNodeForms({ addNode, updateNode }) {
             name: '',
             url: '',
             enabled: true,
-            colorTag: null
+            colorTag: null,
         };
         showModal.value = true;
     };
@@ -69,6 +69,6 @@ export function useNodeForms({ addNode, updateNode }) {
         openAdd,
         openEdit,
         handleUrlInput,
-        handleSave
+        handleSave,
     };
 }
