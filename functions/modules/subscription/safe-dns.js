@@ -199,6 +199,41 @@ export function isExplicitDnsBlock(override) {
     );
 }
 
+/**
+ * 判断解析后的 DNS 配置是否引用了指定策略组。
+ *
+ * mihomo 用 `nameserver: <server>#<策略组>` 的形式让 DNS 经由该组拨号；mihomo 的
+ * DNS dialer 只认 `Proxies()` 里的名字，认不到就把这段文字当成网卡名
+ * （`dialer.WithInterface`），DNS 出口就不再是我们声明的策略组（在 Linux 上
+ * 这类拨号会直接失败）。生成器因此按"是否真的引用了该组"决定保留 DNS 出口组。
+ *
+ * 引用判定按 `#` 之后的完整片段做精确比较：`#组名` 或 `#组名&参数` 才算引用，
+ * `#组名-other` 这种前缀相似的组名不算。
+ * @param {*} config - 解析后的 DNS 配置（对象/数组/字符串）
+ * @param {string} groupName - 目标策略组名
+ * @returns {boolean}
+ */
+export function dnsConfigUsesProxyGroup(config, groupName) {
+    const target = String(groupName || '').trim();
+    if (!target) return false;
+
+    const matches = (value) => {
+        const hashIndex = value.indexOf('#');
+        if (hashIndex < 0) return false;
+        const fragment = value.slice(hashIndex + 1).trim();
+        return fragment === target || fragment.startsWith(`${target}&`);
+    };
+
+    const visit = (value) => {
+        if (typeof value === 'string') return matches(value.trim());
+        if (Array.isArray(value)) return value.some(visit);
+        if (isObject(value)) return Object.values(value).some(visit);
+        return false;
+    };
+
+    return visit(config);
+}
+
 export function resolveSafeDnsConfig(raw, options = {}) {
     const rawOverride = parseOverride(raw);
     if (isExplicitDnsBlock(rawOverride)) {
@@ -271,7 +306,10 @@ function parseSingboxResolver(value, tag, detour) {
     const type = parsed.protocol.slice(0, -1);
     const server = parsed.hostname.replace(/^\[|\]$/g, '');
     const serverPort = Number(parsed.port) || (type === 'https' ? 443 : type === 'tls' ? 853 : 53);
-    const result = { tag, type, server, server_port: serverPort, detour };
+    const result = { tag, type, server, server_port: serverPort };
+    // 实测 sing-box 1.14.4 拒绝 detour 指向空的 direct 出站（start dns-transport 直接 FATAL），
+    // 而省略 detour 本身就等价于直连，所以国内 DNS 不写 `detour: DIRECT`。
+    if (detour && detour !== 'DIRECT') result.detour = detour;
     if (type === 'https') result.path = parsed.pathname || '/dns-query';
     if (type === 'tls') result.tls = { enabled: true, server_name: server };
     return result;

@@ -15,6 +15,7 @@ import {
     getRemoteProviderDefinitions,
     DEFAULT_SELECT_GROUP,
     DEFAULT_RELAY_GROUP,
+    RELAY_CHAIN_GROUP,
     pruneProxyGroups,
 } from './builtin-rules-provider.js';
 
@@ -508,7 +509,7 @@ dns-server = 119.29.29.29, 223.5.5.5, system`);
     let abstractGroups = policyFactory(proxiesForGrouping, options);
     if (levelKey === 'RELAY') {
         abstractGroups = abstractGroups.map((group) =>
-            group.name === '🔗 链式代理'
+            group.name === RELAY_CHAIN_GROUP
                 ? { ...group, type: 'relay', proxies: ['入口节点', '落地节点'] }
                 : group
         );

@@ -138,4 +138,25 @@ describe('Custom template isolation & Custom DNS override', () => {
             `udp://1.1.1.1:53#${DNS_PROXY_GROUP}`,
         ]);
     });
+
+    it('keeps the DNS exit group when a policy-style override still resolves to `#DNS 出口` references', () => {
+        // policy 形式（domestic/foreign）不是显式 DNS 块：解析后仍会注入 `#🌐 DNS 出口`。
+        // 旧实现按原始文本做子串判断，会把策略组删掉，留下悬空引用 → mihomo 把这个名字
+        // 交给 dialer.WithInterface 当作网卡名，DNS 出口不再是我们声明的策略组。
+        const output = generateBuiltinClashConfig(sampleNodeList, {
+            ruleLevel: 'std',
+            customDnsOverride: {
+                domestic: ['223.5.5.5'],
+                foreign: ['https://dns.google/dns-query'],
+            },
+            fileName: 'BuiltinPolicyDns',
+        });
+        const parsed = yaml.load(output);
+
+        const groupNames = (parsed['proxy-groups'] || []).map((g) => g.name);
+        expect(
+            parsed.dns.nameserver.every((server) => server.endsWith(`#${DNS_PROXY_GROUP}`))
+        ).toBe(true);
+        expect(groupNames).toContain(DNS_PROXY_GROUP);
+    });
 });

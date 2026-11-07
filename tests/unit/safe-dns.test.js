@@ -4,6 +4,7 @@ import {
     buildSingboxDnsConfig,
     resolveDnsPolicy,
     resolveSafeDnsConfig,
+    dnsConfigUsesProxyGroup,
 } from '../../functions/modules/subscription/safe-dns.js';
 
 describe('shared split DNS policy', () => {
@@ -18,6 +19,21 @@ describe('shared split DNS policy', () => {
         ]);
         expect(dns.fallback).toEqual([]);
         expect(dns['proxy-server-nameserver']).toEqual(['223.5.5.5', '119.29.29.29']);
+    });
+
+    it('omits the empty-direct detour on domestic sing-box resolvers', () => {
+        // 实测 sing-box 1.14.4 启动时报 `detour to an empty direct outbound makes no sense`，
+        // 省略 detour 才是"直连"的正确写法。
+        const singbox = buildSingboxDnsConfig('');
+        const domestic = singbox.servers.filter((server) => server.tag.startsWith('dns-cn-'));
+
+        expect(domestic.length).toBeGreaterThan(0);
+        expect(domestic.every((server) => !Object.hasOwn(server, 'detour'))).toBe(true);
+        expect(
+            singbox.servers
+                .filter((server) => server.tag.startsWith('dns-foreign-'))
+                .every((server) => server.detour === DNS_PROXY_GROUP)
+        ).toBe(true);
     });
 
     it('uses encrypted foreign resolvers only in polluted mode', () => {
@@ -57,5 +73,45 @@ describe('shared split DNS policy', () => {
         expect(policy.domestic).toEqual(['223.5.5.5', '119.29.29.29']);
         expect(policy.foreign).toEqual(['udp://8.8.8.8:53', 'udp://1.1.1.1:53']);
         expect(policy.polluted).toEqual(['https://8.8.8.8/dns-query']);
+    });
+
+    it('detects DNS exit group references in resolved configs only', () => {
+        const safe = resolveSafeDnsConfig('');
+        expect(dnsConfigUsesProxyGroup(safe, DNS_PROXY_GROUP)).toBe(true);
+        expect(dnsConfigUsesProxyGroup(safe, '🚀 节点选择')).toBe(false);
+
+        // policy 形式的覆盖会在解析后重新注入 `#🌐 DNS 出口`，引用判断必须基于解析结果。
+        const policyOverride = resolveSafeDnsConfig({
+            domestic: ['223.5.5.5'],
+            foreign: ['https://dns.google/dns-query'],
+        });
+        expect(dnsConfigUsesProxyGroup(policyOverride, DNS_PROXY_GROUP)).toBe(true);
+
+        // 显式 DNS 块不带 `#策略组` 后缀时不引用任何策略组。
+        const explicit = resolveSafeDnsConfig({
+            enable: true,
+            nameserver: ['https://1.1.1.1/dns-query'],
+        });
+        expect(dnsConfigUsesProxyGroup(explicit, DNS_PROXY_GROUP)).toBe(false);
+        expect(dnsConfigUsesProxyGroup(null, DNS_PROXY_GROUP)).toBe(false);
+
+        // `#` 之后的片段必须精确匹配组名：前缀相似的组名不算引用。
+        expect(
+            dnsConfigUsesProxyGroup([`udp://8.8.8.8:53#${DNS_PROXY_GROUP}-other`], DNS_PROXY_GROUP)
+        ).toBe(false);
+        expect(
+            dnsConfigUsesProxyGroup(
+                [`udp://8.8.8.8:53#${DNS_PROXY_GROUP}&h3=true`],
+                DNS_PROXY_GROUP
+            )
+        ).toBe(true);
+        expect(
+            dnsConfigUsesProxyGroup(
+                { a: { b: [`udp://8.8.8.8:53#${DNS_PROXY_GROUP}`] } },
+                DNS_PROXY_GROUP
+            )
+        ).toBe(true);
+        expect(dnsConfigUsesProxyGroup([], DNS_PROXY_GROUP)).toBe(false);
+        expect(dnsConfigUsesProxyGroup([`udp://8.8.8.8:53#${DNS_PROXY_GROUP}`], '')).toBe(false);
     });
 });

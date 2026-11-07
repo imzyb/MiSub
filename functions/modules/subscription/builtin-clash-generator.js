@@ -7,7 +7,7 @@
 import { urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
 import { isMetaCore } from './user-agent-utils.js';
-import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from './safe-dns.js';
+import { DNS_PROXY_GROUP, dnsConfigUsesProxyGroup, resolveSafeDnsConfig } from './safe-dns.js';
 import {
     POLICY_GROUPS,
     RULE_SETS,
@@ -15,6 +15,7 @@ import {
     getRemoteProviderDefinitions,
     DEFAULT_SELECT_GROUP,
     DEFAULT_RELAY_GROUP,
+    RELAY_CHAIN_GROUP,
     pruneProxyGroups,
 } from './builtin-rules-provider.js';
 import yaml from 'js-yaml';
@@ -82,6 +83,30 @@ function stripInternalProxyFields(proxies) {
 }
 
 /**
+ * 链式版的 DNS 出口组改为引用链式代理组。
+ *
+ * `nameserver: udp://8.8.8.8:53#🌐 DNS 出口` 会让 mihomo 经由该策略组拨号。mihomo 的
+ * 链式语义只体现在 `🔗 链式代理 - <节点>` 副本（`dialer-proxy: 入口节点`）上，而原实现
+ * 让 DNS 出口组列出**原始节点**并用 url-test 挑最快的一个，于是 DNS 的拨号路径由
+ * "延迟最低的裸节点"决定，与用户在 `🔗 链式代理` 里选定的出口无关——这正是链式版下
+ * DNS 解析出口与预期出口不一致的来源。
+ *
+ * 改成单成员 select 引用链式代理组后：DNS 与选择该组的流量共用同一条拨号路径
+ * （入口节点 → 落地副本）。组内没有裸节点成员，所以这条路径失效时 DNS 只会失败，
+ * 不存在回落到"最快裸节点"的成员（组内成员关系是结构性保证，运行时仍需实测）。
+ * @param {string} chainGroupName 链式代理组名
+ * @returns {Object} 策略组定义
+ */
+function relayDnsExitGroup(chainGroupName) {
+    return {
+        name: DNS_PROXY_GROUP,
+        type: 'select',
+        proxies: [chainGroupName],
+        hidden: true,
+    };
+}
+
+/**
  * 为 Mihomo/Meta 生成链式代理节点。
  * 当前 Meta 内核不再支持 relay 策略组语义，应通过 dialer-proxy 让落地节点经由入口节点拨号。
  * @param {Object[]} proxies 原始代理对象（保留内部 metadata）
@@ -90,7 +115,7 @@ function stripInternalProxyFields(proxies) {
  * @returns {{proxies: Object[], proxyGroups: Object[]}}
  */
 function applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups) {
-    const relayGroup = proxyGroups.find((group) => group.name === '🔗 链式代理');
+    const relayGroup = proxyGroups.find((group) => group.name === RELAY_CHAIN_GROUP);
     if (!relayGroup) {
         return { proxies: publicProxies, proxyGroups };
     }
@@ -104,7 +129,7 @@ function applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups) {
 
     const nextProxyGroups = proxyGroups
         .map((group) => {
-            if (group.name === '🔗 链式代理') {
+            if (group.name === RELAY_CHAIN_GROUP) {
                 return {
                     ...group,
                     // Meta/Mihomo 不再使用 relay group。保持上一版可用结构：
@@ -115,6 +140,10 @@ function applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups) {
             }
             if (group.name === '落地节点') {
                 return null;
+            }
+            if (group.name === DNS_PROXY_GROUP) {
+                // DNS 出口跟随链式出口，避免 DNS 绕过链式入口从裸节点发出。
+                return relayDnsExitGroup(RELAY_CHAIN_GROUP);
             }
             return group;
         })
@@ -205,19 +234,21 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             proxyGroups = relayConfig.proxyGroups;
         }
 
-        if (options.customDnsOverride && String(options.customDnsOverride).trim()) {
-            const hasDnsExit = String(options.customDnsOverride).includes(DNS_PROXY_GROUP);
-            if (!hasDnsExit) {
-                proxyGroups = proxyGroups.filter((g) => g.name !== DNS_PROXY_GROUP);
-            }
-        }
-
         // 基础配置：安全默认值，不再依赖 KV 覆盖才能避免 DNS 递归。
         const dnsConfig = resolveSafeDnsConfig(options.customDnsOverride || '', {
             mode: options.dnsMode,
             proxyGroup: DNS_PROXY_GROUP,
             subscriptionDnsPolicies: options.subscriptionDnsPolicies || [],
         });
+
+        // DNS 出口组是 nameserver 里 `#🌐 DNS 出口` 的落点。只有解析后的 DNS 配置确实
+        // 引用了该组时才保留它；判断依据必须是解析结果而不是原始覆盖文本。policy 形式的
+        // 覆盖（domestic/foreign）会继续生成 `#🌐 DNS 出口` 引用，按旧实现（原文子串判断）
+        // 却会把策略组删掉：mihomo 随后把这个名字当成网卡名（dialer.WithInterface），
+        // DNS 出口不再是我们声明的策略组。
+        if (!dnsConfigUsesProxyGroup(dnsConfig, DNS_PROXY_GROUP)) {
+            proxyGroups = proxyGroups.filter((g) => g.name !== DNS_PROXY_GROUP);
+        }
 
         const config = {
             'mixed-port': 7890,

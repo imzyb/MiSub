@@ -13,6 +13,7 @@ import {
     getSingboxDnsRuleSet,
     DEFAULT_SELECT_GROUP,
     DEFAULT_RELAY_GROUP,
+    RELAY_CHAIN_GROUP,
     pruneProxyGroups,
 } from './builtin-rules-provider.js';
 import { buildSingboxDnsConfig, DNS_PROXY_GROUP, SINGBOX_CN_RULE_SET } from './safe-dns.js';
@@ -294,10 +295,8 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
         }
     }
 
-    const proxyOutboundTags = outbounds.map((item) => item.tag);
-    if (outbounds.length === 0) {
-        outbounds.push({ tag: 'DIRECT', type: 'direct' });
-    }
+    // 没有可用节点时不要在这里补 DIRECT：config.outbounds 组装时已经固定加入
+    // DIRECT/REJECT，这里再 push 会产生两个同名 outbound（sing-box 会拒绝重复 tag）。
 
     const levelKey = (ruleLevel || 'std').toUpperCase();
     // 获取内置策略组
@@ -312,20 +311,33 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
             detour: '入口节点',
         }));
         const chainTags = chainOutbounds.map((outbound) => outbound.tag);
+        // 没有任何可用节点时不能回落成 DIRECT：链式组的空兜底会被 pruneProxyGroups
+        // 填成 DIRECT，DNS 出口再引用它就会变成"直连 DNS"。这里显式 fail-closed。
+        const chainTargets = chainTags.length > 0 ? chainTags : ['REJECT'];
         outbounds.push(...chainOutbounds);
         proxyGroups = proxyGroups
             .map((group) => {
-                if (group.name === '🔗 链式代理') {
+                if (group.name === RELAY_CHAIN_GROUP) {
                     return {
                         ...group,
                         // Sing-box 通过 detour 表达链式出站。保持上一版可用结构：
                         // “链式代理”直接选择带 detour 的落地副本；同时隐藏“落地节点”分组。
                         type: 'select',
-                        proxies: chainTags,
+                        proxies: chainTargets,
                     };
                 }
                 if (group.name === '落地节点') {
                     return null;
+                }
+                if (group.name === DNS_PROXY_GROUP) {
+                    // DNS 出口改为引用链式出站组：dns.servers 的 detour 只经过链式副本，
+                    // 不再直接拨原始节点（原行为会绕过链式入口，从最快裸节点发出 DNS）。
+                    // 该组没有非链式成员，链式不可用时 DNS 只会失败，不会回落到裸节点。
+                    return {
+                        name: DNS_PROXY_GROUP,
+                        type: 'select',
+                        proxies: chainTags.length > 0 ? [RELAY_CHAIN_GROUP] : ['REJECT'],
+                    };
                 }
                 return group;
             })
@@ -365,6 +377,10 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
 
     // 转换路由规则：将中间对象映射为 Sing-Box 语法
     const routeRules = [
+        // 把发往 53 端口的 DNS 查询交给内部 DNS，而不是当成普通出站流量转发出去。
+        // 必须带 `port` 匹配：sing-box 的 hijack-dns 会对命中的连接/报文整体生效，
+        // 无条件规则会把所有流量都当成 DNS 处理。也必须排在私网直连等规则之前。
+        { port: 53, action: 'hijack-dns' },
         {
             ip_cidr: ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
             outbound: 'DIRECT',

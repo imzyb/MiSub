@@ -24,6 +24,12 @@ function assertNoLoopbackNodes(nodes, label) {
     }
 }
 
+// 国内 DNS 必须直连（不能挂策略组）。实测 sing-box 1.14.4 拒绝 detour 指向空的 direct 出站，
+// 生成器因此省略 detour 字段；语义与 `detour: DIRECT` 相同，两种写法都接受。
+function isDirectDetour(server) {
+    return server?.detour === undefined || server.detour === 'DIRECT';
+}
+
 function assertDnsMode(values, mode, label) {
     const servers = array(values);
     assert(servers.length > 0, `${label} has no DNS servers`);
@@ -74,7 +80,7 @@ export function validateSingboxConfig(config, mode) {
 
     const domestic = array(dns.servers).filter(server => String(server?.tag || '').startsWith('dns-cn-'));
     const foreign = array(dns.servers).filter(server => String(server?.tag || '').startsWith('dns-foreign-'));
-    assert(domestic.length > 0 && domestic.every(server => server.type === 'udp' && server.detour === 'DIRECT'), 'sing-box domestic DNS path is not direct plaintext');
+    assert(domestic.length > 0 && domestic.every(server => server.type === 'udp' && isDirectDetour(server)), 'sing-box domestic DNS path is not direct plaintext');
     assertDnsMode(foreign.map(server => `${server.type}://${server.server}${server.detour === DNS_PROXY_GROUP ? `#${DNS_PROXY_GROUP}` : ''}`), mode, 'sing-box foreign DNS');
     assert(foreign.every(server => server.detour === DNS_PROXY_GROUP), 'sing-box foreign DNS is not proxied');
 

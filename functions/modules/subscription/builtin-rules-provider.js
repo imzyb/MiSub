@@ -6,6 +6,7 @@ import { DNS_PROXY_GROUP, SINGBOX_CN_RULE_SET } from './safe-dns.js';
  */
 export const DEFAULT_SELECT_GROUP = '🚀 节点选择';
 export const DEFAULT_RELAY_GROUP = '🌍 总出口';
+export const RELAY_CHAIN_GROUP = '🔗 链式代理';
 export const AUTO_SELECT_GROUP = '♻️ 自动选择';
 export const FALLBACK_GROUP = '🔯 故障转移';
 export const MANUAL_SELECT_GROUP = '👋 手动切换';
@@ -92,7 +93,7 @@ function dnsProxyGroup(proxyNames) {
 function aiPolicyGroups(proxyNames, regionNames, { relay = false } = {}) {
     const nodeCandidates = proxyNames.length > 0 ? proxyNames : ['REJECT'];
     const candidates = [AI_AUTO_GROUP, AI_FALLBACK_GROUP, ...regionNames, MANUAL_SELECT_GROUP];
-    if (relay) candidates.push('🔗 链式代理', '🚀 常用节点');
+    if (relay) candidates.push(RELAY_CHAIN_GROUP, '🚀 常用节点');
 
     return [
         {
@@ -391,7 +392,7 @@ export const POLICY_GROUPS = {
                 name: DEFAULT_RELAY_GROUP,
                 type: 'select',
                 proxies: [
-                    '🔗 链式代理',
+                    RELAY_CHAIN_GROUP,
                     AUTO_SELECT_GROUP,
                     MANUAL_SELECT_GROUP,
                     '🚀 常用节点',
@@ -402,7 +403,7 @@ export const POLICY_GROUPS = {
             // 保持 provider 层为通用 select，不在抽象层输出 relay 语义。
             // 否则模板渲染/普通 Clash 路径可能把它转换成 Mihomo 专属 dialer-proxy，导致客户端拉取失败。
             {
-                name: '🔗 链式代理',
+                name: RELAY_CHAIN_GROUP,
                 type: 'select',
                 proxies: [
                     '入口节点',
