@@ -17,6 +17,7 @@ import {
     DEFAULT_RELAY_GROUP,
     RELAY_CHAIN_GROUP,
     pruneProxyGroups,
+    promoteDnsExitGroup,
 } from './builtin-rules-provider.js';
 import yaml from 'js-yaml';
 
@@ -248,6 +249,13 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         // DNS 出口不再是我们声明的策略组。
         if (!dnsConfigUsesProxyGroup(dnsConfig, DNS_PROXY_GROUP)) {
             proxyGroups = proxyGroups.filter((g) => g.name !== DNS_PROXY_GROUP);
+        } else {
+            // 让 DNS 出口在客户端里可见、可手选：链式版默认 `🔗 链式代理`，
+            // 其它等级默认 `♻️ 自动选择`，也可锁到地区组/手动切换（不给 DIRECT）。
+            const chainApplied = levelKey === 'RELAY' && enableMihomoSyntax;
+            proxyGroups = promoteDnsExitGroup(proxyGroups, {
+                preferred: chainApplied ? RELAY_CHAIN_GROUP : null,
+            });
         }
 
         const config = {

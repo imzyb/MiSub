@@ -107,10 +107,13 @@ describe('内置 Relay 分流等级', () => {
         );
 
         const dnsExitGroup = parsed['proxy-groups'].find((group) => group.name === '🌐 DNS 出口');
-        // DNS 与流量共用同一个出口：只引用链式代理组，不存在裸节点候选。
+        // 可见、可手选；默认第一项是链式代理组，且没有任何裸节点 / DIRECT 候选。
         expect(dnsExitGroup?.type).toBe('select');
-        expect(dnsExitGroup?.proxies).toEqual(['🔗 链式代理']);
+        expect(dnsExitGroup?.hidden).toBe(false);
+        expect(dnsExitGroup?.proxies?.[0]).toBe('🔗 链式代理');
         expect(dnsExitGroup?.proxies).not.toContain('DIRECT');
+        const proxyNames = new Set(parsed.proxies.map((proxy) => proxy.name));
+        expect((dnsExitGroup?.proxies || []).some((name) => proxyNames.has(name))).toBe(false);
 
         // nameserver 仍然引用该组，引用目标必须真实存在（否则 mihomo 会当作网卡名 → DNS 泄露）。
         const dnsRefs = [
@@ -131,23 +134,26 @@ describe('内置 Relay 分流等级', () => {
         );
 
         const dnsExitGroup = parsed['proxy-groups'].find((group) => group.name === '🌐 DNS 出口');
-        expect(dnsExitGroup?.proxies).toEqual(['🔗 链式代理']);
+        expect(dnsExitGroup?.proxies?.[0]).toBe('🔗 链式代理');
+        expect(dnsExitGroup?.hidden).toBe(false);
         expect(parsed.dns.nameserver.every((server) => server.endsWith('#🌐 DNS 出口'))).toBe(true);
         expect(parsed.dns.fallback.every((server) => server.endsWith('#🌐 DNS 出口'))).toBe(true);
     });
 
-    it('普通 Clash Relay（无 dialer-proxy 能力）保留 DNS 出口组的原始节点候选', () => {
+    it('普通 Clash Relay（无 dialer-proxy 能力）不把链式组当 DNS 候选', () => {
         const parsed = yaml.load(
             generateBuiltinClashConfig(RELAY_NODE_LIST, { ruleLevel: 'relay' })
         );
 
         const dnsExitGroup = parsed['proxy-groups'].find((group) => group.name === '🌐 DNS 出口');
-        expect(dnsExitGroup?.type).toBe('url-test');
-        expect(dnsExitGroup?.proxies).toEqual(
-            expect.arrayContaining(['🇭🇰 香港入口-HK-01', '🇺🇸 美国落地-US-01'])
-        );
-        // 普通 Clash 不生成链式副本，DNS 出口组也不应引用不存在的链式组。
+        expect(dnsExitGroup?.type).toBe('select');
+        expect(dnsExitGroup?.hidden).toBe(false);
+        // 普通 Clash 不生成链式副本，链式组不能作为 DNS 出口候选
         expect(dnsExitGroup?.proxies).not.toContain('🔗 链式代理');
+        expect(dnsExitGroup?.proxies?.[0]).toBe('♻️ 自动选择');
+        expect(dnsExitGroup?.proxies).not.toContain('DIRECT');
+        const proxyNames = new Set(parsed.proxies.map((proxy) => proxy.name));
+        expect((dnsExitGroup?.proxies || []).some((name) => proxyNames.has(name))).toBe(false);
     });
 
     it('Sing-box Relay 的 DNS detour 必须跟随链式出站，不能直接拨原始节点', () => {
@@ -157,7 +163,8 @@ describe('内置 Relay 分流等级', () => {
 
         const dnsExitSelector = parsed.outbounds.find((outbound) => outbound.tag === '🌐 DNS 出口');
         expect(dnsExitSelector?.type).toBe('selector');
-        expect(dnsExitSelector?.outbounds).toEqual(['🔗 链式代理']);
+        expect(dnsExitSelector?.outbounds?.[0]).toBe('🔗 链式代理');
+        expect(dnsExitSelector?.outbounds).not.toContain('DIRECT');
 
         const foreignServers = parsed.dns.servers.filter(
             (server) => server.tag !== 'dns-cn-1' && server.tag !== 'dns-cn-2'
@@ -167,13 +174,14 @@ describe('内置 Relay 分流等级', () => {
         expect(parsed.outbounds.some((outbound) => outbound.tag === '🔗 链式代理')).toBe(true);
     });
 
-    it('Sing-box 非 Relay 等级不受影响，DNS 出口仍然是原始节点', () => {
+    it('Sing-box 非 Relay 等级的 DNS 出口也可见可手选，默认自动选择', () => {
         const parsed = JSON.parse(
             generateBuiltinSingboxConfig(RELAY_NODE_LIST, { ruleLevel: 'std' })
         );
 
         const dnsExitSelector = parsed.outbounds.find((outbound) => outbound.tag === '🌐 DNS 出口');
-        expect(dnsExitSelector?.type).toBe('urltest');
+        expect(dnsExitSelector?.type).toBe('selector');
+        expect(dnsExitSelector?.outbounds?.[0]).toBe('♻️ 自动选择');
         expect(dnsExitSelector?.outbounds).not.toContain('🔗 链式代理');
         expect(dnsExitSelector?.outbounds).not.toContain('DIRECT');
     });
@@ -220,6 +228,25 @@ describe('内置 Relay 分流等级', () => {
         }
         for (const server of singbox.dns.servers) {
             if (server.detour) expect(tags.has(server.detour)).toBe(true);
+        }
+    });
+
+    it('各等级的 DNS 出口组都可见，且不含 DIRECT', () => {
+        for (const ruleLevel of ['base', 'std', 'full', 'relay']) {
+            const clash = yaml.load(
+                generateBuiltinClashConfig(RELAY_NODE_LIST, { ruleLevel, isMeta: true })
+            );
+            const group = clash['proxy-groups'].find((item) => item.name === '🌐 DNS 出口');
+            expect(group?.hidden, ruleLevel).toBe(false);
+            expect(group?.type, ruleLevel).toBe('select');
+            expect(group?.proxies, ruleLevel).not.toContain('DIRECT');
+
+            const singbox = JSON.parse(
+                generateBuiltinSingboxConfig(RELAY_NODE_LIST, { ruleLevel })
+            );
+            const outbound = singbox.outbounds.find((item) => item.tag === '🌐 DNS 出口');
+            expect(outbound?.type, ruleLevel).toBe('selector');
+            expect(outbound?.outbounds, ruleLevel).not.toContain('DIRECT');
         }
     });
 
@@ -279,7 +306,7 @@ describe('内置 Relay 分流等级', () => {
         );
 
         const dnsExitGroup = clash['proxy-groups'].find((group) => group.name === '🌐 DNS 出口');
-        expect(dnsExitGroup?.proxies).toEqual(['🔗 链式代理']);
+        expect(dnsExitGroup?.proxies?.[0]).toBe('🔗 链式代理');
         expect(clash.dns.nameserver.every((server) => server.endsWith('#🌐 DNS 出口'))).toBe(true);
     });
 
@@ -292,7 +319,7 @@ describe('内置 Relay 分流等级', () => {
         );
 
         const dnsExit = parsed.outbounds.find((outbound) => outbound.tag === '🌐 DNS 出口');
-        expect(dnsExit?.outbounds).toEqual(['🔗 链式代理']);
+        expect(dnsExit?.outbounds?.[0]).toBe('🔗 链式代理');
         const foreign = parsed.dns.servers.filter((server) =>
             server.tag.startsWith('dns-foreign-')
         );

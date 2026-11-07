@@ -90,6 +90,55 @@ function dnsProxyGroup(proxyNames) {
     };
 }
 
+/**
+ * 把 DNS 出口组从"隐藏的 url-test"升级为"可见、可手选的 select"。
+ *
+ * 原形态是 `hidden: true` + 全部原始节点 url-test：客户端里看不到也选不了，
+ * 用户没法把 DNS 指到某个出口。这里改成 select：默认第一项保持自动语义
+ * （链式版给 `🔗 链式代理`，其它等级给 `♻️ 自动选择`），用户可以手动锁定
+ * 地区组 / 手动切换等。不提供 DIRECT，避免一键把 DNS 放回直连。
+ * @param {Array} proxyGroups 策略组数组（原地改写并返回）
+ * @param {Object} [options]
+ * @param {string|null} [options.preferred] 默认选中的组名（存在时排第一）
+ * @returns {Array} 处理后的策略组数组
+ */
+export function promoteDnsExitGroup(proxyGroups, { preferred = null } = {}) {
+    if (!Array.isArray(proxyGroups)) return proxyGroups;
+    const exists = new Set(proxyGroups.map((group) => group.name));
+    const candidates = [];
+
+    const push = (name) => {
+        if (!name || name === DNS_PROXY_GROUP) return;
+        if (!exists.has(name)) return;
+        if (candidates.includes(name)) return;
+        candidates.push(name);
+    };
+
+    push(preferred);
+    push(AUTO_SELECT_GROUP);
+    push(MANUAL_SELECT_GROUP);
+    for (const group of proxyGroups) {
+        // 地区分组与「常用节点」都是 select 且以「节点」结尾，适合直接当作 DNS 出口；
+        // 入口/落地节点是链式语义的中间组，不作为 DNS 出口候选。
+        if (!['入口节点', '落地节点'].includes(group.name)) {
+            if (
+                group.type === 'select' &&
+                typeof group.name === 'string' &&
+                /节点$/.test(group.name)
+            ) {
+                push(group.name);
+            }
+        }
+    }
+
+    return proxyGroups.map((group) => {
+        if (group.name !== DNS_PROXY_GROUP) return group;
+        const proxies = candidates.length > 0 ? candidates : group.proxies;
+        const { options, ...rest } = group;
+        return { ...rest, type: 'select', proxies, hidden: false };
+    });
+}
+
 function aiPolicyGroups(proxyNames, regionNames, { relay = false } = {}) {
     const nodeCandidates = proxyNames.length > 0 ? proxyNames : ['REJECT'];
     const candidates = [AI_AUTO_GROUP, AI_FALLBACK_GROUP, ...regionNames, MANUAL_SELECT_GROUP];

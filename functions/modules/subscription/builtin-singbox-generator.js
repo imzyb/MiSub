@@ -15,6 +15,7 @@ import {
     DEFAULT_RELAY_GROUP,
     RELAY_CHAIN_GROUP,
     pruneProxyGroups,
+    promoteDnsExitGroup,
 } from './builtin-rules-provider.js';
 import { buildSingboxDnsConfig, DNS_PROXY_GROUP, SINGBOX_CN_RULE_SET } from './safe-dns.js';
 
@@ -343,6 +344,16 @@ export function generateBuiltinSingboxConfig(nodeList, options = {}) {
             })
             .filter(Boolean);
         proxyGroups = pruneProxyGroups(proxyGroups, outbounds);
+    }
+
+    // DNS 出口可见、可手选：链式版默认 `🔗 链式代理`，其它等级默认 `♻️ 自动选择`，
+    // 也可锁到地区组/手动切换（不给 DIRECT，避免把 DNS 放回直连）。
+    // 没有任何可用节点时不放开候选：链式组已兜底 REJECT，放开只会把 DNS 指向 DIRECT。
+    if (nodeEntries.length > 0) {
+        const chainApplied = levelKey === 'RELAY';
+        proxyGroups = promoteDnsExitGroup(proxyGroups, {
+            preferred: chainApplied ? RELAY_CHAIN_GROUP : null,
+        });
     }
 
     // 将抽象分组转换为 Sing-Box Outbounds
