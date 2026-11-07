@@ -21,6 +21,24 @@ describe('shared split DNS policy', () => {
         expect(dns['proxy-server-nameserver']).toEqual(['223.5.5.5', '119.29.29.29']);
     });
 
+    it('puts geosite:geolocation-!cn before geosite:cn so CN-misclassified foreign domains are proxied', () => {
+        // mihomo 的 nameserver-policy 取第一条命中；browserleaks.com 这类检测站域名同时被
+        // 收进 geosite 的 CN 与 GEOLOCATION-!CN，CN 在前就会走国内明文 DNS（运营商劫持 →
+        // 权威侧看到运营商递归，看起来就是 DNS 泄露）。
+        const dns = resolveSafeDnsConfig('');
+        const keys = Object.keys(dns['nameserver-policy']);
+
+        expect(keys[0]).toBe('geosite:private');
+        expect(keys.indexOf('geosite:geolocation-!cn')).toBeGreaterThan(0);
+        expect(keys.indexOf('geosite:geolocation-!cn')).toBeLessThan(keys.indexOf('geosite:cn'));
+        expect(dns['nameserver-policy']['geosite:cn']).toEqual(['223.5.5.5', '119.29.29.29']);
+        expect(
+            dns['nameserver-policy']['geosite:geolocation-!cn'].every((server) =>
+                server.endsWith(`#${DNS_PROXY_GROUP}`)
+            )
+        ).toBe(true);
+    });
+
     it('omits the empty-direct detour on domestic sing-box resolvers', () => {
         // 实测 sing-box 1.14.4 启动时报 `detour to an empty direct outbound makes no sense`，
         // 省略 detour 才是"直连"的正确写法。

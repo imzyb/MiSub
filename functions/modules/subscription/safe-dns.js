@@ -247,8 +247,14 @@ export function resolveSafeDnsConfig(raw, options = {}) {
 
     dns['default-nameserver'] = [...policy.domestic];
     dns.nameserver = foreign.map((value) => withProxy(value, proxyGroup));
+    // 顺序敏感：mihomo 的 nameserver-policy 取**第一条命中**的策略。
+    // `geosite:geolocation-!cn` 必须排在 `geosite:cn` 之前——geosite 里有一批海外域名
+    // 被同时收进 CN 分类（例如 browserleaks.com，mihomo 自带的 GeoSite.dat 同时把它
+    // 列在 CN 与 GEOLOCATION-!CN 中）。CN 放前面会让这些海外站点走国内明文 DNS，
+    // 在运营商劫持明文 53 的线路上，权威侧看到的就是运营商递归 → 检测站判定 DNS 泄露。
     dns['nameserver-policy'] = {
         'geosite:private': [...policy.domestic],
+        'geosite:geolocation-!cn': foreign.map((value) => withProxy(value, proxyGroup)),
         'geosite:cn': [...policy.domestic],
         ...options.subscriptionDnsPolicies?.reduce((acc, item) => {
             if (item && item.policy && isObject(item.policy)) {
@@ -258,7 +264,6 @@ export function resolveSafeDnsConfig(raw, options = {}) {
             }
             return acc;
         }, {}),
-        'geosite:geolocation-!cn': foreign.map((value) => withProxy(value, proxyGroup)),
     };
     dns['proxy-server-nameserver'] = [...policy.domestic];
     dns['direct-nameserver'] = [...policy.domestic];
