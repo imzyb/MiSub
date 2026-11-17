@@ -514,6 +514,55 @@ export function resolveBuiltinRequestOptions({ searchParams, userAgent = '' } = 
     };
 }
 
+/**
+ * 解析 profile 生效的 nodeTransform（订阅组 > 预设 > 全局）。
+ *
+ * 与 refreshNodes 闭包内的回退链保持一致，供闭包外的 builtinOptions 复用。
+ * 闭包内的 effectiveNodeTransform 无法外泄，而 builtinOptions 在闭包外构造，
+ * 因此需要独立解析一次。
+ *
+ * @param {Object|null} profile - 当前订阅组
+ * @param {Object} config - 全局设置
+ * @returns {Object} 生效的 nodeTransform（可能为空对象）
+ */
+export function resolveEffectiveNodeTransform(profile, config = {}) {
+    const globalNodeTransform = config.defaultNodeTransform || {};
+    const presets = Array.isArray(config.nodeTransformPresets) ? config.nodeTransformPresets : [];
+    const profileNodeTransform = profile?.nodeTransform ?? null;
+    const presetId = profile?.nodeTransformPresetId || '';
+    const presetNodeTransform = presetId
+        ? presets.find((item) => item?.id === presetId)?.config
+        : null;
+    const hasProfileNodeTransform =
+        profileNodeTransform && Object.keys(profileNodeTransform).length > 0;
+
+    // 整体覆盖逻辑，与 refreshNodes 内一致
+    return hasProfileNodeTransform
+        ? profileNodeTransform
+        : presetNodeTransform || globalNodeTransform;
+}
+
+/**
+ * 解析内置生成器应使用的 addFlagEmoji 开关。
+ *
+ * 优先级与 subscription-service 的 shouldKeepEmoji 一致：
+ *   nodeTransform.addFlagEmoji（true/false） > config.enableFlagEmoji > 默认 true
+ *
+ * 返回 undefined 表示两边都没显式配置，保持 url-to-clash.js 的默认行为（加国旗）。
+ *
+ * @param {Object|null} profile - 当前订阅组
+ * @param {Object} config - 全局设置
+ * @returns {boolean|undefined}
+ */
+export function resolveAddFlagEmoji(profile, config = {}) {
+    const explicit = resolveEffectiveNodeTransform(profile, config).addFlagEmoji;
+    if (explicit === true || explicit === false) return explicit;
+    if (config.enableFlagEmoji === true || config.enableFlagEmoji === false) {
+        return config.enableFlagEmoji;
+    }
+    return undefined;
+}
+
 export function shouldRenderClashYamlProfileTemplateLocally({
     isExternalMode = false,
     targetFormat = '',
@@ -1174,6 +1223,9 @@ export async function handleMisubRequest(context) {
                         searchParams: url.searchParams,
                         userAgent: userAgentHeader,
                     }),
+                    // 透传 emoji 开关到内置生成器（url-to-clash.js 读 options.addFlagEmoji）。
+                    // 漏传时 `undefined !== false` 恒为 true，导致无条件加国旗。
+                    addFlagEmoji: resolveAddFlagEmoji(currentProfile, config),
                     fileName: subName,
                     managedConfigUrl: buildManagedConfigUrl(request.url),
                     interval: config.UpdateInterval || 86400,
@@ -1345,6 +1397,9 @@ export async function handleMisubRequest(context) {
             searchParams: url.searchParams,
             userAgent: userAgentHeader,
         }),
+        // 透传 emoji 开关到内置生成器（url-to-clash.js 读 options.addFlagEmoji）。
+        // 漏传时 `undefined !== false` 恒为 true，导致无条件加国旗。
+        addFlagEmoji: resolveAddFlagEmoji(currentProfile, config),
         fileName: subName,
         managedConfigUrl: '',
         interval: config.UpdateInterval || 86400,
