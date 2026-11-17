@@ -1275,6 +1275,7 @@ export const messages = {
             regexPresetExtractSuffix: '提取后缀',
             sortWeights: '排序权重 (Weights)',
             addCondition: '添加条件',
+            sortKeyRegex: '正则置顶',
             sortKeyName: '节点名称',
             sortKeyGroup: '自定义分组',
             sortKeyRegion: '地区',
@@ -1285,6 +1286,11 @@ export const messages = {
             descending: '降序',
             customPriorityOrder: '自定义{type}优先级顺序 (可拖拽排序)',
             resetDefault: '重置默认',
+            clearAll: '清空',
+            regexPinPlaceholder: '输入关键词或正则 (如: 亚马逊、dmit)，回车添加',
+            invalidRegexError: '正则表达式语法有误，请检查括号或转义符',
+            emptyRegexPriorityItems:
+                '暂无置顶规则，在上方输入关键词或正则并添加，未匹配的节点将排在后面',
             emptyPriorityItems: '暂无排序优先项，节点将随机退化为纯文本对比',
             emptySortConditions: '暂未添加排序条件，点击上方“+ 添加条件”开始配置',
             sortHint: '排序会按条件从上到下依次生效，排在前面的条件优先级更高。',
@@ -3176,6 +3182,7 @@ export const messages = {
             regexPresetExtractSuffix: 'Extract suffix',
             sortWeights: 'Sort weights',
             addCondition: 'Add condition',
+            sortKeyRegex: 'Regex pin',
             sortKeyName: 'Node name',
             sortKeyGroup: 'Custom group',
             sortKeyRegion: 'Region',
@@ -3186,6 +3193,11 @@ export const messages = {
             descending: 'Desc',
             customPriorityOrder: 'Custom {type} priority order (drag to reorder)',
             resetDefault: 'Reset default',
+            clearAll: 'Clear all',
+            regexPinPlaceholder: 'Enter keyword or regex (e.g. AWS, dmit) and press Enter',
+            invalidRegexError: 'Invalid regular expression syntax. Please check brackets or escapes.',
+            emptyRegexPriorityItems:
+                'No pin rules yet. Add keywords or regexes above; unmatched nodes are placed after matched ones.',
             emptyPriorityItems:
                 'No priority items yet. Sorting falls back to plain text comparison.',
             emptySortConditions:
