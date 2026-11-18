@@ -50,7 +50,7 @@ jobs:
           git fetch --prune origin main
           git fetch --prune upstream main
 
-      - name: Mirror upstream main
+      - name: 合并上游 main
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
@@ -59,20 +59,22 @@ jobs:
           ORIGIN_SHA="$(git rev-parse origin/main)"
           UPSTREAM_SHA="$(git rev-parse upstream/main)"
 
-          if [ "${ORIGIN_SHA}" = "${UPSTREAM_SHA}" ]; then
-            echo "✨ Fork 已与上游完全一致，无需同步。"
+          BASE_SHA="$(git merge-base "${ORIGIN_SHA}" "${UPSTREAM_SHA}")"
+
+          if [ "${BASE_SHA}" = "${UPSTREAM_SHA}" ]; then
+            echo "✨ Fork 已包含上游全部更新，无需同步。"
             exit 0
           fi
 
           if [ -z "${SYNC_PAT:-}" ]; then
-            WORKFLOW_DIFF="$(git diff --name-only "${ORIGIN_SHA}" "${UPSTREAM_SHA}" -- .github/workflows || true)"
+            WORKFLOW_DIFF="$(git diff --name-only "${BASE_SHA}" "${UPSTREAM_SHA}" -- .github/workflows)"
             if [ -n "${WORKFLOW_DIFF}" ]; then
-              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更，默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行，或在网页使用 Sync fork / Discard commits 对齐上游。"
+              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更，默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行，或在本地合并后推送。"
               exit 0
             fi
           fi
 
-          echo "🚀 正在镜像上游 main，fork 本地 main 上的额外提交会被丢弃。"
-          git reset --hard upstream/main
-          git push --force-with-lease origin main
-          echo "✅ Fork main 已镜像到上游 main。"
+          echo "🚀 正在合并上游 main，保留 fork 的额外提交。"
+          git merge --no-edit -m "同步上游 MiSub 更新" upstream/main
+          git push origin main
+          echo "✅ Fork main 已合并上游更新。"

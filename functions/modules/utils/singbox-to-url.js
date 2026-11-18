@@ -107,7 +107,12 @@ export function singboxOutboundToUrl(ob) {
                 /=+$/,
                 ''
             );
-            return `ss://${userinfo}@${server}:${port}${hash}`;
+            const params = [];
+            if (ob.plugin) {
+                params.push(['plugin', [ob.plugin, ob.plugin_opts].filter(Boolean).join(';')]);
+            }
+            if (ob.udp_over_tcp === true) params.push(['uot', '1']);
+            return `ss://${userinfo}@${server}:${port}${buildQuery(params)}${hash}`;
         }
         case 'hysteria2':
         case 'hy2': {

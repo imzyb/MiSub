@@ -89,6 +89,42 @@ describe('session store resilience', () => {
         expect(store.publicConfig.enablePublicPage).toBe(true);
     });
 
+    it('较早发起的会话检查晚返回时，不覆盖最新会话和公开配置', async () => {
+        const { useSessionStore } = await import('../../src/stores/session.js');
+        const store = useSessionStore();
+        const data = { config: { defaultSubName: '最新配置' }, misubs: [], profiles: [] };
+        let completeEarlierCheck;
+
+        apiMocks.fetchInitialData
+            .mockImplementationOnce(
+                () =>
+                    new Promise((resolve) => {
+                        completeEarlierCheck = resolve;
+                    })
+            )
+            .mockResolvedValueOnce({ success: true, data });
+        apiMocks.fetchPublicConfig
+            .mockResolvedValueOnce({
+                success: true,
+                data: { customLoginPath: 'old-login', enablePublicPage: true },
+            })
+            .mockResolvedValueOnce({
+                success: true,
+                data: { customLoginPath: 'latest-login', enablePublicPage: false },
+            });
+
+        const earlierCheck = store.checkSession();
+        await store.checkSession();
+        completeEarlierCheck({ success: false, errorType: 'auth' });
+        await earlierCheck;
+
+        expect(store.sessionState).toBe('loggedIn');
+        expect(store.initialData).toEqual(data);
+        expect(store.subscriptionConfig).toEqual(data.config);
+        expect(store.publicConfig.customLoginPath).toBe('latest-login');
+        expect(store.publicConfig.enablePublicPage).toBe(false);
+    });
+
     it('keeps a failed logout from claiming the session was cleared', async () => {
         const { useSessionStore } = await import('../../src/stores/session.js');
         const store = useSessionStore();
