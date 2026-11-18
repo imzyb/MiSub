@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { applyNodeTransformPipeline } from '../../functions/utils/node-transformer.js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+    applyNodeTransformPipeline,
+    makeComparator,
+} from '../../functions/utils/node-transformer.js';
 
 describe('applyNodeTransformPipeline filters', () => {
     const nodes = [
@@ -141,5 +144,119 @@ describe('applyNodeTransformPipeline filters', () => {
         expect(result.some((line) => line.includes('%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99'))).toBe(
             true
         );
+    });
+
+    it('sorts nodes by regex priority rules first and falls back to subsequent sort keys', () => {
+        const records = [
+            { name: 'HK 阿里云 01', protocol: 'trojan' },
+            { name: 'US DMIT Pro 02', protocol: 'vmess' },
+            { name: 'JP 亚马逊 AWS 02', protocol: 'trojan' },
+            { name: 'SG 普通节点 01', protocol: 'vless' },
+            { name: 'US dmit Lite 01', protocol: 'vless' },
+            { name: 'HK 亚马逊 AWS 01', protocol: 'vless' },
+        ];
+
+        const comparator = makeComparator({
+            keys: [
+                { key: 'regex', order: 'asc', customOrder: ['亚马逊', 'dmit'] },
+                { key: 'protocol', order: 'asc', customOrder: ['vless', 'trojan', 'vmess'] },
+            ],
+        });
+
+        const sortedNames = [...records].sort(comparator).map((r) => r.name);
+        expect(sortedNames).toEqual([
+            'HK 亚马逊 AWS 01',
+            'JP 亚马逊 AWS 02',
+            'US dmit Lite 01',
+            'US DMIT Pro 02',
+            'SG 普通节点 01',
+            'HK 阿里云 01',
+        ]);
+    });
+
+    it('keeps regex matching stateless even when object rules specify g or y flags', () => {
+        const records = [
+            { name: 'Node C' },
+            { name: 'AWS Node 1' },
+            { name: 'AWS Node 2' },
+            { name: 'Node D' },
+            { name: 'AWS Node 3' },
+            { name: 'AWS Node 4' },
+        ];
+
+        const comparator = makeComparator({
+            keys: [
+                {
+                    key: 'regex',
+                    order: 'asc',
+                    customOrder: [{ pattern: 'aws', flags: 'gi' }],
+                },
+                { key: 'name', order: 'asc' },
+            ],
+        });
+
+        const sortedNames = [...records].sort(comparator).map((r) => r.name);
+        expect(sortedNames).toEqual([
+            'AWS Node 1',
+            'AWS Node 2',
+            'AWS Node 3',
+            'AWS Node 4',
+            'Node C',
+            'Node D',
+        ]);
+    });
+
+    it('keeps matched nodes pinned at top even if regex condition specifies desc order', () => {
+        const records = [
+            { name: 'SG Normal 01' },
+            { name: 'US DMIT 01' },
+            { name: 'HK AWS 01' },
+            { name: 'JP Normal 02' },
+        ];
+
+        const comparator = makeComparator({
+            keys: [
+                { key: 'regex', order: 'desc', customOrder: ['aws', 'dmit'] },
+                { key: 'name', order: 'asc' },
+            ],
+        });
+
+        const sortedNames = [...records].sort(comparator).map((r) => r.name);
+        expect(sortedNames).toEqual(['HK AWS 01', 'US DMIT 01', 'JP Normal 02', 'SG Normal 01']);
+    });
+
+    it('caches regex match index per node name across comparator calls', () => {
+        const records = [
+            { name: 'Normal 1' },
+            { name: 'DMIT 1' },
+            { name: 'AWS 1' },
+            { name: 'Normal 2' },
+            { name: 'AWS 2' },
+            { name: 'Normal 3' },
+            { name: 'DMIT 2' },
+            { name: 'Normal 4' },
+        ];
+
+        const comparator = makeComparator({
+            keys: [{ key: 'regex', order: 'asc', customOrder: ['aws', 'dmit'] }],
+        });
+
+        let regexTestCalls = 0;
+        const origTest = RegExp.prototype.test;
+        const testSpy = vi.spyOn(RegExp.prototype, 'test').mockImplementation(function (str) {
+            if (this.source === 'aws' || this.source === 'dmit') {
+                regexTestCalls++;
+            }
+            return origTest.call(this, str);
+        });
+
+        try {
+            const sortedNames = [...records].sort(comparator).map((r) => r.name);
+            expect(sortedNames.slice(0, 4)).toEqual(['AWS 1', 'AWS 2', 'DMIT 1', 'DMIT 2']);
+            // 2 个 AWS (1次) + 2 个 DMIT (2次) + 4 个未匹配 (2次) = 14 次
+            expect(regexTestCalls).toBe(14);
+        } finally {
+            testSpy.mockRestore();
+        }
     });
 });

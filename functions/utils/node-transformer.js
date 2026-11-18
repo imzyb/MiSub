@@ -663,6 +663,7 @@ export function makeComparator(sortCfg) {
 
     // 预先构建 customOrder 索引 Map，将 O(n) 查找优化为 O(1)
     const customOrderMaps = keys.map((k) => {
+        if (k?.key === 'regex') return null;
         let orderList = k?.customOrder;
         if (!Array.isArray(orderList) || orderList.length === 0) {
             if (k?.key === 'region') {
@@ -687,6 +688,50 @@ export function makeComparator(sortCfg) {
         orderList.forEach((v, i) => map.set(String(v), i));
         return map;
     });
+
+    // 预先编译正则置顶规则列表，避免每次比较重复创建 RegExp
+    const customRegexLists = keys.map((k) => {
+        if (k?.key !== 'regex' || !Array.isArray(k?.customOrder)) return null;
+        const compiled = [];
+        k.customOrder.forEach((rule, idx) => {
+            if (!rule) return;
+            const pattern =
+                typeof rule === 'string' ? rule.trim() : String(rule.pattern || '').trim();
+            // 剥离带状态的 g / y 标志，避免 comparator 多次调用 .test() 时受 lastIndex 影响
+            const rawFlags = typeof rule === 'string' ? 'i' : rule.flags || 'i';
+            const flags = String(rawFlags).replace(/[gy]/g, '');
+            if (!pattern) return;
+            try {
+                compiled.push({ re: new RegExp(pattern, flags), index: idx });
+            } catch (error) {
+                warnInvalidRegex(typeof rule === 'string' ? { pattern } : rule, error);
+            }
+        });
+        return compiled;
+    });
+
+    // 按排序键下标和节点名缓存正则匹配结果，将正则匹配开销从 O(n log n · R) 降为 O(n · R)
+    const regexMatchCaches = customRegexLists.map((list) =>
+        list && list.length > 0 ? new Map() : null
+    );
+
+    const getRegexMatchIndex = (name, keyIdx, regexList) => {
+        const str = String(name || '');
+        const cache = regexMatchCaches[keyIdx];
+        if (cache) {
+            const cached = cache.get(str);
+            if (cached !== undefined) return cached;
+        }
+        let matchedIdx = Number.MAX_SAFE_INTEGER;
+        for (let i = 0; i < regexList.length; i++) {
+            if (regexList[i].re.test(str)) {
+                matchedIdx = regexList[i].index;
+                break;
+            }
+        }
+        if (cache) cache.set(str, matchedIdx);
+        return matchedIdx;
+    };
 
     const cmpStr = (a, b) =>
         String(a || '').localeCompare(String(b || ''), undefined, {
@@ -735,6 +780,15 @@ export function makeComparator(sortCfg) {
             const orderMap = customOrderMaps[i];
 
             let va, vb;
+            if (key === 'regex') {
+                const regexList = customRegexLists[i];
+                if (!regexList || regexList.length === 0) continue;
+                const raIdx = getRegexMatchIndex(ra.name, i, regexList);
+                const rbIdx = getRegexMatchIndex(rb.name, i, regexList);
+                // 正则置顶始终按规则优先级由高到低置顶，不受 order 影响
+                if (raIdx !== rbIdx) return raIdx - rbIdx;
+                continue;
+            }
             if (key === 'name') {
                 va = nameIgnoreEmoji ? stripLeadingEmoji(ra.name) : ra.name;
                 vb = nameIgnoreEmoji ? stripLeadingEmoji(rb.name) : rb.name;
