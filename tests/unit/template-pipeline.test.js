@@ -389,6 +389,44 @@ MATCH,节点选择
         expect(rendered).toContain('🚀 节点选择 = select');
     });
 
+    it('resolves ACL4SSR regex filters to explicit Surge policy group members', () => {
+        const template = [
+            '[custom]',
+            'custom_proxy_group=Auto`url-test`^(?!.*FREE).*`http://www.gstatic.com/generate_204`300,,50',
+            'custom_proxy_group=Fallback`fallback`[]JP-01`^(?!.*FREE).*`http://www.gstatic.com/generate_204`300,,50',
+            'custom_proxy_group=Balance`load-balance`.*US.*`http://www.gstatic.com/generate_204`300,,50',
+            'custom_proxy_group=PlainAuto`url-test`[]JP-01`[]US-01`http://www.gstatic.com/generate_204`300,,50',
+            'custom_proxy_group=PlainBalance`load-balance`[]US-01`[]JP-01',
+            'custom_proxy_group=Manual`select`[]JP-01`[]DIRECT',
+        ].join('\n');
+        const rendered = renderSurgeFromIniTemplate(template, {
+            proxies: [
+                { name: 'US-01', type: 'trojan', server: '1.2.3.4', port: 443, password: 'test' },
+                { name: 'JP-01', type: 'trojan', server: '1.2.3.5', port: 443, password: 'test' },
+                { name: 'FREE-US-01', type: 'trojan', server: '1.2.3.6', port: 443, password: 'test' },
+            ],
+            targetFormat: 'surge',
+            ruleLevel: 'none',
+            customDnsOverride: 'test-dns',
+        });
+
+        expect(rendered).toContain(
+            'Auto = url-test, US-01, JP-01, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50'
+        );
+        expect(rendered).toContain(
+            'Fallback = fallback, JP-01, US-01, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50'
+        );
+        expect(rendered).toContain(
+            'Balance = load-balance, US-01, FREE-US-01, url=http://www.gstatic.com/generate_204, interval=300'
+        );
+        expect(rendered).toContain(
+            'PlainAuto = url-test, JP-01, US-01, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50'
+        );
+        expect(rendered).toContain('PlainBalance = load-balance, US-01, JP-01');
+        expect(rendered).toContain('Manual = select, JP-01, DIRECT');
+        expect(rendered).not.toContain('policy-path=');
+    });
+
     it('should render loon and quanx config sections from ACL4SSR custom template', () => {
         const builtinTemplate = getBuiltinTemplate('clash_acl4ssr_full');
         const nodeList = [

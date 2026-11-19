@@ -274,24 +274,22 @@ function buildProxyGroupLine(group) {
               )
             : rawMembers
     ).join(', ');
+    // ACL4SSR regex filters are expanded to concrete group.members before rendering.
+    // Surge policy-path accepts an external file/URL, not a node-name regex.
     const filter =
         Array.isArray(group.filters) && group.filters.length > 0 ? group.filters.join('|') : '';
     const tolerance = group.options?.tolerance;
     if (type === 'url-test') {
-        const base = filter
-            ? `${group.name} = url-test, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
-            : `${group.name} = url-test, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
+        const base = `${group.name} = url-test, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
         return tolerance ? `${base}, tolerance=${tolerance}` : base;
     }
     if (type === 'fallback') {
-        const base = filter
-            ? `${group.name} = fallback, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
-            : `${group.name} = fallback, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
+        const base = `${group.name} = fallback, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`;
         return tolerance ? `${base}, tolerance=${tolerance}` : base;
     }
     if (type === 'load-balance') {
         return filter
-            ? `${group.name} = load-balance, policy-path=${filter}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
+            ? `${group.name} = load-balance, ${members}, url=${group.options?.url || 'http://www.gstatic.com/generate_204'}, interval=${group.options?.interval || 300}`
             : `${group.name} = load-balance, ${members}`;
     }
     return `${group.name} = select, ${members}`;
