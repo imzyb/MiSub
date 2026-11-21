@@ -75,9 +75,10 @@
   /* Keep overlays above fixed app chrome while preserving room for menus/toasts. */
   --z-nav: 20;
   --z-popover: 100;
-  --z-toast: 900;
   --z-modal: 1000000;
   --z-modal-popover: 1100000;
+  /* 提示必须盖在弹窗之上：弹窗内校验失败时要能看见 toast */
+  --z-toast: 1200000;
 }
 
 @layer base {

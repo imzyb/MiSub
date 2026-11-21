@@ -7,12 +7,14 @@
     import { getLocalizedTransformAssetByUrl } from '@/constants/transform-assets';
     import { useI18n } from '@/i18n/index.js';
     import { useDataStore } from '@/stores/useDataStore';
+    import { useToastStore } from '@/stores/toast';
     import { generateProfileId } from '@/utils/id.js';
     import { getProfileShareIdentifier } from '@/utils/profile-link.js';
     import ConfirmPopover from '@/components/ui/ConfirmPopover.vue';
 
     const { t } = useI18n();
     const dataStore = useDataStore();
+    const { showToast } = useToastStore();
 
     const regenerateConfirming = ref(false);
 
@@ -53,6 +55,7 @@
         props.localProfile.customId = '';
         props.localProfile.linkId = generateProfileId();
         regenerateConfirming.value = false;
+        showToast(t('profiles.linkIdReset'), 'success');
     };
 
     const props = defineProps({
