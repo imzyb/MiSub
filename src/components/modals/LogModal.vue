@@ -70,20 +70,34 @@
         }
     };
 
+    // 当前是否处于「单个订阅组」视图：此时只清该组的记录
+    const scopedProfileId = computed(() => String(props.filterProfileId || '').trim());
+
     const clearLogs = async () => {
+        const scoped = Boolean(scopedProfileId.value);
         const confirmed = await confirmAction({
-            message: t('logs.clearConfirm'),
+            message: scoped ? t('logs.clearConfirmScoped') : t('logs.clearConfirm'),
             variant: 'danger',
         });
         if (!confirmed) return;
 
         try {
-            await api.del('/api/logs');
-            logs.value = [];
+            const query = scoped
+                ? `?profileId=${encodeURIComponent(scopedProfileId.value)}&profileName=${encodeURIComponent(props.filterProfileName || '')}`
+                : '';
+            await api.del(`/api/logs${query}`);
             currentPage.value = 1;
+            if (scoped) {
+                // 只移除本组记录，其余订阅组的日志保持不动
+                logs.value = logs.value.filter(
+                    (log) => log.profileId !== scopedProfileId.value
+                );
+            } else {
+                logs.value = [];
+            }
             // 计数已在后端归零，强制刷新订阅组数据，避免卡片上残留旧次数
             await dataStore.fetchData(true);
-            showToast(t('logs.clearSuccess'), 'success');
+            showToast(scoped ? t('logs.clearSuccessScoped') : t('logs.clearSuccess'), 'success');
         } catch (e) {
             showToast(t('logs.clearFailed'), 'error');
         }

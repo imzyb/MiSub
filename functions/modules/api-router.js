@@ -508,10 +508,17 @@ export async function handleApiRequest(request, env, context = null) {
                 const { resetProfileDownloadCounts } = await import(
                     '../services/profile-stats-service.js'
                 );
-                await LogService.clearLogs(env);
+                // 带 profileId 时只清该订阅组；不带时清空全部
+                const profileId = (url.searchParams.get('profileId') || '').trim();
+                const profileName = (url.searchParams.get('profileName') || '').trim();
+                const scope = profileId ? { profileId, profileName } : {};
+                await LogService.clearLogs(env, scope);
                 // [Fix] 访问记录与访问次数是同一份数据的两面，清空日志必须同步归零计数
-                const profilesReset = await resetProfileDownloadCounts(env);
-                return createJsonResponse({ success: true, data: { profilesReset } });
+                const profilesReset = await resetProfileDownloadCounts(env, scope);
+                return createJsonResponse({
+                    success: true,
+                    data: { profilesReset, scoped: Boolean(profileId) },
+                });
             }
             return createErrorResponse('Method Not Allowed', 405);
 

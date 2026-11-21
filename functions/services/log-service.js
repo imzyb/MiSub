@@ -301,9 +301,14 @@ export const LogService = {
 
     /**
      * 清空日志
+     *
+     * 不传筛选条件时清空全部；传入 profileId（可选 profileName 兼容老日志）时，
+     * 只移除该订阅组的记录，其余订阅组的日志原样保留。
+     *
      * @param {Object} env - Cloudflare Environment
+     * @param {{profileId?: string, profileName?: string}} [scope]
      */
-    async clearLogs(env) {
+    async clearLogs(env, scope = {}) {
         try {
             const primaryStorage = await resolvePrimaryLogStorage(env);
             if (!primaryStorage) return false;
@@ -314,14 +319,44 @@ export const LogService = {
                 storages.push(legacyStorage);
             }
 
+            const profileId = String(scope?.profileId || '').trim();
+            const profileName = String(scope?.profileName || '').trim();
+            const isScoped = Boolean(profileId);
+
+            // 老日志没有 profileId，只能按名称判定归属；此时仅剔除同名且缺 profileId 的记录
+            const matchesScope = (log) => {
+                if (!isScoped) return true;
+                if (log?.profileId) return log.profileId === profileId;
+                return Boolean(profileName) && log?.profileName === profileName;
+            };
+
             await Promise.all(
                 storages.map(async (storage) => {
                     const bucketIndex = await getLogBucketIndex(storage);
-                    await Promise.all([
-                        storage.delete(LOG_KV_KEY),
-                        storage.delete(LOG_INDEX_KV_KEY),
-                        ...bucketIndex.map((key) => storage.delete(key)),
-                    ]);
+
+                    if (!isScoped) {
+                        await Promise.all([
+                            storage.delete(LOG_KV_KEY),
+                            storage.delete(LOG_INDEX_KV_KEY),
+                            ...bucketIndex.map((key) => storage.delete(key)),
+                        ]);
+                        return;
+                    }
+
+                    const bucketKeys = [...bucketIndex, LOG_KV_KEY];
+                    await Promise.all(
+                        bucketKeys.map(async (key) => {
+                            const raw = await storage.get(key).catch(() => null);
+                            if (!Array.isArray(raw) || raw.length === 0) return;
+                            const remaining = raw.filter((log) => !matchesScope(log));
+                            if (remaining.length === raw.length) return;
+                            if (remaining.length === 0) {
+                                await storage.delete(key);
+                                return;
+                            }
+                            await storage.put(key, remaining);
+                        })
+                    );
                 })
             );
             return true;

@@ -9,21 +9,31 @@ async function getStorageAdapter(env) {
 }
 
 /**
- * 清空所有订阅组的访问次数（下载计数）
+ * 清空访问次数（下载计数）
  *
  * 计数有两处来源：KV/D1 里的计数 key，以及 profile 对象里的 downloadCount 快照。
  * 只删 key 不够——读取时会回退到快照，所以必须同时把快照归零。
  *
+ * 传入 profileId 时只处理该订阅组，其余订阅组的计数保持不变。
+ *
  * @param {Object} storageAdapter
+ * @param {{profileId?: string}} [scope]
  * @returns {Promise<number>} 处理的订阅组数量
  */
-export async function clearProfileDownloadCounts(storageAdapter) {
+export async function clearProfileDownloadCounts(storageAdapter, scope = {}) {
     if (!storageAdapter) return 0;
 
-    const profiles =
+    const allProfiles =
         typeof storageAdapter.getAllProfiles === 'function'
             ? await storageAdapter.getAllProfiles()
             : (await storageAdapter.get(KV_KEY_PROFILES)) || [];
+
+    const targetId = String(scope?.profileId || '').trim();
+    const profiles = targetId
+        ? (Array.isArray(allProfiles) ? allProfiles : []).filter(
+              (profile) => profile?.id === targetId
+          )
+        : allProfiles;
 
     if (!Array.isArray(profiles) || profiles.length === 0) return 0;
 
@@ -61,8 +71,8 @@ export async function clearProfileDownloadCounts(storageAdapter) {
     return profiles.length;
 }
 
-/** 用环境对象构建适配器后清空计数 */
-export async function resetProfileDownloadCounts(env) {
+/** 用环境对象构建适配器后清空计数（可按 profileId 限定范围） */
+export async function resetProfileDownloadCounts(env, scope = {}) {
     const storageAdapter = await getStorageAdapter(env);
-    return clearProfileDownloadCounts(storageAdapter);
+    return clearProfileDownloadCounts(storageAdapter, scope);
 }
