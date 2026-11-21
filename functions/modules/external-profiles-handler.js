@@ -12,6 +12,7 @@ import {
 } from './external-api-utils.js';
 import { isManualNode, isRemoteSubscription, toExternalProfile } from './external-api-mappers.js';
 import { inspectRemoteSubscription } from './external-subscriptions-handler.js';
+import { validateProfileCandidate } from './profile-alias.js';
 
 function nowIso() {
     return new Date().toISOString();
@@ -215,6 +216,14 @@ export async function handleExternalProfilesRequest(
             createdAt: timestamp,
             updatedAt: timestamp,
         };
+        const aliasCheck = validateProfileCandidate(allProfiles, profile);
+        if (!aliasCheck.ok) {
+            return createExternalError(
+                aliasCheck.code,
+                `Subscription ID "${aliasCheck.alias}" is invalid or already in use`,
+                400
+            );
+        }
         await storageAdapter.putProfile(profile);
         return createExternalSuccess(toExternalProfile(profile), 201);
     }
@@ -256,6 +265,17 @@ export async function handleExternalProfilesRequest(
         };
         if (!String(updated.name || '').trim())
             return createExternalError('profile_name_required', 'Profile name is required', 400);
+        const aliasCheck = validateProfileCandidate(
+            await storageAdapter.getAllProfiles(),
+            updated
+        );
+        if (!aliasCheck.ok) {
+            return createExternalError(
+                aliasCheck.code,
+                `Subscription ID "${aliasCheck.alias}" is invalid or already in use`,
+                400
+            );
+        }
         await storageAdapter.putProfile(updated);
         return createExternalSuccess(toExternalProfile(updated));
     }

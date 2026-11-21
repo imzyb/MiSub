@@ -34,6 +34,10 @@ import {
     DEFAULT_SETTINGS as defaultSettings,
 } from './config.js';
 import { listRuleTemplates } from './rule-template-handler.js';
+import {
+    normalizeProfileAliases,
+    validateProfileAliases,
+} from './profile-alias.js';
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
@@ -370,6 +374,31 @@ export async function handleMisubsSave(request, env) {
                         ...p,
                         sortIndex: profileMap.get(p.id)?.sortIndex,
                     }));
+            }
+        }
+
+        if (Array.isArray(finalProfiles)) {
+            // [新增] 「订阅 ID」统一校验：字符集、长度、全局唯一、保留字
+            normalizeProfileAliases(finalProfiles);
+            const aliasSettings = (await SettingsCache.get(env).catch(() => null)) || {};
+            const aliasCheck = validateProfileAliases(finalProfiles, {
+                mytoken: aliasSettings.mytoken,
+                profileToken: aliasSettings.profileToken,
+            });
+            if (!aliasCheck.ok) {
+                return createJsonResponse(
+                    {
+                        success: false,
+                        code: aliasCheck.code,
+                        message:
+                            aliasCheck.code === 'profile_alias_conflict'
+                                ? `订阅 ID "${aliasCheck.alias}" 已被占用`
+                                : aliasCheck.code === 'profile_alias_reserved'
+                                  ? `订阅 ID "${aliasCheck.alias}" 为系统保留值`
+                                  : `订阅 ID "${aliasCheck.alias}" 不合法：仅允许小写字母、数字、- 和 _，长度 2-32`,
+                    },
+                    400
+                );
             }
         }
 
