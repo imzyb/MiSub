@@ -201,7 +201,12 @@
                     />
                 </div>
             </div>
-            <Input id="profile-custom-id" v-model="localProfile.customId" :placeholder="idPlaceholder" />
+            <Input
+                id="profile-custom-id"
+                v-model="localProfile.customId"
+                :placeholder="idPlaceholder"
+                :maxlength="32"
+            />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
                 {{ t('profiles.customIdHint') }}
             </p>

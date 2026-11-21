@@ -306,6 +306,8 @@ export async function handleMisubsSave(request, env) {
 
         let finalMisubs = misubs;
         let finalProfiles = profiles;
+        // 校验存量豁免需要「已落库的列表」做基线，diff 分支顺带读取一次
+        let previousProfiles = null;
 
         // 步骤1.5: 检查是否为 Diff 模式
         if (diff) {
@@ -327,6 +329,7 @@ export async function handleMisubsSave(request, env) {
                 finalMisubs = currentMisubs; // 无变动
             }
 
+            previousProfiles = currentProfiles;
             if (diff.profiles) {
                 finalProfiles = applyPatch(currentProfiles, diff.profiles);
             } else {
@@ -390,11 +393,25 @@ export async function handleMisubsSave(request, env) {
 
         if (Array.isArray(finalProfiles)) {
             // [新增] 「订阅 ID」统一校验：字符集、长度、全局唯一、保留字
+            // 存量豁免：customId 早期没有长度限制，库里可能留着超长历史值。
+            // 校验覆盖整个列表，若不豁免，一条历史值会让用户保存任何改动都失败。
             normalizeProfileAliases(finalProfiles);
+            // 全量保存（非 diff）同样需要基线，否则存量豁免不生效
+            if (!Array.isArray(previousProfiles)) {
+                previousProfiles = await Promise.resolve(
+                    typeof storageAdapter.getAllProfiles === 'function'
+                        ? storageAdapter.getAllProfiles()
+                        : storageAdapter.get(KV_KEY_PROFILES)
+                ).catch((error) => {
+                    console.warn('[API /misubs] Failed to load profiles baseline:', error);
+                    return null;
+                });
+            }
             const aliasSettings = (await SettingsCache.get(env).catch(() => null)) || {};
             const aliasCheck = validateProfileAliases(finalProfiles, {
                 mytoken: aliasSettings.mytoken,
                 profileToken: aliasSettings.profileToken,
+                previousProfiles,
             });
             if (!aliasCheck.ok) {
                 return createJsonResponse(
@@ -406,7 +423,7 @@ export async function handleMisubsSave(request, env) {
                                 ? `订阅 ID "${aliasCheck.alias}" 已被占用`
                                 : aliasCheck.code === 'profile_alias_reserved'
                                   ? `订阅 ID "${aliasCheck.alias}" 为系统保留值`
-                                  : `订阅 ID "${aliasCheck.alias}" 不合法：仅允许小写字母、数字、- 和 _，长度 2-32`,
+                                  : `订阅 ID "${aliasCheck.alias}" 不合法：仅允许小写字母、数字、- 和 _，长度 2-${aliasCheck.field === 'linkId' ? 64 : 32}`,
                     },
                     400
                 );

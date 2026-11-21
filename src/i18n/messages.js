@@ -121,7 +121,7 @@ export const messages = {
             nameLabel: '订阅组名称',
             namePlaceholder: '例如：家庭共享',
             customIdLabel: '自定义 ID (可选)',
-            customIdPlaceholder: '如: home, game (限字母、数字、-、_)',
+            customIdPlaceholder: '如: home, game (限字母、数字、-、_，最多 32 位)',
             customIdHint: '订阅链接中的 ID；留空则使用系统生成的 ID，修改后旧链接立即失效',
             resetLinkId: '重置',
             linkIdReset: '订阅 ID 已更换，保存后生效',
@@ -1923,7 +1923,7 @@ export const messages = {
             nameLabel: 'Profile name',
             namePlaceholder: 'e.g. Family',
             customIdLabel: 'Custom ID (optional)',
-            customIdPlaceholder: 'e.g. home, game (letters, numbers, -, _)',
+            customIdPlaceholder: 'e.g. home, game (letters, numbers, -, _, max 32)',
             customIdHint:
                 'ID in the subscription URL; leave empty for the auto-generated one. Changing it invalidates the old link',
             resetLinkId: 'Reset',

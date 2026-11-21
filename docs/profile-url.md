@@ -46,6 +46,18 @@
 - 不得使用保留字（`sub`、`api`、`assets`、`cron`、`login`、`logout`、`_/`main` 等）或 `mytoken` / `profileToken`。
 - 校验在管理端保存接口与外部管理 API 双向执行（`functions/modules/profile-alias.js`）。
 
+### 存量豁免
+
+`customId` 在 2025-06 上线时没有任何长度/字符集限制，库里可能存在超长或含非法字符的历史值（例如 128 位）。校验是对**整个列表**执行的，若不特殊处理，一条历史值会让用户保存**任何**无关改动都返回 400。
+
+因此校验按「值是否被改动」区分：
+
+- 值与会话前已落库的值一致（小写归一化后）→ 视为存量值，**跳过字符集/长度/保留字检查**，旧链接继续可用；
+- 值被改动或为新增 → 必须满足规则，否则返回 `profile_alias_invalid`；
+- **冲突检测对存量值同样生效**：两个组共用一个链接本身无法解析。
+
+实现上通过 `validateProfileAliases(profiles, { previousProfiles })` 传入已落库列表作为基线；全量保存与 diff 保存都会加载基线。界面可用 `findLegacyInvalidAliases()` 找出仍需手动修复的历史值。
+
 ## 迁移
 
 `migrateProfileLinkIds` 在订阅请求入口与管理端读取接口执行，规则为 `if (!profile.linkId) profile.linkId = profile.id`，幂等且永不覆盖已重置的值。恢复旧备份后会在首次请求时再次补齐。
