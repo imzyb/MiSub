@@ -63,8 +63,9 @@ function maskSensitiveLogValue(value) {
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
+// [Fix] 计数 key 恒定使用内部主键：改自定义 ID、重置链接都不会让统计掉档
 function getProfileDownloadCountKey(profile) {
-    return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
+    return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.id}`;
 }
 
 // 优先走行级写入；D1 上直接 put(KV_KEY_PROFILES) 会写进 legacy 'main' 行，与行级数据打架
@@ -996,17 +997,13 @@ export async function handleMisubRequest(context) {
                 asn: request.cf?.asn,
             },
             format: targetFormat,
-            token: profileIdentifier ? profileIdentifier : token,
-            type: profileIdentifier ? 'profile' : 'token',
+            // [Fix] 日志归属用内部主键：换自定义 ID / 重置链接都不会让历史记录“换人”
+            token: currentProfile ? currentProfile.id : token,
+            type: currentProfile ? 'profile' : 'token',
             domain,
         };
 
-        const activeProfile = profileIdentifier
-            ? allProfiles.find(
-                  (p) =>
-                      (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
-              )
-            : null;
+        const activeProfile = currentProfile;
 
         // 设置优先级：订阅组设置 > 全局设置 > 内置默认值
         // prefixSettings 回退逻辑

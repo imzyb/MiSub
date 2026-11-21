@@ -61,11 +61,22 @@ function normalizeProfile(profile = {}) {
 async function attachProfileDownloadCounts(storageAdapter, profiles) {
     if (!Array.isArray(profiles) || profiles.length === 0) return profiles;
 
-    const counts = await Promise.all(
-        profiles.map((profile) =>
-            storageAdapter.get(`${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`)
-        )
-    );
+    // [Fix] 计数 key 恒定用内部主键；legacy key（曾用 customId）读到后自愈回写
+    const readCount = async (profile) => {
+        const currentKey = `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.id}`;
+        const current = Number(await storageAdapter.get(currentKey));
+        if (current) return current;
+        if (!profile.customId) return 0;
+        const legacyKey = `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId}`;
+        const legacy = Number(await storageAdapter.get(legacyKey));
+        if (legacy) {
+            await storageAdapter.put(currentKey, legacy).catch(() => {});
+            return legacy;
+        }
+        return 0;
+    };
+
+    const counts = await Promise.all(profiles.map((profile) => readCount(profile)));
 
     return profiles.map((profile, index) =>
         normalizeProfile({
