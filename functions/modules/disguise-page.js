@@ -37,14 +37,23 @@ export function renderDisguisePage(disguiseConfig) {
             box-sizing: border-box;
         }
 
+        html,
+        body {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-gradient);
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            /* 让绝对定位的环境光斑以 body 为包含块，避免其撑宽文档造成移动端缩放/偏移 */
+            position: relative;
             color: var(--text-color);
         }
 

@@ -68,4 +68,13 @@ describe('createDisguiseResponse', () => {
         const html = await res.text();
         expect(html).not.toContain('"><script>');
     });
+
+    it('keeps the 404 page free of horizontal overflow on mobile', async () => {
+        const res = renderDisguisePage({ enabled: true, pageType: 'page' });
+        const html = await res.text();
+        // body 必须是定位包含块，否则绝对定位的环境光斑会把文档撑宽，移动端整体偏移
+        expect(html).toMatch(/body\s*{[^}]*position:\s*relative;/s);
+        // 100vw 在移动端含滚动条宽度，容易撑出横向滚动
+        expect(html).not.toContain('100vw');
+    });
 });

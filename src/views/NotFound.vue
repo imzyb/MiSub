@@ -82,10 +82,11 @@
         align-items: center;
         justify-content: center;
         min-height: 100vh;
-        width: 100vw;
+        min-height: 100dvh;
+        /* 用 inset 代替 100vw：100vw 含滚动条宽度，桌面端会挤出横向滚动条 */
+        width: 100%;
         position: fixed;
-        top: 0;
-        left: 0;
+        inset: 0;
         z-index: 9999;
         overflow: hidden;
     }
