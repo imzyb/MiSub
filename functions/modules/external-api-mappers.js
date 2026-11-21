@@ -88,6 +88,7 @@ export function toExternalProfile(profile) {
         enabled: profile.enabled !== false,
         isPublic: profile.isPublic === true,
         customId: profile.customId || '',
+        linkId: profile.linkId || '',
         subscriptionIds: Array.isArray(profile.subscriptions)
             ? profile.subscriptions
                   .map((item) => (typeof item === 'object' ? item?.id : item))

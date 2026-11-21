@@ -131,7 +131,7 @@ export async function handleProfileMode(
         typeof storageAdapter.getProfileById === 'function'
             ? await storageAdapter.getProfileById(profileId)
             : ((await storageAdapter.get(KV_KEY_PROFILES)) || []).find(
-                  (p) => (p.customId && p.customId === profileId) || p.id === profileId
+                  (p) => p.id === profileId || p.customId === profileId || p.linkId === profileId
               );
     const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 

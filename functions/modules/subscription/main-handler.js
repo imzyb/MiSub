@@ -3,6 +3,7 @@ import {
     migrateConfigSettings,
     formatBytes,
     migrateProfileIds,
+    migrateProfileLinkIds,
     base64EncodeUtf8,
 } from '../utils.js';
 import { generateCombinedNodeList } from '../../services/subscription-service.js';
@@ -22,6 +23,7 @@ import {
     isLikelyPartialAggregateNodeList,
 } from '../../services/node-cache-service.js';
 import { resolveRequestContext } from './request-context.js';
+import { resolvePublicProfile } from './profile-resolver.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
 import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
@@ -63,6 +65,13 @@ const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
 function getProfileDownloadCountKey(profile) {
     return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
+}
+
+// 优先走行级写入；D1 上直接 put(KV_KEY_PROFILES) 会写进 legacy 'main' 行，与行级数据打架
+function persistProfiles(storageAdapter, profiles) {
+    return typeof storageAdapter.putAllProfiles === 'function'
+        ? storageAdapter.putAllProfiles(profiles)
+        : storageAdapter.put(KV_KEY_PROFILES, profiles);
 }
 
 function buildTemplateProxyBlock(nodeList) {
@@ -606,12 +615,13 @@ export async function handleMisubRequest(context) {
     const settings = settingsData || {};
 
     // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
-    if (migrateProfileIds(allProfiles)) {
-        storageAdapter
-            .put(KV_KEY_PROFILES, allProfiles)
-            .catch((err) =>
-                console.error('[Migration] Failed to persist migrated profile IDs:', err)
-            );
+    // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
+    const profileIdsMigrated = migrateProfileIds(allProfiles);
+    const profileLinkIdsMigrated = migrateProfileLinkIds(allProfiles);
+    if (profileIdsMigrated || profileLinkIdsMigrated) {
+        persistProfiles(storageAdapter, allProfiles).catch((err) =>
+            console.error('[Migration] Failed to persist migrated profile IDs:', err)
+        );
     }
     // 关键：我们在这里定义了 `config`，后续都应该使用它
     const config = migrateConfigSettings({ ...defaultSettings, ...settings });
@@ -695,9 +705,8 @@ export async function handleMisubRequest(context) {
                 new Response('Not Found', { status: 404 })
             );
         }
-        currentProfile = allProfiles.find(
-            (p) => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
-        );
+        // [Fix #538] 公开入口：customId > linkId；主键 id 不再参与路由
+        currentProfile = resolvePublicProfile(allProfiles, profileIdentifier);
         initEngineFlags(currentProfile);
         const profile = currentProfile;
         if (profile && profile.enabled) {
@@ -844,7 +853,11 @@ export async function handleMisubRequest(context) {
                 }
             }
         } else {
-            return new Response('Profile not found or disabled', { status: 404 });
+            // [伪装加固] 与未授权的 SPA 路由保持一致，避免裸文本 404 暴露服务存在
+            return (
+                createDisguiseResponse(settings?.disguise, request.url) ||
+                new Response('Not Found', { status: 404 })
+            );
         }
     } else {
         // [修正] 使用 config 變量

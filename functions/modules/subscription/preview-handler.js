@@ -8,6 +8,7 @@ import {
 import { KV_KEY_PROFILES } from '../config.js';
 import { handleProfileMode } from './profile-handler.js';
 import { handleSingleSubscriptionMode, handleDirectUrlMode } from './single-subscription.js';
+import { resolvePublicProfile } from './profile-resolver.js';
 
 /**
  * 确定请求模式
@@ -49,12 +50,12 @@ export async function handlePublicPreviewRequest(request, env) {
             env,
             await StorageFactory.getStorageType(env)
         );
-        const profile =
-            typeof storageAdapter.getProfileById === 'function'
-                ? await storageAdapter.getProfileById(profileId)
-                : ((await storageAdapter.get(KV_KEY_PROFILES)) || []).find(
-                      (p) => (p.customId && p.customId === profileId) || p.id === profileId
-                  );
+        // [Fix #538] 与订阅主链路同一套公开解析规则，退役的标识不能继续预览
+        const allProfiles =
+            typeof storageAdapter.getAllProfiles === 'function'
+                ? await storageAdapter.getAllProfiles()
+                : (await storageAdapter.get(KV_KEY_PROFILES)) || [];
+        const profile = resolvePublicProfile(allProfiles, profileId);
 
         if (!profile || !profile.enabled || !profile.isPublic) {
             return createJsonResponse({ error: 'Profile not found or not public' }, 404);

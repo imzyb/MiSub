@@ -202,6 +202,7 @@ export async function handleExternalProfilesRequest(
             enabled: payload.enabled !== false,
             isPublic: payload.isPublic === true,
             customId: String(payload.customId || '').trim(),
+            linkId: generateId(),
             subscriptions: subscriptionIds,
             manualNodes: manualNodeIds,
             target: String(payload.target || 'clash').trim() || 'clash',

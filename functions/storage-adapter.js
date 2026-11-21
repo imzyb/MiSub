@@ -164,7 +164,9 @@ class KVStorageAdapter {
     async getProfileById(id) {
         const all = await this.get(DATA_KEYS.PROFILES);
         return Array.isArray(all)
-            ? all.find((item) => item.id === id || item.customId === id) || null
+            ? all.find(
+                  (item) => item.id === id || item.customId === id || item.linkId === id
+              ) || null
             : null;
     }
 
@@ -457,7 +459,9 @@ class D1StorageAdapter {
                 ? JSON.parse(legacyMain.data)
                 : await this.get(DATA_KEYS.PROFILES);
             return Array.isArray(allProfiles)
-                ? allProfiles.find((item) => item.id === id || item.customId === id) || null
+                ? allProfiles.find(
+                      (item) => item.id === id || item.customId === id || item.linkId === id
+                  ) || null
                 : null;
         } catch (error) {
             console.error(`[D1] Failed to get profile ${id}:`, error);

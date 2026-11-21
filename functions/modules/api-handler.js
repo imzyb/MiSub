@@ -12,6 +12,7 @@ import {
     createJsonResponse,
     createErrorResponse,
     migrateProfileIds,
+    migrateProfileLinkIds,
     JSON_BODY_LIMITS,
     readJsonWithLimit,
 } from './utils.js';
@@ -206,12 +207,17 @@ export async function handleDataRequest(env, context = null) {
         const profiles = await attachProfileDownloadCounts(storageAdapter, rawProfiles);
 
         // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
-        if (migrateProfileIds(profiles)) {
-            storageAdapter
-                .put(KV_KEY_PROFILES, profiles)
-                .catch((err) =>
-                    console.error('[Migration] Failed to persist migrated profile IDs:', err)
-                );
+        // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
+        const profileIdsMigrated = migrateProfileIds(profiles);
+        const profileLinkIdsMigrated = migrateProfileLinkIds(profiles);
+        if (profileIdsMigrated || profileLinkIdsMigrated) {
+            const persisted =
+                typeof storageAdapter.putAllProfiles === 'function'
+                    ? storageAdapter.putAllProfiles(profiles)
+                    : storageAdapter.put(KV_KEY_PROFILES, profiles);
+            Promise.resolve(persisted).catch((err) =>
+                console.error('[Migration] Failed to persist migrated profile IDs:', err)
+            );
         }
         const config = {
             ...defaultSettings,

@@ -742,6 +742,27 @@ export function migrateProfileIds(profiles) {
 }
 
 /**
+ * 为存量订阅组补齐 linkId（= 原 id）
+ *
+ * 升级前对外链接形如 /{profileToken}/{id}。补齐 linkId 后主键不再直接参与路由，
+ * 而旧链接因为 linkId 恰等于原 id 继续可用——真正做到“升级不断链”。
+ * 幂等：已有 linkId 的组不会被覆盖（重置过的组必须保留新值）。
+ * @param {Array} profiles - 订阅组列表
+ * @returns {boolean} 是否发生了迁移
+ */
+export function migrateProfileLinkIds(profiles) {
+    if (!Array.isArray(profiles)) return false;
+    let migrated = false;
+    for (const p of profiles) {
+        if (p && p.id && !p.linkId) {
+            p.linkId = p.id;
+            migrated = true;
+        }
+    }
+    return migrated;
+}
+
+/**
  * 安全的 UTF-8 到 Base64 编码 (替代已弃用的 unescape/encodeURIComponent 方案)
  */
 export function base64EncodeUtf8(str) {
