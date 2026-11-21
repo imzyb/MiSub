@@ -392,6 +392,21 @@ textarea {
   min-height: 4rem;
 }
 
+/*
+ * 页脚位于 <main> 之外，因此拿不到 main 上的 pb-24。
+ * 移动端底部导航是 fixed 定位（高度 4rem + 安全区），必须由页脚自己让位，
+ * 否则版权行会被导航栏压住。
+ */
+.app-footer {
+  padding: 2rem 1rem;
+}
+
+@media (max-width: 767px) {
+  .app-footer {
+    padding-bottom: calc(4rem + max(env(safe-area-inset-bottom, 0px), 12px) + 1.5rem);
+  }
+}
+
 .dark .mobile-nav-glass {
   background: rgba(15, 16, 17, 0.9);
   border-top: 1px solid var(--border-subtle-dark);

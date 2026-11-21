@@ -16,7 +16,7 @@
 </script>
 
 <template>
-    <footer class="w-full text-center p-8 border-t border-gray-200 dark:border-white/10 mt-8">
+    <footer class="app-footer w-full text-center border-t border-gray-200 dark:border-white/10 mt-8">
         <div
             class="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400"
         >
