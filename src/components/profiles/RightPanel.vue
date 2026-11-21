@@ -204,20 +204,25 @@
             </div>
 
             <div class="relative list-item-animation" style="--delay-index: 4">
+                <!-- 链接不可用时用可换行的文本块展示原因，避免单行 input 把文案截断 -->
+                <div
+                    v-if="!isLinkValid"
+                    class="w-full min-h-12 flex items-center text-sm leading-relaxed text-red-500 dark:text-red-500 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg px-3 py-3 border border-gray-200/70 dark:border-white/10"
+                >
+                    {{ t('dashboard.linkCard.configureTokenFirst', { name: requiredToken.name }) }}
+                </div>
                 <input
+                    v-else
                     type="text"
                     :value="subLink"
                     readonly
-                    :disabled="!isLinkValid"
-                    class="w-full min-h-12 text-sm text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg pl-3 pr-24 py-3 border border-gray-200/70 dark:border-white/10 focus-visible:outline-hidden focus-visible:ring-2 font-mono input-enhanced"
-                    :class="{
-                        'focus-visible:ring-primary-500': isLinkValid,
-                        'focus-visible:ring-red-500 cursor-not-allowed': !isLinkValid,
-                        'text-red-500 dark:text-red-500': !isLinkValid,
-                    }"
+                    class="w-full min-h-12 text-sm text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg pl-3 pr-24 py-3 border border-gray-200/70 dark:border-white/10 focus-visible:outline-hidden focus-visible:ring-2 font-mono input-enhanced focus-visible:ring-primary-500"
                     :aria-label="t('dashboard.linkCard.linkField')"
                 />
-                <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <div
+                    v-if="isLinkValid"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1"
+                >
                     <button
                         @click="$emit('qrcode', subLink, t('dashboard.linkCard.qrTitle'))"
                         :disabled="!isLinkValid"
