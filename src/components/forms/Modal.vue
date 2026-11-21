@@ -35,10 +35,16 @@
             default: 'primary',
             validator: (value) => ['primary', 'danger'].includes(value),
         },
+        // 允许上层弹窗（如确认框）覆盖层级，避免被后打开的 Modal 盖住
+        zIndex: {
+            type: String,
+            default: '',
+        },
     });
 
     const emit = defineEmits(['update:show', 'confirm']);
     const { t } = useI18n();
+    const zIndexStyle = computed(() => props.zIndex || 'var(--z-modal)');
     const confirmLabel = computed(() => props.confirmText || t('actions.confirm'));
     const cancelLabel = computed(() => props.cancelText || t('actions.cancel'));
     const confirmTitle = computed(() => props.confirmButtonTitle || t('actions.confirm'));
@@ -140,7 +146,7 @@
             <div
                 v-if="show"
                 class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-                :style="{ zIndex: 'var(--z-modal)' }"
+                :style="{ zIndex: zIndexStyle }"
                 @pointerdown.capture="handleBackdropPointerDown"
                 @click="handleBackdropClick"
                 role="dialog"
