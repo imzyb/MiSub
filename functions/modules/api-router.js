@@ -505,8 +505,13 @@ export async function handleApiRequest(request, env, context = null) {
             }
             if (request.method === 'DELETE') {
                 const { LogService } = await import('../services/log-service.js');
+                const { resetProfileDownloadCounts } = await import(
+                    '../services/profile-stats-service.js'
+                );
                 await LogService.clearLogs(env);
-                return createJsonResponse({ success: true });
+                // [Fix] 访问记录与访问次数是同一份数据的两面，清空日志必须同步归零计数
+                const profilesReset = await resetProfileDownloadCounts(env);
+                return createJsonResponse({ success: true, data: { profilesReset } });
             }
             return createErrorResponse('Method Not Allowed', 405);
 

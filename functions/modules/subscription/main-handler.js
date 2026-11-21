@@ -1387,6 +1387,7 @@ export async function handleMisubRequest(context) {
                     targetFormat,
                     token,
                     profileIdentifier,
+                    profileId: currentProfile?.id,
                     subName,
                     domain,
                 });
@@ -1522,6 +1523,7 @@ export async function handleMisubRequest(context) {
                         targetFormat: `builtin-${targetFormat}`,
                         token,
                         profileIdentifier,
+                        profileId: currentProfile?.id,
                         subName,
                         domain,
                     });

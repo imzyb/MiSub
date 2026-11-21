@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue';
     import { formatBytes } from '../../../lib/utils.js';
+    import { getProfileShareIdentifier } from '../../../utils/profile-link.js';
     import { useToastStore } from '../../../stores/toast.js';
     import { useUIStore } from '../../../stores/ui.js';
     import { useDataStore } from '../../../stores/useDataStore.js';
@@ -98,7 +99,7 @@
                 const token = settings.value.profileToken;
                 const baseUrl = window.location.origin;
                 // Using similar logic to useProfiles copy link
-                const idToUse = profile.customId || profile.id;
+                const idToUse = getProfileShareIdentifier(profile);
                 qrCodeUrl.value = `${baseUrl}/${token}/${idToUse}`;
                 qrCodeTitle.value = profile.name || t('profiles.qrCodeTitle');
                 showQRCodeModal.value = true;
@@ -232,6 +233,7 @@
     const showSubscriptionImportModal = ref(false);
     const showLogModal = ref(false);
     const logProfileName = ref('');
+    const logProfileId = ref('');
     const showBatchDeleteModal = ref(false);
     const batchDeleteIds = ref([]);
     const showDedupModal = ref(false);
@@ -451,6 +453,7 @@
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (profile) {
             logProfileName.value = profile.name;
+            logProfileId.value = profile.id;
             showLogModal.value = true;
         }
     };
@@ -608,7 +611,11 @@
         v-model:show="showBulkImportModal"
         @import="(txt, tag) => handleBulkImport(txt, tag)"
     />
-    <LogModal v-model:show="showLogModal" />
+    <LogModal
+        v-model:show="showLogModal"
+        :filter-profile-id="logProfileId"
+        :filter-profile-name="logProfileName"
+    />
     <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup"
         ><template #title>
             <h3 class="text-lg font-bold text-red-500">

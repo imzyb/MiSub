@@ -1759,7 +1759,7 @@ export const messages = {
         logs: {
             title: '订阅访问日志',
             fetchFailed: '获取日志失败',
-            clearConfirm: '确定要清空所有日志吗？',
+            clearConfirm: '确定要清空所有日志吗？各订阅组的访问次数也会一并归零。',
             clearSuccess: '日志已清空',
             clearFailed: '清空日志失败',
             empty: '暂无日志记录',
@@ -3704,7 +3704,7 @@ export const messages = {
         logs: {
             title: 'Subscription access logs',
             fetchFailed: 'Failed to load logs',
-            clearConfirm: 'Clear all logs?',
+            clearConfirm: 'Clear all logs? Each profile\'s visit count will be reset to zero as well.',
             clearSuccess: 'Logs cleared',
             clearFailed: 'Failed to clear logs',
             empty: 'No log records yet',
