@@ -123,7 +123,7 @@ export const messages = {
             customIdPlaceholder: '如: home, game (限字母、数字、-、_)',
             customIdHint: '订阅链接中的 ID；留空则使用系统生成的 ID，修改后旧链接立即失效',
             resetLinkId: '重置',
-            linkIdReset: '订阅 ID 已重置，旧链接已失效',
+            linkIdReset: '订阅 ID 已更换，保存后生效',
             customIdAutoPlaceholder: '留空则使用 {link}',
             regenerateWarning:
                 '重置会立即更换订阅链接，旧链接（含自定义 ID）随即失效，已分发的订阅需要重新导入。',
@@ -1918,7 +1918,7 @@ export const messages = {
             customIdHint:
                 'ID in the subscription URL; leave empty for the auto-generated one. Changing it invalidates the old link',
             resetLinkId: 'Reset',
-            linkIdReset: 'Subscription ID reset. The previous link no longer works.',
+            linkIdReset: 'Subscription ID changed. It takes effect once saved.',
             customIdAutoPlaceholder: 'Leave empty to use {link}',
             regenerateWarning:
                 'Resetting replaces the subscription link immediately. The old link (including any custom ID) stops working and clients must be re-imported.',

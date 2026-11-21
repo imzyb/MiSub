@@ -51,7 +51,8 @@
     // 浮层的定位、动画与「点外部收起」由 ConfirmPopover 统一处理
 
     const confirmRegenerate = () => {
-        // 重新生成 = 清掉自定义 ID 并轮换系统 ID，旧链接立即失效
+        // 重新生成 = 清掉自定义 ID 并轮换系统 ID。
+        // 注意：这里只改表单草稿，取消编辑就完全不生效，所以提示不能说「旧链接已失效」
         props.localProfile.customId = '';
         props.localProfile.linkId = generateProfileId();
         regenerateConfirming.value = false;
