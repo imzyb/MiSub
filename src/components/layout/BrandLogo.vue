@@ -18,8 +18,12 @@
         },
     });
 
-    // 伪装开启时服务端会对未鉴权的 /logo.png 返回伪装页或 404（有意的指纹防护），
-    // 浏览器随后会显示「图片损坏」占位符。这里降级为内联图标，保持视觉完整。
+    // 走打包产物（/assets/logo-*.png）而不是 public 下的 /logo.png：
+    // 后者在伪装开启时对未鉴权请求会被服务端 404（有意的指纹防护），
+    // 登录页与公开页因此长期拿不到图标，控制台还会刷 404。
+    import logoUrl from '../../assets/logo.png';
+
+    // 极端情况下（资源被 CDN 拦截）降级为内联图标，保持视觉完整。
     const logoFailed = ref(false);
 </script>
 
@@ -30,7 +34,7 @@
                 v-if="!logoFailed"
                 :width="iconSize"
                 :height="iconSize"
-                src="/logo.png"
+                :src="logoUrl"
                 alt="MiSub"
                 @error="logoFailed = true"
             />

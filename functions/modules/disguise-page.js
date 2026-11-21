@@ -203,7 +203,14 @@ export function renderDisguisePage(disguiseConfig) {
         status: 404,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache',
+            // 伪装页/404 绝不能被边缘缓存：no-cache 只要求回源校验，CDN 仍可
+            // 按自己的 TTL（线上实测 4 小时）把它存下来，于是未登录时被缓存的
+            // 404 会继续发给已登录用户（/logo.png 长时间 404 就是这么来的）。
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'CDN-Cache-Control': 'no-store',
+            'Surrogate-Control': 'no-store',
+            Pragma: 'no-cache',
+            Expires: '0',
         },
     });
 }

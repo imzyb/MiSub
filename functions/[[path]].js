@@ -248,10 +248,20 @@ export async function onRequest(context) {
                 if (isBrandAsset && settings?.disguise?.enabled) {
                     const isAuthenticated = await authMiddleware(request, env);
                     if (!isAuthenticated) {
-                        return (
-                            createDisguiseResponse(settings?.disguise, request.url) ||
-                            new Response('Not Found', { status: 404 })
-                        );
+                        // 品牌资源是图片请求：回伪装 HTML 页既没意义，又会因为
+                        // 响应体是 HTML 被 CDN 当成静态资源缓存（线上实测 4 小时），
+                        // 已登录用户随后仍会拿到这份缓存的 404。这里直接给空的
+                        // 404 并显式禁止缓存，避免污染边缘缓存。
+                        return new Response('Not Found', {
+                            status: 404,
+                            headers: {
+                                'Content-Type': 'text/plain; charset=utf-8',
+                                'Cache-Control':
+                                    'no-store, no-cache, must-revalidate, proxy-revalidate',
+                                'CDN-Cache-Control': 'no-store',
+                                'Surrogate-Control': 'no-store',
+                            },
+                        });
                     }
                 }
 
