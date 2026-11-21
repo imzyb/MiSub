@@ -133,11 +133,15 @@ npm install
 npm run dev
 ```
 
-For local Pages Functions testing:
+The dev server listens on `0.0.0.0`, so phones and other devices on the same LAN can open
+`http://<your-lan-ip>:5173` directly. For local Pages Functions testing:
 
 ```bash
-npm run dev:server -- --ip 0.0.0.0 --kv MISUB_KV --persist-to .wrangler/state-local
+npm run dev:server -- --kv MISUB_KV --persist-to .wrangler/state-local
 ```
+
+`dev:server` also binds all interfaces (`--ip 0.0.0.0`); restrict it with `--ip 127.0.0.1`
+if you only need local access.
 
 Useful commands:
 

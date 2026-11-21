@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:server": "npx wrangler pages dev public --port 8787",
+    "dev": "vite --host 0.0.0.0",
+    "dev:server": "npx wrangler pages dev public --port 8787 --ip 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest --passWithNoTests",
