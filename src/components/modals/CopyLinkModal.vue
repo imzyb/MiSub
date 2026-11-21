@@ -1,5 +1,6 @@
 <script setup>
     import { useI18n } from '../../i18n/index.js';
+    import { getProfileShareIdentifier } from '../../utils/profile-link.js';
 
     const { t } = useI18n();
     import { computed } from 'vue';
@@ -21,7 +22,7 @@
 
     const identifier = computed(() => {
         if (!props.profile) return '';
-        return props.profile.customId || props.profile.id;
+        return getProfileShareIdentifier(props.profile);
     });
 
     const baseUrl = computed(() => {

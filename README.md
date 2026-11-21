@@ -147,6 +147,8 @@ npm run build
 npm run preview
 ```
 
+> A profile's public link is driven by its **Subscription ID** (custom ID first, then the auto-generated one). Changing or regenerating it invalidates the previous link immediately — see [docs/profile-url.md](docs/profile-url.md).
+
 ## Usage
 
 1. Log in to the admin panel.

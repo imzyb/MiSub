@@ -253,6 +253,8 @@ wrangler d1 execute misub --file=schema.sql --remote
 ---
 ## 💡 使用说明
 
+> 订阅组的对外链接由「订阅 ID」决定（自定义 ID 优先，其次为系统生成的 ID）。设置或重新生成订阅 ID 后，旧链接会立即失效，详见 [docs/profile-url.md](docs/profile-url.md)。
+
 ### 登录管理界面
 
 1. 部署完成后，公开页面默认 **不开启**（访问域名会显示伪装页）。

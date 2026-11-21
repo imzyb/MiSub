@@ -9,6 +9,7 @@
         watch,
     } from 'vue';
     import { useToastStore } from '../stores/toast.js';
+    import { getProfileShareIdentifier } from '../utils/profile-link.js';
     import { hasStoredLocale, useI18n } from '../i18n/index.js';
     import QRCode from 'qrcode';
     import { api } from '../lib/http.js';
@@ -152,7 +153,7 @@
 
     const copyLink = async (profile) => {
         const token = config.value.profileToken || 'profiles';
-        const identifier = profile.customId || profile.id;
+        const identifier = getProfileShareIdentifier(profile);
         const link = `${window.location.origin}/${token}/${identifier}`;
 
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -261,7 +262,7 @@
             const canvas = qrCanvasRefs.value[profileId];
             if (canvas) {
                 const token = config.value.profileToken || 'profiles';
-                const identifier = profile.customId || profile.id;
+                const identifier = getProfileShareIdentifier(profile);
                 const link = `${window.location.origin}/${token}/${identifier}`;
                 try {
                     await QRCode.toCanvas(canvas, link, {

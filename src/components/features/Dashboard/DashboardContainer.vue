@@ -7,6 +7,7 @@
     import { useUIStore } from '../../../stores/ui.js';
     import { TIMING } from '../../../constants/timing.js';
     import { useI18n } from '@/i18n/index.js';
+    import { getProfileShareIdentifier } from '@/utils/profile-link.js';
 
     // 子组件
     import SubscriptionManager from './SubscriptionManager.vue';
@@ -171,7 +172,7 @@
 
     const handlePreviewProfile = (profile) => {
         previewSubscriptionId.value = null;
-        previewProfileId.value = profile.customId || profile.id;
+        previewProfileId.value = getProfileShareIdentifier(profile);
         showNodePreviewModal.value = true;
     };
 

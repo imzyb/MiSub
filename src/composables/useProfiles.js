@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore';
 import { useToastStore } from '../stores/toast';
 import { generateProfileId } from '../utils/id.js';
+import { getProfileShareIdentifier } from '../utils/profile-link.js';
 import { t } from '../i18n/index.js';
 
 export function useProfiles(markDirty) {
@@ -124,7 +125,11 @@ export function useProfiles(markDirty) {
             }
         }
         if (isNewProfile.value) {
-            dataStore.addProfile({ ...profileData, id: generateProfileId() });
+            dataStore.addProfile({
+                ...profileData,
+                id: generateProfileId(),
+                linkId: generateProfileId(),
+            });
         } else {
             const index = profiles.value.findIndex((p) => p.id === profileData.id);
             if (index !== -1) {
@@ -154,7 +159,7 @@ export function useProfiles(markDirty) {
         }
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (!profile) return;
-        const identifier = profile.customId || profile.id;
+        const identifier = getProfileShareIdentifier(profile);
         const link = `${window.location.origin}/${token}/${identifier}`;
 
         // Clipboard API Fallback for non-secure contexts (http)
@@ -201,7 +206,7 @@ export function useProfiles(markDirty) {
         }
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (!profile) return;
-        const identifier = profile.customId || profile.id;
+        const identifier = getProfileShareIdentifier(profile);
         // 添加 Clash 专用参数
         const link = `${window.location.origin}/${token}/${identifier}?target=clash&builtin=1`;
 

@@ -6,8 +6,54 @@
     import OperatorChain from '../../features/Operators/OperatorChain.vue';
     import { getLocalizedTransformAssetByUrl } from '@/constants/transform-assets';
     import { useI18n } from '@/i18n/index.js';
+    import { useDataStore } from '@/stores/useDataStore';
+    import { generateProfileId } from '@/utils/id.js';
+    import { getProfileShareIdentifier } from '@/utils/profile-link.js';
+    import ConfirmPopover from '@/components/ui/ConfirmPopover.vue';
 
     const { t } = useI18n();
+    const dataStore = useDataStore();
+
+    const regenerateConfirming = ref(false);
+
+    // 当前生效的订阅链接（customId > linkId > id）
+    const currentLinkPreview = computed(() => {
+        const identifier = getProfileShareIdentifier(props.localProfile);
+        if (!identifier) return '';
+        const token = dataStore.config?.profileToken;
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        return token ? `${origin}/${token}/${identifier}` : identifier;
+    });
+
+    // 仅编辑已有订阅组时才有「重置」；新建时没有可重置的 ID
+    const isEditing = computed(() => Boolean(props.localProfile?.id));
+
+    // 编辑态：placeholder 显示当前真正生效的订阅 ID；新建态：沿用原来的输入提示
+    const idPlaceholder = computed(() => {
+        if (isEditing.value && currentLinkPreview.value) {
+            return t('profiles.customIdAutoPlaceholder', { link: currentLinkPreview.value });
+        }
+        return t('profiles.customIdPlaceholder');
+    });
+
+    const resetButtonRef = ref(null);
+
+    const requestRegenerate = () => {
+        regenerateConfirming.value = true;
+    };
+
+    const cancelRegenerate = () => {
+        regenerateConfirming.value = false;
+    };
+
+    // 浮层的定位、动画与「点外部收起」由 ConfirmPopover 统一处理
+
+    const confirmRegenerate = () => {
+        // 重新生成 = 清掉自定义 ID 并轮换系统 ID，旧链接立即失效
+        props.localProfile.customId = '';
+        props.localProfile.linkId = generateProfileId();
+        regenerateConfirming.value = false;
+    };
 
     const props = defineProps({
         localProfile: {
@@ -123,15 +169,39 @@
             />
         </div>
         <div>
-            <Input
-                id="profile-custom-id"
-                v-model="localProfile.customId"
-                :label="t('profiles.customIdLabel')"
-                :placeholder="t('profiles.customIdPlaceholder')"
-            />
+            <div class="flex items-center justify-between mb-1.5">
+                <label
+                    for="profile-custom-id"
+                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 ml-1"
+                >
+                    {{ t('profiles.customIdLabel') }}
+                </label>
+                <div v-if="isEditing">
+                    <button
+                        ref="resetButtonRef"
+                        type="button"
+                        class="cursor-pointer text-xs text-indigo-600 transition-colors hover:text-red-500 hover:underline dark:text-indigo-400"
+                        :title="t('profiles.regenerateWarning')"
+                        @click.stop="requestRegenerate"
+                    >
+                        {{ t('profiles.resetLinkId') }}
+                    </button>
+                    <ConfirmPopover
+                        :open="regenerateConfirming"
+                        :anchor="resetButtonRef"
+                        :message="t('profiles.regenerateWarningShort')"
+                        :confirm-text="t('actions.confirm')"
+                        :cancel-text="t('actions.cancel')"
+                        @confirm="confirmRegenerate"
+                        @cancel="cancelRegenerate"
+                    />
+                </div>
+            </div>
+            <Input id="profile-custom-id" v-model="localProfile.customId" :placeholder="idPlaceholder" />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
                 {{ t('profiles.customIdHint') }}
             </p>
+
         </div>
     </div>
 

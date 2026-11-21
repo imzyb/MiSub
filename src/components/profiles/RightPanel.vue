@@ -3,6 +3,7 @@
     import { useToastStore } from '../../stores/toast.js';
     import { useUIStore } from '../../stores/ui.js';
     import { useI18n } from '../../i18n/index.js';
+    import { getProfileShareIdentifier } from '../../utils/profile-link.js';
 
     const props = defineProps({
         config: Object,
@@ -172,7 +173,7 @@
                     <option
                         v-for="profile in profiles"
                         :key="profile.id"
-                        :value="profile.customId || profile.id"
+                        :value="getProfileShareIdentifier(profile)"
                     >
                         {{ profile.name }}
                     </option>
