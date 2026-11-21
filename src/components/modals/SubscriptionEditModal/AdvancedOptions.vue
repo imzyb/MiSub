@@ -1,5 +1,6 @@
 <script setup>
     import Switch from '../../ui/Switch.vue';
+    import { computed } from 'vue';
     import { useI18n } from '../../../i18n/index.js';
 
     const { t } = useI18n();
@@ -8,6 +9,16 @@
         editingSubscription: {
             type: Object,
             required: true,
+        },
+    });
+
+    // 开关文案是「禁用自动更新」：勾选 = autoUpdate false。
+    // 存量订阅没有该字段，缺省视为启用自动更新，所以开关默认关闭。
+    const autoUpdateDisabled = computed({
+        get: () => props.editingSubscription?.autoUpdate === false,
+        set: (value) => {
+            if (!props.editingSubscription) return;
+            props.editingSubscription.autoUpdate = value !== true;
         },
     });
 </script>
@@ -111,6 +122,18 @@
                 </p>
             </div>
             <Switch v-model="editingSubscription.excludeTraffic" />
+        </div>
+
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{
+                    t('subscriptions.autoUpdateTitle')
+                }}</span>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {{ t('subscriptions.autoUpdateDesc') }}
+                </p>
+            </div>
+            <Switch v-model="autoUpdateDisabled" />
         </div>
     </div>
 </template>

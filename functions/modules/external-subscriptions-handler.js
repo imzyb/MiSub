@@ -13,6 +13,7 @@ import {
 import { isRemoteSubscription, toExternalSubscription } from './external-api-mappers.js';
 import { handleNodeCountRequest } from './handlers/node-handler.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
+import { filterAutoUpdateSubscriptions, isAutoUpdatePaused } from '../utils/auto-update.js';
 
 function nowIso() {
     return new Date().toISOString();
@@ -194,9 +195,13 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
             );
 
         const all = await loadRemoteSubscriptions(storageAdapter);
-        const targets = all.filter((item) => subscriptionIds.includes(item.id));
-        if (!targets.length)
+        const requested = all.filter((item) => subscriptionIds.includes(item.id));
+        if (!requested.length)
             return createExternalError('subscription_not_found', 'Subscription not found', 404);
+
+        // 暂停自动更新的机场不参与批量刷新（单条 /refresh 仍可显式触发）
+        const targets = filterAutoUpdateSubscriptions(requested);
+        const skippedPaused = requested.filter(isAutoUpdatePaused);
 
         const results = [];
         for (const current of targets) {
@@ -215,10 +220,16 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
 
         return createExternalSuccess({
             results,
+            skipped: skippedPaused.map((item) => ({
+                id: item.id,
+                name: item.name || '',
+                reason: 'auto_update_paused',
+            })),
             summary: {
                 total: results.length,
                 succeeded: results.filter((item) => item.success).length,
                 failed: results.filter((item) => !item.success).length,
+                skipped: skippedPaused.length,
                 totalNodes: results
                     .filter((item) => item.success)
                     .reduce((sum, item) => sum + (Number(item.nodeCount) || 0), 0),
@@ -303,6 +314,7 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
             name: String(payload.name).trim(),
             url: String(payload.url).trim(),
             enabled: payload.enabled !== false,
+            autoUpdate: payload.autoUpdate !== false,
             group: String(payload.group || '').trim(),
             tags: normalizeStringArray(payload.tags),
             userAgent: String(payload.userAgent || '').trim(),
@@ -329,6 +341,9 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
             ...(payload.name !== undefined ? { name: String(payload.name || '').trim() } : {}),
             ...(payload.url !== undefined ? { url: String(payload.url || '').trim() } : {}),
             ...(payload.enabled !== undefined ? { enabled: payload.enabled !== false } : {}),
+            ...(payload.autoUpdate !== undefined
+                ? { autoUpdate: payload.autoUpdate !== false }
+                : {}),
             ...(payload.group !== undefined ? { group: String(payload.group || '').trim() } : {}),
             ...(payload.tags !== undefined ? { tags: normalizeStringArray(payload.tags) } : {}),
             ...(payload.userAgent !== undefined

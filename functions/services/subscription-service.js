@@ -19,6 +19,7 @@ import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
 import { assertPublicNetworkUrl } from '../modules/security-utils.js';
 import { isSuspiciousNodeCountDrop } from './node-cache-service.js';
+import { isAutoUpdateEnabled } from '../utils/auto-update.js';
 
 /**
  * 订阅获取配置常量
@@ -753,6 +754,9 @@ export async function generateCombinedNodeList(
     const fetchSingleSubscription = async (sub) => {
         const cacheEnabled = sub?.enableNodeCache === true;
         const storage = context?.storage;
+        // 暂停自动更新的机场：节点照常输出给客户端，但不把本次拉取结果写回存储。
+        // 机场有激活时间窗口时，窗口外拉取会返回 0 节点，写回会把节点数清零。
+        const autoUpdateEnabled = isAutoUpdateEnabled(sub);
         const recordEmptyRuntimeInfo = () => {
             if (cacheEnabled) return;
             const runtimeInfo = {
@@ -760,7 +764,9 @@ export async function generateCombinedNodeList(
                 userInfo: null,
             };
             recordCurrentRequestRuntimeInfo(context, sub, runtimeInfo);
-            scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+            if (autoUpdateEnabled) {
+                scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+            }
         };
         const readCachedNodes = async () => {
             if (!cacheEnabled) return [];
@@ -906,7 +912,9 @@ export async function generateCombinedNodeList(
                     ...(realNodes.length >= 10 ? { lastGoodNodeCount: realNodes.length } : {}),
                 };
                 recordCurrentRequestRuntimeInfo(context, sub, runtimeInfo);
-                scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+                if (autoUpdateEnabled) {
+                    scheduleSubscriptionRuntimeInfoUpdate(context, storage, sub, runtimeInfo);
+                }
             }
 
             // 判断是否启用订阅前缀（智能重命名启用时跳过）

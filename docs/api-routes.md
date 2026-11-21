@@ -256,6 +256,7 @@
 - `POST /api/batch_update_nodes`
     - Handler：`handleBatchUpdateNodesRequest()`
     - 读取：subscriptions、远程订阅 URL。
+    - 行为：跳过 `autoUpdate=false`（已禁用自动更新）的订阅，返回 `skipped[]` 与 `summary.skippedSubscriptions`。
     - 写入：当前 handler 返回统计结果，不直接持久化批量结果。
 
 - `POST /api/subscription_nodes`

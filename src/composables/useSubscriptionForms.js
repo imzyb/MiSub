@@ -23,6 +23,7 @@ export function useSubscriptionForms({ addSubscription, updateSubscription }) {
             enableNodeCache: false,
             plusAsSpace: false,
             excludeTraffic: false,
+            autoUpdate: true,
             website: '',
             notes: '',
         };

@@ -15,6 +15,7 @@ import { parseNodeList } from '../utils/node-parser.js';
 import { getProcessedUserAgent } from '../../utils/format-utils.js';
 import { buildFetchProxyUrl } from '../../utils/fetch-proxy-utils.js';
 import { isSuspiciousNodeCountDrop } from '../../services/node-cache-service.js';
+import { filterAutoUpdateSubscriptions, isAutoUpdatePaused } from '../../utils/auto-update.js';
 
 // 创建用于全局匹配的协议正则表达式
 const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp(
@@ -520,16 +521,37 @@ export async function handleBatchUpdateNodesRequest(request, env) {
         );
         const allSubscriptions = (await storageAdapter.get('misub_subscriptions_v1')) || [];
 
-        // 过滤出要更新的订阅
-        const targetSubscriptions = allSubscriptions.filter(
+        // 过滤出要更新的订阅；暂停自动更新的机场不参与批量刷新
+        const requestSubscriptions = allSubscriptions.filter(
             (sub) =>
                 subscriptionIds.includes(sub.id) &&
                 sub.enabled &&
                 sub.url &&
                 sub.url.startsWith('http')
         );
+        const targetSubscriptions = filterAutoUpdateSubscriptions(requestSubscriptions);
+        const skippedPausedSubscriptions = requestSubscriptions.filter(isAutoUpdatePaused);
 
         if (targetSubscriptions.length === 0) {
+            // 全部命中「暂停自动更新」属于正常跳过，不按无效订阅报 400
+            if (skippedPausedSubscriptions.length > 0) {
+                return createJsonResponse({
+                    success: true,
+                    results: [],
+                    skipped: skippedPausedSubscriptions.map((sub) => ({
+                        subscriptionId: sub.id,
+                        subscriptionName: sub.name || '',
+                        reason: 'auto_update_paused',
+                    })),
+                    summary: {
+                        totalSubscriptions: 0,
+                        successfulUpdates: 0,
+                        failedUpdates: 0,
+                        skippedSubscriptions: skippedPausedSubscriptions.length,
+                        totalNodes: 0,
+                    },
+                });
+            }
             return createJsonResponse(
                 {
                     error: '没有找到需要更新的有效订阅',
@@ -642,10 +664,16 @@ export async function handleBatchUpdateNodesRequest(request, env) {
         return createJsonResponse({
             success: true,
             results,
+            skipped: skippedPausedSubscriptions.map((sub) => ({
+                subscriptionId: sub.id,
+                subscriptionName: sub.name || '',
+                reason: 'auto_update_paused',
+            })),
             summary: {
                 totalSubscriptions: targetSubscriptions.length,
                 successfulUpdates: successfulUpdates.length,
                 failedUpdates: targetSubscriptions.length - successfulUpdates.length,
+                skippedSubscriptions: skippedPausedSubscriptions.length,
                 totalNodes,
             },
         });

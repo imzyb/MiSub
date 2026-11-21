@@ -296,6 +296,8 @@ curl -s -X POST \
 - 外部后台手动触发批量同步
 - 周期任务对指定机场做刷新
 
+注意：`autoUpdate=false`（已禁用自动更新）的机场会被跳过，响应中的 `skipped[]` 与 `summary.skipped` 会列出它们；确实需要强制刷新某一个机场时，改用 `POST /subscriptions/:id/refresh`。
+
 ### 6.10 预览 profile
 
 ```bash

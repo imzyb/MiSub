@@ -3,6 +3,8 @@
  * 使用 Cloudflare Pages Functions 的 Cron Triggers 功能
  */
 
+import { filterAutoUpdateSubscriptions } from './utils/auto-update.js';
+
 export async function onRequest(context) {
     // 只有在 Cron 触发时才执行
     if (context.request.headers.get('CF-Cron') !== 'true') {
@@ -97,21 +99,21 @@ async function getSubscriptionsToSync(env) {
     // 示例实现
     const subscriptions = [];
 
-    // 从 KV 存储获取
+    // 从 KV 存储获取（跳过暂停自动更新的机场）
     if (env.KV_STORAGE) {
         const data = await env.KV_STORAGE.get('subscriptions');
         if (data) {
             const parsed = JSON.parse(data);
-            subscriptions.push(...parsed);
+            subscriptions.push(...filterAutoUpdateSubscriptions(parsed));
         }
     }
 
-    // 从 D1 数据库获取
+    // 从 D1 数据库获取（跳过暂停自动更新的机场）
     if (env.DB) {
         const { results } = await env.DB.prepare(
             'SELECT * FROM subscriptions WHERE auto_sync = 1'
         ).all();
-        subscriptions.push(...results);
+        subscriptions.push(...filterAutoUpdateSubscriptions(results));
     }
 
     return subscriptions;

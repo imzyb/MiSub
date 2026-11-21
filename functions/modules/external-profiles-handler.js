@@ -12,6 +12,7 @@ import {
 } from './external-api-utils.js';
 import { isManualNode, isRemoteSubscription, toExternalProfile } from './external-api-mappers.js';
 import { inspectRemoteSubscription } from './external-subscriptions-handler.js';
+import { filterAutoUpdateSubscriptions, isAutoUpdatePaused } from '../utils/auto-update.js';
 import { validateProfileCandidate } from './profile-alias.js';
 
 function nowIso() {
@@ -88,9 +89,14 @@ function dedupe(values) {
 async function refreshProfileSubscriptions(storageAdapter, env, profile) {
     const allSubscriptions = await storageAdapter.getAllSubscriptions();
     const byId = new Map(allSubscriptions.map((item) => [item.id, item]));
-    const remoteSubscriptions = (Array.isArray(profile.subscriptions) ? profile.subscriptions : [])
+    const allRemoteSubscriptions = (
+        Array.isArray(profile.subscriptions) ? profile.subscriptions : []
+    )
         .map((id) => byId.get(id))
         .filter((item) => item && isRemoteSubscription(item));
+    // 暂停自动更新的机场保留在输出里，但批量刷新时跳过，避免节点数被刷成 0
+    const remoteSubscriptions = filterAutoUpdateSubscriptions(allRemoteSubscriptions);
+    const pausedSubscriptions = allRemoteSubscriptions.filter(isAutoUpdatePaused);
     const manualNodes = (Array.isArray(profile.manualNodes) ? profile.manualNodes : [])
         .map((id) => byId.get(id))
         .filter((item) => item && isManualNode(item));
@@ -123,9 +129,10 @@ async function refreshProfileSubscriptions(storageAdapter, env, profile) {
         profile: toExternalProfile(profile),
         results,
         summary: {
-            totalSubscriptions: remoteSubscriptions.length,
+            totalSubscriptions: allRemoteSubscriptions.length,
             refreshedSubscriptions: results.filter((item) => item.success).length,
             failedSubscriptions: results.filter((item) => !item.success).length,
+            skippedSubscriptions: pausedSubscriptions.length,
             manualNodes: manualNodes.length,
             totalNodes:
                 results

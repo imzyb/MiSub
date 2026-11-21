@@ -95,6 +95,7 @@ D1 当前采用“行级 JSON”结构：
 - `customUserAgent`：单个订阅源自定义 User-Agent。
 - `fetchProxy`：拉取订阅时使用的代理。
 - `enableNodeCache`：是否保留该订阅源节点缓存。
+- `autoUpdate`：是否启用自动更新，缺省为 `true`。置为 `false`（编辑弹窗里的「禁用自动更新」开关）后，定时自动更新、全部刷新、批量更新接口与 External API 批量/组合刷新都会跳过该订阅；卡片上的单机场手动刷新与 External API 单条 `refresh` 仍可用，订阅组输出也不会因此丢失节点（只是不再回写节点数与流量）。
 - `plusAsSpace`：拉取订阅时是否把 `+` 视为空格。
 - `website`：订阅源网站/来源信息。
 - `userInfo`：运行时或历史流量信息，可能包含 `upload`、`download`、`total`、`expire`。

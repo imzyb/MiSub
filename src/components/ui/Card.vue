@@ -41,6 +41,9 @@
 
     const protocol = computed(() => getProtocol(props.misub.url));
 
+    // 暂停自动更新：只影响批量/定时/外部 API 刷新，单机场手动刷新仍可用
+    const autoUpdatePaused = computed(() => props.misub?.autoUpdate === false);
+
     // 机场自报名称（订阅响应头的 Profile-Title / Content-Disposition），仅用于展示提示
     const detectedName = computed(() => {
         const value = props.misub?.detectedName;
@@ -201,6 +204,14 @@
                             :class="protocolStyle.style"
                         >
                             {{ protocolStyle.text }}
+                        </span>
+                        <span
+                            v-if="autoUpdatePaused"
+                            data-testid="subscription-auto-update-paused"
+                            class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400"
+                            :title="t('subscriptions.autoUpdatePausedHint')"
+                        >
+                            {{ t('subscriptions.autoUpdatePaused') }}
                         </span>
                         <span
                             v-if="expiryInfo"

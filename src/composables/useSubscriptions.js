@@ -8,6 +8,7 @@ import { handleError } from '../utils/errorHandler.js';
 import { TIMING } from '../constants/timing.js';
 import { t } from '../i18n/index.js';
 import { getAirportIdentityKey } from '../utils/airport-identity.js';
+import { filterAutoUpdateSubscriptions } from '../utils/auto-update.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -343,12 +344,20 @@ export function useSubscriptions(markDirty) {
     }
 
     async function batchUpdateAllSubscriptions() {
-        const subsToUpdate = subscriptions.value.filter(
+        const candidates = subscriptions.value.filter(
             (sub) => sub.enabled && sub.url && sub.url.startsWith('http') && !sub.isUpdating
         );
+        // 暂停自动更新的机场不参与「全部刷新」，但仍可在卡片上单独手动刷新
+        const subsToUpdate = filterAutoUpdateSubscriptions(candidates);
+        const skippedPausedCount = candidates.length - subsToUpdate.length;
 
         if (subsToUpdate.length === 0) {
-            showToast(t('subscriptions.noRefreshableSubscriptions'), 'info');
+            showToast(
+                skippedPausedCount > 0
+                    ? t('subscriptions.refreshSkippedPaused', { count: skippedPausedCount })
+                    : t('subscriptions.noRefreshableSubscriptions'),
+                'info'
+            );
             return;
         }
 
@@ -358,6 +367,12 @@ export function useSubscriptions(markDirty) {
             sub.isUpdating = true;
         });
         showToast(t('subscriptions.refreshing', { count: subsToUpdate.length }), 'info');
+        if (skippedPausedCount > 0) {
+            showToast(
+                t('subscriptions.refreshSkippedPaused', { count: skippedPausedCount }),
+                'info'
+            );
+        }
 
         try {
             const result = await batchUpdateNodes(subsToUpdate.map((sub) => sub.id));
@@ -441,8 +456,11 @@ export function useSubscriptions(markDirty) {
 
     async function autoUpdateAllSubscriptions() {
         try {
-            const subsToUpdate = subscriptions.value.filter(
-                (sub) => sub.enabled && sub.url && sub.url.startsWith('http') && !sub.isUpdating
+            // 定时自动更新同样跳过暂停项，避免激活窗口外的机场把节点数刷成 0
+            const subsToUpdate = filterAutoUpdateSubscriptions(
+                subscriptions.value.filter(
+                    (sub) => sub.enabled && sub.url && sub.url.startsWith('http') && !sub.isUpdating
+                )
             );
             for (const sub of subsToUpdate) {
                 await handleUpdateNodeCount(sub.id, true);

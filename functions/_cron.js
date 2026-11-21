@@ -3,6 +3,8 @@
  * 根据不同的定时任务执行相应的逻辑
  */
 
+import { filterAutoUpdateSubscriptions } from './utils/auto-update.js';
+
 export async function onRequest(context) {
     const { request, env } = context;
 
@@ -164,7 +166,7 @@ async function getAllSubscriptions(env) {
             const { results } = await env.DB.prepare(
                 'SELECT * FROM subscriptions WHERE enabled = 1'
             ).all();
-            return results;
+            return filterAutoUpdateSubscriptions(results);
         } catch (error) {
             console.error('[Cron] Failed to fetch from D1:', error);
         }
@@ -173,7 +175,7 @@ async function getAllSubscriptions(env) {
     if (env.KV_STORAGE) {
         try {
             const data = await env.KV_STORAGE.get('subscriptions');
-            return data ? JSON.parse(data) : [];
+            return filterAutoUpdateSubscriptions(data ? JSON.parse(data) : []);
         } catch (error) {
             console.error('[Cron] Failed to fetch from KV:', error);
         }
