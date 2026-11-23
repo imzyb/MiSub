@@ -1,8 +1,15 @@
 <script setup>
-    import { ref, computed } from 'vue';
+    import { ref, computed, onUnmounted } from 'vue';
     import { useI18n } from '../../../../i18n/index.js';
+    import { useToastStore } from '../../../../stores/toast.js';
+    import { copyTextToClipboard } from '../../../../utils/clipboard.js';
 
     const { t } = useI18n();
+    const { showToast } = useToastStore();
+
+    // 复制成功后的短暂状态：除 toast 外再给按钮一个可见的“已复制”反馈
+    const cronCopied = ref(false);
+    let cronCopiedTimer = null;
 
     const props = defineProps({
         settings: {
@@ -44,12 +51,30 @@
         return `curl -H "Authorization: Bearer ${secret.replace(/"/g, '\\"')}" ${window.location.origin}/cron`;
     });
 
-    // 复制 Cron URL
-    function copyCronUrl() {
-        if (cronUrl.value) {
-            navigator.clipboard.writeText(cronUrl.value);
+    // 复制 Cron URL：必须有明确反馈，否则用户点击后会觉得“按钮没反应”
+    async function copyCronUrl() {
+        if (!cronUrl.value) {
+            showToast(t('settings.cronEmptyHint'), 'error');
+            return;
         }
+
+        const success = await copyTextToClipboard(cronUrl.value);
+        if (!success) {
+            showToast(t('notices.copyFailed'), 'error');
+            return;
+        }
+
+        showToast(t('notices.copied'), 'success');
+        cronCopied.value = true;
+        clearTimeout(cronCopiedTimer);
+        cronCopiedTimer = setTimeout(() => {
+            cronCopied.value = false;
+        }, 1600);
     }
+
+    onUnmounted(() => {
+        clearTimeout(cronCopiedTimer);
+    });
 </script>
 
 <template>
@@ -57,8 +82,8 @@
     <div
         class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300"
     >
-        <div class="flex justify-between items-start">
-            <div>
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
                 <h3
                     class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2"
                 >
@@ -98,7 +123,7 @@
             </div>
             <button
                 @click="showCronGuide = !showCronGuide"
-                class="text-blue-600 hover:text-blue-500 text-xs font-medium"
+                class="shrink-0 whitespace-nowrap pt-1 text-blue-600 hover:text-blue-500 text-xs font-medium"
             >
                 {{ showCronGuide ? t('settings.cronHideGuide') : t('settings.cronShowGuide') }}
             </button>
@@ -138,10 +163,31 @@
                     <button
                         @click="copyCronUrl"
                         type="button"
-                        class="inline-flex items-center px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden cursor-pointer"
+                        :class="cronCopied ? 'text-emerald-600 dark:text-emerald-400' : ''"
                         :aria-label="t('actions.copy')"
                     >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg
+                            v-if="cronCopied"
+                            class="h-4 w-4 shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 13l4 4L19 7"
+                            />
+                        </svg>
+                        <svg
+                            v-else
+                            class="h-4 w-4 shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
                             <path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
@@ -149,6 +195,9 @@
                                 d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                             />
                         </svg>
+                        <span class="hidden sm:inline text-xs font-medium">{{
+                            cronCopied ? t('settings.copiedShort') : t('actions.copy')
+                        }}</span>
                     </button>
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">

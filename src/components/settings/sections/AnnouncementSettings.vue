@@ -150,7 +150,7 @@
                         @input="handleContentUpdate"
                         rows="6"
                         :placeholder="t('settings.announcementContentPlaceholder')"
-                        class="block w-full px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-600 misub-radius-lg shadow-xs focus-visible:ring-1 focus-visible:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white transition-colors font-mono"
+                        class="block w-full min-h-[9rem] px-3 py-2 pb-9 bg-gray-50 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-600 misub-radius-lg shadow-xs focus-visible:ring-1 focus-visible:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white transition-colors font-mono"
                     ></textarea>
                     <div class="absolute bottom-2 right-2 text-xs text-gray-500 dark:text-gray-400">
                         {{ t('settings.announcementHtmlSupported') }}

@@ -470,7 +470,9 @@
         <!-- 默认布局模式 -->
         <template v-else>
             <!-- Hero Section (Left Aligned & Open) -->
-            <div class="relative pt-10 pb-10 lg:pt-16 lg:pb-14 z-10 overflow-visible">
+            <div
+                class="relative pt-6 pb-8 sm:pt-10 sm:pb-10 lg:pt-16 lg:pb-14 z-10 overflow-visible"
+            >
                 <div
                     class="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative"
                 >
@@ -618,7 +620,7 @@
 
                 <!-- Clients Section (Visually Separated) -->
                 <div
-                    class="mt-16 pt-12 pb-10 border-t border-transparent bg-transparent dark:bg-transparent backdrop-blur-sm"
+                    class="mt-10 pt-8 pb-8 sm:mt-16 sm:pt-12 sm:pb-10 border-t border-transparent bg-transparent dark:bg-transparent backdrop-blur-sm"
                 >
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="text-center mb-16 relative">

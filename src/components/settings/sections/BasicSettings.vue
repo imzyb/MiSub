@@ -412,7 +412,7 @@
                     >
                         {{ autoUpdateDisabledReason }}
                     </p>
-                    <div class="mt-3 flex flex-wrap gap-3">
+                    <div class="mt-3 space-y-2.5">
                         <div class="flex items-center gap-2">
                             <input
                                 type="number"
@@ -436,30 +436,32 @@
                             <span class="text-xs text-gray-500 dark:text-gray-400">{{
                                 t('settings.minutes')
                             }}</span>
+                            <span class="ml-auto text-xs text-gray-500 dark:text-gray-400">{{
+                                t('settings.quickSelect')
+                            }}</span>
                         </div>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 self-center">{{
-                            t('settings.quickSelect')
-                        }}</span>
-                        <button
-                            v-for="option in [
-                                { value: 0, label: t('settings.disabledOption') },
-                                { value: 30, label: t('settings.option30Minutes') },
-                                { value: 60, label: t('settings.option1Hour') },
-                            ]"
-                            :key="option.value"
-                            :disabled="!persistenceEnabled"
-                            @click="settings.autoUpdateInterval = option.value"
-                            :aria-pressed="settings.autoUpdateInterval === option.value"
-                            class="disabled:cursor-not-allowed disabled:opacity-60"
-                            :class="[
-                                'px-3 py-2 text-xs font-medium misub-radius-md border transition-colors',
-                                settings.autoUpdateInterval === option.value
-                                    ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/30'
-                                    : 'bg-white/70 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-gray-800',
-                            ]"
-                        >
-                            {{ option.label }}
-                        </button>
+                        <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                            <button
+                                v-for="option in [
+                                    { value: 0, label: t('settings.disabledOption') },
+                                    { value: 30, label: t('settings.option30Minutes') },
+                                    { value: 60, label: t('settings.option1Hour') },
+                                ]"
+                                :key="option.value"
+                                :disabled="!persistenceEnabled"
+                                @click="settings.autoUpdateInterval = option.value"
+                                :aria-pressed="settings.autoUpdateInterval === option.value"
+                                class="w-full text-center disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                                :class="[
+                                    'px-3 py-2 text-xs font-medium misub-radius-md border transition-colors',
+                                    settings.autoUpdateInterval === option.value
+                                        ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/30'
+                                        : 'bg-white/70 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-gray-800',
+                                ]"
+                            >
+                                {{ option.label }}
+                            </button>
+                        </div>
                     </div>
                     <p
                         v-if="persistenceEnabled && settings.autoUpdateInterval === 0"

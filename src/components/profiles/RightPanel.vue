@@ -4,6 +4,7 @@
     import { useUIStore } from '../../stores/ui.js';
     import { useI18n } from '../../i18n/index.js';
     import { getProfileShareIdentifier } from '../../utils/profile-link.js';
+    import { copyTextToClipboard } from '../../utils/clipboard.js';
 
     const props = defineProps({
         config: Object,
@@ -107,12 +108,20 @@
         return `${baseUrl}?${formatKey}`;
     });
 
-    const copyToClipboard = () => {
+    const copyToClipboard = async () => {
         if (!isLinkValid.value) {
             showToast(t('notices.linkInvalid'), 'error');
             return;
         }
-        navigator.clipboard.writeText(subLink.value);
+
+        // 非安全上下文 / 剪贴板权限被拒时 writeText 会抛错；之前没有兜底，
+        // 点击后既没复制成功也没有任何提示，看起来就是“按钮没反应”。
+        const success = await copyTextToClipboard(subLink.value);
+        if (!success) {
+            showToast(t('notices.copyFailed'), 'error');
+            return;
+        }
+
         showToast(t('notices.copied'), 'success');
         copied.value = true;
         clearTimeout(copyTimeout);
