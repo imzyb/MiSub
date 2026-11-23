@@ -4,6 +4,7 @@
     import { migrateToD1 } from '../../lib/api.js';
     import { useToastStore } from '../../stores/toast.js';
     import { useI18n } from '../../i18n/index.js';
+    import { copyTextToClipboard } from '../../utils/clipboard.js';
 
     const props = defineProps({
         show: Boolean,
@@ -162,12 +163,11 @@ CREATE INDEX IF NOT EXISTS idx_profiles_updated_at ON profiles(updated_at);
 CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`;
 
     const copySchema = async () => {
-        try {
-            await navigator.clipboard.writeText(SCHEMA_SQL);
-            showToast(t('systemSettings.schemaCopied'), 'success');
-        } catch (err) {
-            showToast(t('d1Migration.copyFailed'), 'error');
-        }
+        const ok = await copyTextToClipboard(SCHEMA_SQL);
+        showToast(
+            ok ? t('systemSettings.schemaCopied') : t('d1Migration.copyFailed'),
+            ok ? 'success' : 'error'
+        );
     };
 </script>
 

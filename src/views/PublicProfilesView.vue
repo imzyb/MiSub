@@ -16,6 +16,7 @@
     import ProfileGrid from '../components/public/ProfileGrid.vue';
     import BaseIcon from '../components/ui/BaseIcon.vue';
     import { parseCustomPageSource } from '../utils/custom-page-source.js';
+    import { copyTextToClipboard } from '../utils/clipboard.js';
 
     const isDev = import.meta.env.DEV;
 
@@ -156,29 +157,11 @@
         const identifier = getProfileShareIdentifier(profile);
         const link = `${window.location.origin}/${token}/${identifier}`;
 
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            try {
-                await navigator.clipboard.writeText(link);
-                showToast(t('publicProfiles.linkCopied'), 'success');
-            } catch (e) {
-                showToast(t('publicProfiles.copyFailedManual'), 'error');
-            }
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = link;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-9999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                showToast(t('publicProfiles.linkCopied'), 'success');
-            } catch (err) {
-                showToast(t('publicProfiles.copyFailedManual'), 'error');
-            }
-            document.body.removeChild(textArea);
-        }
+        const ok = await copyTextToClipboard(link);
+        showToast(
+            ok ? t('publicProfiles.linkCopied') : t('publicProfiles.copyFailedManual'),
+            ok ? 'success' : 'error'
+        );
     };
 
     const clients = ref([]);

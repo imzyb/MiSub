@@ -3,6 +3,7 @@
     import { useToastStore } from '../../../stores/toast.js';
     import Input from '../../ui/Input.vue';
     import Switch from '../../ui/Switch.vue';
+    import CopyButton from '../../ui/CopyButton.vue';
     import { useI18n } from '../../../i18n/index.js';
 
     const props = defineProps({
@@ -59,22 +60,6 @@
         ensureExternalApiDefaults(settings);
         settings.externalApi.tokens[0].token = buildExternalApiToken();
         showToast(t('systemSettings.externalApiTokenGenerated'), 'success');
-    };
-
-    const handleCopyExternalApiToken = async (settings) => {
-        ensureExternalApiDefaults(settings);
-        const token = settings.externalApi.tokens[0]?.token || '';
-        if (!token) {
-            showToast(t('systemSettings.externalApiTokenEmpty'), 'error');
-            return;
-        }
-
-        try {
-            await navigator.clipboard.writeText(token);
-            showToast(t('systemSettings.externalApiTokenCopied'), 'success');
-        } catch (error) {
-            showToast(t('systemSettings.copyFailedManual'), 'error');
-        }
     };
 
     const handleUpdatePassword = async () => {
@@ -159,15 +144,6 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_updated_at ON subscriptions(updated_at);
 CREATE INDEX IF NOT EXISTS idx_profiles_updated_at ON profiles(updated_at);
 CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`;
-
-    const copySchema = async () => {
-        try {
-            await navigator.clipboard.writeText(SCHEMA_SQL);
-            showToast(t('systemSettings.schemaCopied'), 'success');
-        } catch (err) {
-            showToast(t('systemSettings.copyFailedManual'), 'error');
-        }
-    };
 
     const emit = defineEmits(['migrate']);
 </script>
@@ -255,25 +231,7 @@ CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`;
                         >
                             {{ t('systemSettings.startMigration') }}
                         </button>
-                        <button
-                            @click="copySchema"
-                            class="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-white/80 dark:bg-gray-900/60 border border-blue-200 dark:border-blue-700/70 misub-radius-lg hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2 shadow-sm"
-                        >
-                            <svg
-                                class="w-4 h-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                                />
-                            </svg>
-                            {{ t('systemSettings.copySchemaSql') }}
-                        </button>
+                        <CopyButton :value="SCHEMA_SQL" :label="t('systemSettings.copySchemaSql')" />
                     </div>
                 </div>
             </div>
@@ -345,12 +303,10 @@ CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`;
                     >
                         {{ t('systemSettings.externalApiGenerateToken') }}
                     </button>
-                    <button
-                        @click="handleCopyExternalApiToken(settings)"
-                        class="px-4 py-2 text-sm font-medium rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-900/30 transition-colors"
-                    >
-                        {{ t('systemSettings.externalApiCopyToken') }}
-                    </button>
+                    <CopyButton
+                        :value="settings.externalApi?.tokens?.[0]?.token || ''"
+                        :label="t('systemSettings.externalApiCopyToken')"
+                    />
                 </div>
             </div>
         </div>

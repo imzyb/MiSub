@@ -1,10 +1,9 @@
 <script setup>
-    import { ref, computed, onUnmounted } from 'vue';
-    import { useToastStore } from '../../stores/toast.js';
+    import { ref, computed } from 'vue';
     import { useUIStore } from '../../stores/ui.js';
     import { useI18n } from '../../i18n/index.js';
     import { getProfileShareIdentifier } from '../../utils/profile-link.js';
-    import { copyTextToClipboard } from '../../utils/clipboard.js';
+    import CopyButton from '../ui/CopyButton.vue';
 
     const props = defineProps({
         config: Object,
@@ -17,12 +16,8 @@
 
     const emit = defineEmits(['qrcode']);
 
-    const { showToast } = useToastStore();
     const uiStore = useUIStore();
     const { t } = useI18n();
-
-    const copied = ref(false);
-    let copyTimeout = null;
 
     const formats = ['universal', 'Base64', 'Clash', 'Sing-Box', 'Surge', 'Loon'];
     const selectedFormat = ref('universal');
@@ -108,31 +103,6 @@
         return `${baseUrl}?${formatKey}`;
     });
 
-    const copyToClipboard = async () => {
-        if (!isLinkValid.value) {
-            showToast(t('notices.linkInvalid'), 'error');
-            return;
-        }
-
-        // 非安全上下文 / 剪贴板权限被拒时 writeText 会抛错；之前没有兜底，
-        // 点击后既没复制成功也没有任何提示，看起来就是“按钮没反应”。
-        const success = await copyTextToClipboard(subLink.value);
-        if (!success) {
-            showToast(t('notices.copyFailed'), 'error');
-            return;
-        }
-
-        showToast(t('notices.copied'), 'success');
-        copied.value = true;
-        clearTimeout(copyTimeout);
-        copyTimeout = setTimeout(() => {
-            copied.value = false;
-        }, 2000);
-    };
-
-    onUnmounted(() => {
-        clearTimeout(copyTimeout);
-    });
 </script>
 
 <template>
@@ -264,51 +234,13 @@
                             />
                         </svg>
                     </button>
-                    <button
-                        @click="copyToClipboard"
+                    <CopyButton
+                        variant="icon"
+                        :value="isLinkValid ? subLink : ''"
                         :disabled="!isLinkValid"
-                        class="flex h-11 w-11 items-center justify-center misub-radius-md text-gray-500 dark:text-gray-400 transition-colors duration-200"
-                        :class="
-                            isLinkValid
-                                ? 'hover:text-primary-600 hover:bg-white/80 dark:hover:bg-gray-800'
-                                : 'cursor-not-allowed'
-                        "
                         :title="t('dashboard.linkCard.copyLink')"
-                        :aria-label="t('dashboard.linkCard.copyLink')"
-                    >
-                        <Transition name="fade" mode="out-in">
-                            <svg
-                                v-if="copied"
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="3"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                />
-                            </svg>
-                        </Transition>
-                    </button>
+                        class="h-11 w-11"
+                    />
                 </div>
             </div>
 

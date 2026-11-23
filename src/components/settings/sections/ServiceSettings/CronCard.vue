@@ -1,15 +1,9 @@
 <script setup>
-    import { ref, computed, onUnmounted } from 'vue';
+    import { ref, computed } from 'vue';
     import { useI18n } from '../../../../i18n/index.js';
-    import { useToastStore } from '../../../../stores/toast.js';
-    import { copyTextToClipboard } from '../../../../utils/clipboard.js';
+    import CopyButton from '../../../ui/CopyButton.vue';
 
     const { t } = useI18n();
-    const { showToast } = useToastStore();
-
-    // 复制成功后的短暂状态：除 toast 外再给按钮一个可见的“已复制”反馈
-    const cronCopied = ref(false);
-    let cronCopiedTimer = null;
 
     const props = defineProps({
         settings: {
@@ -51,30 +45,6 @@
         return `curl -H "Authorization: Bearer ${secret.replace(/"/g, '\\"')}" ${window.location.origin}/cron`;
     });
 
-    // 复制 Cron URL：必须有明确反馈，否则用户点击后会觉得“按钮没反应”
-    async function copyCronUrl() {
-        if (!cronUrl.value) {
-            showToast(t('settings.cronEmptyHint'), 'error');
-            return;
-        }
-
-        const success = await copyTextToClipboard(cronUrl.value);
-        if (!success) {
-            showToast(t('notices.copyFailed'), 'error');
-            return;
-        }
-
-        showToast(t('notices.copied'), 'success');
-        cronCopied.value = true;
-        clearTimeout(cronCopiedTimer);
-        cronCopiedTimer = setTimeout(() => {
-            cronCopied.value = false;
-        }, 1600);
-    }
-
-    onUnmounted(() => {
-        clearTimeout(cronCopiedTimer);
-    });
 </script>
 
 <template>
@@ -152,53 +122,19 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {{ t('settings.cronCompatibleUrl') }}
                 </label>
-                <div class="flex misub-radius-lg shadow-xs">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                     <input
                         type="text"
                         :value="cronUrl"
                         readonly
-                        class="flex-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-xl sm:text-sm dark:text-white font-mono text-xs"
+                        class="flex-1 block w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono dark:text-white"
                         :aria-label="t('settings.cronCompatibleUrl')"
                     />
-                    <button
-                        @click="copyCronUrl"
-                        type="button"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden cursor-pointer"
-                        :class="cronCopied ? 'text-emerald-600 dark:text-emerald-400' : ''"
-                        :aria-label="t('actions.copy')"
-                    >
-                        <svg
-                            v-if="cronCopied"
-                            class="h-4 w-4 shrink-0"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M5 13l4 4L19 7"
-                            />
-                        </svg>
-                        <svg
-                            v-else
-                            class="h-4 w-4 shrink-0"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                        </svg>
-                        <span class="hidden sm:inline text-xs font-medium">{{
-                            cronCopied ? t('settings.copiedShort') : t('actions.copy')
-                        }}</span>
-                    </button>
+                    <CopyButton
+                        :value="cronUrl"
+                        :disabled="!cronAvailable"
+                        class="w-full sm:w-auto"
+                    />
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {{ t('settings.cronCopyHint') }}

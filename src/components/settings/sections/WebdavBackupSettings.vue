@@ -1,10 +1,11 @@
 <script setup>
-    import { ref } from 'vue';
+    import { computed, ref } from 'vue';
     import { api } from '../../../lib/http.js';
     import { useToastStore } from '../../../stores/toast.js';
     import { useI18n } from '../../../i18n/index.js';
     import { confirmAction } from '../../../composables/useConfirm.js';
     import Input from '../../ui/Input.vue';
+    import CopyButton from '../../ui/CopyButton.vue';
 
     const props = defineProps({
         settings: {
@@ -16,6 +17,9 @@
     const { showToast } = useToastStore();
     const { t } = useI18n();
     const isTesting = ref(false);
+
+    // 外部定时服务要访问的 /cron 地址（只读展示 + 一键复制）
+    const cronEndpoint = computed(() => `${window.location.origin}/cron`);
     const isBackingUp = ref(false);
     const isRestoring = ref(false);
     const isLoadingRemoteFiles = ref(false);
@@ -170,16 +174,6 @@
             );
         } finally {
             isRestoring.value = false;
-        }
-    };
-
-    const copyCronHint = async () => {
-        try {
-            const text = `${window.location.origin}/cron`;
-            await navigator.clipboard.writeText(text);
-            showToast(t('settings.webdavCronCopied'), 'success');
-        } catch {
-            showToast(t('settings.webdavCronCopyFailed'), 'error');
         }
     };
 
@@ -414,12 +408,7 @@
                                 : t('settings.webdavLoadRemote')
                         }}
                     </button>
-                    <button
-                        @click="copyCronHint"
-                        class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10"
-                    >
-                        {{ t('settings.webdavCopyCron') }}
-                    </button>
+                    <CopyButton :value="cronEndpoint" :label="t('settings.webdavCopyCron')" />
                 </div>
             </div>
 
