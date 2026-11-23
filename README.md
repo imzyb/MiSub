@@ -35,14 +35,16 @@ It is designed for personal and small-team usage: simple operations, clear clien
 
 ## Features
 
-- **Profiles**: combine upstream subscriptions and manual nodes into scenario-specific subscription profiles.
+- **Profiles**: combine upstream subscriptions and manual nodes into scenario-specific subscription profiles, including nested profiles inside profiles.
+- **Profile links**: every profile is published under a server-validated, resettable `linkId`; retired identifiers stop working.
 - **Subscription and node management**: manage airport subscriptions, manual nodes, groups, ordering, remarks, traffic, and expiry data.
 - **Operator Chain**: process nodes with filter, regex rename, script/DSL execution, sorting, and smart deduplication steps.
 - **Multi-client output**: generate subscription output for Clash/Mihomo, Sing-Box, Surge, Loon, Quantumult X, Shadowrocket, V2rayN/V2rayNG, and base64 clients.
 - **Built-in templates**: use unified template output, rule-set presets, region groups, policy groups, and custom rule templates.
 - **Custom public page**: publish a public explore page or an immersive disguise/custom page with sanitized HTML rendering.
-- **Storage options**: use Cloudflare KV for simple deployments or Cloudflare D1 for higher write volume and structured storage.
-- **Notifications and operations**: support Telegram notifications, scheduled refresh, backup/restore, logs, and diagnostics.
+- **Storage options**: use Cloudflare KV for simple deployments or Cloudflare D1 for higher write volume and structured storage; with D1, optional node snapshots can serve subscription output straight from the database, sharding oversized snapshots.
+- **Notifications and operations**: support Telegram notifications, scheduled refresh, backup/restore (including WebDAV push and remote restore), logs, and diagnostics.
+- **External management API**: manage subscriptions, nodes, and profiles from scripts through the Bearer-token protected `/api/ext/v1` endpoints.
 - **Modern UI**: responsive Vue 3 interface with light/dark modes and English/Chinese localization.
 
 ## Supported Protocols
