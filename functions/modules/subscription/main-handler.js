@@ -29,6 +29,7 @@ import { ProcessorService } from '../../services/processor-service.js';
 import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
 import {
     isNodePersistenceEnabled,
+    maybeContinueBackfill,
     maybeRefreshDueNodes,
 } from '../../services/node-persistence-service.js';
 import {

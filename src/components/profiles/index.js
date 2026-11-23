@@ -3,9 +3,12 @@
  * @author MiSub Team
  */
 
-export { default as ProfileCard } from './ProfileCard.vue';
-export { default as ProfilePanel } from './ProfilePanel.vue';
-export { default as RightPanel } from './RightPanel.vue';
+import ProfileCard from './ProfileCard.vue';
+export { ProfileCard };
+import ProfilePanel from './ProfilePanel.vue';
+export { ProfilePanel };
+import RightPanel from './RightPanel.vue';
+export { RightPanel };
 
 export const ProfileComponents = {
     ProfileCard,

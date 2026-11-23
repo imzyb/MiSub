@@ -2,6 +2,8 @@
     import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
     import { formatBytes } from '../../../lib/utils.js';
     import { getProfileShareIdentifier } from '../../../utils/profile-link.js';
+    import { inferAirportRootDomain } from '../../../utils/airport-domain.js';
+    import { rememberDomainName } from '../../../utils/domain-name-memory.js';
     import { useToastStore } from '../../../stores/toast.js';
     import { useUIStore } from '../../../stores/ui.js';
     import { useDataStore } from '../../../stores/useDataStore.js';
