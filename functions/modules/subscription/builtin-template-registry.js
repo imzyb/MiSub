@@ -158,6 +158,8 @@ custom_proxy_group=🔯 故障转移\`fallback\`.*\`http://www.gstatic.com/gener
 custom_proxy_group=☑️ 手动切换\`select\`.*
 custom_proxy_group=🤖 AI 核心服务\`select\`[]🔯 故障转移\`[]🇺🇲 美国节点\`[]🇸🇬 狮城节点\`[]🚀 节点选择
 custom_proxy_group=🌍 国外媒体\`select\`[]🚀 节点选择\`[]♻️ 自动选择\`[]DIRECT
+custom_proxy_group=🎯 全球直连\`select\`[]DIRECT\`[]🚀 节点选择
+custom_proxy_group=🐟 漏网之鱼\`select\`[]🚀 节点选择\`[]♻️ 自动选择\`[]DIRECT
 
 enable_rule_generator=true
 overwrite_original_rules=true`,
@@ -180,6 +182,8 @@ custom_proxy_group=🚀 节点选择\`select\`[]♻️ 自动选择\`[]🎮 游�
 custom_proxy_group=🎮 游戏平台\`url-test\`.*\`http://www.gstatic.com/generate_204\`300,,20
 custom_proxy_group=♻️ 自动选择\`url-test\`.*\`http://www.gstatic.com/generate_204\`300,,50
 custom_proxy_group=☑️ 手动切换\`select\`.*
+custom_proxy_group=🎯 全球直连\`select\`[]DIRECT\`[]🚀 节点选择
+custom_proxy_group=🐟 漏网之鱼\`select\`[]🚀 节点选择\`[]♻️ 自动选择\`[]DIRECT
 
 enable_rule_generator=true
 overwrite_original_rules=true`,

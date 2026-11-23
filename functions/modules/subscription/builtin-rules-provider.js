@@ -477,28 +477,50 @@ const ACL4SSR_BASE = `https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/${PINNED
 const SING_GEOSITE_BASE = `https://raw.githubusercontent.com/SagerNet/sing-geosite/${PINNED_RULE_REVISIONS.SING_GEOSITE}`;
 const SING_GEOIP_BASE = `https://raw.githubusercontent.com/SagerNet/sing-geoip/${PINNED_RULE_REVISIONS.SING_GEOIP}`;
 
+// 国内网络直连 raw.githubusercontent.com 长期不可达。gh-proxy.org 为公开双栈
+// GitHub 加速代理，对国内外均可服务：生成订阅时按请求方地理位置（Cloudflare
+// request.cf.country）决定规则源下载链路——国内走加速前缀，国外保持直连。
+export const GH_PROXY_BASE = 'https://gh-proxy.org/';
+
 /**
- * 将 raw.githubusercontent.com 链接重写为 jsDelivr CDN 镜像。
+ * Mihomo/Clash 内核 geo 数据库镜像。
  *
- * 背景：raw.githubusercontent.com 在中国大陆长期无法直连，导致 Clash/mihomo
- * 客户端拉取 RULE-SET 时静默失败（路由规则缺失、广告拦截失效、分流错乱），
- * 而大部分用户并不会注意到是规则源下载失败。jsDelivr 的 gh 通道在国内可直连，
- * 且与 GitHub 内容保持同步（存在少量缓存延迟，对规则集无影响）。
+ * GEOIP/GEOSITE 规则与 DNS nameserver-policy 的 geosite:* 条目依赖客户端本地的
+ * geoip/geosite 数据库，默认从 GitHub Releases 下载。大陆网络环境下该下载经常失败，
+ * 导致 GEOIP,CN,DIRECT 静默失配、国内流量落入 MATCH 兜底（链式代理场景下全部走代理）。
+ * jsDelivr 可直接服务 meta-rules-dat 仓库，与地理位置无关，无需 gh-proxy。
+ * mihomo / clash premium 均认识 geox-url 字段，其它内核会忽略该未知字段。
+ */
+const METARULES_BASE = 'https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release';
+export const GEOX_URLS = Object.freeze({
+    geoip: `${METARULES_BASE}/geoip.dat`,
+    geosite: `${METARULES_BASE}/geosite.dat`,
+    mmdb: `${METARULES_BASE}/country.mmdb`,
+    asn: `${METARULES_BASE}/GeoLite2-ASN.mmdb`,
+});
+
+/**
+ * 解析远程规则源在客户端侧的实际下载地址。
  *
- * 重写形式：
- *   https://raw.githubusercontent.com/OWNER/REPO/REF/PATH
- *   -> https://cdn.jsdelivr.net/gh/OWNER/REPO@REF/PATH
+ * - raw.githubusercontent.com 在中国大陆长期无法直连，会导致客户端拉取
+ *   RULE-SET 静默失败（路由规则缺失、广告拦截失效、分流错乱）。
+ * - jsDelivr 已按合规要求整体封禁 ACL4SSR 仓库（对所有请求返回 403 提示文本），
+ *   因此 ACL4SSR 不能再走 jsDelivr：国内请求方使用 gh-proxy.org 加速前缀，
+ *   国外请求方保持 raw 直连。是否国内由请求方地理位置决定（request.cf.country）。
+ * - 其它仓库（SagerNet / blackmatrix7 等）不受封禁影响，继续走 jsDelivr 镜像。
  *
- * 同时保留原有的「锁定版本」行为：若目标仓库在 PINNED_RULE_REVISIONS 中有固定
+ * 所有分支均保留「锁定版本」行为：若目标仓库在 PINNED_RULE_REVISIONS 中有固定
  * 修订号，则用固定修订号替换原始分支/标签，避免上游改动导致规则漂移。
+ * 注意 jsDelivr 的修订分隔符必须为 @（/gh/USER/REPO@SHA/...）。
  *
  * @param {string} sourceUrl 原始规则源地址
  * @param {Object}  [options]
- * @param {boolean} [options.mirror=true] 是否启用 CDN 镜像重写
+ * @param {boolean} [options.mirror=true] 非 ACL4SSR 仓库是否启用 jsDelivr 镜像
+ * @param {boolean} [options.isChinaClient=false] 请求方是否位于中国大陆
  * @returns {string} 重写后的地址（不满足条件时原样返回）
  */
 export function pinRemoteRuleUrl(sourceUrl, options = {}) {
-    const { mirror = true } = options;
+    const { mirror = true, isChinaClient = false } = options;
     const raw = String(sourceUrl || '').trim();
     if (!/^https?:\/\//i.test(raw)) return sourceUrl;
 
@@ -522,11 +544,17 @@ export function pinRemoteRuleUrl(sourceUrl, options = {}) {
         const [owner, repo, ref, ...rest] = parts;
         if (!owner || !repo || !ref || rest.length === 0) return raw;
 
+        const pinnedTarget = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${rest.join('/')}`;
+
+        if (key === 'acl4ssr/acl4ssr') {
+            return isChinaClient ? `${GH_PROXY_BASE}${pinnedTarget}` : pinnedTarget;
+        }
+
         if (mirror) {
             return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${rest.join('/')}`;
         }
 
-        return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${rest.join('/')}`;
+        return pinnedTarget;
     } catch {
         return raw;
     }
@@ -557,6 +585,7 @@ export const REMOTE_SOURCES = {
         clash: `${ACL4SSR_BASE}/Clash/Providers/Ruleset/Apple.yaml`,
         singbox: `${SING_GEOSITE_BASE}/geosite-apple.srs`,
         surge: `${ACL4SSR_BASE}/Clash/Apple.list`,
+        quanx: `${ACL4SSR_BASE}/Clash/Apple.list`,
     },
     MICROSOFT: {
         name: '微软服务',
@@ -571,6 +600,20 @@ export const REMOTE_SOURCES = {
         singbox: `${SING_GEOSITE_BASE}/geosite-openai.srs`,
         surge: `${ACL4SSR_BASE}/Clash/Ruleset/OpenAi.list`,
         quanx: `${ACL4SSR_BASE}/Clash/Ruleset/OpenAi.list`,
+    },
+    // 国内域名直连（域名维度）。此前四个内置等级只有 IP 维度的 GEOIP,CN,DIRECT，
+    // 在 fake-ip + respect-rules 下依赖客户端先解析出真实 IP，一旦 geo 数据库
+    // 下载失败，国内流量会整体落入 MATCH 兜底（链式代理下即走代理）。
+    // ACL4SSR ChinaDomain.list 为 classical 文本列表（QuanX/Surge 亦兼容）。
+    CN_DOMAIN: {
+        name: '国内域名直连',
+        clash: `${ACL4SSR_BASE}/Clash/ChinaDomain.list`,
+        provider: { behavior: 'classical', format: 'text', ext: 'list' },
+        // sing-box 复用 DNS 分流已下载的 geosite-cn 规则集，避免同一文件重复下载
+        tag: SINGBOX_CN_RULE_SET,
+        singbox: `${SING_GEOSITE_BASE}/geosite-cn.srs`,
+        surge: `${ACL4SSR_BASE}/Clash/ChinaDomain.list`,
+        quanx: `${ACL4SSR_BASE}/Clash/ChinaDomain.list`,
     },
     'geoip-cn': {
         name: 'China IP (GeoIP)',
@@ -592,6 +635,8 @@ export const RULE_SETS = {
         `DOMAIN-SUFFIX,google.com,${DEFAULT_SELECT_GROUP}`,
         `DOMAIN-KEYWORD,google,${DEFAULT_SELECT_GROUP}`,
         `DOMAIN-SUFFIX,github.com,${DEFAULT_SELECT_GROUP}`,
+        'RULE-SET,CN_DOMAIN,DIRECT',
+        'DOMAIN-SUFFIX,cn,DIRECT',
         'GEOIP,CN,DIRECT',
         `MATCH,${DEFAULT_SELECT_GROUP}`,
     ],
@@ -604,6 +649,8 @@ export const RULE_SETS = {
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',
         `DOMAIN-SUFFIX,google.com,${DEFAULT_SELECT_GROUP}`,
         `DOMAIN-SUFFIX,github.com,${DEFAULT_SELECT_GROUP}`,
+        'RULE-SET,CN_DOMAIN,DIRECT',
+        'DOMAIN-SUFFIX,cn,DIRECT',
         'GEOIP,CN,DIRECT',
         `MATCH,${DEFAULT_SELECT_GROUP}`,
     ],
@@ -617,6 +664,8 @@ export const RULE_SETS = {
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',
         `DOMAIN-SUFFIX,google.com,${DEFAULT_SELECT_GROUP}`,
         `DOMAIN-SUFFIX,github.com,${DEFAULT_SELECT_GROUP}`,
+        'RULE-SET,CN_DOMAIN,DIRECT',
+        'DOMAIN-SUFFIX,cn,DIRECT',
         'GEOIP,CN,DIRECT',
         `MATCH,${DEFAULT_SELECT_GROUP}`,
     ],
@@ -629,6 +678,8 @@ export const RULE_SETS = {
         'RULE-SET,MICROSOFT,Ⓜ️ Microsoft',
         `DOMAIN-SUFFIX,google.com,${DEFAULT_RELAY_GROUP}`,
         `DOMAIN-SUFFIX,github.com,${DEFAULT_RELAY_GROUP}`,
+        'RULE-SET,CN_DOMAIN,DIRECT',
+        'DOMAIN-SUFFIX,cn,DIRECT',
         'GEOIP,CN,DIRECT',
         `MATCH,${DEFAULT_RELAY_GROUP}`,
     ],
@@ -639,7 +690,7 @@ export const RULE_SETS = {
  */
 
 // 转换单行规则到目标格式
-export function translateRuleLine(line, format) {
+export function translateRuleLine(line, format, options = {}) {
     const parts = line.split(',');
     const type = parts[0];
     const value = parts[1];
@@ -656,13 +707,19 @@ export function translateRuleLine(line, format) {
                 return { type: 'rule-provider', provider: value, target };
             case 'singbox':
             case 'sing-box':
-                // 返回中间对象，由生成器处理 rule_sets
-                return { type: 'rule_set', tag: value, outbound: target };
+                // 复用声明的 tag（如 CN_DOMAIN → geosite-cn），让 DNS 分流与路由共享同一规则集下载
+                return { type: 'rule_set', tag: source.tag || value, outbound: target };
             case 'surge':
             case 'loon':
-                return `RULE-SET,${source.surge || source.clash},${target}`;
+                // 仅当源提供 Surge/Loon 兼容列表时输出；否则跳过并交给 GEOIP,CN 兜底
+                // （如仅 sing-box 使用的 geosite/geoip .srs 源，直接输出会产生无效引用）
+                if (!source.surge && !source.clash) return null;
+                return `RULE-SET,${pinRemoteRuleUrl(source.surge || source.clash, options)},${target}`;
             case 'quanx':
-                return `filter_remote, ${source.quanx || source.clash}, tag=${source.name}, force-policy=${target}, update-interval=86400`;
+                // Quantumult X 只认 filter 语法，必须使用显式的 quanx 源，
+                // 禁止回退到 clash URL（YAML / 域名集合对 QuanX 是无效输入）
+                if (!source.quanx) return null;
+                return `filter_remote, ${pinRemoteRuleUrl(source.quanx, options)}, tag=${source.name}, force-policy=${target}, update-interval=86400`;
             default:
                 return null;
         }
@@ -697,17 +754,18 @@ export function translateRuleLine(line, format) {
 }
 
 // 获取全量分流规则文本/对象
-export function getBuiltinRules(level, format) {
+export function getBuiltinRules(level, format, options = {}) {
     const rawRules = RULE_SETS[level.toUpperCase()] || RULE_SETS.STD;
-    return rawRules.map((l) => translateRuleLine(l, format)).filter(Boolean);
+    return rawRules.map((l) => translateRuleLine(l, format, options)).filter(Boolean);
 }
 
 /**
  * 为特定的生成器提取远程源定义
  * @param {string} format
  * @param {Array} ruleLines (翻译后的规则行)
+ * @param {Object} [options] 含 isChinaClient 等下载链路选项
  */
-export function getRemoteProviderDefinitions(format, ruleLines) {
+export function getRemoteProviderDefinitions(format, ruleLines, options = {}) {
     const providers = {};
     const usedTags = new Set();
 
@@ -724,12 +782,16 @@ export function getRemoteProviderDefinitions(format, ruleLines) {
         if (!source) return;
 
         if (format === 'clash') {
+            // 各规则集的内容形态不同（classical 文本等），
+            // behavior 与格式由 REMOTE_SOURCES.provider 元数据声明，避免内核解析失败
+            const provider = source.provider || {};
             providers[tag] = {
                 type: 'http',
-                behavior: 'classical',
-                url: pinRemoteRuleUrl(source.clash),
-                path: `./ruleset/${tag}.yaml`,
+                behavior: provider.behavior || 'classical',
+                url: pinRemoteRuleUrl(source.clash, options),
+                path: `./ruleset/${tag}.${provider.ext || 'yaml'}`,
                 interval: 86400,
+                ...(provider.format ? { format: provider.format } : {}),
             };
         } else if (format === 'singbox' || format === 'sing-box') {
             providers[tag] = {
@@ -740,7 +802,7 @@ export function getRemoteProviderDefinitions(format, ruleLines) {
                     .endsWith('.srs')
                     ? 'binary'
                     : 'source',
-                url: pinRemoteRuleUrl(source.singbox),
+                url: pinRemoteRuleUrl(source.singbox, options),
                 update_interval: '24h',
                 download_detour: DNS_PROXY_GROUP,
             };

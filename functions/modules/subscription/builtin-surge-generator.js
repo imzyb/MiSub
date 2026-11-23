@@ -541,7 +541,7 @@ dns-server = 119.29.29.29, 223.5.5.5, system`);
     sections.push(`[Proxy Group]\n${proxyGroupLines.join('\n')}`);
 
     // Surge [Rule]
-    const builtinRuleLines = getBuiltinRules(levelKey, 'surge');
+    const builtinRuleLines = getBuiltinRules(levelKey, 'surge', options);
     const ruleLines = [
         '# 基础分流',
         'DOMAIN-SUFFIX,localhost,DIRECT',

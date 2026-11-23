@@ -48,7 +48,9 @@ describe('Clash 内置生成器', () => {
         expect(parsed.dns.ipv6).toBe(false);
         expect(parsed.dns['enhanced-mode']).toBe('fake-ip');
         expect(parsed.dns['respect-rules']).toBe(true);
-        expect(parsed.dns.nameserver).toContain('udp://8.8.8.8:53#🌐 DNS 出口');
+        expect(parsed.dns.nameserver).toContain('https://8.8.8.8/dns-query#🌐 DNS 出口');
+        // 域名嗅探默认开启（还原硬编码 IP 直连流量的域名）
+        expect(parsed.sniffer?.enable).toBe(true);
         expect(parsed.dns['nameserver-policy']['geosite:cn']).toEqual([
             '223.5.5.5',
             '119.29.29.29',

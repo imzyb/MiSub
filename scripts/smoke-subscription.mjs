@@ -27,13 +27,10 @@ function assertNoLoopbackNodes(nodes, label) {
 function assertDnsMode(values, mode, label) {
     const servers = array(values);
     assert(servers.length > 0, `${label} has no DNS servers`);
-    if (mode === 'clean') {
-        assert(servers.every(server => /^udp:\/\//i.test(String(server))), `${label} clean mode is not plaintext UDP`);
-        assert(servers.every(server => !/^https?:\/\//i.test(String(server))), `${label} clean mode contains encrypted DNS`);
-    } else {
-        assert(servers.every(server => /^(?:https|tls):\/\//i.test(String(server))), `${label} polluted mode is not encrypted DNS`);
-        assert(servers.every(server => String(server).endsWith(`#${DNS_PROXY_GROUP}`)), `${label} polluted DNS is not proxied`);
-    }
+    // 境外解析统一为走代理出口的加密 DoH（IP 型地址免引导解析），
+    // clean/polluted 的差异仅在于 fallback 策略，不再降级为明文 UDP
+    assert(servers.every(server => /^(?:https|tls):\/\//i.test(String(server))), `${label} foreign DNS is not encrypted DoH`);
+    assert(servers.every(server => String(server).endsWith(`#${DNS_PROXY_GROUP}`)), `${label} foreign DNS is not proxied`);
 }
 
 export function validateClashConfig(config, mode) {

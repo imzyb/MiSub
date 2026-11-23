@@ -134,8 +134,8 @@ describe('Custom template isolation & Custom DNS override', () => {
         expect(groupNames).toContain('🤖 AI 自动');
         expect(groupNames).toContain('🤖 OpenAI');
         expect(parsed.dns.nameserver).toEqual([
-            `udp://8.8.8.8:53#${DNS_PROXY_GROUP}`,
-            `udp://1.1.1.1:53#${DNS_PROXY_GROUP}`,
+            `https://8.8.8.8/dns-query#${DNS_PROXY_GROUP}`,
+            `https://1.1.1.1/dns-query#${DNS_PROXY_GROUP}`,
         ]);
     });
 });
