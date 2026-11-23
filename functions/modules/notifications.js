@@ -4,7 +4,12 @@
  * 核心发送逻辑已抽离至 functions/services/notification-service.js
  */
 
-import { formatBytes } from './utils.js';
+import { formatBytes, createJsonResponse } from './utils.js';
+import {
+    completeNodeBackfill,
+    isNodePersistenceEnabled,
+    refreshSubscriptionSnapshot,
+} from '../services/node-persistence-service.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
 // 导入核心通知服务及工具
 import {
@@ -118,10 +123,21 @@ export async function handleCronTrigger(env) {
         env,
         await StorageFactory.getStorageType(env)
     );
-    const originalSubs = await loadSubscriptionsForCron(storageAdapter);
-    const allSubs = JSON.parse(JSON.stringify(originalSubs));
     const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 
+    // Cron 只在 D1 + 节点持久化开启时可用；它是独立于 autoUpdateInterval 的强制刷新通道。
+    if (!isNodePersistenceEnabled(env, settings)) {
+        return createJsonResponse({
+            success: true,
+            skipped: true,
+            reason: 'node_persistence_disabled',
+            message: '未启用 D1 节点持久化，Cron 刷新不可用',
+        });
+    }
+    const persistenceActive = true;
+
+    const originalSubs = await loadSubscriptionsForCron(storageAdapter);
+    const allSubs = JSON.parse(JSON.stringify(originalSubs));
     const httpSubscriptions = allSubs.filter((sub) => sub.url.startsWith('http') && sub.enabled);
 
     console.info(`[Cron] Starting parallel update for ${httpSubscriptions.length} subscriptions`);
@@ -139,6 +155,36 @@ export async function handleCronTrigger(env) {
 
     async function processSubscription(sub) {
         try {
+            if (persistenceActive) {
+                const refreshed = await refreshSubscriptionSnapshot(env, sub, { reason: 'cron' });
+                const originalSub = allSubs.find((s) => s.id === sub.id);
+                if (!refreshed.success) {
+                    if (originalSub) originalSub.lastError = refreshed.error;
+                    return { name: sub.name, success: false, error: refreshed.error };
+                }
+                if (originalSub) {
+                    const previousCount = Number(originalSub.nodeCount) || 0;
+                    originalSub.nodeCount = refreshed.nodeCount;
+                    if (refreshed.userInfo) originalSub.userInfo = refreshed.userInfo;
+                    originalSub.lastError = null;
+                    originalSub.lastUpdate = new Date().toISOString();
+                    if (previousCount > 0) {
+                        const diff = refreshed.nodeCount - previousCount;
+                        const significantChange =
+                            Math.abs(diff) >= 10 || Math.abs(diff) / previousCount >= 0.2;
+                        if (significantChange) {
+                            originalSub.nodeCountChange = {
+                                previous: previousCount,
+                                current: refreshed.nodeCount,
+                                diff,
+                                timestamp: Date.now(),
+                            };
+                        }
+                    }
+                    await checkAndNotify(originalSub, settings, env);
+                }
+                return { name: sub.name, success: true, traffic: true, nodes: true };
+            }
             const fetchWithTimeout = (url, options) => {
                 const { cf, ...requestInit } = options;
                 const fetchCall = cf
@@ -264,8 +310,14 @@ export async function handleCronTrigger(env) {
         }
     }
 
-    if (changesMade) {
+    // 持久化模式下 subscriptions 的 nodeCount/userInfo 不再是事实源，
+    // 唯一写入口是快照；这里只把快照值回填给本次通知使用，不落库。
+    if (changesMade && !persistenceActive) {
         await persistSubscriptionsForCron(storageAdapter, allSubs);
+    }
+    if (persistenceActive) {
+        // Cron 本身就是一次全量刷新，未完成的全量回填可以直接收尾。
+        await completeNodeBackfill(env).catch(() => false);
     }
 
     const duration = Date.now() - startTime;

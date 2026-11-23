@@ -14,6 +14,25 @@ import { isRemoteSubscription, toExternalSubscription } from './external-api-map
 import { handleNodeCountRequest } from './handlers/node-handler.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
 import { filterAutoUpdateSubscriptions, isAutoUpdatePaused } from '../utils/auto-update.js';
+import {
+    decorateSubscriptionsWithSnapshots,
+    isNodePersistenceEnabled,
+} from '../services/node-persistence-service.js';
+
+/**
+ * 节点持久化模式下，节点数/流量以快照为唯一事实源。
+ * 外部 API 的订阅 DTO 也必须先叠加快照，避免读到 subscriptions 里的旧值。
+ */
+async function withSnapshots(env, items = []) {
+    if (!Array.isArray(items) || items.length === 0) return items;
+    try {
+        const adapter = await getExternalStorageAdapter(env);
+        if (!isNodePersistenceEnabled(env, { storageType: adapter?.type })) return items;
+        return await decorateSubscriptionsWithSnapshots(env, items);
+    } catch {
+        return items;
+    }
+}
 
 function nowIso() {
     return new Date().toISOString();
@@ -273,7 +292,7 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
         });
         const { page, pageSize } = parsePagination(url);
         return createExternalSuccess(
-            paginate(filtered.map(toExternalSubscription), page, pageSize),
+            paginate((await withSnapshots(env, filtered)).map(toExternalSubscription), page, pageSize),
             200,
             buildListMeta({ page, pageSize, total: filtered.length })
         );
@@ -283,7 +302,9 @@ export async function handleExternalSubscriptionsRequest(request, env, selector 
         const item = await getSubscriptionById(storageAdapter, id);
         if (!item)
             return createExternalError('subscription_not_found', 'Subscription not found', 404);
-        return createExternalSuccess(toExternalSubscription(item));
+        return createExternalSuccess(
+            toExternalSubscription((await withSnapshots(env, [item]))[0])
+        );
     }
 
     if (request.method === 'POST' && !id) {

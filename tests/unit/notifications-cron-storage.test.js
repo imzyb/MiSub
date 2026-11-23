@@ -69,7 +69,7 @@ describe('notifications cron storage helper usage', () => {
         vi.unstubAllGlobals();
     });
 
-    it('handleCronTrigger prefers row-level subscription helpers for D1 storage', async () => {
+    it('未启用节点持久化时 Cron 直接跳过（不请求机场、不写库）', async () => {
         const { handleCronTrigger } = await import('../../functions/modules/notifications.js');
 
         getAllSubscriptions.mockResolvedValue([
@@ -81,38 +81,16 @@ describe('notifications cron storage helper usage', () => {
             },
         ]);
 
-        const response = await handleCronTrigger({});
+        const response = await handleCronTrigger({ MISUB_DB: {} });
         const payload = await response.json();
 
-        expect(payload.summary).toMatchObject({
-            total: 1,
-            updated: 1,
-            failed: 0,
-            changes: true,
+        expect(payload).toMatchObject({
+            success: true,
+            skipped: true,
+            reason: 'node_persistence_disabled',
         });
-        expect(getAllSubscriptions).toHaveBeenCalledTimes(1);
-        expect(get).toHaveBeenCalledWith('worker_settings_v1');
-        expect(get).not.toHaveBeenCalledWith('misub_subscriptions_v1');
-        expect(putAllSubscriptions).toHaveBeenCalledWith([
-            expect.objectContaining({
-                id: 'sub-1',
-                nodeCount: 2,
-                userInfo: {
-                    upload: 1,
-                    download: 2,
-                    total: 10,
-                },
-            }),
-        ]);
-        expect(infoSpy).toHaveBeenCalledWith('[Cron] Starting parallel update for 1 subscriptions');
-        expect(infoSpy).toHaveBeenCalledWith(
-            expect.stringMatching(/^\[Cron\] Completed in \d+ms:$/),
-            expect.objectContaining({
-                total: 1,
-                updated: 1,
-                failed: 0,
-                changes: true,
-            })
-        );
+        // 跳过时既不读订阅列表，也不写回任何数据。
+        expect(getAllSubscriptions).not.toHaveBeenCalled();
+        expect(putAllSubscriptions).not.toHaveBeenCalled();
     });
 });

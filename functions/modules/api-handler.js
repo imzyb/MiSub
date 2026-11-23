@@ -26,6 +26,17 @@ import { sendTgNotification, checkAndNotify } from './notifications.js';
 import { clearAllNodeCaches } from '../services/node-cache-service.js';
 import { buildSubscriptionNodeCacheKey } from '../services/subscription-service.js';
 import { maybeRunScheduledTasks } from './scheduled-task-runner.js';
+import {
+    decorateSubscriptionsWithSnapshots,
+    getNodePersistenceCapabilities,
+    isNodePersistenceAvailable,
+    isNodePersistenceEnabled,
+    maybeRefreshAllDueNodes,
+    maybeContinueBackfill,
+    runNextBackfillBatch,
+    startNodeBackfill,
+    deleteNodeSnapshotsForSubscription,
+} from '../services/node-persistence-service.js';
 
 import {
     KV_KEY_SUBS,
@@ -34,10 +45,7 @@ import {
     DEFAULT_SETTINGS as defaultSettings,
 } from './config.js';
 import { listRuleTemplates } from './rule-template-handler.js';
-import {
-    normalizeProfileAliases,
-    validateProfileAliases,
-} from './profile-alias.js';
+import { normalizeProfileAliases, validateProfileAliases } from './profile-alias.js';
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
@@ -203,7 +211,7 @@ export async function handleDataRequest(env, context = null) {
         }
         const storageAdapter = StorageFactory.createAdapter(env, storageType);
         const cachedSettings = await SettingsCache.get(env);
-        const [misubs, rawProfiles, settings, ruleTemplates] = await Promise.all([
+        const [rawMisubs, rawProfiles, settings, ruleTemplates] = await Promise.all([
             typeof storageAdapter.getAllSubscriptions === 'function'
                 ? storageAdapter.getAllSubscriptions()
                 : storageAdapter.get(KV_KEY_SUBS).then((res) => res || []),
@@ -237,8 +245,27 @@ export async function handleDataRequest(env, context = null) {
         const config = {
             ...defaultSettings,
             ...settings,
+            storageType,
             isDefaultPassword: await isUsingDefaultPassword(env),
         };
+
+        // D1 节点持久化：订阅列表的 nodeCount/userInfo 以快照为准，
+        // 同时借这次管理端访问做一次到期检查（免费版 Worker 没有可靠定时）。
+        const persistenceEnabled = isNodePersistenceEnabled(env, config);
+        let misubs = rawMisubs;
+        if (persistenceEnabled) {
+            misubs = await decorateSubscriptionsWithSnapshots(env, rawMisubs);
+            const taskContext = context || { env };
+            maybeRefreshAllDueNodes({ ...taskContext, env, config }, { reason: 'admin-api' }).catch(
+                (error) =>
+                    console.warn('[NodePersistence] due refresh failed:', error?.message || error)
+            );
+            // 未完成的全量回填也借这次管理端访问继续推进
+            maybeContinueBackfill({ ...taskContext, env, config }).catch((error) =>
+                console.warn('[NodePersistence] backfill continue failed:', error?.message || error)
+            );
+        }
+
         try {
             const taskContext = context || { env };
             const runPromise = maybeRunScheduledTasks(taskContext, { source: 'admin-api' });
@@ -253,7 +280,13 @@ export async function handleDataRequest(env, context = null) {
                 taskError?.message || taskError
             );
         }
-        return createJsonResponse({ misubs, profiles, ruleTemplates, config });
+        return createJsonResponse({
+            misubs,
+            profiles,
+            ruleTemplates,
+            config,
+            capabilities: getNodePersistenceCapabilities(env, config),
+        });
     } catch (e) {
         console.error('[API Error /data] Failed to read from storage', {
             error: e?.message,
@@ -504,6 +537,18 @@ export async function handleMisubsSave(request, env) {
                 if (saveTasks.length > 0) {
                     await Promise.all(saveTasks);
                 }
+
+                // 删除订阅时同步清理它的节点快照，避免 D1 里留下孤儿数据。
+                const removedIds = Array.isArray(diff.subscriptions?.removed)
+                    ? diff.subscriptions.removed
+                    : [];
+                if (removedIds.length > 0 && env?.MISUB_DB) {
+                    await Promise.all(
+                        removedIds.map((id) =>
+                            deleteNodeSnapshotsForSubscription(env, id).catch(() => false)
+                        )
+                    );
+                }
             } else {
                 const [subsHandled, profilesHandled] = await Promise.all([
                     syncCollectionRowLevel(storageAdapter, 'subscriptions', finalMisubs),
@@ -580,8 +625,16 @@ function redactSettingsForResponse(settings = {}) {
 
 export async function handleSettingsGet(env) {
     try {
+        const storageType = await StorageFactory.getStorageType(env);
         const settings = (await SettingsCache.get(env)) || {};
-        return createJsonResponse(redactSettingsForResponse({ ...defaultSettings, ...settings }));
+        const merged = { ...defaultSettings, ...settings };
+        return createJsonResponse({
+            ...redactSettingsForResponse(merged),
+            capabilities: getNodePersistenceCapabilities(env, {
+                ...merged,
+                storageType,
+            }),
+        });
     } catch (e) {
         if (isStorageUnavailableError(e)) {
             return createJsonResponse({
@@ -600,9 +653,13 @@ export async function handleSettingsGet(env) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleSettingsSave(request, env) {
+export async function handleSettingsSave(request, env, context = null) {
     try {
         const newSettings = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
+        // capabilities 是服务端派生的只读描述，任何客户端都不该把它写进设置。
+        if (newSettings && typeof newSettings === 'object') {
+            delete newSettings.capabilities;
+        }
 
         const reservedPathRoots = new Set([
             'settings',
@@ -687,6 +744,26 @@ export async function handleSettingsSave(request, env) {
         }
         const finalSettings = { ...oldSettings, ...newSettings };
 
+        // 节点持久化只能建立在 D1 上；未满足条件时强制关闭，避免 UI 残留脏状态。
+        // 注意：这里必须用「本次保存后」的 storageType，否则用户在系统设置里
+        // 从 KV 切到 D1 的保存请求会被旧值覆盖回去。
+        const previousStorageType = await StorageFactory.getStorageType(env);
+        const nextStorageType =
+            finalSettings.storageType === 'd1' || finalSettings.storageType === 'kv'
+                ? finalSettings.storageType
+                : previousStorageType;
+        finalSettings.storageType = nextStorageType;
+        const persistenceAvailable = isNodePersistenceAvailable(env, {
+            ...finalSettings,
+            storageType: nextStorageType,
+        });
+        if (!persistenceAvailable) {
+            finalSettings.enableNodePersistence = false;
+            finalSettings.autoUpdateInterval = 0;
+        } else if (finalSettings.enableNodePersistence !== true) {
+            finalSettings.autoUpdateInterval = 0;
+        }
+
         // 使用存储适配器保存设置
         try {
             await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
@@ -718,6 +795,39 @@ export async function handleSettingsSave(request, env) {
             console.warn('[API] Failed to sync settings to KV:', syncError?.message || syncError);
         }
         SettingsCache.clear();
+
+        // 启用节点持久化（首次或关闭后重开）= 立刻做一次全量拉取，等价一次 Cron。
+        // 用户无感：后台通过内部接口自触发链推进，页面关掉也能继续。
+        const persistenceJustEnabled =
+            finalSettings.enableNodePersistence === true &&
+            isNodePersistenceEnabled(env, finalSettings) &&
+            (oldSettings.enableNodePersistence !== true ||
+                oldSettings.storageType !== finalSettings.storageType);
+        if (persistenceJustEnabled) {
+            try {
+                await clearAllNodeCaches(storageAdapter);
+            } catch (cacheError) {
+                console.warn('[API] Failed to purge node caches:', cacheError?.message || cacheError);
+            }
+            const backfillContext = { ...(context || {}), env };
+            const backfillRun = (async () => {
+                const started = await startNodeBackfill(env, { requestUrl: request.url });
+                if (started.started && started.total > 0) {
+                    await runNextBackfillBatch(env, {
+                        requestUrl: request.url,
+                        state: started.state,
+                    });
+                }
+                return started;
+            })().catch((error) =>
+                console.warn('[NodePersistence] backfill start failed:', error?.message || error)
+            );
+            if (typeof backfillContext.waitUntil === 'function') {
+                backfillContext.waitUntil(backfillRun);
+            } else {
+                void backfillRun;
+            }
+        }
 
         // 纯界面偏好的保存（客户端用 X-MiSub-Save-Scope: preferences 声明，
         // 目前只有「忽略的待处理项」走这条路）不需要让整站节点缓存失效，

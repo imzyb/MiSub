@@ -95,6 +95,14 @@ export async function handleApiRequest(request, env, context = null) {
         return handleExternalNodesCallbackRequest(request, env);
     }
 
+    // 节点持久化全量回填的内部接口：只认 token，不走登录态。
+    if (path === '/internal/node-backfill') {
+        const { handleInternalBackfillRequest } = await import(
+            '../services/node-persistence-service.js'
+        );
+        return handleInternalBackfillRequest(request, env, context);
+    }
+
     if (path.startsWith('/ext/v1')) {
         return await handleExternalApiRequest(request, env);
     }
@@ -240,7 +248,7 @@ export async function handleApiRequest(request, env, context = null) {
     }
 
     if (path === '/public/preview') {
-        return await handlePublicPreviewRequest(request, env);
+        return await handlePublicPreviewRequest(request, env, context);
     }
 
     // 留言板公开接口
@@ -472,7 +480,7 @@ export async function handleApiRequest(request, env, context = null) {
             return await handleBatchUpdateNodesRequest(request, env);
 
         case '/subscription_nodes':
-            return await handleSubscriptionNodesRequest(request, env);
+            return await handleSubscriptionNodesRequest(request, env, context);
 
         case '/debug_subscription':
             return await handleDebugSubscriptionRequest(request, env);
@@ -505,9 +513,8 @@ export async function handleApiRequest(request, env, context = null) {
             }
             if (request.method === 'DELETE') {
                 const { LogService } = await import('../services/log-service.js');
-                const { resetProfileDownloadCounts } = await import(
-                    '../services/profile-stats-service.js'
-                );
+                const { resetProfileDownloadCounts } =
+                    await import('../services/profile-stats-service.js');
                 // 带 profileId 时只清该订阅组；不带时清空全部
                 const profileId = (url.searchParams.get('profileId') || '').trim();
                 const profileName = (url.searchParams.get('profileName') || '').trim();
@@ -527,7 +534,7 @@ export async function handleApiRequest(request, env, context = null) {
                 return await handleSettingsGet(env);
             }
             if (request.method === 'POST') {
-                return await handleSettingsSave(request, env);
+                return await handleSettingsSave(request, env, context);
             }
             return createJsonResponse('Method Not Allowed', 405);
 
@@ -836,8 +843,15 @@ function encodeArrayBufferToBase64(buffer) {
  */
 async function handleCronStatusRequest(env) {
     try {
+        // Cron 只在 D1 + 节点持久化开启时可用。
+        const { isNodePersistenceEnabled } =
+            await import('../services/node-persistence-service.js');
+        const { SettingsCache } = await import('../storage-adapter.js');
+        const currentSettings = (await SettingsCache.get(env)) || {};
+        const persistenceEnabled = isNodePersistenceEnabled(env, currentSettings);
+
         // 检查是否启用Cron功能
-        const enableCron = env.ENABLE_CRON !== 'false';
+        const enableCron = env.ENABLE_CRON !== 'false' && persistenceEnabled;
 
         // 获取Cron配置
         const cronType = env.CRON_TYPE || 'hourly-subscription-sync';
@@ -890,6 +904,22 @@ async function handleCronStatusRequest(env) {
  */
 async function handleCronTriggerRequest(env) {
     try {
+        // Cron 只在 D1 + 节点持久化开启时可用；间隔为 0 时也允许（它是独立强制刷新通道）。
+        const { isNodePersistenceEnabled } =
+            await import('../services/node-persistence-service.js');
+        const { SettingsCache } = await import('../storage-adapter.js');
+        const cronSettings = (await SettingsCache.get(env)) || {};
+        if (!isNodePersistenceEnabled(env, cronSettings)) {
+            return createJsonResponse(
+                {
+                    success: false,
+                    error: 'node_persistence_disabled',
+                    message: '未启用 D1 节点持久化，Cron 刷新不可用',
+                },
+                400
+            );
+        }
+
         // 检查是否启用Cron功能
         const enableCron = env.ENABLE_CRON !== 'false';
         if (!enableCron) {
