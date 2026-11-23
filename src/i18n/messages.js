@@ -80,6 +80,7 @@ export const messages = {
             copyNode: '复制节点',
         },
         notices: {
+            routeLoading: '正在加载页面...',
             defaultPasswordWarning:
                 '安全警告：检测到您正在使用默认密码 "admin"。为了您的系统安全，请立即前往设置修改密码。',
             discardedChanges: '已放弃所有未保存的更改',
@@ -1911,6 +1912,7 @@ export const messages = {
             copyNode: 'Copy node',
         },
         notices: {
+            routeLoading: 'Loading page...',
             defaultPasswordWarning:
                 'Security warning: you are using the default password "admin". For your system safety, change it in Settings immediately.',
             discardedChanges: 'Discarded all unsaved changes',
