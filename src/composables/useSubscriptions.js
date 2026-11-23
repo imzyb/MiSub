@@ -213,6 +213,8 @@ export function useSubscriptions(markDirty) {
             subToUpdate.nodeCount = data.count || 0;
             subToUpdate.userInfo = data.userInfo || null;
             subToUpdate.lastError = null; // 成功后清除错误状态
+            // 记录这条订阅最后一次成功更新的时间（Dashboard「上次更新」取所有订阅的最大值）
+            subToUpdate.lastUpdate = new Date().toISOString();
 
             if (!isInitialLoad) {
                 showToast(
@@ -388,6 +390,8 @@ export function useSubscriptions(markDirty) {
 
                     if (updateResult.success) {
                         sub.nodeCount = updateResult.nodeCount || 0;
+                        // 后端（D1 快照）有 lastUpdate 就用它的，否则用本次刷新时间
+                        sub.lastUpdate = updateResult.lastUpdate || new Date().toISOString();
                         successCount++;
                     }
                 });
