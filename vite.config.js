@@ -85,7 +85,9 @@ export default defineConfig({
         proxy: {
             '/api': createLocalApiProxy(),
             '/sub/': createLocalApiProxy(),
-            '^/(?!@|api/|sub/|assets/|@vite/|src/|icons/|images/)[^/]+/[^/]+$':
+            // /dashboard/* 是 SPA 路由：直接访问/刷新时必须交给 Vite 的 SPA fallback，
+            // 否则会被这条两段路径规则代理到 Functions，返回 404（开发环境白屏）。
+            '^/(?!@|api/|sub/|assets/|@vite/|src/|icons/|images/|dashboard/)[^/]+/[^/]+$':
                 createLocalApiProxy(),
             // Catch-all proxy removed to fix SPA fallback
         },
