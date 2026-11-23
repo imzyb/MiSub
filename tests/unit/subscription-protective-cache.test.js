@@ -203,7 +203,8 @@ describe('subscription protective node cache', () => {
         );
 
         expect(result.trim()).toBe('trojan://pass@example.com:443#HK');
-        expect(waitUntilPromises).toHaveLength(1);
+        // 运行时信息只服务本次响应，不再落库（因此没有 waitUntil 任务）。
+        expect(waitUntilPromises).toHaveLength(0);
         expect(context.currentSubscriptionRuntimeInfo[sub.id].userInfo).toEqual({
             upload: 1,
             download: 2,
@@ -213,20 +214,13 @@ describe('subscription protective node cache', () => {
 
         await Promise.all(waitUntilPromises);
 
+        // 存储中的订阅信息保持不变：订阅组访问不回写。
         const [updatedSub] = await storage.get('misub_subscriptions_v1');
-        expect(updatedSub.nodeCount).toBe(1);
-        expect(updatedSub.lastGoodNodeCount).toBeUndefined();
-        expect(updatedSub.userInfo).toEqual({
-            upload: 1,
-            download: 2,
-            total: 100,
-            expire: 200,
-        });
-        expect(updatedSub.lastError).toBeNull();
-        expect(typeof updatedSub.lastUpdate).toBe('string');
+        expect(updatedSub.nodeCount).toBe(0);
+        expect(updatedSub.userInfo).toBeNull();
     });
 
-    it('stores lastGoodNodeCount after a healthy user subscription refresh', async () => {
+    it('订阅组拉取成功后不再写回 subscriptions（运行时信息只留在当前请求）', async () => {
         const nodes = Array.from(
             { length: 12 },
             (_, index) => `trojan://pass${index}@node${index}.example.com:443#Node-${index}`
@@ -257,9 +251,11 @@ describe('subscription protective node cache', () => {
         );
         await Promise.all(waitUntilPromises);
 
+        // 订阅组访问是只读链路：节点数/流量的落库改由显式刷新、Cron 或 D1 快照负责。
+        expect(waitUntilPromises).toHaveLength(0);
         const [updatedSub] = await storage.get('misub_subscriptions_v1');
-        expect(updatedSub.nodeCount).toBe(12);
-        expect(updatedSub.lastGoodNodeCount).toBe(12);
+        expect(updatedSub.nodeCount).toBe(0);
+        expect(updatedSub.lastGoodNodeCount).toBeUndefined();
     });
 
     it('enableNodeCache 关闭时，拉取失败不使用旧缓存', async () => {
@@ -470,15 +466,12 @@ describe('subscription protective node cache', () => {
             nodeCount: 0,
             userInfo: null,
         });
-        expect(waitUntilPromises).toHaveLength(1);
-
-        await Promise.all(waitUntilPromises);
+        // 失败时同样不写回：旧值保持不变，不会被清空。
+        expect(waitUntilPromises).toHaveLength(0);
 
         const [updatedSub] = await storage.get('misub_subscriptions_v1');
-        expect(updatedSub.nodeCount).toBe(0);
-        expect(updatedSub.userInfo).toBeNull();
-        expect(updatedSub.lastError).toBeNull();
-        expect(typeof updatedSub.lastUpdate).toBe('string');
+        expect(updatedSub.nodeCount).toBe(86);
+        expect(updatedSub.userInfo).toEqual({ upload: 1, download: 2, total: 100, expire: 200 });
     });
 });
 

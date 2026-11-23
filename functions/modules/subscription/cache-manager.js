@@ -46,10 +46,20 @@ export async function resolveNodeListWithCache({
     context,
     targetMisubsCount,
     expectedNodeCount = 0,
+    cacheFlags = null,
 }) {
     const { data: cachedData, status: cacheStatus } = forceRefresh
         ? { data: null, status: 'miss' }
         : await getCache(storageAdapter, cacheKey);
+
+    // 行为开关变化（例如关闭「流量与到期时间节点」）后，旧缓存里的伪节点必须失效。
+    const flagsMismatch =
+        Boolean(cachedData) &&
+        Boolean(cacheFlags) &&
+        JSON.stringify(cachedData.flags || null) !== JSON.stringify(cacheFlags);
+    if (flagsMismatch) {
+        console.info(`[Cache] Ignoring cache ${cacheKey} because render flags changed`);
+    }
 
     let combinedNodeList;
     let cacheHeaders = {};
@@ -58,7 +68,7 @@ export async function resolveNodeListWithCache({
         (isCacheFarBelowExpected(cachedData, expectedNodeCount) ||
             isLikelyPartialAggregateNodeList(cachedData.nodes));
     const canUseCachedData =
-        cachedData && hasUsableCachedNodes(cachedData) && !cacheLooksIncomplete;
+        cachedData && hasUsableCachedNodes(cachedData) && !cacheLooksIncomplete && !flagsMismatch;
 
     if (cacheLooksIncomplete) {
         console.warn(

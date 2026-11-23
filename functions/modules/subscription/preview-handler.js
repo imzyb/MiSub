@@ -32,7 +32,7 @@ export function determineRequestMode(requestData) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handlePublicPreviewRequest(request, env) {
+export async function handlePublicPreviewRequest(request, env, context = null) {
     if (request.method !== 'POST') {
         return createJsonResponse('Method Not Allowed', 405);
     }
@@ -76,10 +76,17 @@ export async function handlePublicPreviewRequest(request, env) {
             profile.id,
             userAgent,
             true,
-            shouldSkipCertificateVerify
+            shouldSkipCertificateVerify,
+            0,
+            new Set(),
+            context
         );
 
-        return createJsonResponse(result);
+        return createJsonResponse({
+            ...result,
+            // 预览数据来源：persistence=读 D1 快照；live=本次实时拉取
+            nodeSource: result?.nodeSource || 'live',
+        });
     } catch (e) {
         return createErrorResponse(`Preview failed: ${e.message}`, e.status || 500);
     }
@@ -91,7 +98,7 @@ export async function handlePublicPreviewRequest(request, env) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleSubscriptionNodesRequest(request, env) {
+export async function handleSubscriptionNodesRequest(request, env, context = null) {
     if (request.method !== 'POST') {
         return createJsonResponse('Method Not Allowed', 405);
     }
@@ -132,7 +139,10 @@ export async function handleSubscriptionNodesRequest(request, env) {
                     profileId,
                     userAgent,
                     requestData.applyTransform !== undefined ? requestData.applyTransform : true,
-                    skipCertVerify
+                    skipCertVerify,
+                    0,
+                    new Set(),
+                    context
                 );
                 break;
             case 'subscription':
@@ -161,7 +171,10 @@ export async function handleSubscriptionNodesRequest(request, env) {
                 );
         }
 
-        return createJsonResponse(result);
+        return createJsonResponse({
+            ...result,
+            nodeSource: result?.nodeSource || 'live',
+        });
     } catch (e) {
         return createJsonResponse(
             {

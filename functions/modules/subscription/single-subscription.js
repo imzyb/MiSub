@@ -1,9 +1,18 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
-import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
-import { KV_KEY_SUBS } from '../config.js';
+import {
+    calculateProtocolStats,
+    calculateRegionStats,
+    parseNodeList,
+} from '../utils/node-parser.js';
+import { KV_KEY_SUBS, KV_KEY_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
+import {
+    ensureSnapshotForOutput,
+    getNodeSnapshotForOutput,
+    isNodePersistenceEnabled,
+} from '../../services/node-persistence-service.js';
 
 /**
  * 处理单个订阅模式的节点获取
@@ -67,7 +76,39 @@ export async function handleSingleSubscriptionMode(
         };
     }
 
-    // HTTP订阅：获取节点（开启保护性缓存时，上游失败回退缓存节点，与输出链路一致）
+    // HTTP订阅：D1 节点持久化开启时只读快照；否则实时拉取（失败回退保护性缓存）。
+    const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || {};
+    if (isNodePersistenceEnabled(env, settings)) {
+        const snapshot =
+            (await getNodeSnapshotForOutput(env, subscription)) ||
+            (await ensureSnapshotForOutput(env, subscription, { reason: 'single' }));
+        const nodes = snapshot
+            ? parseNodeList(snapshot.nodes.join('\n'), {
+                  plusAsSpace: Boolean(subscription?.plusAsSpace),
+              })
+            : [];
+        return {
+            success: true,
+            subscriptions: [
+                {
+                    subscriptionName: subscription.name,
+                    url: subscription.url,
+                    success: true,
+                    nodes,
+                    error: null,
+                    fromPersistence: true,
+                },
+            ],
+            nodes,
+            totalCount: nodes.length,
+            nodeSource: 'persistence',
+            stats: {
+                protocols: calculateProtocolStats(nodes),
+                regions: calculateRegionStats(nodes),
+            },
+        };
+    }
+
     const result = await fetchSubscriptionNodes(
         subscription.url,
         subscription.name,
@@ -88,6 +129,8 @@ export async function handleSingleSubscriptionMode(
         subscriptions: [result],
         nodes: result.nodes,
         totalCount: result.nodes.length,
+        // 预览来源：persistence=读 D1 快照；live=本次实时拉取
+        nodeSource: isNodePersistenceEnabled(env, settings) ? 'persistence' : 'live',
         stats: {
             protocols: calculateProtocolStats(result.nodes),
             regions: calculateRegionStats(result.nodes),

@@ -28,6 +28,10 @@ import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
 import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
 import {
+    isNodePersistenceEnabled,
+    maybeRefreshDueNodes,
+} from '../../services/node-persistence-service.js';
+import {
     isBrowserAgent,
     determineTargetFormat,
     isMetaCore,
@@ -890,8 +894,9 @@ export async function handleMisubRequest(context) {
         // Use the flag set earlier
         prependedContentForSubconverter = ''; // Expired node is now in targetMisubs
     } else {
-        // Otherwise, add traffic and expiration info nodes if enabled.
-        if (config.enableTrafficNode !== false) {
+        // 只有显式开启才注入伪节点：undefined / 缺失一律按关闭处理，
+        // 避免老设置或异常数据导致关掉开关后仍出现「流量剩余 / 到期时间」。
+        if (config.enableTrafficNode === true) {
             const totalUserInfo = mergeSubscriptionUserInfo(context, targetMisubs);
             const profileExpireTimestamp = currentProfile?.expiresAt
                 ? Math.floor(new Date(currentProfile.expiresAt).getTime() / 1000)
@@ -1115,8 +1120,14 @@ export async function handleMisubRequest(context) {
         // 仅在至少一个订阅源真正从远程拉取成功时才刷新缓存时间
         // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
         const stats = context.generationStats;
+        if (isNodePersistenceEnabled(env, config)) {
+            // 持久化模式不在聚合缓存写入结果：下一次请求必须重新读 D1 快照。
+            return freshNodes;
+        }
         if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
-            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames, {
+                trafficNodes: config.enableTrafficNode === true,
+            });
             const freshNodeCount = freshNodes.split('\n').filter((line) => line.trim()).length;
             const existingCache = cacheSaved ? null : await storageAdapter.get(cacheKey);
             const existingNodeCount =
@@ -1158,14 +1169,28 @@ export async function handleMisubRequest(context) {
             (sub) => sub?.enabled && typeof sub?.url === 'string' && !sub.url.startsWith('http')
         ).length;
 
+    // D1 节点持久化模式：输出必须反映快照的最新状态，聚合缓存会额外引入最多 12 小时的陈旧窗口，
+    // 因此直接重建（重建只读 D1 快照，不请求机场）。
+    const persistenceEnabled = isNodePersistenceEnabled(env, config);
+    if (persistenceEnabled) {
+        maybeRefreshDueNodes(context, targetMisubs, { reason: 'subscription' }).catch((error) => {
+            console.warn('[NodePersistence] due refresh check failed:', error?.message || error);
+        });
+        maybeContinueBackfill(context, { requestUrl: request.url }).catch((error) => {
+            console.warn('[NodePersistence] backfill continue failed:', error?.message || error);
+        });
+    }
+
     const { combinedNodeList, cacheHeaders } = await resolveNodeListWithCache({
         storageAdapter,
         cacheKey,
-        forceRefresh,
+        forceRefresh: forceRefresh || persistenceEnabled,
         refreshNodes,
         context,
         targetMisubsCount: targetMisubs.length,
         expectedNodeCount: expectedRemoteNodeCount,
+        // 让聚合缓存按「是否注入伪节点」区分，开关一变旧缓存立即失效。
+        cacheFlags: { trafficNodes: config.enableTrafficNode === true },
     });
 
     console.log(`[MiSub Nodes] Count/Length: ${combinedNodeList ? combinedNodeList.length : 0}`);
