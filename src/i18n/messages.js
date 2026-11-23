@@ -1278,6 +1278,13 @@ export const messages = {
             legacyConfigFound: '发现旧版配置',
             legacyConfigDesc:
                 '检测到您有旧版的“节点净化”规则，建议一键迁移至新的操作符链以获得更好的体验。',
+            migrationPartial:
+                '旧配置里的 {items} 没有等价的脚本操作符，未自动迁移，请用 DSL 重写。',
+            filterScript: '脚本过滤',
+            filterUseless: '精简模式',
+            dslHint:
+                '脚本操作符使用受限 DSL（不执行任意 JavaScript）。示例：[{"action":"rename","template":"{emoji}{region}-{index}"}]',
+            dslInvalid: 'DSL 必须是合法的 JSON 数组',
             migrateNow: '立即迁移',
             emptyTitle: '开始链式处理',
             emptyDesc: '添加操作符来定制您的订阅节点处理工作流。',
@@ -2726,7 +2733,8 @@ export const messages = {
             subscriptionTokenRotationHint:
                 'Subscription tokens are separate from the admin password. If a link may be exposed, change this token and save; old links will stop working immediately.',
             featureControlTitle: 'Features',
-            featureControlDesc: 'Manage node update policy, logs, traffic node and access switches.',
+            featureControlDesc:
+                'Manage node update policy, logs, traffic node and access switches.',
             nodePersistenceTitle: 'Node persistence (D1)',
             nodePersistenceDesc:
                 'When on, profiles read saved subscription nodes from D1 instead of fetching providers. When off, every subscription request fetches the provider in real time.',
@@ -3229,6 +3237,13 @@ export const messages = {
             legacyConfigFound: 'Legacy config found',
             legacyConfigDesc:
                 'Legacy “node cleanup” rules were detected. Migrate them to the new operator chain for a better workflow.',
+            migrationPartial:
+                'Legacy {items} have no equivalent script operator and were not migrated; rewrite them with the DSL.',
+            filterScript: 'script filtering',
+            filterUseless: 'slim mode',
+            dslHint:
+                'Script operators use the restricted DSL (no arbitrary JavaScript). Example: [{"action":"rename","template":"{emoji}{region}-{index}"}]',
+            dslInvalid: 'DSL must be a valid JSON array',
             migrateNow: 'Migrate now',
             emptyTitle: 'Start chained processing',
             emptyDesc: 'Add operators to customize your subscription node processing workflow.',

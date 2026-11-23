@@ -18,6 +18,8 @@ lerna-debug.log*
 dist
 dist-ssr
 dev-dist
+# 本地 bun 锁文件（项目统一使用 package-lock.json）
+bun.lock
 
 # Dependencies
 /node_modules/

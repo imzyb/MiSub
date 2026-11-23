@@ -12,8 +12,17 @@ export async function onRequest(context) {
     }
 
     if (request.method === 'POST') {
-        // 手动触发同步
-        return triggerManualSync(env);
+        // 仪表盘页面本身不鉴权，这里不接受触发请求；
+        // 手动刷新统一走需要登录的 POST /api/cron/trigger（与 /cron 同一条快照刷新链路）。
+        return new Response(
+            JSON.stringify({
+                success: false,
+                error: 'method_not_allowed',
+                message: '请使用需要登录的 POST /api/cron/trigger 触发同步',
+                timestamp: new Date().toISOString(),
+            }),
+            { status: 405, headers: { 'Content-Type': 'application/json' } }
+        );
     }
 
     return new Response('Method not allowed', { status: 405 });
@@ -169,36 +178,4 @@ function getCronDashboard(env) {
     return new Response(html, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
-}
-
-/**
- * 手动触发同步
- */
-async function triggerManualSync(env) {
-    try {
-        // 手动触发同步的请求应该转发到 _schedule.js
-        // 由于Cloudflare Pages Functions限制，这里只返回成功响应
-        return new Response(
-            JSON.stringify({
-                success: true,
-                message: '同步任务已提交，请查看日志获取进度',
-                timestamp: new Date().toISOString(),
-            }),
-            {
-                headers: { 'Content-Type': 'application/json' },
-            }
-        );
-    } catch (error) {
-        return new Response(
-            JSON.stringify({
-                success: false,
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            }),
-            {
-                status: 500,
-                headers: { 'Content-Type': 'application/json' },
-            }
-        );
-    }
 }

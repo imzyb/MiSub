@@ -5,7 +5,7 @@
     import RenameEditor from './components/RenameEditor.vue';
     import SortEditor from './components/SortEditor.vue';
     import DedupEditor from './components/DedupEditor.vue';
-    import Input from '../../ui/Input.vue';
+    import { useToastStore } from '../../../stores/toast.js';
 
     const props = defineProps({
         modelValue: {
@@ -20,6 +20,7 @@
 
     const emit = defineEmits(['update:modelValue']);
     const { t } = useI18n();
+    const { showToast } = useToastStore();
 
     // Migration Logic
     const canMigrate = computed(() => {
@@ -78,7 +79,7 @@
             });
         }
 
-        // 4. Script Rename
+        // 4. Script Rename：迁移为受限 DSL（旧的 code 字段已不再执行）
         const renameScript = config.rename?.script;
         if (renameScript?.enabled && renameScript.expression) {
             ops.push({
@@ -86,7 +87,7 @@
                 type: 'script',
                 enabled: true,
                 params: {
-                    code: `return ($nodes) => { return $nodes.map(n => { n.name = (${renameScript.expression})(n.name, n); return n; }); }`,
+                    dsl: [{ action: 'rename', template: renameScript.expression }],
                 },
             });
         }
@@ -111,6 +112,14 @@
                 enabled: true,
                 params: JSON.parse(JSON.stringify(sort)),
             });
+        }
+
+        // 旧「脚本过滤」「精简模式」没有等价操作符：不静默丢弃，迁移后提示用户重写
+        const skipped = [];
+        if (config.filter?.script?.enabled) skipped.push(t('operators.filterScript'));
+        if (config.filter?.useless?.enabled) skipped.push(t('operators.filterUseless'));
+        if (skipped.length > 0) {
+            showToast(t('operators.migrationPartial', { items: skipped.join('、') }), 'warning');
         }
 
         emit('update:modelValue', ops);
@@ -151,7 +160,7 @@
                     template: { enabled: false, template: '' },
                 };
             case 'script':
-                return { code: '', url: '' };
+                return { dsl: [] };
             case 'sort':
                 return {
                     keys: [
@@ -227,6 +236,29 @@
         const newList = [...props.modelValue];
         newList[index] = { ...newList[index], params };
         emit('update:modelValue', newList);
+    };
+
+    // 脚本操作符只接受受限 DSL：用 JSON 文本编辑，解析成功才写回参数
+    const dslDrafts = ref({});
+    const dslErrors = ref({});
+
+    const dslText = (op) => {
+        if (Object.prototype.hasOwnProperty.call(dslDrafts.value, op.id)) {
+            return dslDrafts.value[op.id];
+        }
+        return JSON.stringify(op.params?.dsl ?? [], null, 2);
+    };
+
+    const onDslInput = (index, op, value) => {
+        dslDrafts.value = { ...dslDrafts.value, [op.id]: value };
+        try {
+            const parsed = JSON.parse(value);
+            if (!Array.isArray(parsed)) throw new Error(t('operators.dslInvalid'));
+            dslErrors.value = { ...dslErrors.value, [op.id]: '' };
+            updateOperatorParams(index, { ...op.params, dsl: parsed });
+        } catch (error) {
+            dslErrors.value = { ...dslErrors.value, [op.id]: error.message };
+        }
     };
 </script>
 
@@ -514,28 +546,19 @@
                                 @update:modelValue="(val) => updateOperatorParams(index, val)"
                             />
 
-                            <div v-else-if="op.type === 'script'" class="space-y-4">
-                                <Input
-                                    :modelValue="op.params.url"
-                                    @update:modelValue="
-                                        (val) =>
-                                            updateOperatorParams(index, { ...op.params, url: val })
-                                    "
-                                    :label="t('operators.scriptUrlLabel')"
-                                    :placeholder="t('operators.scriptUrlPlaceholder')"
-                                />
+                            <div v-else-if="op.type === 'script'" class="space-y-3">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    {{ t('operators.dslHint') }}
+                                </p>
                                 <textarea
-                                    :value="op.params.code"
-                                    @input="
-                                        (e) =>
-                                            updateOperatorParams(index, {
-                                                ...op.params,
-                                                code: e.target.value,
-                                            })
-                                    "
-                                    class="w-full h-64 p-4 font-mono text-sm bg-slate-900/50 text-slate-200 border border-slate-700/50 rounded-xl focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all resize-none"
-                                    placeholder="function operator($proxies, $context) { ... }"
+                                    :value="dslText(op)"
+                                    @input="(e) => onDslInput(index, op, e.target.value)"
+                                    class="w-full h-48 p-4 font-mono text-xs bg-slate-900/50 text-slate-200 border border-slate-700/50 rounded-xl focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all resize-none"
+                                    :aria-label="t('operators.script')"
                                 ></textarea>
+                                <p v-if="dslErrors[op.id]" class="text-xs text-red-500">
+                                    {{ dslErrors[op.id] }}
+                                </p>
                             </div>
                         </div>
                     </div>

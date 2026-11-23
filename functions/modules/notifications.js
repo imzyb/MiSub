@@ -113,8 +113,13 @@ export async function checkAndNotify(sub, settings, env) {
     }
 }
 
+/** Cron 刷新并发数与单订阅超时，供 /cron 与 /api/cron/trigger 共用 */
+export const CRON_REFRESH_CONCURRENCY = 6;
+export const CRON_REFRESH_TIMEOUT_MS = 15000;
+
 /**
  * 处理定时任务的通知更新（并行处理版本）
+ * 这是 Cron 刷新的唯一实现：/cron、/api/cron/trigger 都走这里。
  */
 export async function handleCronTrigger(env) {
     const { StorageFactory } = await import('../storage-adapter.js');
@@ -143,8 +148,8 @@ export async function handleCronTrigger(env) {
     console.info(`[Cron] Starting parallel update for ${httpSubscriptions.length} subscriptions`);
     const startTime = Date.now();
 
-    const CONCURRENCY = 6;
-    const TIMEOUT = 15000;
+    const CONCURRENCY = CRON_REFRESH_CONCURRENCY;
+    const TIMEOUT = CRON_REFRESH_TIMEOUT_MS;
 
     const nodeRegex =
         /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm;

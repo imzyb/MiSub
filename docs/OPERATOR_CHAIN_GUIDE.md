@@ -14,11 +14,11 @@ MiSub 的核心灵魂在于其强大的节点处理引擎。从 v2.5.0 版本开
 
 链本身支持上下移动调整顺序、单独暂停某个操作符（保留配置但不执行）、随时新增或删除。
 
-**执行位置**：同一套引擎同时服务三处入口——订阅输出链接（`/sub/*`）、订阅组预览、机场订阅「节点持久化」写库（入库前存的就是链处理后的节点）。
+**执行位置**：同一套操作符链同时服务三处入口——订阅输出链接（`/sub/*`）、订阅组预览、机场订阅「节点持久化」写库（入库前存的就是处理后的节点）。
 
 > [!TIP]
-> **继承机制**：订阅组配置了操作符链就用订阅组自己的；否则依次回退到订阅组旧字段 `nodeTransform.operators`、全局「默认转换操作符链」（`defaultOperators`），最后才是旧版配置的桥接转换，任意一层命中即停止。
-> 单机场订阅另有自己的两级：优先 `sub.operators`，其次 `sub.nodeTransform.operators`；算子跑完后才应用该订阅的文本规则（`exclude` 文本支持 `keep:` 包含行与 `---` 分段），以及订阅组 / 全局的 `exclude` / `include` 过滤。
+> **继承机制**：订阅组配置了操作符链就用订阅组自己的；否则依次回退到订阅组的旧版转换字段、全局「默认转换操作符链」，最后才是旧版配置的桥接转换，任意一层命中即停止。
+> 单机场订阅另有自己的两级：优先该订阅自己配置的操作符链，其次它的旧版转换字段；处理完之后才应用该订阅的文本规则（文本支持 `keep:` 包含行与 `---` 分段写法），以及订阅组 / 全局的包含 / 排除过滤。
 
 ---
 
@@ -29,7 +29,7 @@ MiSub 的核心灵魂在于其强大的节点处理引擎。从 v2.5.0 版本开
 通过多种维度精准控制节点的去留。
 
 - **包含 / 排除正则**：两个开关可以同时打开，先按包含保留，再按排除剔除例外；正则默认忽略大小写，多条规则之间是“或”关系。
-- **匹配范围**：节点名、元数据里的清洗名（`cleanName`）、地区中文名与 ISO 地区代码（如 `香港`、`HK`）都参与匹配。
+- **匹配范围**：节点名、清洗后的名称、地区中文名与 ISO 地区代码（如 `香港`、`HK`）都参与匹配。
 - **协议限制**：从 `vless`、`vmess`、`trojan`、`ss`、`hysteria2`、`socks` 等常用标签中点选要保留的协议。
 - **地区限制**：默认提供香港、美国、日本、新加坡、台湾、韩国、英国、德国等标签，按识别出的地区过滤。
 
@@ -43,7 +43,7 @@ MiSub 的核心灵魂在于其强大的节点处理引擎。从 v2.5.0 版本开
 - **正则替换**：把 `香港 01` 替换成 `HK-01`；默认忽略大小写、替换全部匹配；替换文本里可以直接引用 `{regionZh}`、`{emoji}` 等变量。
 - **模板重写**：占位符有 `{name}`、`{protocol}`、`{regionZh}`、`{region}`、`{emoji}`、`{server}`、`{port}`、`{index}`、`{index:2}`、`{g1}`、`{g2}` 等；`{index}` 默认按“地区”分组自增，可用“起步索引”调整起点，`{index:2}` 表示补零到两位。
 - **捕获组**：正则替换的第 1..N 个捕获组会保留为 `{g1}`…`{gN}`（命名组用 `g` + 组名，如 `{gcountry}`），同一条链里更靠后的模板重写也能继续引用。
-- **写回链接**：名称变化会同步写回节点链接（vmess 改 JSON 的 `ps` 字段，其余协议改 `#fragment`），客户端里显示的才是新名称。
+- **写回链接**：名称变化会同步写回节点链接，客户端里显示的才是新名称。
 
 ### 🔢 节点排序 (Sort)
 
@@ -68,27 +68,21 @@ MiSub 的核心灵魂在于其强大的节点处理引擎。从 v2.5.0 版本开
 
 ## 3. 🛡️ 脚本操作符 (Script) —— 受限 DSL 定制
 
-脚本操作符**不执行任意 JavaScript**：引擎（`functions/utils/expression-dsl.js`）刻意避开 `eval` / `new Function`，只支持一组声明式步骤，用来替代旧版的脚本沙箱。
+脚本操作符**不执行任意 JavaScript**：它只接受一组声明式的受限 DSL 步骤，用来替代旧版的脚本沙箱。
 
-生效配置是 `params.dsl` 数组，按顺序执行：
+生效配置是一组按顺序执行的步骤，例如：
 
 ```json
-{
-    "type": "script",
-    "enabled": true,
-    "params": {
-        "dsl": [
-            { "action": "rename", "template": "{name} Scripted" },
-            { "action": "filter", "field": "name", "op": "contains", "value": "HK" }
-        ]
-    }
-}
+[
+    { "action": "rename", "template": "{name} Scripted" },
+    { "action": "filter", "field": "name", "op": "contains", "value": "HK" }
+]
 ```
 
 - `action: "filter"`：按字段条件过滤节点。字段可用 `name`、`protocol`、`region`、`regionZh`、`server`、`port`、`index` 等，`op` 支持 `eq` / `ne` / `contains` / `not_contains` / `match`（按正则）/ `in`。
 - `action: "rename"`：按模板改节点名，占位符与“模板重写”一致（`{name}`、`{regionZh}`、`{protocol}`、`{index}` 等），也支持 `{upper(regionZh)}`、`{replace(name, 'x', 'y')}`、`{fallback(regionZh, name)}` 这类函数表达式。
 
-**关于旧字段**：操作符面板里仍能看到“远程脚本 URL”和历史代码框，但引擎已经停用这两个字段——传入 `params.code` 或 `params.url` 时只会打印一条 `[Operator] Legacy script code is disabled; use params.dsl instead.` 警告，并把节点原样透传，不会下载或执行任何脚本。旧版「改名脚本」在部分链路会被桥接成 DSL 改名步骤，但不保证全部链路生效，建议按 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) 手动重建。
+**关于旧字段**：旧版的“远程脚本 URL”与历史代码框已经停用——这类历史配置会被忽略（节点原样透传），不会下载或执行任何脚本，引擎只会记录一条提示。旧版「改名脚本」在一键迁移时会转换成等价的 DSL 改名步骤，而「脚本过滤」「精简模式」没有等价操作符，建议按 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) 手动重建。
 
 ---
 
@@ -103,7 +97,7 @@ A: **非常有影响！** 通常建议的顺序是：
 先过滤掉不需要的节点，再对剩下的节点进行重命名和排序，效率最高；把排序放在重命名之前，`{index}` 编号也更稳定。
 
 **Q: 脚本里能写任意 JavaScript 吗？**
-A: 不能。只能用第 3 节的受限 DSL；旧版 JS 代码与远程脚本均已停用。
+A: 不能。只能用第 3 节的受限 DSL；旧版 JavaScript 代码与远程脚本均已停用。
 
 **Q: 为什么两个节点没有被去重？**
 A: 先看“去重依据”：默认按“服务器 + 端口”，端口不同就不会合并；如果“协议参与去重”开着，同主机端口但协议不同也不会合并；选“完整链接”则要求链接完全一致。
@@ -115,15 +109,4 @@ A: 分组键依赖节点元数据里的分组名（手动节点分组、机场�
 A: 操作符链没有这两个能力；需要的话用“过滤节点”的正则、协议、地区条件自己重建。
 
 **Q: 旧版操作符链还会执行吗？**
-A: 只要存在任意一层操作符链（订阅组、旧 `nodeTransform.operators`、全局默认链），旧版桥接就不会执行；迁移说明见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。
-
----
-
-## 5. 参考源码（v2.8.0）
-
-- `functions/utils/operator-runner.js`：过滤 / 重命名 / 脚本 DSL / 排序 / 去重的执行实现。
-- `functions/utils/node-transformer.js`：排序比较器、模板渲染、正则替换。
-- `functions/utils/expression-dsl.js`：受限表达式 DSL（不使用动态代码执行）。
-- `functions/services/subscription-node-transform.js`：单机场订阅的算子链 + 文本过滤入口。
-- `src/components/features/Operators/`：操作符编辑 UI（Filter / Rename / Sort / Dedup 编辑器与迁移卡片）。
-- `tests/unit/operator-runner.test.js`：算子行为与“脚本不执行 JS”的回归用例。
+A: 只要存在任意一层操作符链（订阅组、旧版转换字段、全局默认链），旧版桥接就不会执行；迁移说明见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。

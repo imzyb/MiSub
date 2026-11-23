@@ -73,7 +73,6 @@ D1 当前采用“行级 JSON”结构：
     - `created_at DATETIME`
     - `updated_at DATETIME`
 
-
 兼容点：
 前端 Store 中的集合名是 `subscriptions`，后端接口载荷中称为 `misubs`。同一个数组同时容纳两种项目：
 

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { createPinia } from 'pinia';
 import OperatorChain from '../../src/components/features/Operators/OperatorChain.vue';
 import { createI18n } from '../../src/i18n/index.js';
 
 const englishGlobal = () => ({
-    plugins: [createI18n({ initialLocale: 'en-US' })],
+    plugins: [createI18n({ initialLocale: 'en-US' }), createPinia()],
     stubs: {
         draggable: {
             props: ['modelValue'],
@@ -56,7 +57,7 @@ const operatorList = [
         id: 'script-1',
         type: 'script',
         enabled: true,
-        params: { url: '', code: '' },
+        params: { dsl: [] },
     },
 ];
 
@@ -109,8 +110,10 @@ describe('operator chain English translations', () => {
         expectNoChineseOrKeys(wrapper.text());
 
         await headers[4].trigger('click');
-        expect(wrapper.text()).toContain('Remote script URL');
-        expect(wrapper.find('input[placeholder="GitGist/raw link"]').exists()).toBe(true);
+        // 脚本操作符改为受限 DSL：不再有远程脚本 URL 与任意 JS 输入
+        expect(wrapper.text()).toContain('restricted DSL');
+        expect(wrapper.find('textarea').exists()).toBe(true);
+        expect(wrapper.find('input[placeholder="GitGist/raw link"]').exists()).toBe(false);
         expectNoChineseOrKeys(wrapper.text());
     });
 });
