@@ -1,6 +1,6 @@
 <script setup>
-    import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-    import { computePopoverPosition } from '../../utils/popover.js';
+    import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+    import { usePopoverPosition } from '../../composables/usePopoverPosition.js';
 
     const props = defineProps({
         open: { type: Boolean, default: false },
@@ -14,66 +14,17 @@
     const emit = defineEmits(['confirm', 'cancel']);
 
     const panelRef = ref(null);
-    const placement = ref('bottom-end');
-    const panelStyle = ref({
-        top: '0px',
-        left: '0px',
-        width: `${props.width}px`,
-        transformOrigin: 'top right',
+    const anchorRef = computed(() => props.anchor);
+    const openRef = computed(() => props.open);
+
+    // 「锚点 + fixed + 视口翻转」的定位逻辑集中在这里，避免被容器 overflow 裁切
+    const { placement, panelStyle } = usePopoverPosition({
+        open: openRef,
+        anchorRef,
+        panelRef,
+        width: props.width,
+        zIndex: 'var(--z-modal-popover)',
     });
-
-    const updatePosition = () => {
-        const anchor = props.anchor;
-        const panel = panelRef.value;
-        if (!anchor || !panel) return;
-        const rect = anchor.getBoundingClientRect();
-        const result = computePopoverPosition({
-            anchorRect: {
-                top: rect.top,
-                bottom: rect.bottom,
-                left: rect.left,
-                right: rect.right,
-            },
-            panelWidth: panel.offsetWidth || props.width,
-            panelHeight: panel.offsetHeight,
-            viewportWidth: window.innerWidth,
-            viewportHeight: window.innerHeight,
-        });
-        placement.value = result.placement;
-        panelStyle.value = {
-            top: `${Math.round(result.top)}px`,
-            left: `${Math.round(result.left)}px`,
-            width: `${props.width}px`,
-            transformOrigin: result.origin,
-        };
-    };
-
-    // 弹窗自身有 200ms 左右的入场动画，锚点位置会变；开启动画期间持续跟随测量
-    let settleFrame = 0;
-    const settlePosition = () => {
-        cancelAnimationFrame(settleFrame);
-        const startedAt = performance.now();
-        const tick = () => {
-            updatePosition();
-            if (performance.now() - startedAt < 450) {
-                settleFrame = requestAnimationFrame(tick);
-            }
-        };
-        settleFrame = requestAnimationFrame(tick);
-    };
-
-    watch(
-        () => props.open,
-        async (open) => {
-            if (!open) return;
-            await nextTick();
-            settlePosition();
-        }
-    );
-
-    const reposition = () => {
-        if (props.open) updatePosition();
-    };
 
     const onDocumentPointerDown = (event) => {
         if (!props.open) return;
@@ -84,15 +35,10 @@
     };
 
     onMounted(() => {
-        window.addEventListener('resize', reposition);
-        window.addEventListener('scroll', reposition, true);
         document.addEventListener('pointerdown', onDocumentPointerDown, true);
     });
 
     onBeforeUnmount(() => {
-        cancelAnimationFrame(settleFrame);
-        window.removeEventListener('resize', reposition);
-        window.removeEventListener('scroll', reposition, true);
         document.removeEventListener('pointerdown', onDocumentPointerDown, true);
     });
 </script>

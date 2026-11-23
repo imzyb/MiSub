@@ -15,6 +15,8 @@ export function useNodePreview(props) {
     const loading = ref(false);
     const error = ref('');
     const allNodes = ref([]); // 存储所有节点
+    // 预览数据来源：persistence=读 D1 快照；live=本次实时拉取
+    const nodeSource = ref('live');
     const currentPage = ref(1);
     const pageSize = ref(20);
     const viewMode = ref('list'); // 'list' 或 'card'
@@ -134,6 +136,7 @@ export function useNodePreview(props) {
             }
 
             allNodes.value = data.nodes || [];
+            nodeSource.value = data.nodeSource === 'persistence' ? 'persistence' : 'live';
             protocolStats.value = data.stats?.protocols || {};
             regionStats.value = data.stats?.regions || {};
 
@@ -224,6 +227,7 @@ export function useNodePreview(props) {
         loading,
         error,
         allNodes,
+        nodeSource,
         filteredNodes,
         paginatedNodes,
         protocolStats,

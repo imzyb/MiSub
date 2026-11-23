@@ -153,6 +153,8 @@ export function useSettingsLogic() {
             settingsToSave.ruleLevel =
                 settingsToSave.ruleLevel || settingsToSave.clashRuleLevel || 'std';
 
+            // capabilities 是服务端算出来的只读能力描述，不能回写到设置里。
+            delete settingsToSave.capabilities;
             delete settingsToSave.prefixConfig;
             delete settingsToSave.prependSubName;
             delete settingsToSave.nodeTransform;

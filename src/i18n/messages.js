@@ -303,6 +303,12 @@ export const messages = {
             networkFailed: '网络连接失败，请检查网络连接',
             loadFailed: '加载节点失败',
             profileSubtitle: '订阅组节点概览',
+            sourceLiveTag: '（实时拉取）',
+            sourceSnapshotTag: '（D1 已保存节点）',
+            sourceLiveHint:
+                '以下是本次实时从机场拉取的最新节点。未启用节点持久化，预览不会写入数据库，因此节点数量和流量可能与卡片上显示的统计值不一致。',
+            sourceSnapshotHint:
+                '以下节点来自 D1 中已保存的订阅节点，与卡片统计同源，本次预览没有请求机场。',
             subscriptionSubtitle: '订阅节点预览结果',
             pickNodes: '挑选节点',
             exitPicking: '退出挑选',
@@ -465,9 +471,11 @@ export const messages = {
             excludeTrafficTitle: '合并时不计算此机场流量',
             excludeTrafficDesc: '在多个机场订阅合并展示流量时，忽略此机场的流量信息',
             autoUpdateTitle: '禁用自动更新',
-            autoUpdateDesc: '开启后定时刷新与批量刷新都会跳过此机场，单机场手动刷新不受影响',
+            autoUpdateDesc:
+                '开启后该机场不参与由访问触发的自动更新与 Cron；订阅组仍从 D1 读取它已保存的订阅节点，单机场手动刷新不受影响',
             autoUpdatePaused: '已禁用自动更新',
-            autoUpdatePausedHint: '定时刷新与批量刷新会跳过此机场，仍可单独手动刷新',
+            autoUpdatePausedHint:
+                '该机场不参与由访问触发的自动更新与 Cron；订阅组仍从 D1 读取它已保存的订阅节点，仍可单独手动刷新',
             refreshSkippedPaused: '已跳过 {count} 个禁用自动更新的订阅',
             keepEmptyError: 'keep: 后内容为空',
             protoEmptyError: 'proto: 后未填写协议',
@@ -800,16 +808,30 @@ export const messages = {
             subscriptionTokenRotationHint:
                 '订阅 Token 与管理密码相互独立。若怀疑订阅链接已泄露，请修改此 Token 并保存；旧链接将立即失效。',
             featureControlTitle: '功能控制',
-            featureControlDesc: '统一管理自动更新、访问日志、流量节点和访问控制开关。',
-            autoUpdateInterval: '订阅自动更新间隔',
-            autoUpdateDesc: '页面打开时自动刷新订阅节点数和流量',
+            featureControlDesc: '统一管理节点更新策略、访问日志、流量节点和访问控制开关。',
+            nodePersistenceTitle: '节点持久化（D1）',
+            nodePersistenceDesc:
+                '开启后订阅组只从 D1 读取已保存的订阅节点，不再实时请求机场；关闭时每次订阅实时拉取机场。',
+            nodePersistenceEnabledHint:
+                '已启用：订阅组只读 D1 中已保存的订阅节点。启用时会自动对所有机场全量同步一次（后台进行，无需保持页面打开）；之后由按需更新、Cron 或手动刷新维护。',
+            nodePersistenceDisabledHint:
+                '未启用：每次订阅都会实时拉取机场节点，并直接返回给客户端（不回写机场订阅信息）。',
+            nodePersistenceUnavailableNoD1: '当前未绑定 D1 数据库，无法启用节点持久化',
+            nodePersistenceUnavailableKv: '当前主存储仍是 KV，请先在「系统」中切换到 D1 存储',
+            autoUpdateInterval: '订阅更新检查间隔',
+            autoUpdateDesc:
+                '不是定时任务（免费版 Worker 没有定时能力）。只有在访问页面、请求订阅等操作触发时，才会与上次更新时间比较；超过该间隔就更新 D1 里已保存的订阅节点。0 表示不自动更新。',
+            autoUpdateRequiresPersistence: '请先启用节点持久化',
+            autoUpdateZeroHint:
+                '0 表示不自动更新订阅节点；订阅组仍从 D1 读取已保存的节点，可用 Cron 或手动刷新更新',
             customInterval: '自定义',
             minutes: '分钟',
             quickSelect: '快捷选择',
             disabledOption: '禁用',
             option30Minutes: '30分钟',
             option1Hour: '1小时',
-            autoUpdateDisabledHint: '⚠️ 自动更新已禁用，订阅信息需手动刷新',
+            autoUpdateDisabledHint:
+                '⚠️ 订阅节点自动更新已关闭，订阅组仍从 D1 读取已保存的节点；可用 Cron 或手动刷新更新',
             accessLogTitle: '开启访问日志 & 计数',
             accessLogDesc: '记录订阅访问并统计流量与IP',
             accessLogQuotaHint:
@@ -1085,6 +1107,9 @@ export const messages = {
             guestbookBug: '🐛 Bug反馈',
             guestbookFeature: '✨ 功能建议',
             guestbookNormal: '💬 普通留言',
+            cronUnavailableNoD1: '未绑定 D1 数据库，Cron 刷新不可用',
+            cronUnavailableNoPersistence: '请先启用节点持久化，Cron 刷新才会生效',
+            cronAvailableHint: 'Cron 是独立的强制刷新通道，不受订阅更新检查间隔限制',
             cronTitle: '自动任务配置 (Cron)',
             cronDesc:
                 '定时更新所有订阅的流量信息和节点数量，并在订阅临期或流量不足时通过 Telegram 发送提醒。',
@@ -2181,6 +2206,12 @@ export const messages = {
             networkFailed: 'Network failed. Check connection.',
             loadFailed: 'Failed to load nodes',
             profileSubtitle: 'Profile node overview',
+            sourceLiveTag: ' (live fetch)',
+            sourceSnapshotTag: ' (saved in D1)',
+            sourceLiveHint:
+                'These nodes were fetched live from the provider just now. Node persistence is off, so the preview is not stored and its node count or traffic may differ from the values on the card.',
+            sourceSnapshotHint:
+                'These nodes come from the subscription nodes saved in D1, the same source as the card statistics. This preview made no provider request.',
             subscriptionSubtitle: 'Source node preview result',
             pickNodes: 'Pick nodes',
             exitPicking: 'Exit picking',
@@ -2348,9 +2379,10 @@ export const messages = {
                 "Ignore this provider's traffic information when merging multiple subscriptions",
             autoUpdateTitle: 'Disable auto update',
             autoUpdateDesc:
-                'When on, scheduled and batch refreshes skip this provider; manual single refresh still works.',
+                'When on, this provider is skipped by action-triggered updates and Cron; profiles still read its saved nodes from D1 and manual refresh still works.',
             autoUpdatePaused: 'Auto update off',
-            autoUpdatePausedHint: 'Scheduled and batch refreshes skip this provider; manual refresh still works.',
+            autoUpdatePausedHint:
+                'Action-triggered updates and Cron skip this provider; profiles still read its saved nodes from D1 and manual refresh still works.',
             refreshSkippedPaused: 'Skipped {count} subscriptions with auto update off',
             keepEmptyError: 'keep: content is empty',
             protoEmptyError: 'proto: protocol is missing',
@@ -2694,16 +2726,32 @@ export const messages = {
             subscriptionTokenRotationHint:
                 'Subscription tokens are separate from the admin password. If a link may be exposed, change this token and save; old links will stop working immediately.',
             featureControlTitle: 'Features',
-            featureControlDesc: 'Manage auto update, logs, traffic node and access switches.',
-            autoUpdateInterval: 'Auto update interval',
-            autoUpdateDesc: 'Refresh node counts and traffic when page opens',
+            featureControlDesc: 'Manage node update policy, logs, traffic node and access switches.',
+            nodePersistenceTitle: 'Node persistence (D1)',
+            nodePersistenceDesc:
+                'When on, profiles read saved subscription nodes from D1 instead of fetching providers. When off, every subscription request fetches the provider in real time.',
+            nodePersistenceEnabledHint:
+                'Enabled: profiles serve saved subscription nodes from D1. Turning it on triggers a full background sync of every provider (no need to keep this page open); afterwards on-demand updates, Cron, or manual refresh keep it up to date.',
+            nodePersistenceDisabledHint:
+                'Disabled: every subscription request fetches the provider and returns nodes directly (no write-back).',
+            nodePersistenceUnavailableNoD1:
+                'D1 is not bound, so node persistence cannot be enabled',
+            nodePersistenceUnavailableKv:
+                'Primary storage is still KV. Switch to D1 in System settings first',
+            autoUpdateInterval: 'Subscription update check interval',
+            autoUpdateDesc:
+                'Not a scheduled task (the free Workers plan has no timers). It is evaluated only when an action triggers a request (page visit, subscription request): if the saved subscription nodes are older than this interval, they are updated. 0 disables automatic updates.',
+            autoUpdateRequiresPersistence: 'Enable node persistence first',
+            autoUpdateZeroHint:
+                '0 means subscription nodes are not updated automatically. Profiles still read the saved nodes from D1; use Cron or manual refresh.',
             customInterval: 'Custom',
             minutes: 'min',
             quickSelect: 'Quick',
             disabledOption: 'Disabled',
             option30Minutes: '30 min',
             option1Hour: '1 hr',
-            autoUpdateDisabledHint: '⚠️ Auto update is disabled. Refresh sources manually.',
+            autoUpdateDisabledHint:
+                '⚠️ Automatic subscription node updates are off. Profiles still read the saved nodes from D1; use Cron or manual refresh.',
             accessLogTitle: 'Access logs & count',
             accessLogDesc: 'Record access and count traffic/IPs',
             accessLogQuotaHint:
@@ -2996,6 +3044,11 @@ export const messages = {
             guestbookBug: '🐛 Bug report',
             guestbookFeature: '✨ Feature request',
             guestbookNormal: '💬 Message',
+            cronUnavailableNoD1: 'D1 is not bound, so Cron refresh is unavailable',
+            cronUnavailableNoPersistence:
+                'Enable node persistence first for Cron refresh to take effect',
+            cronAvailableHint:
+                'Cron is an independent forced refresh channel and ignores the subscription update check interval',
             cronTitle: 'Automation (Cron)',
             cronDesc:
                 'Periodically update traffic and node counts, and send Telegram alerts when subscriptions are near expiry or traffic is low.',
@@ -3224,7 +3277,8 @@ export const messages = {
             resetDefault: 'Reset default',
             clearAll: 'Clear all',
             regexPinPlaceholder: 'Enter keyword or regex (e.g. AWS, dmit) and press Enter',
-            invalidRegexError: 'Invalid regular expression syntax. Please check brackets or escapes.',
+            invalidRegexError:
+                'Invalid regular expression syntax. Please check brackets or escapes.',
             emptyRegexPriorityItems:
                 'No pin rules yet. Add keywords or regexes above; unmatched nodes are placed after matched ones.',
             emptyPriorityItems:
@@ -3733,8 +3787,10 @@ export const messages = {
         logs: {
             title: 'Subscription access logs',
             fetchFailed: 'Failed to load logs',
-            clearConfirm: 'Clear all logs? Each profile\'s visit count will be reset to zero as well.',
-            clearConfirmScoped: 'Clear this profile\'s logs? Its visit count will be reset to zero as well.',
+            clearConfirm:
+                "Clear all logs? Each profile's visit count will be reset to zero as well.",
+            clearConfirmScoped:
+                "Clear this profile's logs? Its visit count will be reset to zero as well.",
             clearSuccess: 'Logs cleared',
             clearSuccessScoped: 'Logs cleared for this profile',
             clearFailed: 'Failed to clear logs',

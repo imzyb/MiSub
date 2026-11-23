@@ -13,33 +13,37 @@ export function computePopoverPosition({
     viewportHeight,
     gap = DEFAULT_GAP,
     margin = DEFAULT_MARGIN,
+    // end = 右边缘对齐锚点（确认弹窗习惯）；start = 左边缘对齐锚点（说明气泡更自然）
+    prefer = 'end',
 }) {
-    const candidates = [
-        {
-            placement: 'bottom-end',
-            top: anchorRect.bottom + gap,
-            left: anchorRect.right - panelWidth,
-            origin: 'top right',
-        },
-        {
-            placement: 'bottom-start',
-            top: anchorRect.bottom + gap,
-            left: anchorRect.left,
-            origin: 'top left',
-        },
-        {
-            placement: 'top-end',
-            top: anchorRect.top - gap - panelHeight,
-            left: anchorRect.right - panelWidth,
-            origin: 'bottom right',
-        },
-        {
-            placement: 'top-start',
-            top: anchorRect.top - gap - panelHeight,
-            left: anchorRect.left,
-            origin: 'bottom left',
-        },
-    ];
+    const bottomEnd = {
+        placement: 'bottom-end',
+        top: anchorRect.bottom + gap,
+        left: anchorRect.right - panelWidth,
+        origin: 'top right',
+    };
+    const bottomStart = {
+        placement: 'bottom-start',
+        top: anchorRect.bottom + gap,
+        left: anchorRect.left,
+        origin: 'top left',
+    };
+    const topEnd = {
+        placement: 'top-end',
+        top: anchorRect.top - gap - panelHeight,
+        left: anchorRect.right - panelWidth,
+        origin: 'bottom right',
+    };
+    const topStart = {
+        placement: 'top-start',
+        top: anchorRect.top - gap - panelHeight,
+        left: anchorRect.left,
+        origin: 'bottom left',
+    };
+    const candidates =
+        prefer === 'start'
+            ? [bottomStart, bottomEnd, topStart, topEnd]
+            : [bottomEnd, bottomStart, topEnd, topStart];
 
     const fits = (candidate) =>
         candidate.top >= margin &&

@@ -291,7 +291,7 @@ describe('单机场暂停自动更新', () => {
         expect(body.data.autoUpdate).toBe(false);
     });
 
-    it('暂停后拉取订阅组不会把节点数写回存储', async () => {
+    it('订阅组访问（暂停项）不会把节点数写回存储', async () => {
         const storage = createMemoryStorage();
         const updateSubscriptionById = vi.fn(async (id, apply) => ({ id, ...apply({ id }) }));
         storage.updateSubscriptionById = updateSubscriptionById;
@@ -324,7 +324,7 @@ describe('单机场暂停自动更新', () => {
         expect(updateSubscriptionById).not.toHaveBeenCalled();
     });
 
-    it('未暂停的订阅仍然写回节点数与流量', async () => {
+    it('订阅组访问（未暂停项）同样不写回，只把运行时信息留在当前请求', async () => {
         const storage = createMemoryStorage();
         const updateSubscriptionById = vi.fn(async (id, apply) => ({ id, ...apply({ id }) }));
         storage.updateSubscriptionById = updateSubscriptionById;
@@ -351,12 +351,14 @@ describe('单机场暂停自动更新', () => {
         );
 
         await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(updateSubscriptionById).toHaveBeenCalledTimes(1);
+        // 订阅组访问是只读的：节点数/流量改由显式刷新、Cron 或 D1 持久化快照维护。
+        expect(updateSubscriptionById).not.toHaveBeenCalled();
     });
 
-    it('订阅卡片展示禁用自动更新徽标', () => {
+    it('启用持久化时，订阅卡片展示禁用自动更新徽标', () => {
         const wrapper = mount(Card, {
             props: {
+                persistenceEnabled: true,
                 misub: {
                     id: 'sub_1',
                     name: '激活窗口机场',
@@ -374,7 +376,7 @@ describe('单机场暂停自动更新', () => {
 
         const badge = wrapper.get('[data-testid="subscription-auto-update-paused"]');
         expect(badge.text()).toBe('已禁用自动更新');
-        expect(badge.attributes('title')).toContain('定时刷新与批量刷新会跳过此机场');
+        expect(badge.attributes('title')).toContain('不参与由访问触发的自动更新与 Cron');
     });
 
     it('未暂停时订阅卡片不展示徽标', () => {
@@ -409,7 +411,7 @@ describe('单机场暂停自动更新', () => {
             autoUpdate: true,
         };
         const wrapper = mount(AdvancedOptions, {
-            props: { editingSubscription: subscription },
+            props: { editingSubscription: subscription, persistenceEnabled: true },
             global: { plugins: [createI18n({ initialLocale: 'zh-CN' })] },
         });
 

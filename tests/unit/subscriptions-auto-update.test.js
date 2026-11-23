@@ -31,7 +31,7 @@ vi.mock('../../src/utils/errorHandler.js', () => ({
     handleError: vi.fn(),
 }));
 
-describe('subscription auto-update scheduling', () => {
+describe('subscription auto refresh scheduling', () => {
     beforeEach(() => {
         vi.resetModules();
         vi.useFakeTimers();
@@ -43,25 +43,22 @@ describe('subscription auto-update scheduling', () => {
         vi.useRealTimers();
     });
 
-    it('does not create a timer when the setting is zero', async () => {
-        const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    it('不再暴露浏览器端定时器：自动刷新已改由服务端请求触发', async () => {
         const { useSubscriptions } = await import('../../src/composables/useSubscriptions.js');
-        const { startAutoUpdate } = useSubscriptions(vi.fn());
+        const api = useSubscriptions(vi.fn());
 
-        startAutoUpdate();
-
-        expect(setIntervalSpy).not.toHaveBeenCalled();
+        expect(api.startAutoUpdate).toBeUndefined();
+        expect(api.stopAutoUpdate).toBeUndefined();
+        expect(api.restartAutoUpdate).toBeUndefined();
     });
 
-    it('creates a timer for a positive setting', async () => {
+    it('初始化不会创建 setInterval', async () => {
         const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
         const { useSubscriptions } = await import('../../src/composables/useSubscriptions.js');
-        const { startAutoUpdate, stopAutoUpdate } = useSubscriptions(vi.fn());
 
         mocks.dataStore.settings = { autoUpdateInterval: 5 };
-        startAutoUpdate();
+        useSubscriptions(vi.fn());
 
-        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5 * 60 * 1000);
-        stopAutoUpdate();
+        expect(setIntervalSpy).not.toHaveBeenCalled();
     });
 });

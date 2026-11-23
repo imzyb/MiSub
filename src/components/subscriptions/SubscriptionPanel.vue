@@ -33,6 +33,8 @@
         lastRefreshAt: { type: [String, Number, Date], default: null },
         statusFilter: { type: String, default: '' },
         statusFilterLabel: { type: String, default: '' },
+        // D1 节点持久化是否开启：决定卡片上是否展示「已禁用自动刷新」徽标
+        persistenceEnabled: { type: Boolean, default: false },
     });
 
     const groupNameInput = ref('');
@@ -491,6 +493,7 @@
                         <div class="cursor-move">
                             <Card
                                 :misub="subscription"
+                                :persistence-enabled="persistenceEnabled"
                                 @delete="handleDelete(subscription.id)"
                                 @change="handleSortEnd"
                                 @update="handleUpdate(subscription.id)"
@@ -605,6 +608,7 @@
                             >
                                 <Card
                                     :misub="subscription"
+                                    :persistence-enabled="persistenceEnabled"
                                     @delete="handleDelete(subscription.id)"
                                     @change="handleSortEnd"
                                     @update="handleUpdate(subscription.id)"
@@ -631,6 +635,7 @@
                     >
                         <Card
                             :misub="subscription"
+                            :persistence-enabled="persistenceEnabled"
                             @delete="handleDelete(subscription.id)"
                             @change="handleSortEnd"
                             @update="handleUpdate(subscription.id)"
@@ -653,6 +658,7 @@
                 >
                     <Card
                         :misub="subscription"
+                        :persistence-enabled="persistenceEnabled"
                         @delete="handleDelete(subscription.id)"
                         @change="handleSortEnd"
                         @update="handleUpdate(subscription.id)"

@@ -13,6 +13,11 @@
             type: Object,
             required: true,
         },
+        // 只有开启 D1 节点持久化时，「已禁用自动刷新」徽标才有意义。
+        persistenceEnabled: {
+            type: Boolean,
+            default: false,
+        },
     });
 
     const emit = defineEmits([
@@ -41,8 +46,11 @@
 
     const protocol = computed(() => getProtocol(props.misub.url));
 
-    // 暂停自动更新：只影响批量/定时/外部 API 刷新，单机场手动刷新仍可用
-    const autoUpdatePaused = computed(() => props.misub?.autoUpdate === false);
+    // 暂停自动刷新：只在节点持久化开启时才有意义——
+    // 未启用持久化时没有 D1 快照，徽标会误导用户。
+    const autoUpdatePaused = computed(
+        () => props.persistenceEnabled === true && props.misub?.autoUpdate === false
+    );
 
     // 机场自报名称（订阅响应头的 Profile-Title / Content-Disposition），仅用于展示提示
     const detectedName = computed(() => {

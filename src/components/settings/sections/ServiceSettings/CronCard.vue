@@ -14,6 +14,19 @@
     // 折叠状态
     const showCronGuide = ref(false);
 
+    // Cron 只在 D1 + 节点持久化开启时可用；它是独立于自动刷新间隔的强制刷新通道。
+    const cronAvailable = computed(() => {
+        const config = props.settings || {};
+        const capabilities = config.capabilities || {};
+        return capabilities.available === true && config.enableNodePersistence === true;
+    });
+    const cronUnavailableReason = computed(() => {
+        if (cronAvailable.value) return '';
+        const capabilities = props.settings?.capabilities || {};
+        if (!capabilities.hasD1) return t('settings.cronUnavailableNoD1');
+        return t('settings.cronUnavailableNoPersistence');
+    });
+
     // Cron URL
     const cronUrl = computed(() => {
         const secret = props.settings.cronSecret;
@@ -68,6 +81,20 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {{ t('settings.cronDesc') }}
                 </p>
+                <p
+                    v-if="cronUnavailableReason"
+                    class="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    data-testid="cron-unavailable-reason"
+                >
+                    {{ cronUnavailableReason }}
+                </p>
+                <p
+                    v-else
+                    class="mt-1 text-xs text-emerald-600 dark:text-emerald-400"
+                    data-testid="cron-available-hint"
+                >
+                    {{ t('settings.cronAvailableHint') }}
+                </p>
             </div>
             <button
                 @click="showCronGuide = !showCronGuide"
@@ -78,13 +105,14 @@
         </div>
 
         <!-- Cron Secret 输入框 -->
-        <div>
+        <div :class="{ 'opacity-60': !cronAvailable }">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                 >Cron Secret</label
             >
             <input
                 type="text"
                 v-model="settings.cronSecret"
+                :disabled="!cronAvailable"
                 :placeholder="t('settings.cronSecretPlaceholder')"
                 class="block w-full px-3 py-2.5 bg-white/70 dark:bg-gray-900/50 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500/40 focus:border-blue-500 sm:text-sm dark:text-white transition-colors"
             />
@@ -94,7 +122,7 @@
         </div>
 
         <!-- Cron 访问链接（自动生成） -->
-        <div v-if="cronUrl" class="space-y-3">
+        <div v-if="cronUrl && cronAvailable" class="space-y-3">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {{ t('settings.cronCompatibleUrl') }}
