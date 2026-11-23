@@ -50,6 +50,13 @@ KV 使用固定 key 存 JSON：
 
 D1 当前采用“行级 JSON”结构：
 
+- `subscription_node_snapshots`（节点持久化专用，仅 D1）
+    - `subscription_id` 单主键：**一个机场订阅只保留最后一次更新的数据**，刷新直接覆盖
+    - `state`：`pending` / `ready` / `failed`
+    - `nodes_json`：**已按该机场订阅设置（operators + include/exclude）过滤后的节点 URL 数组**
+    - `node_count`、`user_info_json`、`last_success_at`、`last_attempt_at`、`last_error`、`chunk_count`
+    - 节点过多（JSON 超过 256KB）时自动写入 `subscription_node_snapshot_chunks`（每片一个 JSON 数组，最多 80 片），读取时合并；主行 `chunk_count>0` 表示使用分片
+    - `config_fingerprint` 覆盖 URL、UA、fetchProxy、plusAsSpace、exclude、operators、nodeTransform；只用于判断配置是否变化（变化则重建这一行），不再参与主键
 - `subscriptions`
     - `id TEXT PRIMARY KEY`
     - `data TEXT NOT NULL`：单个订阅源或手动节点 JSON。
@@ -66,14 +73,62 @@ D1 当前采用“行级 JSON”结构：
     - `created_at DATETIME`
     - `updated_at DATETIME`
 
+### D1 节点快照三表关系
+
+```mermaid
+erDiagram
+    subscriptions ||--o| subscription_node_snapshots : "1 个订阅 1 行快照"
+    subscription_node_snapshots ||--o{ subscription_node_snapshot_chunks : "chunk_count > 0 时才有分片"
+
+    subscriptions {
+        text id PK
+        text data "订阅配置 + 展示字段 JSON"
+        datetime updated_at
+    }
+    subscription_node_snapshots {
+        text subscription_id PK
+        text config_fingerprint "配置指纹（变化则重刷）"
+        text state "pending | ready | failed"
+        text nodes_json "小订阅内联；大订阅为 []"
+        integer node_count
+        text user_info_json
+        datetime last_success_at
+        datetime last_attempt_at
+        text last_error
+        integer chunk_count "0=内联；>0=分片数"
+    }
+    subscription_node_snapshot_chunks {
+        text subscription_id PK
+        integer chunk_index PK
+        text nodes_json "每片一个 JSON 数组（约 256KB）"
+    }
+```
+
+单个机场订阅在库里的两种形态：
+
+| 形态                          | 主行                                                            | 分片                            |
+| ----------------------------- | --------------------------------------------------------------- | ------------------------------- |
+| 普通订阅（节点 JSON ≤ 256KB） | `nodes_json` 为完整数组，`chunk_count = 0`                      | 无                              |
+| 超大订阅                      | `nodes_json = '[]'`，`node_count` 为真实数量，`chunk_count = N` | N 行，按 `chunk_index` 顺序合并 |
+
+订阅组（`profiles`）只存订阅/手动节点引用与输出配置，**不存节点**；不同订阅组的不同过滤规则在读取后各自处理，不会写回快照。
+
+自查 SQL（D1）：
+
+```sql
+-- 每个订阅的快照概况
+SELECT subscription_id, state, node_count, chunk_count, last_success_at, last_error
+FROM subscription_node_snapshots;
+
+-- 分片明细（字节数可用来确认是否接近 256KB/片）
+SELECT subscription_id, chunk_index, length(nodes_json) AS bytes
+FROM subscription_node_snapshot_chunks
+ORDER BY subscription_id, chunk_index;
+```
+
+> 迁移：`ensureD1Schema()` 会为老库自动补 `chunk_count` 列并创建分片表；旧复合主键表会被压成"一个订阅一行"。
+
 兼容点：
-
-- 旧 D1 结构可能把整个订阅数组写在 `subscriptions.id = 'main'`，整个订阅组数组写在 `profiles.id = 'main'`。
-- `DataMigrator.migrateLegacyD1MainRows()` 会把旧的 `main` 数组拆成行级数据，再删除 `main` 行。
-- `_parseKey()` 对 `misub_subscriptions_v1`、`misub_profiles_v1`、`worker_settings_v1` 仍映射到 D1 的 `main` 兼容行；但常规读写优先使用 `getAllSubscriptions()`、`putSubscription()`、`getAllProfiles()`、`putProfile()` 等行级方法。
-
-## 3. 订阅源与手动节点模型
-
 前端 Store 中的集合名是 `subscriptions`，后端接口载荷中称为 `misubs`。同一个数组同时容纳两种项目：
 
 - HTTP/HTTPS URL：订阅源。
@@ -95,6 +150,8 @@ D1 当前采用“行级 JSON”结构：
 - `customUserAgent`：单个订阅源自定义 User-Agent。
 - `fetchProxy`：拉取订阅时使用的代理。
 - `enableNodeCache`：是否保留该订阅源节点缓存。
+- `enableNodePersistence`（全局设置）：D1 节点持久化开关。只有 `storageType === 'd1'` 且绑定 `MISUB_DB` 时可开启。**开启（含关闭后重新开启）会立刻对所有机场做一次全量后台同步**，等价一次 Cron，用户无需保持页面打开；之后订阅组只读 D1 快照。关闭时每次订阅实时拉取机场。
+- `autoUpdateInterval`（全局设置）：订阅更新检查间隔（界面文案；内部实现是 D1 节点快照）。**不是定时任务**——免费版 Worker 没有定时能力，只有访问页面、请求订阅等操作触发时，才会与上次更新时间比较，超过该间隔才更新 D1 快照；`0` 表示不自动更新，但订阅组仍从 D1 读取。Cron 与手动刷新不受该间隔限制。
 - `autoUpdate`：是否启用自动更新，缺省为 `true`。置为 `false`（编辑弹窗里的「禁用自动更新」开关）后，定时自动更新、全部刷新、批量更新接口与 External API 批量/组合刷新都会跳过该订阅；卡片上的单机场手动刷新与 External API 单条 `refresh` 仍可用，订阅组输出也不会因此丢失节点（只是不再回写节点数与流量）。
 - `plusAsSpace`：拉取订阅时是否把 `+` 视为空格。
 - `website`：订阅源网站/来源信息。

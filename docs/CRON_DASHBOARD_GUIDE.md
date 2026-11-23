@@ -1,5 +1,9 @@
 # 🎉 Cron Triggers 管理面板使用指南
 
+> **前置条件**：Cron 只在「D1 存储 + 已启用节点持久化」时可用。
+> 未绑定 D1 或未启用持久化时，`/cron` 会返回 `{ success: true, skipped: true, reason: 'node_persistence_disabled' }`，
+> 不会发起任何机场请求。Cron 是独立于自动刷新间隔的强制刷新通道。
+
 ## 📍 访问路由
 
 ### 管理面板地址

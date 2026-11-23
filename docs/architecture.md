@@ -159,7 +159,7 @@ functions/storage-adapter.js
 MiSub 支持两种存储后端：
 
 - KV：以 JSON 数组/对象存储整体数据
-- D1：以行级记录存储 subscriptions、profiles、settings 等数据
+- D1：以行级记录存储 subscriptions、profiles、settings 等数据；开启节点持久化后，节点快照存放在 subscription_node_snapshots
 
 统一入口是 `StorageFactory`，业务代码应优先通过 storage adapter 读写数据，避免直接操作 KV 或 D1。
 

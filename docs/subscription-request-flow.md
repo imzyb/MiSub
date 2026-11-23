@@ -265,6 +265,25 @@ HTTP 订阅源定义为 URL 以 `http` 开头的订阅项。
 - `socks5://`
 - `socks://`
 
+## 9.3 节点持久化（D1）
+
+`settings.enableNodePersistence === true` 且 `storageType === 'd1'` 时，订阅组输出改走 D1 快照：
+
+- 一个机场订阅只有一行快照，只保留最后一次更新的数据；刷新直接覆盖。
+- **入库前按该机场订阅的设置做算子链 + include/exclude**：库里存的就是用户设置后的结果，不是原始垃圾节点；订阅组级过滤在读取后继续叠加。
+- **启用（含关闭后重开）即全量同步**：对所有已启用的 HTTP 订阅创建回填任务，第一批在保存响应里后台执行，剩余由内部接口 `/api/internal/node-backfill` 自触发链推进，页面关掉也能继续；Cron 全量刷新后会直接收尾该任务。
+- 已有快照后，输出链路**只读 D1，不再请求机场**，也不再写回 `subscriptions` 的 `nodeCount/userInfo`（快照是唯一事实源）。
+- 没有快照、或 `config_fingerprint` 与当前设置不一致时，会在当次请求里懒初始化一次（单次最多 3 个机场）；失败记录 `last_attempt_at`，5 分钟内不重复打机场。
+- 不依赖定时器：只有任意后端请求（管理端 `/api/data`、订阅访问、预览、手动刷新）触发时，才会把快照的 `last_success_at` 与 `autoUpdateInterval` 比较，超过间隔则用 `waitUntil` 后台刷新。
+- `autoUpdateInterval = 0` 表示不自动刷新，但订阅组仍从 D1 读取。
+- Cron 是独立的强制刷新通道，不受 `autoUpdateInterval` 限制；未启用 D1 + 节点持久化时 Cron 不可用。
+- 单订阅 `autoUpdate=false` 只表示「不参与自动刷新和 Cron」，订阅组仍从 D1 读取它的快照。
+
+`enableNodePersistence` 关闭（或 KV-only）时：
+
+- 订阅组每次实时拉取机场并直接返回给客户端。
+- 不再把本次拉取结果写回 `subscriptions`；节点数/流量只由显式刷新、Cron 或 D1 快照维护。
+
 ## 10. 单源缓存与运行时信息
 
 订阅项可以开启 `enableNodeCache`。

@@ -233,6 +233,7 @@
     - 限制：最多 50 个模板，单模板内容最大 128 KiB，需符合 ini-like 形态。
 
 - `POST /api/node_count`
+    - 说明：显式单机场刷新。节点持久化开启时会同时刷新 D1 快照；订阅组访问本身不会触发写回。
     - Handler：`handleNodeCountRequest()`
     - 读取：远程订阅 URL、settings、subscriptions。
     - 写入：匹配到本地订阅时更新 `nodeCount`、`userInfo`、`lastError`、`lastUpdate`。
@@ -256,7 +257,7 @@
 - `POST /api/batch_update_nodes`
     - Handler：`handleBatchUpdateNodesRequest()`
     - 读取：subscriptions、远程订阅 URL。
-    - 行为：跳过 `autoUpdate=false`（已禁用自动更新）的订阅，返回 `skipped[]` 与 `summary.skippedSubscriptions`。
+    - 行为：跳过 `autoUpdate=false`（已禁用自动刷新）的订阅，返回 `skipped[]` 与 `summary.skippedSubscriptions`；节点持久化开启时会同时刷新 D1 快照。
     - 写入：当前 handler 返回统计结果，不直接持久化批量结果。
 
 - `POST /api/subscription_nodes`

@@ -105,7 +105,8 @@
 - **📊 流量与到期时间显示**
   - 订阅卡片显示已用/总流量
   - 到期时间提醒，颜色高亮
-  - 自动更新节点数和流量信息
+  - 手动刷新节点数和流量信息
+  - D1 节点持久化：开启后订阅组只从数据库读取节点快照，并由自动刷新 / Cron 更新
 
 ### 💾 双重存储支持
 
@@ -249,6 +250,30 @@ wrangler d1 execute misub --file=schema.sql --remote
 ### 4. 重新部署
 
 完成配置后,在 `部署` 选项卡重新部署项目。
+
+### 5. 同步上游更新
+
+仓库内置 `.github/workflows/fork-sync.yml`，你的 fork 每天（UTC 22:00，北京时间次日 06:00）会自动把上游 `imzyb/MiSub` 的 `main` **合并**进来。它只做 `git merge`，不会重置分支、也不会强制推送：
+
+| 情况 | 行为 |
+| --- | --- |
+| 上游没有新提交 | 直接跳过 |
+| 能干净合并 | 合并（必要时生成 merge commit）后普通推送，你自己的提交原样保留 |
+| 与本地修改冲突 | 回滚本次合并、不推送；Actions 运行摘要里列出冲突文件 |
+
+> 如果上游这次改动了 `.github/workflows/**`，默认的 `GITHUB_TOKEN` 无权推送这类变更：请在该 fork 的 `Settings → Secrets and variables → Actions` 配置 `SYNC_PAT`（细粒度 token，勾选 `Contents: Read and write` 与 `Workflows: Write`），否则该次同步会被跳过。
+
+> 从旧版「镜像」工作流升级过来的 fork，第一次同步会因为 workflow 文件变更而被跳过：在网页点一次 `Sync fork` 即可换上新逻辑，之后不会再被强制覆盖。
+
+冲突需要手动处理：
+
+```bash
+git fetch upstream
+git merge upstream/main      # 解决冲突
+git push origin main
+```
+
+想暂停自动同步：Actions 页面选中 `Fork Sync` → `Disable workflow`。
 
 ---
 ## 💡 使用说明
