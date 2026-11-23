@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-orange.svg)](https://pages.cloudflare.com/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-green.svg)](https://vuejs.org/)
-[![Version](https://img.shields.io/badge/version-v2.7.0-indigo.svg)](#version)
+[![Version](https://img.shields.io/badge/version-v2.8.0-indigo.svg)](#version)
 
 [Features](#features) • [Quick Start](#quick-start) • [Deployment](#deployment) • [Usage](#usage) • [Documentation](#documentation)
 
@@ -208,7 +208,7 @@ See [Operator Chain Guide](docs/OPERATOR_CHAIN_GUIDE.md) for details.
 
 ## Version
 
-Current version: `v2.7.0`
+Current version: `v2.8.0`
 
 For detailed historical changes, see [README-zh.md](README-zh.md) and the repository commit history.
 
