@@ -126,6 +126,18 @@ If schema initialization fails in the CLI, run the latest `schema.sql` manually 
 
 Never commit real tokens, cookies, UUID/private keys, webhook secrets, bot tokens, subscription URLs, or airport domains.
 
+### Keeping your fork up to date
+
+`.github/workflows/fork-sync.yml` runs in forks once a day at **06:00 Beijing time** (22:00 UTC the previous day — GitHub cron fields only accept UTC) and **merges** upstream `imzyb/MiSub` `main` into your `main`. Step logs and the run summary always print Beijing time. It never resets the branch and never force-pushes:
+
+- no new upstream commits: skipped;
+- clean merge: merged (with a merge commit when needed) and pushed; your own commits are kept;
+- conflicting changes: the merge is rolled back and nothing is pushed, and the run summary lists the conflicting files.
+
+If the upstream change touches `.github/workflows/**`, the default `GITHUB_TOKEN` cannot push it. Add a `SYNC_PAT` secret (`Contents: Read and write` and `Workflows: Write`) to keep those syncs working; otherwise that run is skipped. Forks still on the old mirror-style workflow switch over after one manual `Sync fork`.
+
+Resolve conflicts locally with `git fetch upstream && git merge upstream/main`, then push. To pause automation, disable the `Fork Sync` workflow in the Actions tab.
+
 ## Local Development
 
 ```bash

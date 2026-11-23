@@ -253,7 +253,7 @@ wrangler d1 execute misub --file=schema.sql --remote
 
 ### 5. 同步上游更新
 
-仓库内置 `.github/workflows/fork-sync.yml`，你的 fork 每天（UTC 22:00，北京时间次日 06:00）会自动把上游 `imzyb/MiSub` 的 `main` **合并**进来。它只做 `git merge`，不会重置分支、也不会强制推送：
+仓库内置 `.github/workflows/fork-sync.yml`，你的 fork 每天**北京时间 06:00**（cron 里只能写 UTC，即 `0 22 * * *`）会自动把上游 `imzyb/MiSub` 的 `main` **合并**进来。它只做 `git merge`，不会重置分支、也不会强制推送：
 
 | 情况 | 行为 |
 | --- | --- |

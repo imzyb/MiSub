@@ -47,7 +47,16 @@ describe('fork sync workflow', () => {
         expect(workflow).toContain('UTC 22:00 = 北京时间次日 06:00');
         // 运行时强制 TZ，让 date / git 输出与运行摘要都是北京时间
         expect(workflow).toContain('TZ: Asia/Shanghai');
-        expect(workflow).toContain("date '+%Y-%m-%d %H:%M:%S %Z'");
-        expect(workflow).toContain('同步时间（北京时间）');
+        // 时间由 UTC+8 小时换算，不依赖 runner 的 tzdata 或 TZ 是否生效
+        expect(workflow).toContain("date -u -d '+8 hour' '+%Y-%m-%d %H:%M:%S'");
+        expect(workflow).toContain('（北京时间 UTC+8）');
+        // 不用含义含糊的时区缩写（CST）
+        expect(workflow).not.toContain('%Z');
+        expect(workflow).not.toContain('%H:%M:%S %Z');
+        expect(workflow).toContain('🕗 同步时间：');
+        // 每次运行（含跳过）的运行摘要顶端都要有北京时间
+        expect(workflow).toContain('Fork Sync 检查时间（北京时间）');
+        // 网页上的 UTC 时间戳改不了，注释里要写清看哪儿
+        expect(workflow).toContain('网页上的运行时间戳一律按 UTC 显示');
     });
 });

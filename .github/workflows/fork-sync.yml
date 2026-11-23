@@ -1,8 +1,10 @@
 name: Fork Sync
 
-# GitHub Actions 的 cron 只能用 UTC，这里统一按北京时间换算与展示：
-#   UTC 22:00 = 北京时间次日 06:00（TZ=Asia/Shanghai）
-#   想改北京时间 HH:MM：UTC 小时 = HH - 8（HH < 8 时用前一天 24 + HH - 8）
+# GitHub Actions 的 cron 只能写 UTC，触发时刻永远按 UTC 解释；这里只把注释与日志统一成北京时间。
+#   cron "0 22 * * *" = UTC 22:00 = 北京时间次日 06:00（日志时间由 UTC+8 小时换算得到，不依赖 runner 的 tzdata）
+#   改时间（北京时间 HH:MM）：UTC 小时 = HH - 8，HH < 8 时用前一天 24 + HH - 8
+#     例：北京时间 03:30 → "30 19 * * *"；北京时间 22:15 → "15 14 * * *"
+#   注意：Actions 网页上的运行时间戳一律按 UTC 显示、无法更改；看北京时间请以步骤日志与运行摘要为准。
 on:
   schedule:
     - cron: "0 22 * * *"
@@ -22,7 +24,7 @@ jobs:
     timeout-minutes: 10
     if: ${{ github.event.repository.fork }}
     env:
-      # 让所有 date / git 时间输出与运行摘要都使用北京时间
+      # 兜底时区：git 等其它输出也按北京时间；同步时间本身已显式做 UTC+8 换算
       TZ: Asia/Shanghai
 
     steps:
@@ -66,8 +68,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          SYNCED_AT="$(date '+%Y-%m-%d %H:%M:%S %Z')"
-          echo "🕗 同步时间（北京时间）：$SYNCED_AT"
+          # 直接用 UTC 加 8 小时换算：不依赖 runner 是否装了 tzdata，也不怕 TZ 没生效
+          # 不用时区缩写（CST），是因为它既是中国标准时间、也可能被读成美国中部时间
+          SYNCED_AT="$(date -u -d '+8 hour' '+%Y-%m-%d %H:%M:%S')（北京时间 UTC+8）"
+          echo "🕗 同步时间：$SYNCED_AT"
+
+          # 每次运行（含跳过）都先在运行摘要顶端写北京时间，网页上的 UTC 时间戳就不用换算
+          {
+            echo "### 🕗 Fork Sync 检查时间（北京时间）：${SYNCED_AT}"
+            echo ""
+            echo "- 自动调度：每天北京时间 06:00（cron `0 22 * * *`，Actions 只认 UTC）"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
           ORIGIN_SHA="$(git rev-parse origin/main)"
           UPSTREAM_SHA="$(git rev-parse upstream/main)"
@@ -75,6 +87,7 @@ jobs:
 
           if [ "$ORIGIN_SHA" = "$UPSTREAM_SHA" ]; then
             echo "✨ Fork 已与上游完全一致，无需同步。"
+            echo "- ✨ 无需同步：Fork 已与上游 ${UPSTREAM_SHA} 完全一致。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
             exit 0
           fi
 
@@ -84,11 +97,13 @@ jobs:
             MERGE_BASE="$(git merge-base "$ORIGIN_SHA" "$UPSTREAM_SHA" 2>/dev/null || true)"
             if [ -z "$MERGE_BASE" ]; then
               echo "::notice title=Fork Sync 已跳过::与上游没有共同历史，无法安全合并，请手动处理。"
+              echo "- ⚠️ 已跳过：与上游没有共同历史，需手动处理。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
               exit 0
             fi
             WORKFLOW_DIFF="$(git diff --name-only "$MERGE_BASE" "$UPSTREAM_SHA" -- .github/workflows || true)"
             if [ -n "$WORKFLOW_DIFF" ]; then
               echo "::notice title=Fork Sync 已跳过::上游本次改动包含 workflow 文件，默认 GITHUB_TOKEN 无权推送。请配置 secret SYNC_PAT（含 workflow 权限）后重跑，或在网页使用 Sync fork。"
+              echo "- ⚠️ 已跳过：上游改动包含 workflow 文件，当前 token 无权推送（需要 SYNC_PAT）。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
               exit 0
             fi
           fi
@@ -106,7 +121,7 @@ jobs:
             {
               echo "## ⚠️ 上游更新与本地修改冲突，本次未合并"
               echo ""
-              echo "- 检查时间（北京时间）：${SYNCED_AT}"
+              echo "- 检查时间：${SYNCED_AT}"
               echo ""
               echo "已回滚到同步前的状态，fork 代码没有任何改动。冲突文件："
               echo ""
@@ -122,6 +137,7 @@ jobs:
 
           if [ "$(git rev-parse HEAD)" = "$BEFORE_SHA" ]; then
             echo "✨ 本地已包含上游全部提交，无需推送。"
+            echo "- ✨ 无需推送：本地已包含上游全部提交。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
             exit 0
           fi
 
@@ -132,6 +148,6 @@ jobs:
           {
             echo "## ✅ 已同步上游"
             echo ""
-            echo "- 同步时间（北京时间）：${SYNCED_AT}"
+            echo "- 同步时间：${SYNCED_AT}"
             echo "- 合并后提交：\`$(git rev-parse --short HEAD)\`"
           } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
