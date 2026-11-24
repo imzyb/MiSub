@@ -884,6 +884,7 @@ async function handleCronStatusRequest(env) {
             totalSubscriptions: lastExecution?.result?.totalSubscriptions || 0,
             successfulSyncs: lastExecution?.result?.successfulSyncs || 0,
             failedSyncs: lastExecution?.result?.failedSyncs || 0,
+            skippedSyncs: lastExecution?.result?.skippedSyncs || 0,
             lastSync: lastExecution?.timestamp || null,
             details: lastExecution?.result?.details || [],
             lastExecution,
@@ -951,18 +952,30 @@ async function handleCronTriggerRequest(env) {
         const failedSubscriptions = Array.isArray(summary.failed_subscriptions)
             ? summary.failed_subscriptions
             : [];
+        // 按配置（autoUpdate=false）跳过的订阅与失败分开统计，避免把主动停用当成异常
+        const skippedSubscriptions = Array.isArray(summary.skipped_subscriptions)
+            ? summary.skipped_subscriptions
+            : [];
         const result = {
             timestamp: new Date().toISOString(),
             mode: 'node-snapshot-refresh',
             totalSubscriptions: Number(summary.total) || 0,
             successfulSyncs: Number(summary.updated) || 0,
             failedSyncs: Number(summary.failed) || 0,
+            skippedSyncs: Number(summary.skipped) || skippedSubscriptions.length,
             duration: summary.duration || null,
-            details: failedSubscriptions.map((item) => ({
-                name: item?.name,
-                status: 'failed',
-                error: item?.error,
-            })),
+            details: [
+                ...failedSubscriptions.map((item) => ({
+                    name: item?.name,
+                    status: 'failed',
+                    error: item?.error,
+                })),
+                ...skippedSubscriptions.map((item) => ({
+                    name: item?.name,
+                    status: 'skipped',
+                    reason: item?.reason,
+                })),
+            ],
         };
 
         // 保存执行状态（/api/cron/status 与 cron 仪表盘读取的格式）

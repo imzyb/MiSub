@@ -55,6 +55,7 @@ function getCronDashboard(env) {
         .log-time { color: #666; font-size: 0.9em; }
         .log-success { border-left-color: #28a745; }
         .log-error { border-left-color: #dc3545; }
+        .log-skipped { border-left-color: #f0ad4e; }
     </style>
 </head>
 <body>
@@ -76,6 +77,10 @@ function getCronDashboard(env) {
             <div class="status-card">
                 <h3>❌ 失败同步</h3>
                 <div class="status-value" id="failedCount">-</div>
+            </div>
+            <div class="status-card">
+                <h3>🚫 按配置跳过</h3>
+                <div class="status-value" id="skippedCount">-</div>
             </div>
             <div class="status-card">
                 <h3>🕐 上次同步</h3>
@@ -106,6 +111,7 @@ function getCronDashboard(env) {
                     totalSubscriptions: data.totalSubscriptions || data.lastExecution?.result?.totalSubscriptions || 0,
                     successfulSyncs: data.successfulSyncs || data.lastExecution?.result?.successfulSyncs || 0,
                     failedSyncs: data.failedSyncs || data.lastExecution?.result?.failedSyncs || 0,
+                    skippedSyncs: data.skippedSyncs || data.lastExecution?.result?.skippedSyncs || 0,
                     lastSync: data.lastSync || data.lastExecution?.timestamp || null,
                     details: data.details || data.lastExecution?.result?.details || []
                 };
@@ -113,6 +119,7 @@ function getCronDashboard(env) {
                 document.getElementById('totalSubs').textContent = status.totalSubscriptions;
                 document.getElementById('successCount').textContent = status.successfulSyncs;
                 document.getElementById('failedCount').textContent = status.failedSyncs;
+                document.getElementById('skippedCount').textContent = status.skippedSyncs;
                 document.getElementById('lastSync').textContent = status.lastSync ?
                     new Date(status.lastSync).toLocaleString() : '从未';
 
@@ -156,13 +163,22 @@ function getCronDashboard(env) {
 
             details.slice(0, 50).forEach(detail => {
                 const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry ' + (detail.status === 'success' ? 'log-success' : 'log-error');
+                const statusClass = detail.status === 'success'
+                    ? 'log-success'
+                    : detail.status === 'skipped'
+                      ? 'log-skipped'
+                      : 'log-error';
+                logEntry.className = 'log-entry ' + statusClass;
+
+                const statusText = detail.status === 'success'
+                    ? \`同步成功 (\${detail.nodeCount} 个节点)\`
+                    : detail.status === 'skipped'
+                      ? \`按配置跳过（已禁用自动更新）\`
+                      : \`同步失败 - \${detail.error}\`;
 
                 logEntry.innerHTML = \`
                     <div class="log-time">\${new Date().toLocaleString()}</div>
-                    <div><strong>\${detail.name}</strong>: \${detail.status === 'success' ?
-                        \`同步成功 (\${detail.nodeCount} 个节点)\` :
-                        \`同步失败 - \${detail.error}\`}</div>
+                    <div><strong>\${detail.name}</strong>: \${statusText}</div>
                 \`;
 
                 logsContainer.appendChild(logEntry);

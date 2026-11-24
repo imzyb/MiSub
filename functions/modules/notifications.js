@@ -11,6 +11,7 @@ import {
     refreshSubscriptionSnapshot,
 } from '../services/node-persistence-service.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
+import { selectCronSubscriptions } from './cron-selection.js';
 // 导入核心通知服务及工具
 import {
     sendTgNotification as sendCoreTg,
@@ -143,7 +144,10 @@ export async function handleCronTrigger(env) {
 
     const originalSubs = await loadSubscriptionsForCron(storageAdapter);
     const allSubs = JSON.parse(JSON.stringify(originalSubs));
-    const httpSubscriptions = allSubs.filter((sub) => sub.url.startsWith('http') && sub.enabled);
+    // Cron 是自动刷新通道：显式禁用自动更新的机场不参与，单独记入 skipped，
+    // 否则会把用户主动停用的订阅当成「刷新失败」报出来。
+    const { todo: httpSubscriptions, skipped: skippedSubscriptions } =
+        selectCronSubscriptions(allSubs);
 
     console.info(`[Cron] Starting parallel update for ${httpSubscriptions.length} subscriptions`);
     const startTime = Date.now();
@@ -329,12 +333,16 @@ export async function handleCronTrigger(env) {
     const summary = {
         success: true,
         summary: {
-            total: httpSubscriptions.length,
+            // total 覆盖所有参与判断的 HTTP 订阅（含按配置跳过的），
+            // 便于 updated + failed + skipped === total 对得上。
+            total: httpSubscriptions.length + skippedSubscriptions.length,
             updated: updatedCount,
             failed: failedCount,
+            skipped: skippedSubscriptions.length,
             changes: changesMade,
             duration: `${duration}ms`,
             failed_subscriptions: failedSubscriptions,
+            skipped_subscriptions: skippedSubscriptions,
         },
     };
 
