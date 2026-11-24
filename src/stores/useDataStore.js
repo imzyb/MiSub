@@ -126,7 +126,7 @@ export const useDataStore = defineStore('data', () => {
 
         try {
             const sanitizedSubs = subscriptions.value.map((sub) => {
-                const { isUpdating, ...rest } = sub;
+                const { isUpdating, nodeCacheUpdatedAt, nodeCacheCount, ...rest } = sub;
                 return rest;
             });
 
