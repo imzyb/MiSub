@@ -1,6 +1,6 @@
 # MiSub
 
-> 中文说明请见 [README-zh.md](README-zh.md)。
+> 中文说明请见 [README-zh.md](README-zh.md) · Türkçe açıklama için [README-tr.md](README-tr.md).
 
 <div align="center">
 
@@ -200,6 +200,7 @@ See [Operator Chain Guide](docs/OPERATOR_CHAIN_GUIDE.md) for details.
 ## Documentation
 
 - [Chinese README](README-zh.md)
+- [Turkish README](README-tr.md)
 - [External API Usage Guide](docs/external-management-api-usage.md)
 - [External API Reference](docs/external-management-api.md)
 - [External API OpenAPI Spec](docs/external-management-api.openapi.yaml)
