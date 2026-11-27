@@ -8,6 +8,7 @@ import { urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
 import { isMetaCore } from './user-agent-utils.js';
 import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from './safe-dns.js';
+import { DEFAULT_SNIFFER_CONFIG } from './sniffing-config.js';
 import {
     POLICY_GROUPS,
     RULE_SETS,
@@ -16,6 +17,7 @@ import {
     DEFAULT_SELECT_GROUP,
     DEFAULT_RELAY_GROUP,
     pruneProxyGroups,
+    GEOX_URLS,
 } from './builtin-rules-provider.js';
 import yaml from 'js-yaml';
 
@@ -176,7 +178,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         const levelKey = (ruleLevel || 'std').toUpperCase();
         const rawRules = isHiddifyClient
             ? ['MATCH,🚀 节点选择']
-            : getBuiltinRules(levelKey, 'clash');
+            : getBuiltinRules(levelKey, 'clash', options);
 
         // 生成策略组并执行引用修剪
         const policyGroupsFactory = POLICY_GROUPS[levelKey] || POLICY_GROUPS.STD;
@@ -187,7 +189,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         // 自动识别为 Hiddify 时降级为纯 MATCH 规则，避免导入时报 unable to determine config format。
         const ruleProviders = isHiddifyClient
             ? {}
-            : getRemoteProviderDefinitions('clash', rawRules);
+            : getRemoteProviderDefinitions('clash', rawRules, options);
 
         // 转换规则行为最终字符串
         const clashRules = rawRules
@@ -227,6 +229,13 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             mode: 'rule',
             'log-level': 'info',
             'external-controller': '127.0.0.1:9090',
+
+            // GEOIP/GEOSITE 规则与 geosite:* DNS 策略依赖的 geo 数据库改走 jsDelivr 镜像，
+            // 避免默认 GitHub 地址在大陆不可达时 GEOIP,CN,DIRECT 静默失效、国内流量走代理
+            'geox-url': { ...GEOX_URLS },
+
+            // 域名嗅探：还原硬编码 IP 直连流量（Telegram/Google 系）的真实域名，命中域名分流规则
+            sniffer: { ...DEFAULT_SNIFFER_CONFIG },
 
             dns: dnsConfig,
 

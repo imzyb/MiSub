@@ -3,6 +3,8 @@ import { clashFix } from '../../../utils/format-utils.js';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
 import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from '../safe-dns.js';
 import { applyMihomoChainProxy } from '../mihomo-chain-proxy.js';
+import { GEOX_URLS, pinRemoteRuleUrl } from '../builtin-rules-provider.js';
+import { DEFAULT_SNIFFER_CONFIG } from '../sniffing-config.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '')
@@ -176,7 +178,8 @@ function mapRule(rule, ruleProviderMap) {
     return `${type},${rule.value},${rule.policy}`;
 }
 
-export function renderClashFromTemplateModel(model) {
+export function renderClashFromTemplateModel(model, options = {}) {
+    const { isChinaClient = false } = options;
     const normalizedModel = normalizeUnifiedTemplateModel(model);
 
     // 所有客户端都保留链式策略组；仅 Mihomo/Meta 展开节点级 dialer-proxy。
@@ -194,7 +197,8 @@ export function renderClashFromTemplateModel(model) {
         const type = String(rule.type || '').toUpperCase();
         if (type !== 'RULE-SET' || !rule.value || !/^https?:\/\//i.test(rule.value)) return;
 
-        const providerUrl = toClashRuleProviderUrl(rule.value);
+        // 按请求方地理位置解析规则源下载链路（国内 gh-proxy 加速 / 国外直连）
+        const providerUrl = pinRemoteRuleUrl(toClashRuleProviderUrl(rule.value), { isChinaClient });
         if (ruleProviderMap.has(providerUrl)) return;
 
         let nameHint = 'rs';
@@ -235,6 +239,10 @@ export function renderClashFromTemplateModel(model) {
         mode: 'rule',
         'log-level': 'info',
         'external-controller': '127.0.0.1:9090',
+        // GEO 数据库走 jsDelivr 镜像，保证模板中 GEOIP/GEOSITE 规则与 geosite:* DNS 策略在大陆可用
+        'geox-url': { ...GEOX_URLS },
+        // 域名嗅探：还原硬编码 IP 直连流量的真实域名，命中模板中的域名分流规则
+        sniffer: { ...DEFAULT_SNIFFER_CONFIG },
         dns: resolveSafeDnsConfig(normalizedModel.settings?.customDnsOverride, {
             mode: normalizedModel.settings?.dnsMode,
             proxyGroup: DNS_PROXY_GROUP,

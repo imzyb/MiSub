@@ -405,7 +405,7 @@ resource-parser = https://raw.githubusercontent.com/sub-store-org/Sub-Store/mast
 
     sections.push(`[Proxy Group]\n${proxyGroupLines.join('\n')}`);
 
-    const builtinRuleLines = getBuiltinRules(levelKey, 'loon');
+    const builtinRuleLines = getBuiltinRules(levelKey, 'loon', options);
     const ruleLines = [
         '# 基础分流',
         'IP-CIDR,127.0.0.0/8,DIRECT',

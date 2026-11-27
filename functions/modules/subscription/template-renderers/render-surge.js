@@ -1,5 +1,6 @@
 import { urlsToClashProxies } from '../../../utils/url-to-clash.js';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
+import { pinRemoteRuleUrl } from '../builtin-rules-provider.js';
 
 function buildProxyLine(proxy) {
     const type = String(proxy.type || '').toLowerCase();
@@ -295,10 +296,11 @@ function buildProxyGroupLine(group) {
     return `${group.name} = select, ${members}`;
 }
 
-function buildRuleLine(rule) {
+function buildRuleLine(rule, { isChinaClient = false } = {}) {
     const type = String(rule.type || '').toUpperCase();
     if (!type) return null;
-    if (type === 'RULE-SET') return `RULE-SET,${rule.value},${rule.policy}`;
+    if (type === 'RULE-SET')
+        return `RULE-SET,${pinRemoteRuleUrl(rule.value, { isChinaClient })},${rule.policy}`;
     if (type === 'MATCH' || type === 'FINAL') return `FINAL,${rule.policy}`;
     if (type === 'GEOIP') return `GEOIP,${rule.value || 'CN'},${rule.policy}`;
     return `${type},${rule.value},${rule.policy}`;
@@ -329,7 +331,9 @@ export function renderSurgeFromTemplateModel(model, options = {}) {
         .filter((group) => Array.isArray(group.members) && group.members.length > 0)
         .map(buildProxyGroupLine)
         .filter(Boolean);
-    const ruleLines = normalizedModel.rules.map(buildRuleLine).filter(Boolean);
+    const ruleLines = normalizedModel.rules
+        .map((rule) => buildRuleLine(rule, { isChinaClient: options.isChinaClient }))
+        .filter(Boolean);
 
     return [
         '[General]',

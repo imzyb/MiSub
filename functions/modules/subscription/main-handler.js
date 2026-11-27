@@ -946,6 +946,14 @@ export async function handleMisubRequest(context) {
             resolvedGlobalLevel;
     }
 
+    // 按请求方地理位置决定规则源下载链路：国内走 gh-proxy 加速，国外直连 GitHub。
+    // Cloudflare 生产环境始终提供 request.cf.country；缺失（本地开发等）时按国内处理，
+    // gh-proxy 对国外请求同样可用，仅多一跳代理。
+    const clientCountryCode = String(
+        request.cf?.country || request.headers.get('CF-IPCountry') || ''
+    ).toUpperCase();
+    const isChinaClient = clientCountryCode ? clientCountryCode === 'CN' : true;
+
     // === 缓存机制：快速响应客户端请求 ===
     const cacheKey = generateCacheKey(
         profileIdentifier ? 'profile' : 'token',
@@ -1243,6 +1251,7 @@ export async function handleMisubRequest(context) {
                         url.searchParams.get('dnsMode') ||
                         config.dnsMode ||
                         'clean',
+                    isChinaClient,
                 };
                 const rendered = await ProcessorService.renderOutput({
                     targetFormat,
@@ -1415,6 +1424,7 @@ export async function handleMisubRequest(context) {
             url.searchParams.get('dnsMode') ||
             config.dnsMode ||
             'clean',
+        isChinaClient,
     };
 
     const managedConfigUrl = buildManagedConfigUrl(request.url);

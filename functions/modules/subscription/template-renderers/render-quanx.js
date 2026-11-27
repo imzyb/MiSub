@@ -1,5 +1,6 @@
 import { urlsToClashProxies } from '../../../utils/url-to-clash.js';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
+import { pinRemoteRuleUrl } from '../builtin-rules-provider.js';
 
 function buildProxyLine(proxy) {
     const type = String(proxy.type || '').toLowerCase();
@@ -208,6 +209,7 @@ function normalizeQxVmessMethod(method) {
 }
 
 export function renderQuanxFromTemplateModel(model, options = {}) {
+    const { isChinaClient = false } = options;
     const normalizedModel = normalizeUnifiedTemplateModel(model);
     const nodeList = typeof options.nodeList === 'string' ? options.nodeList : '';
     const proxyUrls = nodeList
@@ -225,7 +227,7 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
     );
     const filterRemoteLines = remoteRules.map(
         (r) =>
-            `filter_remote, ${r.value}, tag=${r.policy}, force-policy=${r.policy}, update-interval=86400, enabled=true`
+            `filter_remote, ${pinRemoteRuleUrl(r.value, { isChinaClient })}, tag=${r.policy}, force-policy=${r.policy}, update-interval=86400, enabled=true`
     );
     const localRules = normalizedModel.rules.filter((r) => !remoteRules.includes(r));
 

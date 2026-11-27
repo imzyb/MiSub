@@ -96,7 +96,12 @@ describe('Built-in Sing-box generator', () => {
         expect(parsed.dns.servers).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ type: 'udp', server: '223.5.5.5', server_port: 53 }),
-                expect.objectContaining({ type: 'udp', server: '8.8.8.8', detour: '🌐 DNS 出口' }),
+                expect.objectContaining({
+                    type: 'https',
+                    server: '8.8.8.8',
+                    path: '/dns-query',
+                    detour: '🌐 DNS 出口',
+                }),
             ])
         );
         expect(parsed.dns.servers.every((server) => !Object.hasOwn(server, 'address'))).toBe(true);
@@ -108,24 +113,36 @@ describe('Built-in Sing-box generator', () => {
         expect(trojanNode?.transport?.headers?.Host).toBe('example.com');
     });
 
-    it('enables encrypted foreign DNS only in polluted mode', () => {
+    it('uses encrypted foreign DNS in both clean and polluted modes', () => {
+        for (const dnsMode of ['clean', 'polluted']) {
+            const parsed = JSON.parse(
+                generateBuiltinSingboxConfig('trojan://password@1.2.3.4:443#Trojan', { dnsMode })
+            );
+            expect(parsed.dns.servers).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        type: 'https',
+                        server: '8.8.8.8',
+                        path: '/dns-query',
+                        detour: '🌐 DNS 出口',
+                    }),
+                ])
+            );
+            expect(parsed.dns.final).toBe('dns-foreign-1');
+            expect(parsed.dns.rules[0].rule_set).toEqual(['geosite-cn']);
+        }
+    });
+
+    it('sniffs domain from hardcoded-IP connections as the first route rule', () => {
         const parsed = JSON.parse(
             generateBuiltinSingboxConfig('trojan://password@1.2.3.4:443#Trojan', {
-                dnsMode: 'polluted',
+                ruleLevel: 'relay',
             })
         );
-        expect(parsed.dns.servers).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    type: 'https',
-                    server: '8.8.8.8',
-                    path: '/dns-query',
-                    detour: '🌐 DNS 出口',
-                }),
-            ])
-        );
-        expect(parsed.dns.final).toBe('dns-foreign-1');
-        expect(parsed.dns.rules[0].rule_set).toEqual(['geosite-cn']);
+
+        expect(parsed.route.rules[0]).toEqual({ action: 'sniff' });
+        // 嗅探规则之后紧接私有网段直连，保证后续分流顺序不受影响
+        expect(parsed.route.rules[1]).toMatchObject({ outbound: 'DIRECT' });
     });
 
     it('should map anytls outbound', () => {

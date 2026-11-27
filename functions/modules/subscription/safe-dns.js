@@ -10,7 +10,9 @@ export const SINGBOX_CN_RULE_SET = 'geosite-cn';
 
 export const DEFAULT_DNS_POLICY = Object.freeze({
     domestic: ['223.5.5.5', '119.29.29.29'],
-    foreign: ['udp://8.8.8.8:53', 'udp://1.1.1.1:53'],
+    // 境外解析统一使用 IP 型 DoH：免引导解析（无需先解析 dns.google 域名），
+    // TCP 承载比明文 UDP:53 更抗污染、在代理链路上更稳定（2025 主流实践）
+    foreign: ['https://8.8.8.8/dns-query', 'https://1.1.1.1/dns-query'],
     polluted: ['https://8.8.8.8/dns-query', 'https://1.1.1.1/dns-query'],
 });
 
@@ -82,22 +84,6 @@ function resolverList(value, fallback) {
     return normalized.length > 0 ? normalized : [...fallback];
 }
 
-function plainResolver(value) {
-    const raw = String(value || '').trim();
-    if (!raw || raw === 'system') return '';
-
-    const candidate = DNS_SCHEME_PATTERN.test(raw) ? raw : `udp://${raw}`;
-    try {
-        const parsed = new URL(candidate);
-        const host = parsed.hostname.replace(/^\[|\]$/g, '');
-        if (!DNS_HOST_PATTERN.test(parsed.hostname)) return '';
-        const formattedHost = host.includes(':') ? `[${host}]` : host;
-        return `udp://${formattedHost}:53`;
-    } catch {
-        return '';
-    }
-}
-
 function policyInput(override) {
     return isObject(override.policy) ? { ...override, ...override.policy } : override;
 }
@@ -114,8 +100,6 @@ export function resolveDnsPolicy(raw, options = {}) {
             input.nameserver,
         DEFAULT_DNS_POLICY.foreign
     );
-    const plainForeign =
-        mode === DNS_MODES.CLEAN ? foreign.map(plainResolver).filter(Boolean) : foreign;
 
     return {
         mode,
@@ -126,7 +110,7 @@ export function resolveDnsPolicy(raw, options = {}) {
                 input['default-nameserver'],
             DEFAULT_DNS_POLICY.domestic
         ),
-        foreign: plainForeign.length > 0 ? plainForeign : [...DEFAULT_DNS_POLICY.foreign],
+        foreign,
         polluted: resolverList(
             input.polluted ||
                 input.pollutedNameservers ||

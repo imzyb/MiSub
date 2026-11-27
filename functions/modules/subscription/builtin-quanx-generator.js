@@ -349,7 +349,7 @@ export function generateBuiltinQuanxConfig(nodeList, options = {}) {
 
     sections.push(`[policy]\n${groupLines.join('\n')}`);
 
-    const rawRules = getBuiltinRules(levelKey, 'quanx');
+    const rawRules = getBuiltinRules(levelKey, 'quanx', options);
     const remoteRules = rawRules
         .filter((r) => r.startsWith('filter_remote'))
         .map((r) => r.replace(/^filter_remote,\s*/i, ''));
