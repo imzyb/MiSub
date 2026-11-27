@@ -24,7 +24,10 @@ import {
 } from './auth-middleware.js';
 import { sendTgNotification, checkAndNotify } from './notifications.js';
 import { clearAllNodeCaches } from '../services/node-cache-service.js';
-import { buildSubscriptionNodeCacheKey } from '../services/subscription-service.js';
+import {
+    buildSubscriptionNodeCacheKey,
+    readSubscriptionNodeCache,
+} from '../services/subscription-service.js';
 import { maybeRunScheduledTasks } from './scheduled-task-runner.js';
 import {
     decorateSubscriptionsWithSnapshots,
@@ -90,6 +93,45 @@ async function attachProfileDownloadCounts(storageAdapter, profiles) {
         normalizeProfile({
             ...profile,
             downloadCount: Number(counts[index]) || Number(profile.downloadCount) || 0,
+        })
+    );
+}
+
+function stripTransientSubscriptionFields(sub) {
+    if (!sub || typeof sub !== 'object') return sub;
+    if (
+        !Object.prototype.hasOwnProperty.call(sub, 'nodeCacheUpdatedAt') &&
+        !Object.prototype.hasOwnProperty.call(sub, 'nodeCacheCount')
+    ) {
+        return sub;
+    }
+    const { nodeCacheUpdatedAt: _updatedAt, nodeCacheCount: _count, ...clean } = sub;
+    return clean;
+}
+
+async function attachSubscriptionNodeCacheMeta(storageAdapter, misubs) {
+    if (!Array.isArray(misubs) || misubs.length === 0) return misubs;
+
+    return Promise.all(
+        misubs.map(async (sub) => {
+            if (
+                sub?.enableNodeCache !== true ||
+                typeof sub?.url !== 'string' ||
+                !/^https?:\/\//i.test(sub.url)
+            ) {
+                return sub;
+            }
+            const cached = await readSubscriptionNodeCache(storageAdapter, sub);
+            const updatedAt =
+                typeof cached?.updatedAt === 'string' && cached.updatedAt.trim()
+                    ? cached.updatedAt.trim()
+                    : null;
+            const count = Array.isArray(cached?.nodes) ? cached.nodes.length : 0;
+            return {
+                ...sub,
+                nodeCacheUpdatedAt: updatedAt,
+                nodeCacheCount: count,
+            };
         })
     );
 }
@@ -227,7 +269,10 @@ export async function handleDataRequest(env, context = null) {
                 return [];
             }),
         ]);
-        const profiles = await attachProfileDownloadCounts(storageAdapter, rawProfiles);
+        const [misubs, profiles] = await Promise.all([
+            attachSubscriptionNodeCacheMeta(storageAdapter, rawMisubs),
+            attachProfileDownloadCounts(storageAdapter, rawProfiles),
+        ]);
 
         // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
         // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
@@ -252,9 +297,8 @@ export async function handleDataRequest(env, context = null) {
         // D1 节点持久化：订阅列表的 nodeCount/userInfo 以快照为准，
         // 同时借这次管理端访问做一次到期检查（免费版 Worker 没有可靠定时）。
         const persistenceEnabled = isNodePersistenceEnabled(env, config);
-        let misubs = rawMisubs;
         if (persistenceEnabled) {
-            misubs = await decorateSubscriptionsWithSnapshots(env, rawMisubs);
+            misubs = await decorateSubscriptionsWithSnapshots(env, misubs);
             const taskContext = context || { env };
             maybeRefreshAllDueNodes({ ...taskContext, env, config }, { reason: 'admin-api' }).catch(
                 (error) =>
@@ -465,7 +509,7 @@ export async function handleMisubsSave(request, env) {
 
         if (Array.isArray(finalMisubs)) {
             finalMisubs = finalMisubs.map((s, index) => ({
-                ...s,
+                ...stripTransientSubscriptionFields(s),
                 sortIndex: index,
             }));
 
@@ -474,12 +518,12 @@ export async function handleMisubsSave(request, env) {
                 const subMap = new Map(finalMisubs.map((s) => [s.id, s]));
                 if (diff.subscriptions.added)
                     diff.subscriptions.added = diff.subscriptions.added.map((s) => ({
-                        ...s,
+                        ...stripTransientSubscriptionFields(s),
                         sortIndex: subMap.get(s.id)?.sortIndex,
                     }));
                 if (diff.subscriptions.updated)
                     diff.subscriptions.updated = diff.subscriptions.updated.map((s) => ({
-                        ...s,
+                        ...stripTransientSubscriptionFields(s),
                         sortIndex: subMap.get(s.id)?.sortIndex,
                     }));
             }
@@ -588,12 +632,14 @@ export async function handleMisubsSave(request, env) {
             console.warn('[API] Failed to clear node caches:', cacheError.message);
         }
 
+        const responseMisubs = await attachSubscriptionNodeCacheMeta(storageAdapter, finalMisubs);
+
         // 步骤7: 返回保存后的数据，确保前端能更新状态
         return createJsonResponse({
             success: true,
             message: diff ? '增量更新已保存' : '订阅源及订阅组已保存',
             data: {
-                misubs: finalMisubs,
+                misubs: responseMisubs,
                 profiles: finalProfiles,
             },
         });

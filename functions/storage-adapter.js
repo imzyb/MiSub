@@ -766,6 +766,9 @@ class D1StorageAdapter {
             if (String(key).startsWith('misub_guestbook_v1')) {
                 return { table: 'settings', queryField: 'key', queryValue: key };
             }
+            if (String(key).startsWith('node_cache_')) {
+                return { table: 'settings', queryField: 'key', queryValue: key };
+            }
             // 这些业务键本来就以 settings 表为家（KV→D1 迁移会主动写它们），
             // 不该走下面那条「未知格式」告警，否则真正的异常 key 会被噪声淹掉。
             if (D1_KNOWN_SETTINGS_KEYS.has(String(key))) {

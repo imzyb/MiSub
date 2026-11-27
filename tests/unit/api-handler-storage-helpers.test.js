@@ -353,4 +353,101 @@ describe('api-handler storage helper usage', () => {
         expect(response.status).toBe(200);
         expect(clearAllNodeCaches).not.toHaveBeenCalled();
     });
+
+    it('handleDataRequest attaches protective cache timestamp only for enabled HTTP subscriptions', async () => {
+        const { handleDataRequest } = await import('../../functions/modules/api-handler.js');
+
+        getAllSubscriptions.mockResolvedValue([
+            {
+                id: 'sub-cached',
+                name: 'Cached Sub',
+                url: 'https://a.example.com/sub',
+                enableNodeCache: true,
+            },
+            {
+                id: 'sub-empty-cache',
+                name: 'Empty Cache Sub',
+                url: 'https://b.example.com/sub',
+                enableNodeCache: true,
+            },
+            {
+                id: 'sub-disabled',
+                name: 'Disabled Cache Sub',
+                url: 'https://c.example.com/sub',
+                enableNodeCache: false,
+            },
+        ]);
+        getAllProfiles.mockResolvedValue([]);
+        get.mockImplementation(async (key) => {
+            if (key === 'node_cache_subscription_sub-cached') {
+                return {
+                    nodes: ['vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443#HK'],
+                    nodeCount: 1,
+                    updatedAt: '2026-11-24T06:20:05.000Z',
+                };
+            }
+            return null;
+        });
+
+        const response = await handleDataRequest({ MISUB_DB: {} });
+        const payload = await response.json();
+
+        expect(get).toHaveBeenCalledWith('node_cache_subscription_sub-cached');
+        expect(get).toHaveBeenCalledWith('node_cache_subscription_sub-empty-cache');
+        expect(get).not.toHaveBeenCalledWith('node_cache_subscription_sub-disabled');
+        expect(payload.misubs[0].nodeCacheUpdatedAt).toBe('2026-11-24T06:20:05.000Z');
+        expect(payload.misubs[0].nodeCacheCount).toBe(1);
+        expect(payload.misubs[1].nodeCacheUpdatedAt).toBeNull();
+        expect(payload.misubs[1].nodeCacheCount).toBe(0);
+        expect(payload.misubs[2]).not.toHaveProperty('nodeCacheUpdatedAt');
+    });
+
+    it('handleMisubsSave strips transient cache metadata before persistence and re-attaches live cache metadata in response', async () => {
+        const { handleMisubsSave } = await import('../../functions/modules/api-handler.js');
+
+        getAllSubscriptions.mockResolvedValue([]);
+        getAllProfiles.mockResolvedValue([]);
+        get.mockImplementation(async (key) => {
+            if (key === 'node_cache_subscription_sub-cached') {
+                return {
+                    nodes: ['vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443#JP'],
+                    nodeCount: 1,
+                    updatedAt: '2026-11-24T07:00:00.000Z',
+                };
+            }
+            return {};
+        });
+
+        const request = {
+            async json() {
+                return {
+                    misubs: [
+                        {
+                            id: 'sub-cached',
+                            name: 'Cached Sub',
+                            url: 'https://a.example.com/sub',
+                            enableNodeCache: true,
+                            nodeCacheUpdatedAt: '2020-01-01T00:00:00.000Z',
+                            nodeCacheCount: 999,
+                        },
+                    ],
+                    profiles: [],
+                };
+            },
+        };
+
+        const response = await handleMisubsSave(request, { MISUB_DB: {} });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(putSubscription).toHaveBeenCalledWith({
+            id: 'sub-cached',
+            name: 'Cached Sub',
+            url: 'https://a.example.com/sub',
+            enableNodeCache: true,
+            sortIndex: 0,
+        });
+        expect(payload.data.misubs[0].nodeCacheUpdatedAt).toBe('2026-11-24T07:00:00.000Z');
+        expect(payload.data.misubs[0].nodeCacheCount).toBe(1);
+    });
 });
