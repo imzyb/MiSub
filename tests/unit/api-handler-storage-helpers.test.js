@@ -12,11 +12,13 @@ const createAdapter = vi.fn();
 const getStorageType = vi.fn();
 const settingsCacheGet = vi.fn();
 const clearAllNodeCaches = vi.fn();
+const createNodeStore = vi.fn();
 
 vi.mock('../../functions/storage-adapter.js', () => ({
     StorageFactory: {
         createAdapter: (...args) => createAdapter(...args),
         getStorageType: (...args) => getStorageType(...args),
+        createNodeStore: (...args) => createNodeStore(...args),
         resolveKV: () => ({}),
     },
     SettingsCache: {
@@ -82,10 +84,12 @@ describe('api-handler storage helper usage', () => {
         getStorageType.mockReset();
         settingsCacheGet.mockReset();
         clearAllNodeCaches.mockReset();
+        createNodeStore.mockReset();
 
         getStorageType.mockResolvedValue('d1');
         settingsCacheGet.mockResolvedValue({});
         clearAllNodeCaches.mockResolvedValue({ cleared: 0, failed: 0, skipped: 0 });
+        createNodeStore.mockReturnValue(null);
         createAdapter.mockReturnValue({
             getAllSubscriptions,
             getAllProfiles,
@@ -449,5 +453,49 @@ describe('api-handler storage helper usage', () => {
         });
         expect(payload.data.misubs[0].nodeCacheUpdatedAt).toBe('2026-11-24T07:00:00.000Z');
         expect(payload.data.misubs[0].nodeCacheCount).toBe(1);
+    });
+
+    it('handleDataRequest supports D1 node persistence alongside protective cache metadata', async () => {
+        const { handleDataRequest } = await import('../../functions/modules/api-handler.js');
+
+        settingsCacheGet.mockResolvedValue({ enableNodePersistence: true });
+        createNodeStore.mockReturnValue({
+            listSnapshotsFor: vi.fn().mockResolvedValue([
+                {
+                    subscription_id: 'sub-cached',
+                    state: 'ready',
+                    node_count: 42,
+                    user_info_json: null,
+                },
+            ]),
+        });
+        getAllSubscriptions.mockResolvedValue([
+            {
+                id: 'sub-cached',
+                name: 'Cached Sub',
+                url: 'https://a.example.com/sub',
+                enableNodeCache: true,
+                nodeCount: 1,
+            },
+        ]);
+        getAllProfiles.mockResolvedValue([]);
+        get.mockImplementation(async (key) => {
+            if (key === 'node_cache_subscription_sub-cached') {
+                return {
+                    nodes: ['vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443#HK'],
+                    nodeCount: 1,
+                    updatedAt: '2026-11-24T06:20:05.000Z',
+                };
+            }
+            return null;
+        });
+
+        const response = await handleDataRequest({ MISUB_DB: {} });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.misubs[0].nodeCount).toBe(42);
+        expect(payload.misubs[0].nodeCacheUpdatedAt).toBe('2026-11-24T06:20:05.000Z');
+        expect(payload.misubs[0].nodeCacheCount).toBe(1);
     });
 });
