@@ -221,6 +221,7 @@ Content-Type: application/json
     "name": "Airport A",
     "url": "https://example.com/sub",
     "enabled": true,
+    "autoUpdate": true,
     "group": "HK",
     "tags": ["prod"],
     "userAgent": "",
@@ -343,10 +344,14 @@ Content-Type: application/json
 批量刷新多个已存储远程订阅源，返回：
 
 - `results[]`
+- `skipped[]`：因 `autoUpdate=false` 被跳过的订阅（`id`、`name`、`reason`）
 - `summary.total`
 - `summary.succeeded`
 - `summary.failed`
+- `summary.skipped`
 - `summary.totalNodes`
+
+说明：批量刷新会跳过 `autoUpdate=false` 的机场订阅，避免激活窗口外的机场把节点数刷成 0；需要强制刷新单个订阅时使用 `POST /subscriptions/:id/refresh`。
 
 #### `POST /manual-nodes/validate`
 
@@ -375,11 +380,13 @@ Content-Type: application/json
 - `summary.totalSubscriptions`
 - `summary.refreshedSubscriptions`
 - `summary.failedSubscriptions`
+- `summary.skippedSubscriptions`
 - `summary.manualNodes`
 - `summary.totalNodes`
 
 其中：
 
+- `autoUpdate=false` 的订阅会计入 `skippedSubscriptions`，不会发起刷新
 - `manualNodes` 直接按当前引用数量统计
 - `totalNodes = 成功刷新的远程订阅节点总数 + 手动节点数量`
 - 失败的远程订阅也会把 `lastError` / `lastUpdate` 持久化回库

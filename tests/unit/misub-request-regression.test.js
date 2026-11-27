@@ -680,15 +680,22 @@ describe('handleMisubRequest regression coverage', () => {
             expect(response.status).toBe(200);
             expect(text.trim()).toBe('');
             expect(response.headers.get('Subscription-Userinfo')).toBeNull();
-            expect(waitUntilPromises.length).toBeGreaterThan(0);
+            // 订阅组访问是只读链路：不再产生写回任务。
+            expect(waitUntilPromises.length).toBe(0);
             expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[MiSub Request]'));
             expect(logSpy).toHaveBeenCalledWith('[MiSub Nodes] Count/Length: 0');
 
             await Promise.all(waitUntilPromises);
 
+            // 订阅组访问是只读的：失败不会把已存储的节点数/流量清零。
             const [updatedSub] = adapter.store.get('misub_subscriptions_v1');
-            expect(updatedSub.nodeCount).toBe(0);
-            expect(updatedSub.userInfo).toBeNull();
+            expect(updatedSub.nodeCount).toBe(86);
+            expect(updatedSub.userInfo).toEqual({
+                upload: 10,
+                download: 20,
+                total: 1000,
+                expire: 2000,
+            });
         } finally {
             logSpy.mockRestore();
         }
@@ -867,6 +874,159 @@ describe('handleMisubRequest regression coverage', () => {
         } finally {
             logSpy.mockRestore();
             warnSpy.mockRestore();
+        }
+    });
+
+    it('关闭「流量与到期时间节点」时不注入伪节点（即使有流量与到期信息）', async () => {
+        const subscriptions = [
+            {
+                id: 'sub-a',
+                name: 'Airport A',
+                url: 'https://airport.example/sub',
+                enabled: true,
+                enableNodeCache: false,
+                userInfo: { upload: 10, download: 20, total: 1000, expire: 1893456000 },
+            },
+        ];
+        const profiles = [
+            {
+                id: 'p1',
+                name: 'Profile',
+                enabled: true,
+                subscriptions: ['sub-a'],
+                expiresAt: '2030-01-01',
+                customId: 'p1',
+                linkId: 'p1',
+            },
+        ];
+        const adapter = createStorageAdapter({
+            settings: {
+                mytoken: 'stable-token',
+                enableFlagEmoji: false,
+                enableTrafficNode: false,
+                profileToken: 'profiles',
+            },
+            subscriptions,
+            profiles,
+        });
+        createAdapter.mockReturnValue(adapter);
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }))
+        );
+
+        const logSpy = silenceExpectedRequestLogs();
+        try {
+            const { handleMisubRequest } = await import(
+                '../../functions/modules/subscription/main-handler.js'
+            );
+            const response = await handleMisubRequest({
+                request: new Request('https://misub.example/stable-token?target=nodes&refresh=1', {
+                    headers: { 'User-Agent': 'ClashMeta' },
+                }),
+                env: {},
+                waitUntil: vi.fn(),
+            });
+            const text = await response.text();
+
+            expect(text).not.toContain('流量剩余');
+            expect(text).not.toContain('到期时间 ≫');
+            expect(text).toContain('trojan://pass@example.com:443');
+        } finally {
+            logSpy.mockRestore();
+        }
+    });
+
+    it('设置为缺省（undefined）时也按关闭处理，不注入伪节点', async () => {
+        const subscriptions = [
+            {
+                id: 'sub-a',
+                name: 'Airport A',
+                url: 'https://airport.example/sub',
+                enabled: true,
+                enableNodeCache: false,
+                userInfo: { upload: 10, download: 20, total: 1000, expire: 1893456000 },
+            },
+        ];
+        const adapter = createStorageAdapter({
+            settings: { mytoken: 'stable-token', enableFlagEmoji: false },
+            subscriptions,
+        });
+        createAdapter.mockReturnValue(adapter);
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }))
+        );
+
+        const logSpy = silenceExpectedRequestLogs();
+        try {
+            const { handleMisubRequest } = await import(
+                '../../functions/modules/subscription/main-handler.js'
+            );
+            const response = await handleMisubRequest({
+                request: new Request('https://misub.example/stable-token?target=nodes&refresh=1', {
+                    headers: { 'User-Agent': 'ClashMeta' },
+                }),
+                env: {},
+                waitUntil: vi.fn(),
+            });
+            const text = await response.text();
+            expect(text).not.toContain('流量剩余');
+            expect(text).not.toContain('到期时间 ≫');
+        } finally {
+            logSpy.mockRestore();
+        }
+    });
+
+    it('开关变化后，旧聚合缓存（含伪节点）不会被继续使用', async () => {
+        const subscriptions = [
+            {
+                id: 'sub-a',
+                name: 'Airport A',
+                url: 'https://airport.example/sub',
+                enabled: true,
+                enableNodeCache: false,
+            },
+        ];
+        const adapter = createStorageAdapter({
+            settings: { mytoken: 'stable-token', enableFlagEmoji: false, enableTrafficNode: false },
+            subscriptions,
+        });
+        adapter.store.set('node_cache_token_stable-token', {
+            nodes: [
+                'trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99%20%E2%89%AB%20970%20B',
+                'trojan://pass@example.com:443#HK',
+            ].join('\n'),
+            timestamp: Date.now(),
+            nodeCount: 2,
+            sources: ['Airport A'],
+            flags: { trafficNodes: true },
+        });
+        createAdapter.mockReturnValue(adapter);
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response('trojan://pass@example.com:443#HK', { status: 200 }))
+        );
+
+        const logSpy = silenceExpectedRequestLogs();
+        try {
+            const { handleMisubRequest } = await import(
+                '../../functions/modules/subscription/main-handler.js'
+            );
+            const response = await handleMisubRequest({
+                request: new Request('https://misub.example/stable-token?target=nodes', {
+                    headers: { 'User-Agent': 'ClashMeta' },
+                }),
+                env: {},
+                waitUntil: vi.fn(),
+            });
+            const text = await response.text();
+
+            expect(text).not.toContain('流量剩余');
+            // 旧缓存被判定失效后必须重新拉取
+            expect(fetch).toHaveBeenCalled();
+        } finally {
+            logSpy.mockRestore();
         }
     });
 });

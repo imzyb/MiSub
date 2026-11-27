@@ -50,6 +50,13 @@ KV 使用固定 key 存 JSON：
 
 D1 当前采用“行级 JSON”结构：
 
+- `subscription_node_snapshots`（节点持久化专用，仅 D1）
+    - `subscription_id` 单主键：**一个机场订阅只保留最后一次更新的数据**，刷新直接覆盖
+    - `state`：`pending` / `ready` / `failed`
+    - `nodes_json`：**已按该机场订阅设置（operators + include/exclude）过滤后的节点 URL 数组**
+    - `node_count`、`user_info_json`、`last_success_at`、`last_attempt_at`、`last_error`、`chunk_count`
+    - 节点过多（JSON 超过 256KB）时自动写入 `subscription_node_snapshot_chunks`（每片一个 JSON 数组，最多 80 片），读取时合并；主行 `chunk_count>0` 表示使用分片
+    - `config_fingerprint` 覆盖 URL、UA、fetchProxy、plusAsSpace、exclude、operators、nodeTransform；只用于判断配置是否变化（变化则重建这一行），不再参与主键
 - `subscriptions`
     - `id TEXT PRIMARY KEY`
     - `data TEXT NOT NULL`：单个订阅源或手动节点 JSON。
@@ -67,13 +74,6 @@ D1 当前采用“行级 JSON”结构：
     - `updated_at DATETIME`
 
 兼容点：
-
-- 旧 D1 结构可能把整个订阅数组写在 `subscriptions.id = 'main'`，整个订阅组数组写在 `profiles.id = 'main'`。
-- `DataMigrator.migrateLegacyD1MainRows()` 会把旧的 `main` 数组拆成行级数据，再删除 `main` 行。
-- `_parseKey()` 对 `misub_subscriptions_v1`、`misub_profiles_v1`、`worker_settings_v1` 仍映射到 D1 的 `main` 兼容行；但常规读写优先使用 `getAllSubscriptions()`、`putSubscription()`、`getAllProfiles()`、`putProfile()` 等行级方法。
-
-## 3. 订阅源与手动节点模型
-
 前端 Store 中的集合名是 `subscriptions`，后端接口载荷中称为 `misubs`。同一个数组同时容纳两种项目：
 
 - HTTP/HTTPS URL：订阅源。
@@ -95,6 +95,9 @@ D1 当前采用“行级 JSON”结构：
 - `customUserAgent`：单个订阅源自定义 User-Agent。
 - `fetchProxy`：拉取订阅时使用的代理。
 - `enableNodeCache`：是否保留该订阅源节点缓存。
+- `enableNodePersistence`（全局设置）：D1 节点持久化开关。只有 `storageType === 'd1'` 且绑定 `MISUB_DB` 时可开启。**开启（含关闭后重新开启）会立刻对所有机场做一次全量后台同步**，等价一次 Cron，用户无需保持页面打开；之后订阅组只读 D1 快照。关闭时每次订阅实时拉取机场。
+- `autoUpdateInterval`（全局设置）：订阅更新检查间隔（界面文案；内部实现是 D1 节点快照）。**不是定时任务**——免费版 Worker 没有定时能力，只有访问页面、请求订阅等操作触发时，才会与上次更新时间比较，超过该间隔才更新 D1 快照；`0` 表示不自动更新，但订阅组仍从 D1 读取。Cron 与手动刷新不受该间隔限制。
+- `autoUpdate`：是否启用自动更新，缺省为 `true`。置为 `false`（编辑弹窗里的「禁用自动更新」开关）后，定时自动更新、全部刷新、批量更新接口与 External API 批量/组合刷新都会跳过该订阅；卡片上的单机场手动刷新与 External API 单条 `refresh` 仍可用，订阅组输出也不会因此丢失节点（只是不再回写节点数与流量）。
 - `plusAsSpace`：拉取订阅时是否把 `+` 视为空格。
 - `website`：订阅源网站/来源信息。
 - `userInfo`：运行时或历史流量信息，可能包含 `upload`、`download`、`total`、`expire`。

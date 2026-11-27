@@ -3,7 +3,8 @@
  * @author MiSub Team
  */
 
-export { default as SubscriptionPanel } from './SubscriptionPanel.vue';
+import SubscriptionPanel from './SubscriptionPanel.vue';
+export { SubscriptionPanel };
 
 export const SubscriptionComponents = {
     SubscriptionPanel,

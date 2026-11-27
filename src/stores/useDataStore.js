@@ -56,7 +56,13 @@ export const useDataStore = defineStore('data', () => {
             subscriptions.value = cleanSubs;
             profiles.value = data.profiles || [];
             ruleTemplates.value = data.ruleTemplates || [];
-            settingsStore.setConfig({ ...DEFAULT_SETTINGS, ...data.config });
+            // capabilities 由服务端计算（是否绑定 D1、当前主存储），
+            // 只读，随 config 一起下发，供设置页判断持久化开关是否可用。
+            settingsStore.setConfig({
+                ...DEFAULT_SETTINGS,
+                ...data.config,
+                capabilities: data.capabilities || data.config?.capabilities || {},
+            });
 
             updateSnapshot();
             lastUpdated.value = new Date();

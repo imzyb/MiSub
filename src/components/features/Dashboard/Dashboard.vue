@@ -1,6 +1,9 @@
 <script setup>
-    import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue';
+    import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
     import { formatBytes } from '../../../lib/utils.js';
+    import { getProfileShareIdentifier } from '../../../utils/profile-link.js';
+    import { inferAirportRootDomain } from '../../../utils/airport-domain.js';
+    import { rememberDomainName } from '../../../utils/domain-name-memory.js';
     import { useToastStore } from '../../../stores/toast.js';
     import { useUIStore } from '../../../stores/ui.js';
     import { useDataStore } from '../../../stores/useDataStore.js';
@@ -61,6 +64,13 @@
 
     const saveState = ref('idle');
 
+    // 节点持久化是否生效：D1 能力可用 + 用户已开启
+    const persistenceEnabled = computed(() => {
+        const config = settings.value || {};
+        const capabilities = config.capabilities || {};
+        return capabilities.available === true && config.enableNodePersistence === true;
+    });
+
     // Wrapper for markDirty to also reset saveState
     const markDirty = () => {
         dataStore.markDirty();
@@ -98,7 +108,7 @@
                 const token = settings.value.profileToken;
                 const baseUrl = window.location.origin;
                 // Using similar logic to useProfiles copy link
-                const idToUse = profile.customId || profile.id;
+                const idToUse = getProfileShareIdentifier(profile);
                 qrCodeUrl.value = `${baseUrl}/${token}/${idToUse}`;
                 qrCodeTitle.value = profile.name || t('profiles.qrCodeTitle');
                 showQRCodeModal.value = true;
@@ -134,9 +144,6 @@
         addSubscriptionsFromBulk,
         handleUpdateNodeCount,
         batchUpdateAllSubscriptions,
-        startAutoUpdate,
-        stopAutoUpdate,
-        restartAutoUpdate,
         reorderSubscriptions,
     } = useSubscriptions(markDirty);
 
@@ -232,6 +239,7 @@
     const showSubscriptionImportModal = ref(false);
     const showLogModal = ref(false);
     const logProfileName = ref('');
+    const logProfileId = ref('');
     const showBatchDeleteModal = ref(false);
     const batchDeleteIds = ref([]);
     const showDedupModal = ref(false);
@@ -282,25 +290,11 @@
         if (savedViewMode) {
             manualNodeViewMode.value = savedViewMode;
         }
-        // 启动订阅自动更新定时器（每30分钟）
-        startAutoUpdate();
     });
 
     onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
-        // 停止订阅自动更新定时器
-        stopAutoUpdate();
     });
-
-    // 监听设置变更，重启自动更新定时器
-    watch(
-        () => settings.value?.autoUpdateInterval,
-        (newInterval) => {
-            if (newInterval !== undefined) {
-                restartAutoUpdate(newInterval);
-            }
-        }
-    );
 
     const setViewMode = (mode) => {
         manualNodeViewMode.value = mode;
@@ -451,6 +445,7 @@
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (profile) {
             logProfileName.value = profile.name;
+            logProfileId.value = profile.id;
             showLogModal.value = true;
         }
     };
@@ -512,6 +507,7 @@
                     :current-page="subsCurrentPage"
                     :total-pages="subsTotalPages"
                     :is-sorting="isSortingSubs"
+                    :persistence-enabled="persistenceEnabled"
                     @update-search="(query) => (subscriptionSearchQuery = query)"
                     @add="handleAddSubscription"
                     @delete="handleDeleteSubscriptionWithCleanup"
@@ -608,7 +604,11 @@
         v-model:show="showBulkImportModal"
         @import="(txt, tag) => handleBulkImport(txt, tag)"
     />
-    <LogModal v-model:show="showLogModal" />
+    <LogModal
+        v-model:show="showLogModal"
+        :filter-profile-id="logProfileId"
+        :filter-profile-name="logProfileName"
+    />
     <Modal v-model:show="showDeleteSubsModal" @confirm="handleDeleteAllSubscriptionsWithCleanup"
         ><template #title>
             <h3 class="text-lg font-bold text-red-500">
@@ -702,6 +702,7 @@
         v-model:show="showSubModal"
         :is-new="isNewSubscription"
         :editing-subscription="editingSubscription"
+        :persistence-enabled="persistenceEnabled"
         @confirm="handleSaveSubscription"
     />
 

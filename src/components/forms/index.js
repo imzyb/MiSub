@@ -3,8 +3,10 @@
  * @author MiSub Team
  */
 
-export { default as Modal } from './Modal.vue';
-export { default as SmartSearch } from './SmartSearch.vue';
+import Modal from './Modal.vue';
+export { Modal };
+import SmartSearch from './SmartSearch.vue';
+export { SmartSearch };
 
 export const FormComponents = {
     Modal,

@@ -18,6 +18,8 @@ lerna-debug.log*
 dist
 dist-ssr
 dev-dist
+# 本地 bun 锁文件（项目统一使用 package-lock.json）
+bun.lock
 
 # Dependencies
 /node_modules/
@@ -106,3 +108,6 @@ data/
 
 # AI assistant workspace data
 .workbuddy-ai/
+
+# 临时目录：.tmp 开头的本地工作目录（.tmp-dev、.tmp-shots 等，字母大小写不敏感）
+.[Tt][Mm][Pp]*/

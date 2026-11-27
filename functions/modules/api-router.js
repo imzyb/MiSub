@@ -30,7 +30,11 @@ import {
     handleUpdatePassword,
 } from './api-handler.js';
 import { handleRuleTemplatesRequest } from './rule-template-handler.js';
-import { handleCronTrigger } from './notifications.js';
+import {
+    handleCronTrigger,
+    CRON_REFRESH_CONCURRENCY,
+    CRON_REFRESH_TIMEOUT_MS,
+} from './notifications.js';
 import {
     handleSubscriptionNodesRequest,
     handlePublicPreviewRequest,
@@ -93,6 +97,13 @@ export async function handleApiRequest(request, env, context = null) {
 
     if (path === '/external-nodes-callback') {
         return handleExternalNodesCallbackRequest(request, env);
+    }
+
+    // 节点持久化全量回填的内部接口：只认 token，不走登录态。
+    if (path === '/internal/node-backfill') {
+        const { handleInternalBackfillRequest } =
+            await import('../services/node-persistence-service.js');
+        return handleInternalBackfillRequest(request, env, context);
     }
 
     if (path.startsWith('/ext/v1')) {
@@ -240,7 +251,7 @@ export async function handleApiRequest(request, env, context = null) {
     }
 
     if (path === '/public/preview') {
-        return await handlePublicPreviewRequest(request, env);
+        return await handlePublicPreviewRequest(request, env, context);
     }
 
     // 留言板公开接口
@@ -472,7 +483,7 @@ export async function handleApiRequest(request, env, context = null) {
             return await handleBatchUpdateNodesRequest(request, env);
 
         case '/subscription_nodes':
-            return await handleSubscriptionNodesRequest(request, env);
+            return await handleSubscriptionNodesRequest(request, env, context);
 
         case '/debug_subscription':
             return await handleDebugSubscriptionRequest(request, env);
@@ -505,8 +516,19 @@ export async function handleApiRequest(request, env, context = null) {
             }
             if (request.method === 'DELETE') {
                 const { LogService } = await import('../services/log-service.js');
-                await LogService.clearLogs(env);
-                return createJsonResponse({ success: true });
+                const { resetProfileDownloadCounts } =
+                    await import('../services/profile-stats-service.js');
+                // 带 profileId 时只清该订阅组；不带时清空全部
+                const profileId = (url.searchParams.get('profileId') || '').trim();
+                const profileName = (url.searchParams.get('profileName') || '').trim();
+                const scope = profileId ? { profileId, profileName } : {};
+                await LogService.clearLogs(env, scope);
+                // [Fix] 访问记录与访问次数是同一份数据的两面，清空日志必须同步归零计数
+                const profilesReset = await resetProfileDownloadCounts(env, scope);
+                return createJsonResponse({
+                    success: true,
+                    data: { profilesReset, scoped: Boolean(profileId) },
+                });
             }
             return createErrorResponse('Method Not Allowed', 405);
 
@@ -515,7 +537,7 @@ export async function handleApiRequest(request, env, context = null) {
                 return await handleSettingsGet(env);
             }
             if (request.method === 'POST') {
-                return await handleSettingsSave(request, env);
+                return await handleSettingsSave(request, env, context);
             }
             return createJsonResponse('Method Not Allowed', 405);
 
@@ -824,14 +846,18 @@ function encodeArrayBufferToBase64(buffer) {
  */
 async function handleCronStatusRequest(env) {
     try {
-        // 检查是否启用Cron功能
-        const enableCron = env.ENABLE_CRON !== 'false';
+        // Cron 只在 D1 + 节点持久化开启时可用。
+        const { isNodePersistenceEnabled } =
+            await import('../services/node-persistence-service.js');
+        const { SettingsCache } = await import('../storage-adapter.js');
+        const currentSettings = (await SettingsCache.get(env)) || {};
+        const persistenceEnabled = isNodePersistenceEnabled(env, currentSettings);
 
-        // 获取Cron配置
-        const cronType = env.CRON_TYPE || 'hourly-subscription-sync';
-        const maxSyncCount = parseInt(env.CRON_MAX_SYNC_COUNT) || 50;
-        const syncTimeout = parseInt(env.CRON_SYNC_TIMEOUT) || 30000;
-        const enableParallel = env.CRON_ENABLE_PARALLEL !== 'false';
+        // 检查是否启用Cron功能
+        const enableCron = env.ENABLE_CRON !== 'false' && persistenceEnabled;
+
+        // Cron 已统一为节点快照刷新（与 /cron 同一条链路），只暴露真实的运行参数
+        const cronType = env.CRON_TYPE || 'node-snapshot-refresh';
 
         // 获取最近的Cron执行状态（如果有的话）
         let lastExecution = null;
@@ -851,13 +877,14 @@ async function handleCronStatusRequest(env) {
             enabled: enableCron,
             config: {
                 type: cronType,
-                maxSyncCount,
-                syncTimeout,
-                enableParallel,
+                mode: 'node-snapshot-refresh',
+                concurrency: CRON_REFRESH_CONCURRENCY,
+                timeout: CRON_REFRESH_TIMEOUT_MS,
             },
             totalSubscriptions: lastExecution?.result?.totalSubscriptions || 0,
             successfulSyncs: lastExecution?.result?.successfulSyncs || 0,
             failedSyncs: lastExecution?.result?.failedSyncs || 0,
+            skippedSyncs: lastExecution?.result?.skippedSyncs || 0,
             lastSync: lastExecution?.timestamp || null,
             details: lastExecution?.result?.details || [],
             lastExecution,
@@ -878,6 +905,22 @@ async function handleCronStatusRequest(env) {
  */
 async function handleCronTriggerRequest(env) {
     try {
+        // Cron 只在 D1 + 节点持久化开启时可用；间隔为 0 时也允许（它是独立强制刷新通道）。
+        const { isNodePersistenceEnabled } =
+            await import('../services/node-persistence-service.js');
+        const { SettingsCache } = await import('../storage-adapter.js');
+        const cronSettings = (await SettingsCache.get(env)) || {};
+        if (!isNodePersistenceEnabled(env, cronSettings)) {
+            return createJsonResponse(
+                {
+                    success: false,
+                    error: 'node_persistence_disabled',
+                    message: '未启用 D1 节点持久化，Cron 刷新不可用',
+                },
+                400
+            );
+        }
+
         // 检查是否启用Cron功能
         const enableCron = env.ENABLE_CRON !== 'false';
         if (!enableCron) {
@@ -890,33 +933,60 @@ async function handleCronTriggerRequest(env) {
             );
         }
 
-        // 获取Cron配置
-        const cronType = env.CRON_TYPE || 'hourly-subscription-sync';
-        const maxSyncCount = parseInt(env.CRON_MAX_SYNC_COUNT) || 50;
-        const syncTimeout = parseInt(env.CRON_SYNC_TIMEOUT) || 30000;
-        const enableParallel = env.CRON_ENABLE_PARALLEL !== 'false';
+        // 与 /cron 走同一条链路：统一由节点快照刷新实现，
+        // 不再保留第二套旧版同步实现，避免两套刷新口径分叉。
+        const cronResponse = await handleCronTrigger(env);
+        const cronPayload = await cronResponse.json().catch(() => null);
+        if (cronPayload?.skipped) {
+            return createJsonResponse(
+                {
+                    success: false,
+                    error: cronPayload.reason || 'cron_skipped',
+                    message: cronPayload.message || 'Cron 刷新已跳过',
+                },
+                400
+            );
+        }
 
-        // 调用 _schedule.js 中的同步逻辑
-        const scheduleModule = await import('../_schedule.js');
-        const result = await scheduleModule.performSubscriptionSync(env, {
-            maxSyncCount,
-            syncTimeout,
-            enableParallel,
-        });
+        const summary = cronPayload?.summary || {};
+        const failedSubscriptions = Array.isArray(summary.failed_subscriptions)
+            ? summary.failed_subscriptions
+            : [];
+        // 按配置（autoUpdate=false）跳过的订阅与失败分开统计，避免把主动停用当成异常
+        const skippedSubscriptions = Array.isArray(summary.skipped_subscriptions)
+            ? summary.skipped_subscriptions
+            : [];
+        const result = {
+            timestamp: new Date().toISOString(),
+            mode: 'node-snapshot-refresh',
+            totalSubscriptions: Number(summary.total) || 0,
+            successfulSyncs: Number(summary.updated) || 0,
+            failedSyncs: Number(summary.failed) || 0,
+            skippedSyncs: Number(summary.skipped) || skippedSubscriptions.length,
+            duration: summary.duration || null,
+            details: [
+                ...failedSubscriptions.map((item) => ({
+                    name: item?.name,
+                    status: 'failed',
+                    error: item?.error,
+                })),
+                ...skippedSubscriptions.map((item) => ({
+                    name: item?.name,
+                    status: 'skipped',
+                    reason: item?.reason,
+                })),
+            ],
+        };
 
-        // 保存执行状态
+        // 保存执行状态（/api/cron/status 与 cron 仪表盘读取的格式）
         try {
             const kv = StorageFactory.resolveKV(env);
             if (kv) {
                 const executionStatus = {
                     type: 'manual_trigger',
-                    cronType,
+                    mode: 'node-snapshot-refresh',
                     timestamp: new Date().toISOString(),
-                    result: {
-                        totalSubscriptions: result.totalSubscriptions,
-                        successfulSyncs: result.successfulSyncs,
-                        failedSyncs: result.failedSyncs,
-                    },
+                    result,
                 };
                 await kv.put('cron_last_execution', JSON.stringify(executionStatus), {
                     expirationTtl: 86400, // 24小时后过期
@@ -945,121 +1015,5 @@ async function handleCronTriggerRequest(env) {
     } catch (error) {
         console.error('[Cron Trigger Error]', error);
         return createErrorResponse(error, 500);
-    }
-}
-
-/**
- * 执行订阅同步（复用_cron.js的逻辑）
- * @param {Object} env - Cloudflare环境对象
- * @param {Object} config - 同步配置
- * @returns {Promise<Object>} 同步结果
- */
-async function performSubscriptionSync(env, config) {
-    const { maxSyncCount = 50, syncTimeout = 30000, enableParallel = true } = config;
-
-    const results = {
-        timestamp: new Date().toISOString(),
-        totalSubscriptions: 0,
-        successfulSyncs: 0,
-        failedSyncs: 0,
-        config: { maxSyncCount, syncTimeout, enableParallel },
-    };
-
-    try {
-        // 获取订阅列表
-        const subscriptions = await getAllSubscriptions(env);
-        results.totalSubscriptions = subscriptions.length;
-
-        // 限制同步数量
-        const subscriptionsToSync = subscriptions.slice(0, maxSyncCount);
-
-        if (enableParallel) {
-            // 并行同步
-            const syncPromises = subscriptionsToSync.map(async (sub) => {
-                try {
-                    await performSingleSubscriptionSync(sub, env, syncTimeout);
-                    return { success: true };
-                } catch (error) {
-                    console.error(`[Cron] Failed to sync ${sub.name}:`, error);
-                    return { success: false, error: error.message };
-                }
-            });
-
-            const syncResults = await Promise.allSettled(syncPromises);
-            syncResults.forEach((result) => {
-                if (result.status === 'fulfilled' && result.value.success) {
-                    results.successfulSyncs++;
-                } else {
-                    results.failedSyncs++;
-                }
-            });
-        } else {
-            // 串行同步
-            for (const sub of subscriptionsToSync) {
-                try {
-                    await performSingleSubscriptionSync(sub, env, syncTimeout);
-                    results.successfulSyncs++;
-                } catch (error) {
-                    console.error(`[Cron] Failed to sync ${sub.name}:`, error);
-                    results.failedSyncs++;
-                }
-            }
-        }
-    } catch (error) {
-        console.error('[Cron] Subscription sync error:', error);
-        results.error = error.message;
-    }
-
-    return results;
-}
-
-/**
- * 获取所有订阅
- * @param {Object} env - Cloudflare环境对象
- * @returns {Promise<Array>} 订阅列表
- */
-async function getAllSubscriptions(env) {
-    try {
-        const storageAdapter = StorageFactory.createAdapter(
-            env,
-            await StorageFactory.getStorageType(env)
-        );
-        const subscriptions = (await storageAdapter.get(KV_KEY_SUBS)) || [];
-        return Array.isArray(subscriptions) ? subscriptions : [];
-    } catch (error) {
-        console.error('[Cron] Failed to fetch subscriptions:', error);
-        return [];
-    }
-}
-
-/**
- * 执行单个订阅同步
- * @param {Object} subscription - 订阅对象
- * @param {Object} env - 环境变量
- * @param {number} timeout - 超时时间（毫秒）
- */
-async function performSingleSubscriptionSync(subscription, env, timeout) {
-    // 创建带超时的 AbortController
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-        // 这里应该调用实际的订阅同步逻辑
-        // 暂时使用模拟逻辑
-        console.log(
-            `[Single Sync] Processing ${subscription.name || subscription.url} with ${timeout}ms timeout`
-        );
-
-        // 模拟网络请求
-        await new Promise((resolve, reject) => {
-            controller.signal.addEventListener('abort', () => reject(new Error('Timeout')));
-            setTimeout(resolve, Math.random() * 2000); // 模拟1-2秒的处理时间
-        });
-
-        clearTimeout(timeoutId);
-        return { success: true };
-    } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
     }
 }

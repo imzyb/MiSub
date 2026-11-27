@@ -14,13 +14,13 @@ export const useVersionStore = defineStore('version', () => {
     const showUpdateNotice = ref(false);
     const upstreamRepo = 'imzyb/MiSub';
 
-    // 本地更新日志 (v2.7.0)
-    const localChangelog = `✨ **订阅生成链路、内置模板与安全兼容性增强**
-- **第三方转换链路修复**：第三方后端模式会先由 MiSub 完成节点预处理，再以内联节点发送给转换后端，避免外部服务回调 MiSub 链接时出现 \`No nodes were found!\`。
-- **多节点外部转换兼容**：多节点内联统一使用 \`|\` 分隔，提升 FatSheep / subconverter 兼容性。
-- **内置模板与规则集增强**：补强 ACL4SSR provider、远程规则集、Sing-Box 规则源、Hysteria2 realm 等输出细节。
-- **服务集成 Cron 兼容恢复**：\`/cron?secret=[REDACTED]\` 兼容链接与 Bearer Token Header 推荐方式均可使用。
-- **UI 与导入体验优化**：优化模板变量提示、自定义规则模板、客户端导入链接和节点刷新错误提示。`;
+    // 本地更新日志 (v2.8.0)
+    const localChangelog = `✨ **节点持久化、订阅标识重构与全站国际化**
+- **节点持久化**：新增持久化开关，启用即全量回填；订阅输出接入 D1 单行快照并支持超大订阅分片，Cron 与外部 API 刷新口径统一。
+- **订阅标识 linkId**：订阅链接改用独立 linkId，新增服务端校验与重置，退役标识不再可访问，历史 ID 自动兼容。
+- **组合订阅与排序**：支持「我的订阅」嵌套组合订阅、单机场订阅禁用自动更新、包含与剔除规则并存，节点排序新增正则置顶优先级。
+- **国际化与无障碍**：全站中英双语覆盖，补齐静默失败的用户反馈，加固对比度与焦点样式，全局确认弹窗替代原生 confirm。
+- **同步工作流**：Fork Sync 改为合并式同步（冲突回滚、不重置不强推），日志与运行摘要统一北京时间。`;
 
     // --- Getters ---
     const hasUpdate = computed(() => {

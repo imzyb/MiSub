@@ -333,7 +333,7 @@
                     </template>
                 </SectionHeader>
                 <span
-                    class="rounded-full bg-green-100 px-2.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-300"
+                    class="shrink-0 whitespace-nowrap rounded-full bg-green-100 px-2.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-300"
                     >{{ t('settings.globalDefaultBadge') }}</span
                 >
             </div>

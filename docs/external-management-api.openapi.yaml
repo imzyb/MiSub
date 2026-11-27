@@ -917,7 +917,7 @@ components:
           type: string
     Subscription:
       type: object
-      required: [id, type, name, url, enabled, group, tags, userAgent, proxy, sortIndex, createdAt, updatedAt]
+      required: [id, type, name, url, enabled, autoUpdate, group, tags, userAgent, proxy, sortIndex, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -930,6 +930,9 @@ components:
           type: string
         enabled:
           type: boolean
+        autoUpdate:
+          type: boolean
+          description: false 时定时刷新、全部刷新、批量刷新与组合刷新都会跳过该订阅；单条 refresh 仍可显式触发
         group:
           type: string
         tags:
@@ -965,6 +968,9 @@ components:
           description: 必须是 http:// 或 https:// URL
         enabled:
           type: boolean
+        autoUpdate:
+          type: boolean
+          description: 缺省为 true；false 表示禁用该订阅的自动更新
         group:
           type: string
         tags:
@@ -985,6 +991,8 @@ components:
         url:
           type: string
         enabled:
+          type: boolean
+        autoUpdate:
           type: boolean
         group:
           type: string
@@ -1063,6 +1071,17 @@ components:
           type: string
         refreshedAt:
           type: string
+    SubscriptionBatchRefreshSkipped:
+      type: object
+      required: [id, name, reason]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        reason:
+          type: string
+          const: auto_update_paused
     SubscriptionBatchRefreshResult:
       type: object
       required: [results, summary]
@@ -1071,6 +1090,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SubscriptionBatchRefreshItem'
+        skipped:
+          type: array
+          description: 因 autoUpdate=false 被跳过的订阅
+          items:
+            $ref: '#/components/schemas/SubscriptionBatchRefreshSkipped'
         summary:
           type: object
           required: [total, succeeded, failed, totalNodes]
@@ -1080,6 +1104,8 @@ components:
             succeeded:
               type: integer
             failed:
+              type: integer
+            skipped:
               type: integer
             totalNodes:
               type: integer
@@ -1318,6 +1344,9 @@ components:
               type: integer
             failedSubscriptions:
               type: integer
+            skippedSubscriptions:
+              type: integer
+              description: 因 autoUpdate=false 被跳过的订阅数
             manualNodes:
               type: integer
             totalNodes:

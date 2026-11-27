@@ -14,6 +14,8 @@
     import { detectLegacyD1 } from './lib/api.js';
     import { useI18n } from './i18n/index.js';
     import { configureAuthGuard, translateRouteTitle } from './router/index.js';
+    import RouteProgress from './components/ui/RouteProgress.vue';
+    import { installRoutePrefetch, prefetchAllRoutes } from './utils/route-prefetch.js';
     import { readSessionPreference } from './utils/session-preference.js';
 
     // Lazy components
@@ -37,6 +39,20 @@
     const route = useRoute();
     const router = useRouter();
     const { t, locale } = useI18n();
+
+    // 路由级加载反馈：懒加载 chunk 解析期间 URL 与内容都不变，
+    // 这里在导航一开始就点亮顶部进度条，避免用户以为“点了没反应”。
+    const navPending = ref(false);
+    router.beforeEach((to, from) => {
+        if (to.path !== from.path) navPending.value = true;
+        return true;
+    });
+    router.afterEach(() => {
+        navPending.value = false;
+    });
+    router.onError(() => {
+        navPending.value = false;
+    });
     const themeStore = useThemeStore();
     const { theme } = storeToRefs(themeStore);
     const { initTheme } = themeStore;
@@ -152,14 +168,22 @@
         () => sessionStore.securityWarning?.message || t('notices.defaultPasswordWarning')
     );
 
+    // hover / focus / 触摸时预取路由 chunk；登录后空闲时再预热全部路由
+    let disposeRoutePrefetch = null;
+
     onMounted(async () => {
         window.addEventListener('misub:unauthorized', handleUnauthorized);
         initTheme();
+        disposeRoutePrefetch = installRoutePrefetch(router);
+        const runIdle =
+            window.requestIdleCallback || ((fn) => window.setTimeout(fn, 1200));
+        runIdle(() => prefetchAllRoutes(router));
         await checkSession();
     });
 
     onUnmounted(() => {
         window.removeEventListener('misub:unauthorized', handleUnauthorized);
+        if (disposeRoutePrefetch) disposeRoutePrefetch();
     });
 
     watch(
@@ -270,6 +294,8 @@
         :class="theme"
         class="min-h-screen flex flex-col text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-gray-100 dark:bg-slate-950"
     >
+        <RouteProgress :active="navPending" />
+
         <!-- Navigation -->
         <NavBar v-if="showModernNavBar" :is-logged-in="true" @logout="logout" />
         <Header

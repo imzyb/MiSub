@@ -6,6 +6,7 @@
     import { useManualNodes } from '../../../composables/useManualNodes.js';
     import { useI18n } from '../../../i18n/index.js';
     import { isNetworkErrorMessage } from '../../../utils/network-error.js';
+    import { copyTextToClipboard } from '../../../utils/clipboard.js';
     import Modal from '../../forms/Modal.vue';
     import NodeFilters from './components/NodeFilters.vue';
     import NodeList from './components/NodeList.vue';
@@ -41,6 +42,8 @@
     const loading = ref(false);
     const error = ref('');
     const allNodes = ref([]); // 存储所有节点
+    // 预览数据来源：persistence=读 D1 快照；live=本次实时拉取
+    const nodeSource = ref('live');
     const currentPage = ref(1);
     const pageSize = ref(24);
     const viewMode = ref('list'); // 'list' 或 'card'
@@ -136,9 +139,15 @@
     });
 
     const subtitle = computed(() => {
-        return props.profileId
+        const base = props.profileId
             ? t('nodePreview.profileSubtitle')
             : t('nodePreview.subscriptionSubtitle');
+        // 括号里直接标出来源，避免用户把预览结果和卡片上的节点数/流量混为一谈
+        const sourceTag =
+            nodeSource.value === 'persistence'
+                ? t('nodePreview.sourceSnapshotTag')
+                : t('nodePreview.sourceLiveTag');
+        return nodeSource.value ? `${base}${sourceTag}` : base;
     });
 
     // 过滤后的节点
@@ -279,6 +288,7 @@
             }
 
             allNodes.value = data.nodes || [];
+            nodeSource.value = data.nodeSource === 'persistence' ? 'persistence' : 'live';
             protocolStats.value = data.stats?.protocols || {};
             regionStats.value = data.stats?.regions || {};
 
@@ -354,25 +364,12 @@
 
     // 复制节点链接
     const copyNodeUrl = async (node, nodeId) => {
-        try {
-            await navigator.clipboard.writeText(node.url);
-            copiedNodeId.value = nodeId;
-            setTimeout(() => {
-                copiedNodeId.value = '';
-            }, 2000);
-        } catch (err) {
-            // 降级方案
-            const textArea = document.createElement('textarea');
-            textArea.value = node.url;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            copiedNodeId.value = nodeId;
-            setTimeout(() => {
-                copiedNodeId.value = '';
-            }, 2000);
-        }
+        const ok = await copyTextToClipboard(node.url);
+        if (!ok) return;
+        copiedNodeId.value = nodeId;
+        setTimeout(() => {
+            copiedNodeId.value = '';
+        }, 2000);
     };
 
     // 获取协议类型的显示样式
@@ -591,6 +588,29 @@
         </template>
 
         <template #body>
+            <!-- 数据来源说明：未启用持久化时提醒这是实时拉取结果 -->
+            <div
+                v-if="!loading && !error && allNodes.length > 0"
+                class="mx-4 mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-xs leading-relaxed sm:mx-8"
+                :class="
+                    nodeSource === 'persistence'
+                        ? 'border-emerald-200/70 bg-emerald-50/70 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                        : 'border-amber-200/70 bg-amber-50/70 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300'
+                "
+                data-testid="node-preview-source-banner"
+            >
+                <span class="mt-[1px] shrink-0 font-bold">
+                    {{ nodeSource === 'persistence' ? 'ⓘ' : '!' }}
+                </span>
+                <span>
+                    {{
+                        nodeSource === 'persistence'
+                            ? t('nodePreview.sourceSnapshotHint')
+                            : t('nodePreview.sourceLiveHint')
+                    }}
+                </span>
+            </div>
+
             <!-- 统计信息 -->
             <div
                 v-if="!loading && !error && Object.keys(protocolStats).length > 0"

@@ -3,6 +3,7 @@ import {
     migrateConfigSettings,
     formatBytes,
     migrateProfileIds,
+    migrateProfileLinkIds,
     base64EncodeUtf8,
 } from '../utils.js';
 import { generateCombinedNodeList } from '../../services/subscription-service.js';
@@ -22,9 +23,15 @@ import {
     isLikelyPartialAggregateNodeList,
 } from '../../services/node-cache-service.js';
 import { resolveRequestContext } from './request-context.js';
+import { resolvePublicProfile } from './profile-resolver.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
 import { logAccessSuccess, shouldSkipLogging as shouldSkipAccessLog } from './access-logger.js';
+import {
+    isNodePersistenceEnabled,
+    maybeContinueBackfill,
+    maybeRefreshDueNodes,
+} from '../../services/node-persistence-service.js';
 import {
     isBrowserAgent,
     determineTargetFormat,
@@ -61,8 +68,16 @@ function maskSensitiveLogValue(value) {
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
+// [Fix] 计数 key 恒定使用内部主键：改自定义 ID、重置链接都不会让统计掉档
 function getProfileDownloadCountKey(profile) {
-    return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
+    return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.id}`;
+}
+
+// 优先走行级写入；D1 上直接 put(KV_KEY_PROFILES) 会写进 legacy 'main' 行，与行级数据打架
+function persistProfiles(storageAdapter, profiles) {
+    return typeof storageAdapter.putAllProfiles === 'function'
+        ? storageAdapter.putAllProfiles(profiles)
+        : storageAdapter.put(KV_KEY_PROFILES, profiles);
 }
 
 function buildTemplateProxyBlock(nodeList) {
@@ -606,12 +621,13 @@ export async function handleMisubRequest(context) {
     const settings = settingsData || {};
 
     // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
-    if (migrateProfileIds(allProfiles)) {
-        storageAdapter
-            .put(KV_KEY_PROFILES, allProfiles)
-            .catch((err) =>
-                console.error('[Migration] Failed to persist migrated profile IDs:', err)
-            );
+    // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
+    const profileIdsMigrated = migrateProfileIds(allProfiles);
+    const profileLinkIdsMigrated = migrateProfileLinkIds(allProfiles);
+    if (profileIdsMigrated || profileLinkIdsMigrated) {
+        persistProfiles(storageAdapter, allProfiles).catch((err) =>
+            console.error('[Migration] Failed to persist migrated profile IDs:', err)
+        );
     }
     // 关键：我们在这里定义了 `config`，后续都应该使用它
     const config = migrateConfigSettings({ ...defaultSettings, ...settings });
@@ -695,9 +711,8 @@ export async function handleMisubRequest(context) {
                 new Response('Not Found', { status: 404 })
             );
         }
-        currentProfile = allProfiles.find(
-            (p) => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
-        );
+        // [Fix #538] 公开入口：customId > linkId；主键 id 不再参与路由
+        currentProfile = resolvePublicProfile(allProfiles, profileIdentifier);
         initEngineFlags(currentProfile);
         const profile = currentProfile;
         if (profile && profile.enabled) {
@@ -844,7 +859,11 @@ export async function handleMisubRequest(context) {
                 }
             }
         } else {
-            return new Response('Profile not found or disabled', { status: 404 });
+            // [伪装加固] 与未授权的 SPA 路由保持一致，避免裸文本 404 暴露服务存在
+            return (
+                createDisguiseResponse(settings?.disguise, request.url) ||
+                new Response('Not Found', { status: 404 })
+            );
         }
     } else {
         // [修正] 使用 config 變量
@@ -876,8 +895,9 @@ export async function handleMisubRequest(context) {
         // Use the flag set earlier
         prependedContentForSubconverter = ''; // Expired node is now in targetMisubs
     } else {
-        // Otherwise, add traffic and expiration info nodes if enabled.
-        if (config.enableTrafficNode !== false) {
+        // 只有显式开启才注入伪节点：undefined / 缺失一律按关闭处理，
+        // 避免老设置或异常数据导致关掉开关后仍出现「流量剩余 / 到期时间」。
+        if (config.enableTrafficNode === true) {
             const totalUserInfo = mergeSubscriptionUserInfo(context, targetMisubs);
             const profileExpireTimestamp = currentProfile?.expiresAt
                 ? Math.floor(new Date(currentProfile.expiresAt).getTime() / 1000)
@@ -991,17 +1011,13 @@ export async function handleMisubRequest(context) {
                 asn: request.cf?.asn,
             },
             format: targetFormat,
-            token: profileIdentifier ? profileIdentifier : token,
-            type: profileIdentifier ? 'profile' : 'token',
+            // [Fix] 日志归属用内部主键：换自定义 ID / 重置链接都不会让历史记录“换人”
+            token: currentProfile ? currentProfile.id : token,
+            type: currentProfile ? 'profile' : 'token',
             domain,
         };
 
-        const activeProfile = profileIdentifier
-            ? allProfiles.find(
-                  (p) =>
-                      (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier
-              )
-            : null;
+        const activeProfile = currentProfile;
 
         // 设置优先级：订阅组设置 > 全局设置 > 内置默认值
         // prefixSettings 回退逻辑
@@ -1113,8 +1129,14 @@ export async function handleMisubRequest(context) {
         // 仅在至少一个订阅源真正从远程拉取成功时才刷新缓存时间
         // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
         const stats = context.generationStats;
+        if (isNodePersistenceEnabled(env, config)) {
+            // 持久化模式不在聚合缓存写入结果：下一次请求必须重新读 D1 快照。
+            return freshNodes;
+        }
         if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
-            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames, {
+                trafficNodes: config.enableTrafficNode === true,
+            });
             const freshNodeCount = freshNodes.split('\n').filter((line) => line.trim()).length;
             const existingCache = cacheSaved ? null : await storageAdapter.get(cacheKey);
             const existingNodeCount =
@@ -1156,14 +1178,28 @@ export async function handleMisubRequest(context) {
             (sub) => sub?.enabled && typeof sub?.url === 'string' && !sub.url.startsWith('http')
         ).length;
 
+    // D1 节点持久化模式：输出必须反映快照的最新状态，聚合缓存会额外引入最多 12 小时的陈旧窗口，
+    // 因此直接重建（重建只读 D1 快照，不请求机场）。
+    const persistenceEnabled = isNodePersistenceEnabled(env, config);
+    if (persistenceEnabled) {
+        maybeRefreshDueNodes(context, targetMisubs, { reason: 'subscription' }).catch((error) => {
+            console.warn('[NodePersistence] due refresh check failed:', error?.message || error);
+        });
+        maybeContinueBackfill(context, { requestUrl: request.url }).catch((error) => {
+            console.warn('[NodePersistence] backfill continue failed:', error?.message || error);
+        });
+    }
+
     const { combinedNodeList, cacheHeaders } = await resolveNodeListWithCache({
         storageAdapter,
         cacheKey,
-        forceRefresh,
+        forceRefresh: forceRefresh || persistenceEnabled,
         refreshNodes,
         context,
         targetMisubsCount: targetMisubs.length,
         expectedNodeCount: expectedRemoteNodeCount,
+        // 让聚合缓存按「是否注入伪节点」区分，开关一变旧缓存立即失效。
+        cacheFlags: { trafficNodes: config.enableTrafficNode === true },
     });
 
     console.log(`[MiSub Nodes] Count/Length: ${combinedNodeList ? combinedNodeList.length : 0}`);
@@ -1386,6 +1422,7 @@ export async function handleMisubRequest(context) {
                     targetFormat,
                     token,
                     profileIdentifier,
+                    profileId: currentProfile?.id,
                     subName,
                     domain,
                 });
@@ -1522,6 +1559,7 @@ export async function handleMisubRequest(context) {
                         targetFormat: `builtin-${targetFormat}`,
                         token,
                         profileIdentifier,
+                        profileId: currentProfile?.id,
                         subName,
                         domain,
                     });

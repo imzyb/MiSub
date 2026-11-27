@@ -49,6 +49,7 @@ export function toExternalSubscription(item) {
         name: item.name || '',
         url: item.url || '',
         enabled: item.enabled !== false,
+        autoUpdate: item.autoUpdate !== false,
         group: item.group || '',
         tags: Array.isArray(item.tags) ? item.tags : [],
         userAgent: item.userAgent || item.customUserAgent || '',
@@ -88,6 +89,7 @@ export function toExternalProfile(profile) {
         enabled: profile.enabled !== false,
         isPublic: profile.isPublic === true,
         customId: profile.customId || '',
+        linkId: profile.linkId || '',
         subscriptionIds: Array.isArray(profile.subscriptions)
             ? profile.subscriptions
                   .map((item) => (typeof item === 'object' ? item?.id : item))

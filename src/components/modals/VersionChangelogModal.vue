@@ -1,11 +1,13 @@
 <script setup>
+    import { computed } from 'vue';
     import { useI18n } from '../../i18n/index.js';
+    import { useVersionStore } from '../../stores/version.js';
+    import Modal from '../forms/Modal.vue';
+    import Button from '../ui/Button.vue';
+    import ChangelogContent from './ChangelogContent.vue';
+    import { parseChangelog } from '../../utils/changelog.js';
 
     const { t } = useI18n();
-    import { computed } from 'vue';
-    import { useVersionStore } from '../../stores/version';
-    import Modal from '../forms/Modal.vue';
-
     const versionStore = useVersionStore();
 
     const props = defineProps({
@@ -29,6 +31,28 @@
             props.currentVersion === props.release.tag_name.replace(/^v/, '')
         );
     });
+
+    // 只有一份正文来源：当前已是最新时展示内置日志，否则展示上游 Release body。
+    const changelogText = computed(() => {
+        if (isLatest.value && versionStore.localChangelog) return versionStore.localChangelog;
+        return props.release?.body || '';
+    });
+
+    const hasChangelog = computed(() => parseChangelog(changelogText.value).length > 0);
+
+    const bannerTitle = computed(() => {
+        if (isLatest.value) {
+            return t('changelog.highlightsTitle', { version: props.currentVersion });
+        }
+        return props.release?.name || props.release?.tag_name || t('changelog.releaseNotes');
+    });
+
+    const publishedAt = computed(() => {
+        if (isLatest.value || !props.release?.published_at) return '';
+        return t('changelog.publishedAt', {
+            date: new Date(props.release.published_at).toLocaleString(),
+        });
+    });
 </script>
 
 <template>
@@ -39,27 +63,27 @@
         :close-on-confirm="false"
     >
         <template #title>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">
                     {{ t('changelog.title') }}
                 </h3>
                 <span
                     v-if="isLatest"
-                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300"
+                    class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
                 >
                     {{ t('changelog.latestVersion') }}
                 </span>
                 <span
                     v-else
-                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 animate-pulse"
+                    class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
                 >
                     {{ t('changelog.newVersionAvailable') }}
                 </span>
             </div>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                <template v-if="isLatest">{{
-                    t('changelog.upToDate', { version: currentVersion })
-                }}</template>
+                <template v-if="isLatest">
+                    {{ t('changelog.upToDate', { version: currentVersion }) }}
+                </template>
                 <template v-else>
                     {{
                         t('changelog.newVersionDetected', {
@@ -72,44 +96,41 @@
         </template>
 
         <template #body>
-            <div class="space-y-4">
+            <!--
+                单列 DOM：摘要条、正文卡片、发布页链接依次纵向排列。
+                正文不再套「定高 + 内部滚动」容器 —— 整个 Modal body 才是唯一的滚动容器，
+                因此不会出现弹窗滚动条与内容滚动条并存。
+            -->
+            <div class="flex flex-col gap-3.5 sm:gap-4">
                 <div
-                    class="rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300"
+                    class="rounded-[var(--misub-radius-lg)] border border-primary-200/70 bg-primary-50/60 px-4 py-3 dark:border-primary-400/20 dark:bg-primary-500/10"
                 >
-                    <div class="font-semibold">
-                        {{
-                            isLatest
-                                ? t('changelog.highlightsTitle', { version: currentVersion })
-                                : release.name || release.tag_name || t('changelog.releaseNotes')
-                        }}
-                    </div>
-                    <div v-if="!isLatest && release.published_at" class="mt-1 text-xs opacity-80">
-                        {{
-                            t('changelog.publishedAt', {
-                                date: new Date(release.published_at).toLocaleString(),
-                            })
-                        }}
-                    </div>
+                    <p class="text-sm font-semibold text-primary-700 dark:text-primary-300">
+                        {{ bannerTitle }}
+                    </p>
+                    <p
+                        v-if="publishedAt"
+                        class="mt-1 text-xs text-primary-600/80 dark:text-primary-300/70"
+                    >
+                        {{ publishedAt }}
+                    </p>
                 </div>
 
-                <div
-                    class="max-h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/70 p-4 text-sm leading-6 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 whitespace-pre-wrap"
+                <section
+                    class="rounded-[var(--misub-radius-lg)] border border-gray-200/80 bg-gray-50/60 px-4 py-4 sm:px-5 dark:border-white/10 dark:bg-white/[0.03]"
                 >
-                    <template v-if="isLatest && versionStore.localChangelog">
-                        {{ versionStore.localChangelog }}
-                    </template>
-                    <template v-else-if="release.body">
-                        {{ release.body }}
-                    </template>
-                    <template v-else>{{ t('changelog.noDetails') }}</template>
-                </div>
+                    <ChangelogContent v-if="hasChangelog" :text="changelogText" />
+                    <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ t('changelog.noDetails') }}
+                    </p>
+                </section>
 
                 <a
                     v-if="release.html_url"
                     :href="release.html_url"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+                    class="inline-flex items-center gap-2 self-start rounded-[var(--misub-radius-sm)] text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:text-primary-400 dark:hover:text-primary-300"
                 >
                     {{ t('changelog.viewReleasePage') }}
                     <svg
@@ -118,7 +139,7 @@
                         viewBox="0 0 24 24"
                         stroke-width="1.5"
                         stroke="currentColor"
-                        class="w-4 h-4"
+                        class="h-4 w-4"
                     >
                         <path
                             stroke-linecap="round"
@@ -131,19 +152,13 @@
         </template>
 
         <template #footer>
-            <div class="flex w-full justify-end gap-3">
-                <button
-                    @click="emit('suppress')"
-                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                >
+            <div class="flex w-full justify-end gap-2.5">
+                <Button variant="secondary" @click="emit('suppress')">
                     {{ t('changelog.dontShowAgain') }}
-                </button>
-                <button
-                    @click="emit('confirm')"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-                >
+                </Button>
+                <Button variant="primary" @click="emit('confirm')">
                     {{ t('actions.confirm') }}
-                </button>
+                </Button>
             </div>
         </template>
     </Modal>

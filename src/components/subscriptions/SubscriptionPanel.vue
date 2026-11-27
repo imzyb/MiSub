@@ -8,6 +8,10 @@
     import Modal from '@/components/forms/Modal.vue';
     import { useUIStore } from '@/stores/ui';
     import { useI18n } from '@/i18n/index.js';
+    import { preloadModule } from '@/utils/module-preload.js';
+
+    // 批量导入弹窗是懒加载 chunk，指针移上去先取回来，点击后即可立即弹出
+    const loadBulkImportModal = () => import('../modals/BulkImportModal.vue');
     import { inferAirportRootDomain } from '../../utils/airport-domain.js';
     import { lookupDomainName } from '../../utils/domain-name-memory.js';
     import {
@@ -33,6 +37,8 @@
         lastRefreshAt: { type: [String, Number, Date], default: null },
         statusFilter: { type: String, default: '' },
         statusFilterLabel: { type: String, default: '' },
+        // D1 节点持久化是否开启：决定卡片上是否展示「已禁用自动刷新」徽标
+        persistenceEnabled: { type: Boolean, default: false },
     });
 
     const groupNameInput = ref('');
@@ -373,6 +379,8 @@
 
                     <button
                         @click="handleImport"
+                        @pointerenter="preloadModule(loadBulkImportModal)"
+                        @focus="preloadModule(loadBulkImportModal)"
                         class="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
                     >
                         {{ t('actions.bulkImport') }}
@@ -491,6 +499,7 @@
                         <div class="cursor-move">
                             <Card
                                 :misub="subscription"
+                                :persistence-enabled="persistenceEnabled"
                                 @delete="handleDelete(subscription.id)"
                                 @change="handleSortEnd"
                                 @update="handleUpdate(subscription.id)"
@@ -605,6 +614,7 @@
                             >
                                 <Card
                                     :misub="subscription"
+                                    :persistence-enabled="persistenceEnabled"
                                     @delete="handleDelete(subscription.id)"
                                     @change="handleSortEnd"
                                     @update="handleUpdate(subscription.id)"
@@ -631,6 +641,7 @@
                     >
                         <Card
                             :misub="subscription"
+                            :persistence-enabled="persistenceEnabled"
                             @delete="handleDelete(subscription.id)"
                             @change="handleSortEnd"
                             @update="handleUpdate(subscription.id)"
@@ -653,6 +664,7 @@
                 >
                     <Card
                         :misub="subscription"
+                        :persistence-enabled="persistenceEnabled"
                         @delete="handleDelete(subscription.id)"
                         @change="handleSortEnd"
                         @update="handleUpdate(subscription.id)"
@@ -702,6 +714,8 @@
                 <button
                     data-testid="empty-import-subscriptions"
                     @click="handleImport"
+                    @pointerenter="preloadModule(loadBulkImportModal)"
+                    @focus="preloadModule(loadBulkImportModal)"
                     class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
                 >
                     {{ t('actions.bulkImport') }}

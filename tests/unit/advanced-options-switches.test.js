@@ -13,6 +13,7 @@ describe('AdvancedOptions', () => {
                     enableNodeCache: false,
                     plusAsSpace: false,
                     excludeTraffic: false,
+                    autoUpdate: true,
                 },
             },
             global: {
@@ -26,6 +27,8 @@ describe('AdvancedOptions', () => {
         expect(wrapper.text()).toContain('拉取失败或空节点时使用上次缓存，避免节点清零');
         expect(wrapper.text()).toContain('将节点名中的 + 号显示为空格');
         expect(wrapper.text()).toContain('在多个机场订阅合并展示流量时，忽略此机场的流量信息');
-        expect(wrapper.findAllComponents({ name: 'Switch' }).length).toBe(3);
+        expect(wrapper.text()).toContain('禁用自动更新');
+        expect(wrapper.text()).toContain('该机场不参与由访问触发的自动更新与 Cron');
+        expect(wrapper.findAllComponents({ name: 'Switch' }).length).toBe(4);
     });
 });

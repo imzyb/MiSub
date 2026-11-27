@@ -1,7 +1,11 @@
 <script setup>
     import { useI18n } from '@/i18n/index.js';
+    import { preloadModule } from '@/utils/module-preload.js';
 
     const { t } = useI18n();
+
+    // 首次打开批量导入要下载 chunk，指针移上去时先取回来，避免点击后几百毫秒无反应
+    const loadBulkImportModal = () => import('../../modals/BulkImportModal.vue');
 
     defineProps({
         formattedTotalRemainingTraffic: {
@@ -43,6 +47,8 @@
             </button>
             <button
                 @click="$emit('openBulkImport')"
+                @pointerenter="preloadModule(loadBulkImportModal)"
+                @focus="preloadModule(loadBulkImportModal)"
                 class="flex-1 md:flex-none px-5 py-2.5 misub-radius-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-500 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 transition-all transform hover:-translate-y-0.5"
             >
                 {{ t('actions.bulkImport') }}

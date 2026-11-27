@@ -52,6 +52,7 @@ export const messages = {
             bulkImport: '批量导入',
             viewLog: '订阅日志',
             backToHome: '返回首页',
+            dismiss: '忽略',
             clearAll: '清空',
             manualSort: '手动排序',
             finishSort: '完成排序',
@@ -79,6 +80,7 @@ export const messages = {
             copyNode: '复制节点',
         },
         notices: {
+            routeLoading: '正在加载页面...',
             defaultPasswordWarning:
                 '安全警告：检测到您正在使用默认密码 "admin"。为了您的系统安全，请立即前往设置修改密码。',
             discardedChanges: '已放弃所有未保存的更改',
@@ -120,8 +122,14 @@ export const messages = {
             nameLabel: '订阅组名称',
             namePlaceholder: '例如：家庭共享',
             customIdLabel: '自定义 ID (可选)',
-            customIdPlaceholder: '如: home, game (限字母、数字、-、_)',
-            customIdHint: '订阅链接后缀，如 /token/home',
+            customIdPlaceholder: '如: home, game (限字母、数字、-、_，最多 32 位)',
+            customIdHint: '订阅链接中的 ID；留空则使用系统生成的 ID，修改后旧链接立即失效',
+            resetLinkId: '重置',
+            linkIdReset: '订阅 ID 已更换，保存后生效',
+            customIdAutoPlaceholder: '留空则使用 {link}',
+            regenerateWarning:
+                '重置会立即更换订阅链接，旧链接（含自定义 ID）随即失效，已分发的订阅需要重新导入。',
+            regenerateWarningShort: '重置后旧链接立即失效，已分发的订阅需要重新导入。',
             publicDisplay: '公开展示 (Public)',
             publicVisible: '将在公开页显示',
             descriptionPlaceholder: '简要介绍此订阅组的内容...',
@@ -296,6 +304,12 @@ export const messages = {
             networkFailed: '网络连接失败，请检查网络连接',
             loadFailed: '加载节点失败',
             profileSubtitle: '订阅组节点概览',
+            sourceLiveTag: '（实时拉取）',
+            sourceSnapshotTag: '（D1 已保存节点）',
+            sourceLiveHint:
+                '以下是本次实时从机场拉取的最新节点。未启用节点持久化，预览不会写入数据库，因此节点数量和流量可能与卡片上显示的统计值不一致。',
+            sourceSnapshotHint:
+                '以下节点来自 D1 中已保存的订阅节点，与卡片统计同源，本次预览没有请求机场。',
             subscriptionSubtitle: '订阅节点预览结果',
             pickNodes: '挑选节点',
             exitPicking: '退出挑选',
@@ -457,6 +471,13 @@ export const messages = {
             plusAsSpaceDesc: '将节点名中的 + 号显示为空格',
             excludeTrafficTitle: '合并时不计算此机场流量',
             excludeTrafficDesc: '在多个机场订阅合并展示流量时，忽略此机场的流量信息',
+            autoUpdateTitle: '禁用自动更新',
+            autoUpdateDesc:
+                '开启后该机场不参与由访问触发的自动更新与 Cron；订阅组仍从 D1 读取它已保存的订阅节点，单机场手动刷新不受影响',
+            autoUpdatePaused: '已禁用自动更新',
+            autoUpdatePausedHint:
+                '该机场不参与由访问触发的自动更新与 Cron；订阅组仍从 D1 读取它已保存的订阅节点，仍可单独手动刷新',
+            refreshSkippedPaused: '已跳过 {count} 个禁用自动更新的订阅',
             keepEmptyError: 'keep: 后内容为空',
             protoEmptyError: 'proto: 后未填写协议',
             regexInvalid: '正则无效',
@@ -788,16 +809,30 @@ export const messages = {
             subscriptionTokenRotationHint:
                 '订阅 Token 与管理密码相互独立。若怀疑订阅链接已泄露，请修改此 Token 并保存；旧链接将立即失效。',
             featureControlTitle: '功能控制',
-            featureControlDesc: '统一管理自动更新、访问日志、流量节点和访问控制开关。',
-            autoUpdateInterval: '订阅自动更新间隔',
-            autoUpdateDesc: '页面打开时自动刷新订阅节点数和流量',
+            featureControlDesc: '统一管理节点更新策略、访问日志、流量节点和访问控制开关。',
+            nodePersistenceTitle: '节点持久化（D1）',
+            nodePersistenceDesc:
+                '开启后订阅组只从 D1 读取已保存的订阅节点，不再实时请求机场；关闭时每次订阅实时拉取机场。',
+            nodePersistenceEnabledHint:
+                '已启用：订阅组只读 D1 中已保存的订阅节点。启用时会自动对所有机场全量同步一次（后台进行，无需保持页面打开）；之后由按需更新、Cron 或手动刷新维护。',
+            nodePersistenceDisabledHint:
+                '未启用：每次订阅都会实时拉取机场节点，并直接返回给客户端（不回写机场订阅信息）。',
+            nodePersistenceUnavailableNoD1: '当前未绑定 D1 数据库，无法启用节点持久化',
+            nodePersistenceUnavailableKv: '当前主存储仍是 KV，请先在「系统」中切换到 D1 存储',
+            autoUpdateInterval: '订阅更新检查间隔',
+            autoUpdateDesc:
+                '不是定时任务（免费版 Worker 没有定时能力）。只有在访问页面、请求订阅等操作触发时，才会与上次更新时间比较；超过该间隔就更新 D1 里已保存的订阅节点。0 表示不自动更新。',
+            autoUpdateRequiresPersistence: '请先启用节点持久化',
+            autoUpdateZeroHint:
+                '0 表示不自动更新订阅节点；订阅组仍从 D1 读取已保存的节点，可用 Cron 或手动刷新更新',
             customInterval: '自定义',
             minutes: '分钟',
             quickSelect: '快捷选择',
             disabledOption: '禁用',
             option30Minutes: '30分钟',
             option1Hour: '1小时',
-            autoUpdateDisabledHint: '⚠️ 自动更新已禁用，订阅信息需手动刷新',
+            autoUpdateDisabledHint:
+                '⚠️ 订阅节点自动更新已关闭，订阅组仍从 D1 读取已保存的节点；可用 Cron 或手动刷新更新',
             accessLogTitle: '开启访问日志 & 计数',
             accessLogDesc: '记录订阅访问并统计流量与IP',
             accessLogQuotaHint:
@@ -1073,6 +1108,9 @@ export const messages = {
             guestbookBug: '🐛 Bug反馈',
             guestbookFeature: '✨ 功能建议',
             guestbookNormal: '💬 普通留言',
+            cronUnavailableNoD1: '未绑定 D1 数据库，Cron 刷新不可用',
+            cronUnavailableNoPersistence: '请先启用节点持久化，Cron 刷新才会生效',
+            cronAvailableHint: 'Cron 是独立的强制刷新通道，不受订阅更新检查间隔限制',
             cronTitle: '自动任务配置 (Cron)',
             cronDesc:
                 '定时更新所有订阅的流量信息和节点数量，并在订阅临期或流量不足时通过 Telegram 发送提醒。',
@@ -1241,6 +1279,13 @@ export const messages = {
             legacyConfigFound: '发现旧版配置',
             legacyConfigDesc:
                 '检测到您有旧版的“节点净化”规则，建议一键迁移至新的操作符链以获得更好的体验。',
+            migrationPartial:
+                '旧配置里的 {items} 没有等价的脚本操作符，未自动迁移，请用 DSL 重写。',
+            filterScript: '脚本过滤',
+            filterUseless: '精简模式',
+            dslHint:
+                '脚本操作符使用受限 DSL（不执行任意 JavaScript）。示例：[{"action":"rename","template":"{emoji}{region}-{index}"}]',
+            dslInvalid: 'DSL 必须是合法的 JSON 数组',
             migrateNow: '立即迁移',
             emptyTitle: '开始链式处理',
             emptyDesc: '添加操作符来定制您的订阅节点处理工作流。',
@@ -1777,8 +1822,10 @@ export const messages = {
         logs: {
             title: '订阅访问日志',
             fetchFailed: '获取日志失败',
-            clearConfirm: '确定要清空所有日志吗？',
+            clearConfirm: '确定要清空所有日志吗？各订阅组的访问次数也会一并归零。',
+            clearConfirmScoped: '确定要清空该订阅组的日志吗？它的访问次数也会一并归零。',
             clearSuccess: '日志已清空',
+            clearSuccessScoped: '该订阅组的日志已清空',
             clearFailed: '清空日志失败',
             empty: '暂无日志记录',
             emptyForProfile: '该订阅暂无日志记录',
@@ -1855,6 +1902,7 @@ export const messages = {
             bulkImport: 'Import',
             viewLog: 'Logs',
             backToHome: 'Home',
+            dismiss: 'Dismiss',
             clearAll: 'Clear',
             manualSort: 'Sort',
             finishSort: 'Done',
@@ -1882,6 +1930,7 @@ export const messages = {
             copyNode: 'Copy node',
         },
         notices: {
+            routeLoading: 'Loading page...',
             defaultPasswordWarning:
                 'Security warning: you are using the default password "admin". For your system safety, change it in Settings immediately.',
             discardedChanges: 'Discarded all unsaved changes',
@@ -1926,8 +1975,16 @@ export const messages = {
             nameLabel: 'Profile name',
             namePlaceholder: 'e.g. Family',
             customIdLabel: 'Custom ID (optional)',
-            customIdPlaceholder: 'e.g. home, game (letters, numbers, -, _)',
-            customIdHint: 'Subscription URL suffix, e.g. /token/home',
+            customIdPlaceholder: 'e.g. home, game (letters, numbers, -, _, max 32)',
+            customIdHint:
+                'ID in the subscription URL; leave empty for the auto-generated one. Changing it invalidates the old link',
+            resetLinkId: 'Reset',
+            linkIdReset: 'Subscription ID changed. It takes effect once saved.',
+            customIdAutoPlaceholder: 'Leave empty to use {link}',
+            regenerateWarning:
+                'Resetting replaces the subscription link immediately. The old link (including any custom ID) stops working and clients must be re-imported.',
+            regenerateWarningShort:
+                'Resetting invalidates the old link immediately; clients must re-import.',
             publicDisplay: 'Public display',
             publicVisible: 'Shown on public page',
             descriptionPlaceholder: 'Briefly describe this profile...',
@@ -2176,6 +2233,12 @@ export const messages = {
             networkFailed: 'Network failed. Check connection.',
             loadFailed: 'Failed to load nodes',
             profileSubtitle: 'Profile node overview',
+            sourceLiveTag: ' (live fetch)',
+            sourceSnapshotTag: ' (saved in D1)',
+            sourceLiveHint:
+                'These nodes were fetched live from the provider just now. Node persistence is off, so the preview is not stored and its node count or traffic may differ from the values on the card.',
+            sourceSnapshotHint:
+                'These nodes come from the subscription nodes saved in D1, the same source as the card statistics. This preview made no provider request.',
             subscriptionSubtitle: 'Source node preview result',
             pickNodes: 'Pick nodes',
             exitPicking: 'Exit picking',
@@ -2341,6 +2404,13 @@ export const messages = {
             excludeTrafficTitle: 'Exclude traffic in merge',
             excludeTrafficDesc:
                 "Ignore this provider's traffic information when merging multiple subscriptions",
+            autoUpdateTitle: 'Disable auto update',
+            autoUpdateDesc:
+                'When on, this provider is skipped by action-triggered updates and Cron; profiles still read its saved nodes from D1 and manual refresh still works.',
+            autoUpdatePaused: 'Auto update off',
+            autoUpdatePausedHint:
+                'Action-triggered updates and Cron skip this provider; profiles still read its saved nodes from D1 and manual refresh still works.',
+            refreshSkippedPaused: 'Skipped {count} subscriptions with auto update off',
             keepEmptyError: 'keep: content is empty',
             protoEmptyError: 'proto: protocol is missing',
             regexInvalid: 'Invalid regex',
@@ -2683,16 +2753,33 @@ export const messages = {
             subscriptionTokenRotationHint:
                 'Subscription tokens are separate from the admin password. If a link may be exposed, change this token and save; old links will stop working immediately.',
             featureControlTitle: 'Features',
-            featureControlDesc: 'Manage auto update, logs, traffic node and access switches.',
-            autoUpdateInterval: 'Auto update interval',
-            autoUpdateDesc: 'Refresh node counts and traffic when page opens',
+            featureControlDesc:
+                'Manage node update policy, logs, traffic node and access switches.',
+            nodePersistenceTitle: 'Node persistence (D1)',
+            nodePersistenceDesc:
+                'When on, profiles read saved subscription nodes from D1 instead of fetching providers. When off, every subscription request fetches the provider in real time.',
+            nodePersistenceEnabledHint:
+                'Enabled: profiles serve saved subscription nodes from D1. Turning it on triggers a full background sync of every provider (no need to keep this page open); afterwards on-demand updates, Cron, or manual refresh keep it up to date.',
+            nodePersistenceDisabledHint:
+                'Disabled: every subscription request fetches the provider and returns nodes directly (no write-back).',
+            nodePersistenceUnavailableNoD1:
+                'D1 is not bound, so node persistence cannot be enabled',
+            nodePersistenceUnavailableKv:
+                'Primary storage is still KV. Switch to D1 in System settings first',
+            autoUpdateInterval: 'Subscription update check interval',
+            autoUpdateDesc:
+                'Not a scheduled task (the free Workers plan has no timers). It is evaluated only when an action triggers a request (page visit, subscription request): if the saved subscription nodes are older than this interval, they are updated. 0 disables automatic updates.',
+            autoUpdateRequiresPersistence: 'Enable node persistence first',
+            autoUpdateZeroHint:
+                '0 means subscription nodes are not updated automatically. Profiles still read the saved nodes from D1; use Cron or manual refresh.',
             customInterval: 'Custom',
             minutes: 'min',
             quickSelect: 'Quick',
             disabledOption: 'Disabled',
             option30Minutes: '30 min',
             option1Hour: '1 hr',
-            autoUpdateDisabledHint: '⚠️ Auto update is disabled. Refresh sources manually.',
+            autoUpdateDisabledHint:
+                '⚠️ Automatic subscription node updates are off. Profiles still read the saved nodes from D1; use Cron or manual refresh.',
             accessLogTitle: 'Access logs & count',
             accessLogDesc: 'Record access and count traffic/IPs',
             accessLogQuotaHint:
@@ -2985,6 +3072,11 @@ export const messages = {
             guestbookBug: '🐛 Bug report',
             guestbookFeature: '✨ Feature request',
             guestbookNormal: '💬 Message',
+            cronUnavailableNoD1: 'D1 is not bound, so Cron refresh is unavailable',
+            cronUnavailableNoPersistence:
+                'Enable node persistence first for Cron refresh to take effect',
+            cronAvailableHint:
+                'Cron is an independent forced refresh channel and ignores the subscription update check interval',
             cronTitle: 'Automation (Cron)',
             cronDesc:
                 'Periodically update traffic and node counts, and send Telegram alerts when subscriptions are near expiry or traffic is low.',
@@ -3165,6 +3257,13 @@ export const messages = {
             legacyConfigFound: 'Legacy config found',
             legacyConfigDesc:
                 'Legacy “node cleanup” rules were detected. Migrate them to the new operator chain for a better workflow.',
+            migrationPartial:
+                'Legacy {items} have no equivalent script operator and were not migrated; rewrite them with the DSL.',
+            filterScript: 'script filtering',
+            filterUseless: 'slim mode',
+            dslHint:
+                'Script operators use the restricted DSL (no arbitrary JavaScript). Example: [{"action":"rename","template":"{emoji}{region}-{index}"}]',
+            dslInvalid: 'DSL must be a valid JSON array',
             migrateNow: 'Migrate now',
             emptyTitle: 'Start chained processing',
             emptyDesc: 'Add operators to customize your subscription node processing workflow.',
@@ -3741,8 +3840,12 @@ export const messages = {
         logs: {
             title: 'Subscription access logs',
             fetchFailed: 'Failed to load logs',
-            clearConfirm: 'Clear all logs?',
+            clearConfirm:
+                "Clear all logs? Each profile's visit count will be reset to zero as well.",
+            clearConfirmScoped:
+                "Clear this profile's logs? Its visit count will be reset to zero as well.",
             clearSuccess: 'Logs cleared',
+            clearSuccessScoped: 'Logs cleared for this profile',
             clearFailed: 'Failed to clear logs',
             empty: 'No log records yet',
             emptyForProfile: 'No log records for this profile yet',

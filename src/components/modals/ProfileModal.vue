@@ -365,6 +365,7 @@
         :show="show"
         @update:show="emit('update:show', $event)"
         @confirm="handleConfirm"
+        :close-on-confirm="false"
         size="6xl"
     >
         <template #title>

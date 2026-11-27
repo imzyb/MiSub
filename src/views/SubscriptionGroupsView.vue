@@ -26,6 +26,12 @@
     const route = useRoute();
     const router = useRouter();
 
+    const persistenceEnabled = computed(() => {
+        const config = dataStore.settings || {};
+        const capabilities = config.capabilities || {};
+        return capabilities.available === true && config.enableNodePersistence === true;
+    });
+
     // State
     // State
     const isSortingSubs = ref(false);
@@ -279,6 +285,7 @@
             @assign-airport-group="handleAssignAirportGroup"
             @split-airport-group="handleSplitAirportGroup"
             @reset-group="handleResetAirportIdentity"
+            :persistence-enabled="persistenceEnabled"
         >
             <!-- Slot removed as user requested button move to dropdown -->
         </SubscriptionPanel>
@@ -288,6 +295,7 @@
             v-model:show="showSubModal"
             :is-new="isNewSubscription"
             :editing-subscription="editingSubscription"
+            :persistence-enabled="persistenceEnabled"
             @confirm="handleSaveSubscription"
         />
 

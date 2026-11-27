@@ -4,10 +4,14 @@
  */
 
 // 基础组件
-export { default as FormModal } from './FormModal.vue';
-export { default as DataGrid } from './DataGrid.vue';
-export { default as FilterPanel } from './FilterPanel.vue';
-export { default as DragDropList } from './DragDropList.vue';
+import FormModal from './FormModal.vue';
+export { FormModal };
+import DataGrid from './DataGrid.vue';
+export { DataGrid };
+import FilterPanel from './FilterPanel.vue';
+export { FilterPanel };
+import DragDropList from './DragDropList.vue';
+export { DragDropList };
 
 // 如果需要，可以在这里添加更多导出
 // export { default as ComponentName } from './ComponentName.vue';

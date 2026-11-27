@@ -8,6 +8,7 @@ import { handleError } from '../utils/errorHandler.js';
 import { TIMING } from '../constants/timing.js';
 import { t } from '../i18n/index.js';
 import { getAirportIdentityKey } from '../utils/airport-identity.js';
+import { filterAutoUpdateSubscriptions } from '../utils/auto-update.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -212,6 +213,8 @@ export function useSubscriptions(markDirty) {
             subToUpdate.nodeCount = data.count || 0;
             subToUpdate.userInfo = data.userInfo || null;
             subToUpdate.lastError = null; // 成功后清除错误状态
+            // 记录这条订阅最后一次成功更新的时间（Dashboard「上次更新」取所有订阅的最大值）
+            subToUpdate.lastUpdate = new Date().toISOString();
 
             if (!isInitialLoad) {
                 showToast(
@@ -343,12 +346,20 @@ export function useSubscriptions(markDirty) {
     }
 
     async function batchUpdateAllSubscriptions() {
-        const subsToUpdate = subscriptions.value.filter(
+        const candidates = subscriptions.value.filter(
             (sub) => sub.enabled && sub.url && sub.url.startsWith('http') && !sub.isUpdating
         );
+        // 暂停自动更新的机场不参与「全部刷新」，但仍可在卡片上单独手动刷新
+        const subsToUpdate = filterAutoUpdateSubscriptions(candidates);
+        const skippedPausedCount = candidates.length - subsToUpdate.length;
 
         if (subsToUpdate.length === 0) {
-            showToast(t('subscriptions.noRefreshableSubscriptions'), 'info');
+            showToast(
+                skippedPausedCount > 0
+                    ? t('subscriptions.refreshSkippedPaused', { count: skippedPausedCount })
+                    : t('subscriptions.noRefreshableSubscriptions'),
+                'info'
+            );
             return;
         }
 
@@ -358,6 +369,12 @@ export function useSubscriptions(markDirty) {
             sub.isUpdating = true;
         });
         showToast(t('subscriptions.refreshing', { count: subsToUpdate.length }), 'info');
+        if (skippedPausedCount > 0) {
+            showToast(
+                t('subscriptions.refreshSkippedPaused', { count: skippedPausedCount }),
+                'info'
+            );
+        }
 
         try {
             const result = await batchUpdateNodes(subsToUpdate.map((sub) => sub.id));
@@ -373,6 +390,8 @@ export function useSubscriptions(markDirty) {
 
                     if (updateResult.success) {
                         sub.nodeCount = updateResult.nodeCount || 0;
+                        // 后端（D1 快照）有 lastUpdate 就用它的，否则用本次刷新时间
+                        sub.lastUpdate = updateResult.lastUpdate || new Date().toISOString();
                         successCount++;
                     }
                 });
@@ -434,81 +453,9 @@ export function useSubscriptions(markDirty) {
         }
     }
 
-    // ========== 定时自动更新功能 ==========
-    const DEFAULT_INTERVAL_MS = TIMING.AUTO_UPDATE_INTERVAL_MS;
-    let autoUpdateTimerId = null;
-    let currentIntervalMs = DEFAULT_INTERVAL_MS;
-
-    async function autoUpdateAllSubscriptions() {
-        try {
-            const subsToUpdate = subscriptions.value.filter(
-                (sub) => sub.enabled && sub.url && sub.url.startsWith('http') && !sub.isUpdating
-            );
-            for (const sub of subsToUpdate) {
-                await handleUpdateNodeCount(sub.id, true);
-            }
-        } catch (e) {
-            // 后台定时任务：handleUpdateNodeCount 内部已逐个提示失败，
-            // 且用户此刻可能不在页面上，这里只记日志，避免无意义的打扰。
-            console.error('Auto update failed', e);
-        }
-    }
-
-    function startAutoUpdate(intervalMinutes = null) {
-        // 如果传入间隔，使用传入值；否则从 settings 读取
-        let intervalMs;
-        if (intervalMinutes !== null) {
-            intervalMs = intervalMinutes * 60 * 1000;
-        } else {
-            const settings = dataStore.settings;
-            const settingsInterval = Number(settings?.autoUpdateInterval);
-            if (settingsInterval === 0) {
-                intervalMs = 0;
-            } else if (Number.isFinite(settingsInterval) && settingsInterval > 0) {
-                intervalMs = settingsInterval * 60 * 1000;
-            } else {
-                intervalMs = DEFAULT_INTERVAL_MS;
-            }
-        }
-
-        // 如果间隔为0，表示禁用自动更新
-        if (intervalMs === 0) {
-            stopAutoUpdate();
-            if (isDev) console.debug('[AutoUpdate] Disabled by user setting');
-            return;
-        }
-
-        // 如果间隔没变且定时器已运行，不需要重启
-        if (autoUpdateTimerId && intervalMs === currentIntervalMs) {
-            return;
-        }
-
-        // 停止旧定时器
-        stopAutoUpdate();
-
-        // 启动新定时器
-        currentIntervalMs = intervalMs;
-        autoUpdateTimerId = setInterval(() => {
-            void autoUpdateAllSubscriptions();
-        }, intervalMs);
-
-        if (isDev)
-            console.debug(`[AutoUpdate] Started with interval: ${intervalMs / 60000} minutes`);
-    }
-
-    function stopAutoUpdate() {
-        if (autoUpdateTimerId) {
-            clearInterval(autoUpdateTimerId);
-            autoUpdateTimerId = null;
-            if (isDev) console.debug('[AutoUpdate] Stopped');
-        }
-    }
-
-    function restartAutoUpdate(intervalMinutes) {
-        stopAutoUpdate();
-        startAutoUpdate(intervalMinutes);
-    }
-
+    // ========== 自动刷新已改为服务端 D1 到期检查 ==========
+    // 浏览器端不再持有定时器：免费版 Worker 没有可靠定时，改由任意后端请求触发检查。
+    // 单机场手动刷新（handleUpdateNodeCount）与「全部刷新」仍然可用。
     function reorderSubscriptions(newOrder) {
         // 1. Get all Manual Nodes (to preserve them)
         // We can't rely just on manualNodes computed because it might be filtered or not imported here.
@@ -549,9 +496,6 @@ export function useSubscriptions(markDirty) {
         addSubscriptionsFromBulk,
         handleUpdateNodeCount,
         batchUpdateAllSubscriptions,
-        startAutoUpdate,
-        stopAutoUpdate,
-        restartAutoUpdate,
         reorderSubscriptions,
     };
 }

@@ -346,9 +346,13 @@ describe('security hardening', () => {
             expect(warnSpy).toHaveBeenCalledWith(
                 '[Storage] No KV binding found, using noop adapter'
             );
-            expect(infoSpy).toHaveBeenCalledWith(
-                '[Cron] Starting parallel update for 0 subscriptions'
-            );
+            // 未启用 D1 节点持久化时，Cron 直接跳过，不发起任何机场请求。
+            const skipBody = await queryResponse.clone().json();
+            expect(skipBody).toMatchObject({
+                success: true,
+                skipped: true,
+                reason: 'node_persistence_disabled',
+            });
         } finally {
             warnSpy.mockRestore();
             infoSpy.mockRestore();

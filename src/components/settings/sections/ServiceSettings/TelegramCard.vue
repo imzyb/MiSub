@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref } from 'vue';
     import Switch from '../../../ui/Switch.vue';
+    import CopyButton from '../../../ui/CopyButton.vue';
     import { useI18n } from '../../../../i18n/index.js';
 
     const { t } = useI18n();
@@ -63,43 +64,10 @@
         return `https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(webhookUrl.value)}&secret_token=${encodeURIComponent(webhookSecret.value)}`;
     });
 
-    const copyStatus = ref(null);
     const showSetupGuide = ref(false);
     const showUsageGuide = ref(false);
     const isTesting = ref(false);
     const testResult = ref(null);
-
-    async function copyText(value, key) {
-        if (!value) return;
-
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(value);
-            } else {
-                const textarea = document.createElement('textarea');
-                textarea.value = value;
-                textarea.setAttribute('readonly', '');
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                textarea.style.top = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-            }
-
-            copyStatus.value = { key, message: t('settings.copiedShort') };
-        } catch (error) {
-            console.error('[TelegramCard] Copy failed:', error);
-            copyStatus.value = { key, message: t('settings.copyFailedManualSelect') };
-        } finally {
-            window.setTimeout(() => {
-                if (copyStatus.value?.key === key) {
-                    copyStatus.value = null;
-                }
-            }, 2500);
-        }
-    }
 
     async function testNotification() {
         isTesting.value = true;
@@ -336,24 +304,14 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >Webhook URL</label
                     >
-                    <div class="mt-1 flex misub-radius-md shadow-xs">
+                    <div class="mt-1 flex flex-col gap-2 sm:flex-row sm:items-stretch">
                         <input
                             :value="webhookUrl"
                             type="text"
                             readonly
-                            class="flex-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-md sm:text-sm dark:text-white"
+                            class="flex-1 block w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono dark:text-white"
                         />
-                        <button
-                            type="button"
-                            class="inline-flex items-center px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden"
-                            @click="copyText(webhookUrl, 'webhook')"
-                        >
-                            {{
-                                copyStatus?.key === 'webhook'
-                                    ? copyStatus.message
-                                    : t('actions.copy')
-                            }}
-                        </button>
+                        <CopyButton :value="webhookUrl" class="w-full sm:w-auto" />
                     </div>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {{ t('settings.telegramWebhookUrlHint') }}
@@ -364,25 +322,15 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{
                         t('settings.telegramSetWebhookLink')
                     }}</label>
-                    <div class="mt-1 flex misub-radius-md shadow-xs">
+                    <div class="mt-1 flex flex-col gap-2 sm:flex-row sm:items-stretch">
                         <input
                             :value="setWebhookUrl"
                             type="text"
                             readonly
-                            class="flex-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-md sm:text-sm dark:text-white font-mono text-xs"
-                            :aria-label="t('settings.telegramPublicAccess')"
+                            class="flex-1 block w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono dark:text-white"
+                            :aria-label="t('settings.telegramSetWebhookLink')"
                         />
-                        <button
-                            type="button"
-                            class="inline-flex items-center px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden"
-                            @click="copyText(setWebhookUrl, 'setWebhook')"
-                        >
-                            {{
-                                copyStatus?.key === 'setWebhook'
-                                    ? copyStatus.message
-                                    : t('actions.copy')
-                            }}
-                        </button>
+                        <CopyButton :value="setWebhookUrl" class="w-full sm:w-auto" />
                     </div>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {{ t('settings.telegramSetWebhookHint') }}

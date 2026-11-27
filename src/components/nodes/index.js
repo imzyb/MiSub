@@ -3,9 +3,12 @@
  * @author MiSub Team
  */
 
-export { default as ManualNodeCard } from './ManualNodeCard.vue';
-export { default as ManualNodeList } from './ManualNodeList.vue';
-export { default as ManualNodePanel } from './ManualNodePanel.vue';
+import ManualNodeCard from './ManualNodeCard.vue';
+export { ManualNodeCard };
+import ManualNodeList from './ManualNodeList.vue';
+export { ManualNodeList };
+import ManualNodePanel from './ManualNodePanel.vue';
+export { ManualNodePanel };
 
 export const NodeComponents = {
     ManualNodeCard,

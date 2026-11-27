@@ -10,6 +10,7 @@
         show: Boolean,
         isNew: Boolean,
         editingSubscription: Object,
+        persistenceEnabled: { type: Boolean, default: false },
     });
 
     const emit = defineEmits(['update:show', 'confirm']);
@@ -479,7 +480,10 @@
                     @update:custom-keyword="customKeyword = $event"
                 />
 
-                <AdvancedOptions :editing-subscription="editingSubscription" />
+                <AdvancedOptions
+                    :editing-subscription="editingSubscription"
+                    :persistence-enabled="persistenceEnabled"
+                />
             </div>
         </template>
     </Modal>

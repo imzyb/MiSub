@@ -15,6 +15,11 @@ import { parseNodeList } from '../utils/node-parser.js';
 import { getProcessedUserAgent } from '../../utils/format-utils.js';
 import { buildFetchProxyUrl } from '../../utils/fetch-proxy-utils.js';
 import { isSuspiciousNodeCountDrop } from '../../services/node-cache-service.js';
+import { filterAutoUpdateSubscriptions, isAutoUpdatePaused } from '../../utils/auto-update.js';
+import {
+    isNodePersistenceEnabled,
+    refreshSubscriptionSnapshot,
+} from '../../services/node-persistence-service.js';
 
 // 创建用于全局匹配的协议正则表达式
 const NODE_PROTOCOL_GLOBAL_REGEX = new RegExp(
@@ -57,6 +62,23 @@ function detectSubscriptionBodyError(text) {
     return error;
 }
 
+async function resolveNodePersistenceSettings(env) {
+    try {
+        const storageAdapter = StorageFactory.createAdapter(
+            env,
+            await StorageFactory.getStorageType(env)
+        );
+        return (
+            (await storageAdapter.get(KV_KEY_SETTINGS)) || {
+                storageType: await StorageFactory.getStorageType(env),
+            }
+        );
+    } catch (error) {
+        console.warn('[NodeHandler] Failed to load persistence settings:', error?.message || error);
+        return {};
+    }
+}
+
 async function resolveNodeCountFetchCfOptions(env) {
     try {
         const storageAdapter = StorageFactory.createAdapter(
@@ -96,6 +118,43 @@ export async function handleNodeCountRequest(request, env) {
         } = await readJsonWithLimit(request, JSON_BODY_LIMITS.normal);
         if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//i.test(subUrl)) {
             return createErrorResponse('Invalid or missing url', 400);
+        }
+
+        // D1 节点持久化：手动刷新直接刷新快照，并从快照结果回填，
+        // 避免「刷新快照 + 再拉一遍计数」的重复请求。
+        if (isNodePersistenceEnabled(env, await resolveNodePersistenceSettings(env))) {
+            const persistenceAdapter = StorageFactory.createAdapter(
+                env,
+                await StorageFactory.getStorageType(env)
+            );
+            const allSubs =
+                (typeof persistenceAdapter.getAllSubscriptions === 'function'
+                    ? await persistenceAdapter.getAllSubscriptions()
+                    : await persistenceAdapter.get('misub_subscriptions_v1')) || [];
+            const target = allSubs.find((item) => item.url === subUrl);
+            if (target) {
+                const refreshed = await refreshSubscriptionSnapshot(env, target, {
+                    reason: 'manual-refresh',
+                });
+                if (!refreshed.success) {
+                    return createJsonResponse({
+                        success: false,
+                        error: refreshed.error || '刷新失败',
+                        errorType: 'fetch_failed',
+                        count: Number(target.nodeCount) || 0,
+                        userInfo: target.userInfo || null,
+                    });
+                }
+                // 持久化模式下唯一事实源是快照：不再回写 subscriptions 的运行时字段。
+                return createJsonResponse({
+                    success: true,
+                    data: {
+                        count: refreshed.nodeCount,
+                        userInfo: refreshed.userInfo || null,
+                        fromPersistence: true,
+                    },
+                });
+            }
         }
 
         const result = { count: 0, userInfo: null };
@@ -420,7 +479,10 @@ export async function handleNodeCountRequest(request, env) {
                     env,
                     await StorageFactory.getStorageType(env)
                 );
-                const originalSubs = (await storageAdapter.get('misub_subscriptions_v1')) || [];
+                const originalSubs =
+                    (typeof storageAdapter.getAllSubscriptions === 'function'
+                        ? await storageAdapter.getAllSubscriptions()
+                        : await storageAdapter.get('misub_subscriptions_v1')) || [];
                 const subToUpdate = originalSubs.find((s) => s.url === subUrl);
 
                 if (subToUpdate) {
@@ -518,24 +580,86 @@ export async function handleBatchUpdateNodesRequest(request, env) {
             env,
             await StorageFactory.getStorageType(env)
         );
-        const allSubscriptions = (await storageAdapter.get('misub_subscriptions_v1')) || [];
+        const allSubscriptions =
+            (typeof storageAdapter.getAllSubscriptions === 'function'
+                ? await storageAdapter.getAllSubscriptions()
+                : await storageAdapter.get('misub_subscriptions_v1')) || [];
 
-        // 过滤出要更新的订阅
-        const targetSubscriptions = allSubscriptions.filter(
+        // 过滤出要更新的订阅；暂停自动更新的机场不参与批量刷新
+        const requestSubscriptions = allSubscriptions.filter(
             (sub) =>
                 subscriptionIds.includes(sub.id) &&
                 sub.enabled &&
                 sub.url &&
                 sub.url.startsWith('http')
         );
+        const targetSubscriptions = filterAutoUpdateSubscriptions(requestSubscriptions);
+        const skippedPausedSubscriptions = requestSubscriptions.filter(isAutoUpdatePaused);
 
         if (targetSubscriptions.length === 0) {
+            // 全部命中「暂停自动更新」属于正常跳过，不按无效订阅报 400
+            if (skippedPausedSubscriptions.length > 0) {
+                return createJsonResponse({
+                    success: true,
+                    results: [],
+                    skipped: skippedPausedSubscriptions.map((sub) => ({
+                        subscriptionId: sub.id,
+                        subscriptionName: sub.name || '',
+                        reason: 'auto_update_paused',
+                    })),
+                    summary: {
+                        totalSubscriptions: 0,
+                        successfulUpdates: 0,
+                        failedUpdates: 0,
+                        skippedSubscriptions: skippedPausedSubscriptions.length,
+                        totalNodes: 0,
+                    },
+                });
+            }
             return createJsonResponse(
                 {
                     error: '没有找到需要更新的有效订阅',
                 },
                 400
             );
+        }
+
+        // D1 节点持久化：批量刷新的唯一数据源是快照，
+        // 直接刷新快照并从快照回填订阅元数据，避免「先拉一遍再拉一遍」。
+        if (isNodePersistenceEnabled(env, await resolveNodePersistenceSettings(env))) {
+            const persistenceResults = await Promise.all(
+                targetSubscriptions.map(async (subscription) => {
+                    const refreshed = await refreshSubscriptionSnapshot(env, subscription, {
+                        reason: 'batch-refresh',
+                    });
+                    // 持久化模式下唯一事实源是快照：不再回写 subscriptions 的运行时字段。
+                    return {
+                        subscriptionId: subscription.id,
+                        subscriptionName: subscription.name || '',
+                        success: Boolean(refreshed.success),
+                        nodeCount: Number(refreshed.nodeCount) || 0,
+                        userInfo: refreshed.userInfo || null,
+                        error: refreshed.error || null,
+                    };
+                })
+            );
+            const ok = persistenceResults.filter((item) => item.success);
+            return createJsonResponse({
+                success: true,
+                results: persistenceResults,
+                skipped: skippedPausedSubscriptions.map((sub) => ({
+                    subscriptionId: sub.id,
+                    subscriptionName: sub.name || '',
+                    reason: 'auto_update_paused',
+                })),
+                summary: {
+                    totalSubscriptions: targetSubscriptions.length,
+                    successfulUpdates: ok.length,
+                    failedUpdates: persistenceResults.length - ok.length,
+                    skippedSubscriptions: skippedPausedSubscriptions.length,
+                    totalNodes: ok.reduce((sum, item) => sum + item.nodeCount, 0),
+                },
+            });
         }
 
         // 单个订阅超时时间（毫秒）
@@ -642,10 +766,16 @@ export async function handleBatchUpdateNodesRequest(request, env) {
         return createJsonResponse({
             success: true,
             results,
+            skipped: skippedPausedSubscriptions.map((sub) => ({
+                subscriptionId: sub.id,
+                subscriptionName: sub.name || '',
+                reason: 'auto_update_paused',
+            })),
             summary: {
                 totalSubscriptions: targetSubscriptions.length,
                 successfulUpdates: successfulUpdates.length,
                 failedUpdates: targetSubscriptions.length - successfulUpdates.length,
+                skippedSubscriptions: skippedPausedSubscriptions.length,
                 totalNodes,
             },
         });

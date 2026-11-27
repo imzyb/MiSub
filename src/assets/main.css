@@ -72,12 +72,18 @@
   --glow-warning: rgba(245, 158, 11, 0.15);
   --glow-danger: rgba(244, 63, 94, 0.15);
 
-  /* Keep overlays above fixed app chrome while preserving room for menus/toasts. */
-  --z-nav: 20;
+  /* Keep overlays above fixed app chrome while preserving room for menus/toasts.
+     移动端底部导航必须高于页面内容自己的层叠上下文：公开页等区块用了
+     `relative z-20`，两者同为 20 时后渲染的内容会盖住导航，
+     导致底部导航看得见却点不动（点击被内容拦截）。 */
+  --z-nav: 30;
+  /* 移动端底部导航高度（含安全区），固定/粘性元素避让时复用 */
+  --mobile-nav-height: calc(4rem + max(env(safe-area-inset-bottom, 0px), 12px));
   --z-popover: 100;
-  --z-toast: 900;
   --z-modal: 1000000;
   --z-modal-popover: 1100000;
+  /* 提示必须盖在弹窗之上：弹窗内校验失败时要能看见 toast */
+  --z-toast: 1200000;
 }
 
 @layer base {
@@ -376,7 +382,7 @@ textarea {
   position: fixed;
   z-index: var(--z-nav);
   bottom: 0;
-  min-height: calc(4rem + max(env(safe-area-inset-bottom, 0px), 12px));
+  min-height: var(--mobile-nav-height);
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
@@ -390,6 +396,21 @@ textarea {
 .mobile-nav-inner {
   @apply flex justify-around items-center h-16 max-w-lg mx-auto px-2;
   min-height: 4rem;
+}
+
+/*
+ * 页脚位于 <main> 之外，因此拿不到 main 上的 pb-24。
+ * 移动端底部导航是 fixed 定位（高度 4rem + 安全区），必须由页脚自己让位，
+ * 否则版权行会被导航栏压住。
+ */
+.app-footer {
+  padding: 2rem 1rem;
+}
+
+@media (max-width: 767px) {
+  .app-footer {
+    padding-bottom: calc(var(--mobile-nav-height) + 1.5rem);
+  }
 }
 
 .dark .mobile-nav-glass {

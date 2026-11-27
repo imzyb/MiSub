@@ -233,6 +233,7 @@
     - 限制：最多 50 个模板，单模板内容最大 128 KiB，需符合 ini-like 形态。
 
 - `POST /api/node_count`
+    - 说明：显式单机场刷新。节点持久化开启时会同时刷新 D1 快照；订阅组访问本身不会触发写回。
     - Handler：`handleNodeCountRequest()`
     - 读取：远程订阅 URL、settings、subscriptions。
     - 写入：匹配到本地订阅时更新 `nodeCount`、`userInfo`、`lastError`、`lastUpdate`。
@@ -256,6 +257,7 @@
 - `POST /api/batch_update_nodes`
     - Handler：`handleBatchUpdateNodesRequest()`
     - 读取：subscriptions、远程订阅 URL。
+    - 行为：跳过 `autoUpdate=false`（已禁用自动刷新）的订阅，返回 `skipped[]` 与 `summary.skippedSubscriptions`；节点持久化开启时会同时刷新 D1 快照。
     - 写入：当前 handler 返回统计结果，不直接持久化批量结果。
 
 - `POST /api/subscription_nodes`
@@ -339,15 +341,15 @@
 
 - `POST /api/cron/trigger`
     - Handler：api-router 内联 `handleCronTriggerRequest()`
-    - 行为：导入 `functions/_schedule.js` 执行同步。
-    - 写入：`cron_last_execution`；同步过程可能写订阅状态。
+    - 行为：与 `/cron` 同一条链路，触发节点快照刷新；旧的独立同步实现已删除。
+    - 写入：`cron_last_execution`；刷新过程写节点快照与订阅状态。
 
 ## 当前值得关注的边界
 
 - `GET /api/clients*` 是公开只读接口，但当前可能在图标迁移时写回 KV；如果未来要严格区分只读公开接口，可单独收敛这个副作用。
 - `POST /api/public/guestbook` 与 `POST /api/system/error_report` 是公开写接口，已有限制与节流，但仍是滥用风险点，后续可补更明确的速率限制/验证码/Turnstile 方案。
 - `/api/auth_debug` 与 `/api/auth_check` 不要求登录，但默认关闭；部署时必须保持 `ENABLE_AUTH_DIAGNOSTICS` 关闭，除非正在排查登录问题。
-- `/api/cron/trigger` 当前复用 `functions/_schedule.js`，而 `docs/codebase-review.md` 已标记 `_cron.js` / `_schedule.js` 为疑似遗留定时实现；后续应继续确认并收敛 cron 主实现。
+- `/api/cron/trigger` 已与 `/cron` 收敛到同一条节点快照刷新链路，旧的独立定时实现已删除；后续只需跟踪外部监控是否仍在使用旧入口。
 - `/api/system/export` 可导出脱敏数据；虽然需要登录，后续仍应通过测试固定脱敏字段覆盖。
 - 所有会主动拉取外部 URL 的接口应继续依赖 `validatePublicFetchUrl()` / `safeFetchPublicUrl()`，避免私网 SSRF 回归。
 

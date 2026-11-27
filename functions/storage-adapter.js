@@ -52,6 +52,34 @@ async function readCachedD1Collection(database, table, loader) {
     }
 }
 
+// 单条订阅的节点列表可能超过 D1 单行容量：超过阈值时切成多行分片存储。
+const SNAPSHOT_CHUNK_BYTES = 256 * 1024;
+const MAX_SNAPSHOT_CHUNKS = 80;
+
+const SNAPSHOT_TABLE_DDL = [
+    `CREATE TABLE IF NOT EXISTS subscription_node_snapshots (
+        subscription_id TEXT PRIMARY KEY,
+        config_fingerprint TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        nodes_json TEXT NOT NULL DEFAULT '[]',
+        node_count INTEGER NOT NULL DEFAULT 0,
+        user_info_json TEXT,
+        last_success_at DATETIME,
+        last_attempt_at DATETIME,
+        last_error TEXT,
+        chunk_count INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_node_snapshots_refresh ON subscription_node_snapshots(last_success_at);`,
+    `CREATE TABLE IF NOT EXISTS subscription_node_snapshot_chunks (
+        subscription_id TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        nodes_json TEXT NOT NULL,
+        PRIMARY KEY (subscription_id, chunk_index)
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_node_snapshot_chunks_sub ON subscription_node_snapshot_chunks(subscription_id);`,
+];
+
 const D1_SCHEMA_STATEMENTS = [
     `CREATE TABLE IF NOT EXISTS subscriptions (
         id TEXT PRIMARY KEY,
@@ -74,7 +102,55 @@ const D1_SCHEMA_STATEMENTS = [
     `CREATE INDEX IF NOT EXISTS idx_subscriptions_updated_at ON subscriptions(updated_at);`,
     `CREATE INDEX IF NOT EXISTS idx_profiles_updated_at ON profiles(updated_at);`,
     `CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);`,
+    ...SNAPSHOT_TABLE_DDL,
 ];
+
+/** 老库补 chunk_count 列（SQLite 不支持 IF NOT EXISTS 的 ADD COLUMN） */
+async function migrateSnapshotChunkColumn(d1Db) {
+    try {
+        const info = await d1Db.prepare('PRAGMA table_info("subscription_node_snapshots")').all();
+        const columns = (info?.results || []).map((row) => row.name);
+        if (columns.length > 0 && !columns.includes('chunk_count')) {
+            await d1Db
+                .prepare(
+                    'ALTER TABLE subscription_node_snapshots ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0'
+                )
+                .run();
+        }
+    } catch (error) {
+        console.warn('[D1] Snapshot chunk column migration skipped:', error?.message || error);
+    }
+}
+
+/** 按字节把节点数组切成若干 JSON 数组字符串 */
+export function splitNodesIntoChunks(nodes, maxBytes = SNAPSHOT_CHUNK_BYTES, maxChunks = MAX_SNAPSHOT_CHUNKS) {
+    const encoder = new TextEncoder();
+    const byteLength = (text) => encoder.encode(text).length;
+    const chunks = [];
+    let current = [];
+    let currentBytes = 2; // []
+
+    const flush = () => {
+        if (current.length === 0) return;
+        chunks.push(JSON.stringify(current));
+        if (chunks.length > maxChunks) {
+            throw new Error(`节点数量超出分片上限（${maxChunks} 片），无法写入快照`);
+        }
+        current = [];
+        currentBytes = 2;
+    };
+
+    for (const node of nodes) {
+        const nodeText = JSON.stringify(node);
+        const nodeBytes = byteLength(nodeText);
+        const extra = current.length > 0 ? nodeBytes + 1 : nodeBytes;
+        if (current.length > 0 && currentBytes + extra > maxBytes) flush();
+        current.push(node);
+        currentBytes += current.length > 1 ? nodeBytes + 1 : nodeBytes;
+    }
+    flush();
+    return chunks.length > 0 ? chunks : ['[]'];
+}
 
 /**
  * 以 settings 表为家的已知业务键。
@@ -90,10 +166,66 @@ const D1_KNOWN_SETTINGS_KEYS = new Set([
     'misub_restore_snapshot_latest',
 ]);
 
-async function ensureD1Schema(d1Db) {
-    for (const statement of D1_SCHEMA_STATEMENTS) {
-        await d1Db.prepare(statement).run();
+const d1SchemaPromises = new WeakMap();
+
+/**
+ * 早期版本用 (subscription_id, config_fingerprint) 复合主键，会按配置分多行。
+ * 现在的模型是「一个订阅只留最后一次数据」，这里把旧表压成单行。
+ */
+async function migrateLegacySnapshotTable(d1Db) {
+    try {
+        const table = await d1Db
+            .prepare(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'subscription_node_snapshots'"
+            )
+            .first();
+        const sql = String(table?.sql || '');
+        if (!/PRIMARY KEY\s*\(\s*subscription_id\s*,\s*config_fingerprint\s*\)/i.test(sql)) {
+            return;
+        }
+
+        await d1Db
+            .prepare('ALTER TABLE subscription_node_snapshots RENAME TO subscription_node_snapshots_legacy')
+            .run();
+        for (const statement of SNAPSHOT_TABLE_DDL) {
+            await d1Db.prepare(statement).run();
+        }
+        await d1Db
+            .prepare(
+                `INSERT OR REPLACE INTO subscription_node_snapshots
+                 (subscription_id, config_fingerprint, state, nodes_json, node_count, user_info_json,
+                  last_success_at, last_attempt_at, last_error, updated_at)
+                 SELECT subscription_id, config_fingerprint, state, nodes_json, node_count, user_info_json,
+                        last_success_at, last_attempt_at, last_error, updated_at
+                 FROM subscription_node_snapshots_legacy AS legacy
+                 WHERE COALESCE(legacy.last_attempt_at, '') = (
+                     SELECT MAX(COALESCE(x.last_attempt_at, ''))
+                     FROM subscription_node_snapshots_legacy AS x
+                     WHERE x.subscription_id = legacy.subscription_id
+                 )`
+            )
+            .run();
+        await d1Db.prepare('DROP TABLE subscription_node_snapshots_legacy').run();
+    } catch (error) {
+        console.warn('[D1] Snapshot table migration skipped:', error?.message || error);
     }
+}
+
+export function ensureD1Schema(d1Db) {
+    if (!d1Db) return Promise.reject(new Error('D1 database not available'));
+    let promise = d1SchemaPromises.get(d1Db);
+    if (!promise) {
+        promise = (async () => {
+            for (const statement of D1_SCHEMA_STATEMENTS) {
+                await d1Db.prepare(statement).run();
+            }
+            await migrateLegacySnapshotTable(d1Db);
+            await migrateSnapshotChunkColumn(d1Db);
+        })();
+        d1SchemaPromises.set(d1Db, promise);
+        promise.catch(() => d1SchemaPromises.delete(d1Db));
+    }
+    return promise;
 }
 
 /**
@@ -164,7 +296,8 @@ class KVStorageAdapter {
     async getProfileById(id) {
         const all = await this.get(DATA_KEYS.PROFILES);
         return Array.isArray(all)
-            ? all.find((item) => item.id === id || item.customId === id) || null
+            ? all.find((item) => item.id === id || item.customId === id || item.linkId === id) ||
+                  null
             : null;
     }
 
@@ -457,7 +590,9 @@ class D1StorageAdapter {
                 ? JSON.parse(legacyMain.data)
                 : await this.get(DATA_KEYS.PROFILES);
             return Array.isArray(allProfiles)
-                ? allProfiles.find((item) => item.id === id || item.customId === id) || null
+                ? allProfiles.find(
+                      (item) => item.id === id || item.customId === id || item.linkId === id
+                  ) || null
                 : null;
         } catch (error) {
             console.error(`[D1] Failed to get profile ${id}:`, error);
@@ -659,6 +794,200 @@ class D1StorageAdapter {
 }
 
 /**
+ * D1 节点快照仓库。
+ * 节点快照与 subscriptions 表分离，避免把大 JSON 放进主行，
+ * 也避免订阅组访问时回写 subscriptions 的运行时字段。
+ */
+export class D1NodeStore {
+    constructor(d1Database) {
+        this.db = d1Database;
+        this.type = 'd1-node';
+    }
+
+    async _ensureSchema() {
+        await ensureD1Schema(this.db);
+    }
+
+    async getSnapshot(subscriptionId) {
+        await this._ensureSchema();
+        const row = await this.db
+            .prepare('SELECT * FROM subscription_node_snapshots WHERE subscription_id = ?')
+            .bind(subscriptionId)
+            .first();
+        if (!row) return null;
+
+        const chunkCount = Number(row.chunk_count) || 0;
+        if (chunkCount <= 0) return row;
+
+        const result = await this.db
+            .prepare(
+                'SELECT nodes_json FROM subscription_node_snapshot_chunks WHERE subscription_id = ? ORDER BY chunk_index ASC'
+            )
+            .bind(subscriptionId)
+            .all();
+        const parts = (result?.results || []).map((item) => item.nodes_json);
+        if (parts.length !== chunkCount) {
+            return { ...row, nodes_json: '[]', state: 'failed', last_error: '快照分片不完整' };
+        }
+
+        try {
+            const merged = [];
+            for (const part of parts) merged.push(...JSON.parse(part));
+            return { ...row, nodes_json: JSON.stringify(merged) };
+        } catch {
+            return { ...row, nodes_json: '[]', state: 'failed', last_error: '快照分片解析失败' };
+        }
+    }
+
+    async listSnapshotsFor(subscriptionIds = []) {
+        await this._ensureSchema();
+        const ids = Array.from(
+            new Set((Array.isArray(subscriptionIds) ? subscriptionIds : []).filter(Boolean))
+        );
+        if (ids.length === 0) return [];
+        const rows = [];
+        const CHUNK_SIZE = 90;
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+            const chunk = ids.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const result = await this.db
+                .prepare(
+                    `SELECT * FROM subscription_node_snapshots WHERE subscription_id IN (${placeholders})`
+                )
+                .bind(...chunk)
+                .all();
+            if (Array.isArray(result?.results)) rows.push(...result.results);
+        }
+        return rows;
+    }
+
+    /**
+     * 写入订阅快照。
+     * - 单行模型：一个订阅只保留最后一次数据；
+     * - 节点太多时自动切成 subscription_node_snapshot_chunks 多行；
+     * - last_attempt_at 作为版本号，晚到的旧结果不会覆盖新结果（LWW）。
+     */
+    async putSnapshot(snapshot = {}) {
+        await this._ensureSchema();
+        const subscriptionId = snapshot.subscriptionId;
+        const attemptAt = snapshot.lastAttemptAt || null;
+
+        // 先做版本预检：旧结果直接放弃，避免"分片已换、主行未换"的错位
+        const current = await this.db
+            .prepare('SELECT last_attempt_at FROM subscription_node_snapshots WHERE subscription_id = ?')
+            .bind(subscriptionId)
+            .first();
+        if (current && attemptAt && String(current.last_attempt_at || '') > String(attemptAt)) {
+            return false;
+        }
+
+        const hasNodesArray = Array.isArray(snapshot.nodes);
+        const chunks = hasNodesArray ? splitNodesIntoChunks(snapshot.nodes) : [snapshot.nodesJson || '[]'];
+        const useChunks = hasNodesArray && chunks.length > 1;
+        const inlineJson = useChunks ? '[]' : chunks[0] || '[]';
+
+        const statements = [
+            this.db
+                .prepare('DELETE FROM subscription_node_snapshot_chunks WHERE subscription_id = ?')
+                .bind(subscriptionId),
+        ];
+        if (useChunks) {
+            chunks.forEach((json, index) => {
+                statements.push(
+                    this.db
+                        .prepare(
+                            'INSERT INTO subscription_node_snapshot_chunks (subscription_id, chunk_index, nodes_json) VALUES (?, ?, ?)'
+                        )
+                        .bind(subscriptionId, index, json)
+                );
+            });
+        }
+        statements.push(
+            this.db
+                .prepare(
+                    `INSERT INTO subscription_node_snapshots
+                     (subscription_id, config_fingerprint, state, nodes_json, node_count, user_info_json,
+                      last_success_at, last_attempt_at, last_error, chunk_count, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                     ON CONFLICT(subscription_id) DO UPDATE SET
+                       config_fingerprint = excluded.config_fingerprint,
+                       state = excluded.state,
+                       nodes_json = excluded.nodes_json,
+                       node_count = excluded.node_count,
+                       user_info_json = excluded.user_info_json,
+                       last_success_at = excluded.last_success_at,
+                       last_attempt_at = excluded.last_attempt_at,
+                       last_error = excluded.last_error,
+                       chunk_count = excluded.chunk_count,
+                       updated_at = CURRENT_TIMESTAMP
+                     WHERE COALESCE(excluded.last_attempt_at, '') >= COALESCE(subscription_node_snapshots.last_attempt_at, '')`
+                )
+                .bind(
+                    subscriptionId,
+                    snapshot.configFingerprint,
+                    snapshot.state || 'pending',
+                    inlineJson,
+                    Number(snapshot.nodeCount) || 0,
+                    snapshot.userInfoJson || null,
+                    snapshot.lastSuccessAt || null,
+                    attemptAt,
+                    snapshot.lastError || null,
+                    useChunks ? chunks.length : 0
+                )
+        );
+
+        if (typeof this.db.batch === 'function') {
+            await this.db.batch(statements);
+        } else {
+            for (const statement of statements) await statement.run();
+        }
+        return true;
+    }
+
+    /**
+     * 刷新失败时只更新元数据，保留已有节点（主行或分片都不动）。
+     */
+    async markSnapshotFailure({
+        subscriptionId,
+        configFingerprint,
+        state = 'failed',
+        lastAttemptAt = null,
+        lastError = null,
+    } = {}) {
+        await this._ensureSchema();
+        await this.db
+            .prepare(
+                `UPDATE subscription_node_snapshots
+                 SET state = ?, config_fingerprint = ?, last_attempt_at = ?, last_error = ?,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE subscription_id = ?
+                   AND COALESCE(last_attempt_at, '') <= COALESCE(?, '')`
+            )
+            .bind(state, configFingerprint, lastAttemptAt, lastError, subscriptionId, lastAttemptAt)
+            .run();
+        return true;
+    }
+
+    async deleteForSubscription(subscriptionId) {
+        await this._ensureSchema();
+        const statements = [
+            this.db
+                .prepare('DELETE FROM subscription_node_snapshot_chunks WHERE subscription_id = ?')
+                .bind(subscriptionId),
+            this.db
+                .prepare('DELETE FROM subscription_node_snapshots WHERE subscription_id = ?')
+                .bind(subscriptionId),
+        ];
+        if (typeof this.db.batch === 'function') {
+            await this.db.batch(statements);
+        } else {
+            for (const statement of statements) await statement.run();
+        }
+        return true;
+    }
+}
+
+/**
  * 无存储降级适配器（无可用持久化存储时，不读写持久数据）
  */
 class NoopStorageAdapter {
@@ -828,6 +1157,13 @@ export class StorageFactory {
      * @param {Object} env - Cloudflare 环境对象
      * @returns {Promise<string>} 存储类型
      */
+    /**
+     * 创建 D1 节点快照仓库。没有 D1 绑定则返回 null。
+     */
+    static createNodeStore(env) {
+        return env?.MISUB_DB ? new D1NodeStore(env.MISUB_DB) : null;
+    }
+
     static async getStorageType(env) {
         try {
             const settings = await SettingsCache.get(env);

@@ -3,6 +3,8 @@ import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore';
 import { useToastStore } from '../stores/toast';
 import { generateProfileId } from '../utils/id.js';
+import { getProfileShareIdentifier } from '../utils/profile-link.js';
+import { copyTextToClipboard } from '../utils/clipboard.js';
 import { t } from '../i18n/index.js';
 
 export function useProfiles(markDirty) {
@@ -124,7 +126,11 @@ export function useProfiles(markDirty) {
             }
         }
         if (isNewProfile.value) {
-            dataStore.addProfile({ ...profileData, id: generateProfileId() });
+            dataStore.addProfile({
+                ...profileData,
+                id: generateProfileId(),
+                linkId: generateProfileId(),
+            });
         } else {
             const index = profiles.value.findIndex((p) => p.id === profileData.id);
             if (index !== -1) {
@@ -146,7 +152,7 @@ export function useProfiles(markDirty) {
         showDeleteProfilesModal.value = false;
     };
 
-    const copyProfileLink = (profileId) => {
+    const copyProfileLink = async (profileId) => {
         const token = settings.value?.profileToken;
         if (!token || token === 'auto' || !token.trim()) {
             showToast(t('profiles.fixedTokenRequired'), 'error');
@@ -154,46 +160,18 @@ export function useProfiles(markDirty) {
         }
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (!profile) return;
-        const identifier = profile.customId || profile.id;
+        const identifier = getProfileShareIdentifier(profile);
         const link = `${window.location.origin}/${token}/${identifier}`;
 
-        // Clipboard API Fallback for non-secure contexts (http)
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard
-                .writeText(link)
-                .then(() => showToast(t('profiles.linkCopied'), 'success'))
-                .catch(() => showToast(t('publicProfiles.copyFailedManual'), 'error'));
-        } else {
-            // Fallback method
-            const textArea = document.createElement('textarea');
-            textArea.value = link;
-
-            // Ensure it's not visible but part of the DOM
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-9999px';
-            textArea.style.top = '0';
-            document.body.appendChild(textArea);
-
-            textArea.focus();
-            textArea.select();
-
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    showToast(t('profiles.linkCopied'), 'success');
-                } else {
-                    showToast(t('publicProfiles.copyFailedManual'), 'error');
-                }
-            } catch (err) {
-                showToast(t('publicProfiles.copyFailedManual'), 'error');
-            }
-
-            document.body.removeChild(textArea);
-        }
+        const ok = await copyTextToClipboard(link);
+        showToast(
+            ok ? t('profiles.linkCopied') : t('publicProfiles.copyFailedManual'),
+            ok ? 'success' : 'error'
+        );
     };
 
     // Clash 专用链接复制（带 builtin 转换器参数）
-    const copyClashLink = (profileId) => {
+    const copyClashLink = async (profileId) => {
         const token = settings.value?.profileToken;
         if (!token || token === 'auto' || !token.trim()) {
             showToast(t('profiles.fixedTokenRequired'), 'error');
@@ -201,42 +179,15 @@ export function useProfiles(markDirty) {
         }
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (!profile) return;
-        const identifier = profile.customId || profile.id;
+        const identifier = getProfileShareIdentifier(profile);
         // 添加 Clash 专用参数
         const link = `${window.location.origin}/${token}/${identifier}?target=clash&builtin=1`;
 
-        // Clipboard API Fallback for non-secure contexts (http)
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard
-                .writeText(link)
-                .then(() => showToast(t('profiles.clashLinkCopied'), 'success'))
-                .catch(() => showToast(t('publicProfiles.copyFailedManual'), 'error'));
-        } else {
-            // Fallback method
-            const textArea = document.createElement('textarea');
-            textArea.value = link;
-
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-9999px';
-            textArea.style.top = '0';
-            document.body.appendChild(textArea);
-
-            textArea.focus();
-            textArea.select();
-
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    showToast(t('profiles.clashLinkCopied'), 'success');
-                } else {
-                    showToast(t('publicProfiles.copyFailedManual'), 'error');
-                }
-            } catch (err) {
-                showToast(t('publicProfiles.copyFailedManual'), 'error');
-            }
-
-            document.body.removeChild(textArea);
-        }
+        const ok = await copyTextToClipboard(link);
+        showToast(
+            ok ? t('profiles.clashLinkCopied') : t('publicProfiles.copyFailedManual'),
+            ok ? 'success' : 'error'
+        );
     };
 
     const cleanupSubscriptions = (subId) => {

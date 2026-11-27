@@ -10,8 +10,10 @@
     const isLoading = ref(false);
     const error = ref('');
     const showPassword = ref(false);
-    // 伪装开启时 /logo.png 对未鉴权请求会被服务端有意 404（指纹防护），
-    // 这里降级为内联图标，避免登录页出现「图片损坏」占位符。
+    // 与 BrandLogo 一致：用打包后的 /assets/logo-*.png，
+    // 避免登录页向受伪装守卫的 /logo.png 发请求导致图标永远 404。
+    import logoUrl from '../../assets/logo.png';
+
     const logoFailed = ref(false);
 
     const props = defineProps({
@@ -49,7 +51,7 @@
                             v-if="!logoFailed"
                             width="96"
                             height="96"
-                            src="/logo.png"
+                            :src="logoUrl"
                             alt="MiSub"
                             class="drop-shadow-2xl"
                             @error="logoFailed = true"

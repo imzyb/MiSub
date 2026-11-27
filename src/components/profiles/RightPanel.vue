@@ -1,8 +1,9 @@
 <script setup>
-    import { ref, computed, onUnmounted } from 'vue';
-    import { useToastStore } from '../../stores/toast.js';
+    import { ref, computed } from 'vue';
     import { useUIStore } from '../../stores/ui.js';
     import { useI18n } from '../../i18n/index.js';
+    import { getProfileShareIdentifier } from '../../utils/profile-link.js';
+    import CopyButton from '../ui/CopyButton.vue';
 
     const props = defineProps({
         config: Object,
@@ -15,12 +16,8 @@
 
     const emit = defineEmits(['qrcode']);
 
-    const { showToast } = useToastStore();
     const uiStore = useUIStore();
     const { t } = useI18n();
-
-    const copied = ref(false);
-    let copyTimeout = null;
 
     const formats = ['universal', 'Base64', 'Clash', 'Sing-Box', 'Surge', 'Loon'];
     const selectedFormat = ref('universal');
@@ -106,23 +103,6 @@
         return `${baseUrl}?${formatKey}`;
     });
 
-    const copyToClipboard = () => {
-        if (!isLinkValid.value) {
-            showToast(t('notices.linkInvalid'), 'error');
-            return;
-        }
-        navigator.clipboard.writeText(subLink.value);
-        showToast(t('notices.copied'), 'success');
-        copied.value = true;
-        clearTimeout(copyTimeout);
-        copyTimeout = setTimeout(() => {
-            copied.value = false;
-        }, 2000);
-    };
-
-    onUnmounted(() => {
-        clearTimeout(copyTimeout);
-    });
 </script>
 
 <template>
@@ -172,7 +152,7 @@
                     <option
                         v-for="profile in profiles"
                         :key="profile.id"
-                        :value="profile.customId || profile.id"
+                        :value="getProfileShareIdentifier(profile)"
                     >
                         {{ profile.name }}
                     </option>
@@ -203,20 +183,25 @@
             </div>
 
             <div class="relative list-item-animation" style="--delay-index: 4">
+                <!-- 链接不可用时用可换行的文本块展示原因，避免单行 input 把文案截断 -->
+                <div
+                    v-if="!isLinkValid"
+                    class="w-full min-h-12 flex items-center text-sm leading-relaxed text-red-500 dark:text-red-500 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg px-3 py-3 border border-gray-200/70 dark:border-white/10"
+                >
+                    {{ t('dashboard.linkCard.configureTokenFirst', { name: requiredToken.name }) }}
+                </div>
                 <input
+                    v-else
                     type="text"
                     :value="subLink"
                     readonly
-                    :disabled="!isLinkValid"
-                    class="w-full min-h-12 text-sm text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg pl-3 pr-24 py-3 border border-gray-200/70 dark:border-white/10 focus-visible:outline-hidden focus-visible:ring-2 font-mono input-enhanced"
-                    :class="{
-                        'focus-visible:ring-primary-500': isLinkValid,
-                        'focus-visible:ring-red-500 cursor-not-allowed': !isLinkValid,
-                        'text-red-500 dark:text-red-500': !isLinkValid,
-                    }"
+                    class="w-full min-h-12 text-sm text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/60 misub-radius-lg pl-3 pr-24 py-3 border border-gray-200/70 dark:border-white/10 focus-visible:outline-hidden focus-visible:ring-2 font-mono input-enhanced focus-visible:ring-primary-500"
                     :aria-label="t('dashboard.linkCard.linkField')"
                 />
-                <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <div
+                    v-if="isLinkValid"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1"
+                >
                     <button
                         @click="$emit('qrcode', subLink, t('dashboard.linkCard.qrTitle'))"
                         :disabled="!isLinkValid"
@@ -249,51 +234,13 @@
                             />
                         </svg>
                     </button>
-                    <button
-                        @click="copyToClipboard"
+                    <CopyButton
+                        variant="icon"
+                        :value="isLinkValid ? subLink : ''"
                         :disabled="!isLinkValid"
-                        class="flex h-11 w-11 items-center justify-center misub-radius-md text-gray-500 dark:text-gray-400 transition-colors duration-200"
-                        :class="
-                            isLinkValid
-                                ? 'hover:text-primary-600 hover:bg-white/80 dark:hover:bg-gray-800'
-                                : 'cursor-not-allowed'
-                        "
                         :title="t('dashboard.linkCard.copyLink')"
-                        :aria-label="t('dashboard.linkCard.copyLink')"
-                    >
-                        <Transition name="fade" mode="out-in">
-                            <svg
-                                v-if="copied"
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="3"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                />
-                            </svg>
-                        </Transition>
-                    </button>
+                        class="h-11 w-11"
+                    />
                 </div>
             </div>
 

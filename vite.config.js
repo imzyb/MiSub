@@ -2,6 +2,27 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
 
+// 开发环境代理：浏览器可能通过局域网 IP 访问（如 http://192.168.1.10:5173），
+// 而 Vite 会把请求转发到 127.0.0.1:8787。后端 CSRF 校验比较 Origin 与请求 URL 的源，
+// 两者不一致会返回 403。这里把私有网段/localhost 的 Origin 改写成后端自身源。
+const PRIVATE_ORIGIN_RE =
+    /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/i;
+
+function createLocalApiProxy() {
+    return {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        configure(proxy) {
+            proxy.on('proxyReq', (proxyReq, req) => {
+                const origin = req.headers?.origin;
+                if (origin && PRIVATE_ORIGIN_RE.test(origin)) {
+                    proxyReq.setHeader('origin', 'http://127.0.0.1:8787');
+                }
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         vue(),
@@ -59,19 +80,15 @@ export default defineConfig({
     },
     // 开发服务器配置
     server: {
+        // 监听所有网卡，局域网设备（手机/平板）也能访问
+        host: '0.0.0.0',
         proxy: {
-            '/api': {
-                target: 'http://127.0.0.1:8787',
-                changeOrigin: true,
-            },
-            '/sub/': {
-                target: 'http://127.0.0.1:8787',
-                changeOrigin: true,
-            },
-            '^/(?!@|api/|sub/|assets/|@vite/|src/|icons/|images/)[^/]+/[^/]+$': {
-                target: 'http://127.0.0.1:8787',
-                changeOrigin: true,
-            },
+            '/api': createLocalApiProxy(),
+            '/sub/': createLocalApiProxy(),
+            // /dashboard/* 是 SPA 路由：直接访问/刷新时必须交给 Vite 的 SPA fallback，
+            // 否则会被这条两段路径规则代理到 Functions，返回 404（开发环境白屏）。
+            '^/(?!@|api/|sub/|assets/|@vite/|src/|icons/|images/|dashboard/)[^/]+/[^/]+$':
+                createLocalApiProxy(),
             // Catch-all proxy removed to fix SPA fallback
         },
     },

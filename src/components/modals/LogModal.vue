@@ -6,9 +6,15 @@
     import { api } from '../../lib/http.js';
     import { useI18n } from '../../i18n/index.js';
     import { confirmAction } from '../../composables/useConfirm.js';
+    import { useDataStore } from '../../stores/useDataStore.js';
 
     const props = defineProps({
         show: Boolean,
+        // 优先按订阅组唯一 ID 过滤；老日志没有 profileId 时回退到名称
+        filterProfileId: {
+            type: String,
+            default: '',
+        },
         filterProfileName: {
             type: String,
             default: '',
@@ -18,6 +24,7 @@
     const emit = defineEmits(['update:show']);
 
     const { showToast } = useToastStore();
+    const dataStore = useDataStore();
     const { t, locale } = useI18n();
     const logs = ref([]);
     const isLoading = ref(false);
@@ -30,8 +37,15 @@
     // Pagination Computed Properties
     // Pagination Computed Properties
     const filteredLogs = computed(() => {
-        if (!props.filterProfileName) return logs.value;
-        return logs.value.filter((log) => log.profileName === props.filterProfileName);
+        const { filterProfileId, filterProfileName } = props;
+        // 老日志没有 profileId，无法判定归属，只在全局视图里展示，避免同名串台
+        if (filterProfileId) {
+            return logs.value.filter((log) => log.profileId === filterProfileId);
+        }
+        if (filterProfileName) {
+            return logs.value.filter((log) => log.profileName === filterProfileName);
+        }
+        return logs.value;
     });
 
     const totalPages = computed(() => Math.max(1, Math.ceil(filteredLogs.value.length / pageSize)));
@@ -56,18 +70,34 @@
         }
     };
 
+    // 当前是否处于「单个订阅组」视图：此时只清该组的记录
+    const scopedProfileId = computed(() => String(props.filterProfileId || '').trim());
+
     const clearLogs = async () => {
+        const scoped = Boolean(scopedProfileId.value);
         const confirmed = await confirmAction({
-            message: t('logs.clearConfirm'),
+            message: scoped ? t('logs.clearConfirmScoped') : t('logs.clearConfirm'),
             variant: 'danger',
         });
         if (!confirmed) return;
 
         try {
-            await api.del('/api/logs');
-            logs.value = [];
+            const query = scoped
+                ? `?profileId=${encodeURIComponent(scopedProfileId.value)}&profileName=${encodeURIComponent(props.filterProfileName || '')}`
+                : '';
+            await api.del(`/api/logs${query}`);
             currentPage.value = 1;
-            showToast(t('logs.clearSuccess'), 'success');
+            if (scoped) {
+                // 只移除本组记录，其余订阅组的日志保持不动
+                logs.value = logs.value.filter(
+                    (log) => log.profileId !== scopedProfileId.value
+                );
+            } else {
+                logs.value = [];
+            }
+            // 计数已在后端归零，强制刷新订阅组数据，避免卡片上残留旧次数
+            await dataStore.fetchData(true);
+            showToast(scoped ? t('logs.clearSuccessScoped') : t('logs.clearSuccess'), 'success');
         } catch (e) {
             showToast(t('logs.clearFailed'), 'error');
         }

@@ -1,11 +1,21 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
-import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
+import {
+    calculateProtocolStats,
+    calculateRegionStats,
+    parseNodeList,
+} from '../utils/node-parser.js';
 import { applyNodeTransformPipeline } from '../../utils/node-transformer.js';
 import { runOperatorChain } from '../../utils/operator-runner.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
+import {
+    ensureSnapshotForOutput,
+    getNodeSnapshotForOutput,
+    isNodePersistenceEnabled,
+    maybeRefreshDueNodes,
+} from '../../services/node-persistence-service.js';
 import { applyManualNodeName } from '../utils/node-cleaner.js';
 
 function ensureArray(data) {
@@ -106,7 +116,8 @@ export async function handleProfileMode(
     applyTransform = false,
     skipCertVerify = false,
     depth = 0,
-    visited = new Set()
+    visited = new Set(),
+    context = null
 ) {
     if (depth > 3 || (profileId && visited.has(profileId))) {
         console.warn(
@@ -131,7 +142,7 @@ export async function handleProfileMode(
         typeof storageAdapter.getProfileById === 'function'
             ? await storageAdapter.getProfileById(profileId)
             : ((await storageAdapter.get(KV_KEY_PROFILES)) || []).find(
-                  (p) => (p.customId && p.customId === profileId) || p.id === profileId
+                  (p) => p.id === profileId || p.customId === profileId || p.linkId === profileId
               );
     const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 
@@ -206,10 +217,59 @@ export async function handleProfileMode(
         };
     });
 
-    // 并行获取HTTP订阅节点（开启保护性缓存时，上游失败回退缓存节点，与输出链路一致）
+    // 预览/嵌套订阅也是一次后端命中：顺便做一次到期检查（后台执行，不阻塞预览）。
+    // 预览同样是一次后端命中：有 waitUntil 就真正后台刷新，没有也绝不阻塞预览。
+    if (isNodePersistenceEnabled(env, settings) && Array.isArray(targetSubscriptions)) {
+        const previewContext = { ...(context || {}), env, config: settings };
+        const dueRun = maybeRefreshDueNodes(previewContext, targetSubscriptions, {
+            reason: 'preview',
+        }).catch((error) =>
+            console.warn('[NodePersistence] preview due refresh failed:', error?.message || error)
+        );
+        if (typeof previewContext.waitUntil === 'function') previewContext.waitUntil(dueRun);
+        else void dueRun;
+    }
+
+    // 并行获取HTTP订阅节点。
+    // D1 节点持久化开启时只读快照，绝不回源机场；否则走实时拉取（失败时回退保护性缓存）。
+    const persistenceEnabled = isNodePersistenceEnabled(env, settings);
+    // 单次请求最多为 3 个「还没有快照」的机场做懒初始化，避免首访超时；
+    // 剩下的会在下一次访问时继续补齐。
+    let lazyBudget = 3;
     const subscriptionResults = await Promise.all(
-        targetSubscriptions.map((sub) =>
-            fetchSubscriptionNodes(
+        targetSubscriptions.map(async (sub) => {
+            if (persistenceEnabled) {
+                const budget = Number.isFinite(lazyBudget) ? lazyBudget : 3;
+                let snapshot = await getNodeSnapshotForOutput(env, sub);
+                const needsRefresh = !snapshot || snapshot.fingerprintMatches === false;
+                if (needsRefresh && budget > 0) {
+                    lazyBudget = budget - 1;
+                    snapshot = await ensureSnapshotForOutput(env, sub, { reason: 'preview' });
+                }
+                if (!snapshot) {
+                    return {
+                        subscriptionName: sub.name,
+                        url: sub.url,
+                        success: true,
+                        nodes: [],
+                        error: null,
+                        fromPersistence: true,
+                    };
+                }
+                const parsedNodes = parseNodeList(snapshot.nodes.join('\n'), {
+                    plusAsSpace: Boolean(sub?.plusAsSpace),
+                });
+                return {
+                    subscriptionName: sub.name,
+                    url: sub.url,
+                    success: true,
+                    nodes: parsedNodes,
+                    error: null,
+                    fromPersistence: true,
+                    cacheUpdatedAt: snapshot.lastSuccessAt,
+                };
+            }
+            return fetchSubscriptionNodes(
                 sub.url,
                 sub.name,
                 userAgent,
@@ -222,8 +282,8 @@ export async function handleProfileMode(
                 sub?.enableNodeCache === true,
                 storageAdapter,
                 sub
-            )
-        )
+            );
+        })
     );
 
     // 3. 处理嵌套的组合订阅 (Sub-Profiles)
@@ -268,11 +328,7 @@ export async function handleProfileMode(
     }
 
     // 合并所有结果
-    const allResults = [
-        ...subscriptionResults,
-        ...manualNodeResults,
-        ...nestedSubProfileResults,
-    ];
+    const allResults = [...subscriptionResults, ...manualNodeResults, ...nestedSubProfileResults];
 
     // 统计所有节点
     const allNodes = [];
@@ -367,6 +423,8 @@ export async function handleProfileMode(
         subscriptions: allResults,
         nodes: processedNodes,
         totalCount: processedNodes.length,
+        // 预览来源：persistence=读 D1 快照；live=本次实时拉取
+        nodeSource: persistenceEnabled ? 'persistence' : 'live',
         stats: {
             protocols: protocolStats,
             regions: regionStats,

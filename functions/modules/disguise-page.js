@@ -37,14 +37,23 @@ export function renderDisguisePage(disguiseConfig) {
             box-sizing: border-box;
         }
 
+        html,
+        body {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-gradient);
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            /* 让绝对定位的环境光斑以 body 为包含块，避免其撑宽文档造成移动端缩放/偏移 */
+            position: relative;
             color: var(--text-color);
         }
 
@@ -194,7 +203,14 @@ export function renderDisguisePage(disguiseConfig) {
         status: 404,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache',
+            // 伪装页/404 绝不能被边缘缓存：no-cache 只要求回源校验，CDN 仍可
+            // 按自己的 TTL（线上实测 4 小时）把它存下来，于是未登录时被缓存的
+            // 404 会继续发给已登录用户（/logo.png 长时间 404 就是这么来的）。
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'CDN-Cache-Control': 'no-store',
+            'Surrogate-Control': 'no-store',
+            Pragma: 'no-cache',
+            Expires: '0',
         },
     });
 }

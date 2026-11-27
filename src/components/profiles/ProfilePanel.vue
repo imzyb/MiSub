@@ -106,7 +106,7 @@
                 class="rounded-xl border border-gray-100/80 bg-white/85 shadow-sm dark:border-white/10 dark:bg-gray-900/70"
                 :class="compact ? 'p-3' : 'p-4'"
             >
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                     <div class="flex items-center gap-3 shrink-0">
                         <h2 class="text-xl font-bold text-gray-900 dark:text-white">
                             {{ t('profiles.title') }}

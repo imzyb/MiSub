@@ -12,6 +12,7 @@ export function logAccessSuccess({
     targetFormat,
     token,
     profileIdentifier,
+    profileId,
     subName,
     domain,
 }) {
@@ -25,6 +26,8 @@ export function logAccessSuccess({
 
     const payload = {
         profileName: subName || 'Unknown Profile',
+        // [Fix] 日志归属使用内部唯一 ID：同名订阅组不会串台，改名也不影响历史归属
+        profileId: profileId || null,
         clientIp,
         geoInfo: {
             country,
@@ -65,6 +68,7 @@ export function logAccessError({
     targetFormat,
     token,
     profileIdentifier,
+    profileId,
     subName,
     domain,
     errorMessage,
@@ -79,6 +83,8 @@ export function logAccessError({
 
     const payload = {
         profileName: subName || 'Unknown Profile',
+        // [Fix] 日志归属使用内部唯一 ID：同名订阅组不会串台，改名也不影响历史归属
+        profileId: profileId || null,
         clientIp,
         geoInfo: {
             country,

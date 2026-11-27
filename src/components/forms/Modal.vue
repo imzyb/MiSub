@@ -35,10 +35,16 @@
             default: 'primary',
             validator: (value) => ['primary', 'danger'].includes(value),
         },
+        // 允许上层弹窗（如确认框）覆盖层级，避免被后打开的 Modal 盖住
+        zIndex: {
+            type: String,
+            default: '',
+        },
     });
 
     const emit = defineEmits(['update:show', 'confirm']);
     const { t } = useI18n();
+    const zIndexStyle = computed(() => props.zIndex || 'var(--z-modal)');
     const confirmLabel = computed(() => props.confirmText || t('actions.confirm'));
     const cancelLabel = computed(() => props.cancelText || t('actions.cancel'));
     const confirmTitle = computed(() => props.confirmButtonTitle || t('actions.confirm'));
@@ -140,7 +146,7 @@
             <div
                 v-if="show"
                 class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-                :style="{ zIndex: 'var(--z-modal)' }"
+                :style="{ zIndex: zIndexStyle }"
                 @pointerdown.capture="handleBackdropPointerDown"
                 @click="handleBackdropClick"
                 role="dialog"
@@ -166,7 +172,7 @@
                         }"
                         @click.stop
                     >
-                        <div :id="titleId" class="p-6 pb-4 shrink-0">
+                        <div :id="titleId" class="shrink-0 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4">
                             <slot name="title">
                                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">
                                     {{ t('common.confirmAction') }}
@@ -174,7 +180,9 @@
                             </slot>
                         </div>
 
-                        <div class="px-6 pb-6 grow overflow-y-auto">
+                        <div
+                            class="min-h-0 grow overflow-y-auto overscroll-contain px-4 pb-5 sm:px-6 sm:pb-6"
+                        >
                             <slot name="body">
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
                                     {{ t('common.confirmContinue') }}
@@ -183,7 +191,7 @@
                         </div>
 
                         <div
-                            class="p-6 pt-4 flex justify-end space-x-3 shrink-0 border-t border-gray-200 dark:border-gray-700"
+                            class="flex shrink-0 justify-end gap-3 border-t border-gray-200 px-4 py-4 dark:border-gray-700 sm:px-6 sm:py-5"
                         >
                             <slot name="footer">
                                 <button

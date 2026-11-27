@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS = {
     enableFlagEmoji: true,
     enablePublicPage: true,
     storageType: 'kv',
+    enableNodePersistence: false, // 仅在 D1 存储且绑定 MISUB_DB 时可用
     // 新增：借鉴Sub-Store和miaomiaowu的功能
     enableSubscriptionSync: true, // 启用订阅同步
     subscriptionCacheExpireMinutes: 60, // 订阅缓存过期时间（分钟）
@@ -180,7 +181,7 @@ export const DEFAULT_SETTINGS = {
 
 // System constants
 export const SYSTEM_CONSTANTS = {
-    VERSION: '2.7.0',
+    VERSION: '2.8.0',
     // Use v2rayN UA to fetch subscriptions reliably.
     FETCHER_USER_AGENT: 'v2rayN/7.23',
 };

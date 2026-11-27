@@ -1,5 +1,7 @@
 <script setup>
     import { useI18n } from '../../i18n/index.js';
+    import { getProfileShareIdentifier } from '../../utils/profile-link.js';
+    import { copyTextToClipboard } from '../../utils/clipboard.js';
 
     const { t } = useI18n();
     import { computed } from 'vue';
@@ -21,7 +23,7 @@
 
     const identifier = computed(() => {
         if (!props.profile) return '';
-        return props.profile.customId || props.profile.id;
+        return getProfileShareIdentifier(props.profile);
     });
 
     const baseUrl = computed(() => {
@@ -72,41 +74,13 @@
 
         const link = `${baseUrl.value}${format}`;
 
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(link);
-                showToast(t('copyLink.copied'), 'success');
-                close();
-            } else {
-                fallbackCopy(link);
-            }
-        } catch (err) {
-            fallbackCopy(link);
-        }
-    };
-
-    const fallbackCopy = (link) => {
-        const textArea = document.createElement('textarea');
-        textArea.value = link;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '0';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        try {
-            const successful = document.execCommand('copy');
-            if (successful) {
-                showToast(t('copyLink.copied'), 'success');
-                close();
-            } else {
-                showToast(t('copyLink.copyFailed'), 'error');
-            }
-        } catch (err) {
+        const ok = await copyTextToClipboard(link);
+        if (ok) {
+            showToast(t('copyLink.copied'), 'success');
+            close();
+        } else {
             showToast(t('copyLink.copyFailed'), 'error');
         }
-        document.body.removeChild(textArea);
     };
 </script>
 

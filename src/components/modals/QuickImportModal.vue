@@ -2,6 +2,7 @@
     import { ref, computed, onMounted } from 'vue';
     import Modal from '../forms/Modal.vue';
     import { useI18n } from '@/i18n/index.js';
+    import { getProfileShareIdentifier } from '@/utils/profile-link.js';
 
     const props = defineProps({
         show: Boolean,
@@ -54,7 +55,7 @@
     const getSubscriptionUrl = () => {
         if (!props.profile) return '';
         const token = props.profileToken || 'profiles';
-        const identifier = props.profile.customId || props.profile.id;
+        const identifier = getProfileShareIdentifier(props.profile);
         return `${window.location.origin}/${token}/${identifier}`;
     };
 

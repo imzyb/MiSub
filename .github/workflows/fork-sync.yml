@@ -1,19 +1,31 @@
 name: Fork Sync
 
+# GitHub Actions 的 cron 只能写 UTC，触发时刻永远按 UTC 解释；这里只把注释与日志统一成北京时间。
+#   cron "0 22 * * *" = UTC 22:00 = 北京时间次日 06:00（日志时间由 UTC+8 小时换算得到，不依赖 runner 的 tzdata）
+#   改时间（北京时间 HH:MM）：UTC 小时 = HH - 8，HH < 8 时用前一天 24 + HH - 8
+#     例：北京时间 03:30 → "30 19 * * *"；北京时间 22:15 → "15 14 * * *"
+#   注意：Actions 网页上的运行时间戳一律按 UTC 显示、无法更改；看北京时间请以步骤日志与运行摘要为准。
 on:
   schedule:
-    - cron: "0 22 * * *"     # 每天北京时间 06:00 执行
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: write
+
+concurrency:
+  group: fork-sync
+  cancel-in-progress: false
 
 jobs:
   sync_with_upstream:
-    name: Sync with Upstream
+    name: Merge Upstream (no force)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: ${{ github.event.repository.fork }}
+    env:
+      # 兜底时区：git 等其它输出也按北京时间；同步时间本身已显式做 UTC+8 换算
+      TZ: Asia/Shanghai
 
     steps:
       - name: Checkout fork
@@ -29,8 +41,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          git config user.name "GitHub Actions Bot"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git checkout main || git checkout -b main
 
@@ -42,37 +54,100 @@ jobs:
 
           if [ -n "${SYNC_PAT:-}" ]; then
             git remote set-url origin "https://x-access-token:${SYNC_PAT}@github.com/${{ github.repository }}.git"
-            echo "✅ 检测到 SYNC_PAT，将使用 PAT 推送（支持同步 .github/workflows）。"
+            echo "✅ 已检测到 SYNC_PAT，可同步 .github/workflows 变更。"
           else
-            echo "⚠️ 未配置 SYNC_PAT，将使用默认 GITHUB_TOKEN。"
+            echo "ℹ️ 未配置 SYNC_PAT，使用默认 GITHUB_TOKEN（无法推送 workflow 文件变更）。"
           fi
 
           git fetch --prune origin main
           git fetch --prune upstream main
 
-      - name: Mirror upstream main
+      - name: Merge upstream main
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
           set -euo pipefail
 
+          # 直接用 UTC 加 8 小时换算：不依赖 runner 是否装了 tzdata，也不怕 TZ 没生效
+          # 不用时区缩写（CST），是因为它既是中国标准时间、也可能被读成美国中部时间
+          SYNCED_AT="$(date -u -d '+8 hour' '+%Y-%m-%d %H:%M:%S')（北京时间 UTC+8）"
+          echo "🕗 同步时间：$SYNCED_AT"
+
+          # 每次运行（含跳过）都先在运行摘要顶端写北京时间，网页上的 UTC 时间戳就不用换算
+          {
+            echo "### 🕗 Fork Sync 检查时间（北京时间）：${SYNCED_AT}"
+            echo ""
+            echo "- 自动调度：每天北京时间 06:00（cron `0 22 * * *`，Actions 只认 UTC）"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+
           ORIGIN_SHA="$(git rev-parse origin/main)"
           UPSTREAM_SHA="$(git rev-parse upstream/main)"
+          BEFORE_SHA="$(git rev-parse HEAD)"
 
-          if [ "${ORIGIN_SHA}" = "${UPSTREAM_SHA}" ]; then
+          if [ "$ORIGIN_SHA" = "$UPSTREAM_SHA" ]; then
             echo "✨ Fork 已与上游完全一致，无需同步。"
+            echo "- ✨ 无需同步：Fork 已与上游 ${UPSTREAM_SHA} 完全一致。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
             exit 0
           fi
 
+          # GITHUB_TOKEN 不能创建或更新 workflow 文件。只看上游自上次分叉以来改了什么，
+          # 免得 fork 自己定制过的 workflow 把每一次同步都挡掉。
           if [ -z "${SYNC_PAT:-}" ]; then
-            WORKFLOW_DIFF="$(git diff --name-only "${ORIGIN_SHA}" "${UPSTREAM_SHA}" -- .github/workflows || true)"
-            if [ -n "${WORKFLOW_DIFF}" ]; then
-              echo "::notice title=Fork Sync skipped::上游包含 workflow 文件变更，默认 GITHUB_TOKEN 不能创建或更新 workflow 文件。请在 fork 仓库配置 secret：SYNC_PAT（repo + workflow 权限）后手动重新运行，或在网页使用 Sync fork / Discard commits 对齐上游。"
+            MERGE_BASE="$(git merge-base "$ORIGIN_SHA" "$UPSTREAM_SHA" 2>/dev/null || true)"
+            if [ -z "$MERGE_BASE" ]; then
+              echo "::notice title=Fork Sync 已跳过::与上游没有共同历史，无法安全合并，请手动处理。"
+              echo "- ⚠️ 已跳过：与上游没有共同历史，需手动处理。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+              exit 0
+            fi
+            WORKFLOW_DIFF="$(git diff --name-only "$MERGE_BASE" "$UPSTREAM_SHA" -- .github/workflows || true)"
+            if [ -n "$WORKFLOW_DIFF" ]; then
+              echo "::notice title=Fork Sync 已跳过::上游本次改动包含 workflow 文件，默认 GITHUB_TOKEN 无权推送。请配置 secret SYNC_PAT（含 workflow 权限）后重跑，或在网页使用 Sync fork。"
+              echo "- ⚠️ 已跳过：上游改动包含 workflow 文件，当前 token 无权推送（需要 SYNC_PAT）。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
               exit 0
             fi
           fi
 
-          echo "🚀 正在镜像上游 main，fork 本地 main 上的额外提交会被丢弃。"
-          git reset --hard upstream/main
-          git push --force-with-lease origin main
-          echo "✅ Fork main 已镜像到上游 main。"
+          # 只做合并：合得进去就保留，合不进去就整体回滚，绝不重置分支或强推
+          if ! git merge --no-edit upstream/main; then
+            CONFLICTED="$(git diff --name-only --diff-filter=U || true)"
+            if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+              git merge --abort
+            fi
+            if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+              echo "::error title=回滚失败::合并状态未能清除，请手动检查 fork 后再运行。"
+              exit 1
+            fi
+            {
+              echo "## ⚠️ 上游更新与本地修改冲突，本次未合并"
+              echo ""
+              echo "- 检查时间：${SYNCED_AT}"
+              echo ""
+              echo "已回滚到同步前的状态，fork 代码没有任何改动。冲突文件："
+              echo ""
+              echo '```'
+              echo "$CONFLICTED"
+              echo '```'
+              echo ""
+              echo "手动处理：\`git fetch upstream && git merge upstream/main\`，解决冲突后 \`git push origin main\`。"
+            } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+            echo "::warning title=合并冲突已跳过::${CONFLICTED:-unknown}"
+            exit 0
+          fi
+
+          if [ "$(git rev-parse HEAD)" = "$BEFORE_SHA" ]; then
+            echo "✨ 本地已包含上游全部提交，无需推送。"
+            echo "- ✨ 无需推送：本地已包含上游全部提交。" >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+            exit 0
+          fi
+
+          # 普通推送；被拒绝时宁可失败，也不覆盖远端
+          git push origin HEAD:main
+          echo "✅ 已合并上游更新并推送，fork 本地提交保持原样。"
+
+          {
+            echo "## ✅ 已同步上游"
+            echo ""
+            echo "- 同步时间：${SYNCED_AT}"
+            echo "- 合并后提交：\`$(git rev-parse --short HEAD)\`"
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"

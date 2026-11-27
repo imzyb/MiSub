@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import CustomPageSettings from '../../src/components/settings/sections/CustomPageSettings.vue';
+import { createI18n } from '../../src/i18n/index.js';
 
 vi.mock('../../src/components/ui/Switch.vue', () => ({
     default: {
@@ -32,6 +33,12 @@ const mountSettings = (settings = {}) =>
     mount(CustomPageSettings, {
         props: {
             settings: buildSettings(settings),
+        },
+        // 断言的是英文文案，必须显式指定语言：组件未传 i18n 时会回落到
+        // 全局单例，其 locale 取决于同批次其他测试是否调用过 setLocale('en-US')，
+        // 之前因此变成「按文件顺序时好时坏」的偶发失败。
+        global: {
+            plugins: [createI18n({ initialLocale: 'en-US' })],
         },
     });
 

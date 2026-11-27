@@ -10,6 +10,7 @@
     import { useProfiles } from '../composables/useProfiles.js';
     import { useManualNodes } from '../composables/useManualNodes.js';
     import { formatBytes } from '../lib/utils.js';
+    import { latestSubscriptionUpdate } from '../utils/subscription-last-update.js';
     import StatCards from '../components/features/Dashboard/StatCards.vue';
     import {
         addDismissedHealthItem,
@@ -31,7 +32,7 @@
     const { showToast } = useToastStore();
 
     const dataStore = useDataStore();
-    const { settings, profiles, isLoading, lastUpdated } = storeToRefs(dataStore);
+    const { settings, profiles, isLoading } = storeToRefs(dataStore);
     const { activeProfiles, markDirty } = dataStore;
 
     const {
@@ -54,9 +55,13 @@
     const subscriptionsCount = computed(() => (subscriptions.value || []).length);
     const activeProfilesCount = computed(() => (activeProfiles || []).length);
 
+    // 「上次更新」反映订阅数据的更新时间，而不是页面这次拉取的时间：
+    // 取所有机场订阅里最后的一个更新时间（D1 快照 last_success_at / 刷新成功时打的戳）。
     const lastUpdatedTime = computed(() => {
-        if (!lastUpdated.value) return t('dashboard.never');
-        return new Date(lastUpdated.value).toLocaleString();
+        const latest = latestSubscriptionUpdate(subscriptions.value);
+        // 没有任何订阅更新过（或还没订阅）时如实显示「从未」，
+        // 不能退回页面加载时间，否则每次刷新都会显示当前时间。
+        return latest === null ? t('dashboard.never') : new Date(latest).toLocaleString();
     });
 
     const trafficStats = computed(() => {

@@ -51,6 +51,11 @@
             default: 'md',
             validator: (value) => ['sm', 'md', 'lg'].includes(value),
         },
+        // 原生 maxlength，用于订阅 ID 这类有长度上限的字段
+        maxlength: {
+            type: [Number, String],
+            default: undefined,
+        },
     });
 
     const emit = defineEmits(['update:modelValue']);
@@ -141,6 +146,7 @@
                 :type="type"
                 :placeholder="placeholder"
                 :disabled="disabled"
+                :maxlength="maxlength"
                 class="w-full bg-white dark:bg-white/[0.035] border border-gray-200 dark:border-white/10 text-gray-900 dark:text-[var(--text-primary-dark)] placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-primary-500/30 focus:border-primary-500/70 dark:focus:border-primary-400/60 focus-visible:outline-none transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                 :class="[
                     currentSize.input,

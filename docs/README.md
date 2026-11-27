@@ -9,6 +9,13 @@ MiSub 仓库文档索引。工程知识体系以本地思源笔记本 `MiSub 文
 - [DEVELOPMENT_STANDARDS.md](DEVELOPMENT_STANDARDS.md) — 前后端开发规范（风格、目录、测试、提交约定）。
 - [architecture.md](architecture.md) — 总体架构说明（跟随本地 architecture/ 页面）。
 - [data-model.md](data-model.md) — 数据模型说明（跟随本地 data-model 页面）。
+- [FUNCTIONAL_LOGIC_REPORT.md](FUNCTIONAL_LOGIC_REPORT.md) — 功能逻辑报告（节点持久化、更新检查的入口 / 规则 / 边界）。
+- [codebase-review.md](codebase-review.md) — 代码库只读梳理与治理记录。
+
+## 前端 / 界面
+
+- [navigation-component-architecture.md](navigation-component-architecture.md) — 导航组件分层、样式 token 与配置来源。
+- [ui-navigation-regression-checklist.md](ui-navigation-regression-checklist.md) — 发布前导航 UI 回归检查清单。
 
 ## API / 外部管理
 
@@ -21,6 +28,7 @@ MiSub 仓库文档索引。工程知识体系以本地思源笔记本 `MiSub 文
 
 - [subscription-request-flow.md](subscription-request-flow.md) — `/sub/*` 订阅请求处理链路。
 - [fetch-proxy-tutorial.md](fetch-proxy-tutorial.md) — fetch proxy 行为与配置。
+- [profile-url.md](profile-url.md) — 订阅组链接与「订阅 ID」（`linkId` / `customId`）的生成与解析规则。
 - [OPERATOR_CHAIN_GUIDE.md](OPERATOR_CHAIN_GUIDE.md) — operator chain 用法与概念。
 - [examples/](examples/) — 订阅/模板示例。
 

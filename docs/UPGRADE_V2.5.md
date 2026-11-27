@@ -23,9 +23,13 @@ v2.5.0 是 MiSub 的一个重大里程碑。我们不仅重构了核心节点处
 
 ## 2. 代码同步指南 (Git Sync)
 
-由于许多组件被删除或移动，直接同步可能会产生冲突。
+仓库内置的 `Fork Sync` 工作流（`.github/workflows/fork-sync.yml`）每天**北京时间 06:00**（cron 字段只能写 UTC，即 `0 22 * * *`）自动把上游 `imzyb/MiSub` 的 `main` **合并**进你的 fork，不再强制覆盖。步骤日志与运行摘要里的时间一律是北京时间：
 
-### 推荐步骤：
+- **能干净合并**：合并结果（必要时带一个 merge commit）推送到 `main`，你自己的提交保留。
+- **有冲突**：本次不合并，回滚到同步前状态，Actions 运行摘要会列出冲突文件。
+- **上游改动了 `.github/workflows/**`**：默认 `GITHUB_TOKEN` 无权推送这类变更，需要先在 fork 配置 `SYNC_PAT`，否则该次同步会被跳过。
+
+### 手动处理冲突
 
 1. **备份数据**：在升级前，建议在 MiSub 后台导出一次数据备份（Settings -> Backup）。
 2. **连接上游**（如果未连接）：
@@ -37,12 +41,8 @@ v2.5.0 是 MiSub 的一个重大里程碑。我们不仅重构了核心节点处
     git fetch upstream
     git merge upstream/main
     ```
-4. **处理冲突**：
-    - 重点检查 `wrangler.toml` 和 `package.json`。
-    - 如果本地修改过多导致合并失败，建议强制覆盖本地代码（注意：这会丢失您本地的 UI 修改）：
-        ```bash
-        git reset --hard upstream/main
-        ```
+4. **处理冲突**：重点检查 `wrangler.toml`、`package.json` 和本次改动的组件目录，解决后 `git push origin main`。
+5. **确实无法合并时**：先把自己的改动挪到独立分支（`git switch -c my-changes`）保存，再决定是否让 `main` 完全跟随上游。任何形式的 `git reset --hard` 都会丢弃工作区未提交的修改，非必要不建议。
 
 ---
 

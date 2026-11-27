@@ -12,6 +12,7 @@ import {
     createJsonResponse,
     createErrorResponse,
     migrateProfileIds,
+    migrateProfileLinkIds,
     JSON_BODY_LIMITS,
     readJsonWithLimit,
 } from './utils.js';
@@ -25,6 +26,17 @@ import { sendTgNotification, checkAndNotify } from './notifications.js';
 import { clearAllNodeCaches } from '../services/node-cache-service.js';
 import { buildSubscriptionNodeCacheKey } from '../services/subscription-service.js';
 import { maybeRunScheduledTasks } from './scheduled-task-runner.js';
+import {
+    decorateSubscriptionsWithSnapshots,
+    getNodePersistenceCapabilities,
+    isNodePersistenceAvailable,
+    isNodePersistenceEnabled,
+    maybeRefreshAllDueNodes,
+    maybeContinueBackfill,
+    runNextBackfillBatch,
+    startNodeBackfill,
+    deleteNodeSnapshotsForSubscription,
+} from '../services/node-persistence-service.js';
 
 import {
     KV_KEY_SUBS,
@@ -33,6 +45,7 @@ import {
     DEFAULT_SETTINGS as defaultSettings,
 } from './config.js';
 import { listRuleTemplates } from './rule-template-handler.js';
+import { normalizeProfileAliases, validateProfileAliases } from './profile-alias.js';
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
 
@@ -56,11 +69,22 @@ function normalizeProfile(profile = {}) {
 async function attachProfileDownloadCounts(storageAdapter, profiles) {
     if (!Array.isArray(profiles) || profiles.length === 0) return profiles;
 
-    const counts = await Promise.all(
-        profiles.map((profile) =>
-            storageAdapter.get(`${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`)
-        )
-    );
+    // [Fix] 计数 key 恒定用内部主键；legacy key（曾用 customId）读到后自愈回写
+    const readCount = async (profile) => {
+        const currentKey = `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.id}`;
+        const current = Number(await storageAdapter.get(currentKey));
+        if (current) return current;
+        if (!profile.customId) return 0;
+        const legacyKey = `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId}`;
+        const legacy = Number(await storageAdapter.get(legacyKey));
+        if (legacy) {
+            await storageAdapter.put(currentKey, legacy).catch(() => {});
+            return legacy;
+        }
+        return 0;
+    };
+
+    const counts = await Promise.all(profiles.map((profile) => readCount(profile)));
 
     return profiles.map((profile, index) =>
         normalizeProfile({
@@ -187,7 +211,7 @@ export async function handleDataRequest(env, context = null) {
         }
         const storageAdapter = StorageFactory.createAdapter(env, storageType);
         const cachedSettings = await SettingsCache.get(env);
-        const [misubs, rawProfiles, settings, ruleTemplates] = await Promise.all([
+        const [rawMisubs, rawProfiles, settings, ruleTemplates] = await Promise.all([
             typeof storageAdapter.getAllSubscriptions === 'function'
                 ? storageAdapter.getAllSubscriptions()
                 : storageAdapter.get(KV_KEY_SUBS).then((res) => res || []),
@@ -206,18 +230,42 @@ export async function handleDataRequest(env, context = null) {
         const profiles = await attachProfileDownloadCounts(storageAdapter, rawProfiles);
 
         // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
-        if (migrateProfileIds(profiles)) {
-            storageAdapter
-                .put(KV_KEY_PROFILES, profiles)
-                .catch((err) =>
-                    console.error('[Migration] Failed to persist migrated profile IDs:', err)
-                );
+        // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
+        const profileIdsMigrated = migrateProfileIds(profiles);
+        const profileLinkIdsMigrated = migrateProfileLinkIds(profiles);
+        if (profileIdsMigrated || profileLinkIdsMigrated) {
+            const persisted =
+                typeof storageAdapter.putAllProfiles === 'function'
+                    ? storageAdapter.putAllProfiles(profiles)
+                    : storageAdapter.put(KV_KEY_PROFILES, profiles);
+            Promise.resolve(persisted).catch((err) =>
+                console.error('[Migration] Failed to persist migrated profile IDs:', err)
+            );
         }
         const config = {
             ...defaultSettings,
             ...settings,
+            storageType,
             isDefaultPassword: await isUsingDefaultPassword(env),
         };
+
+        // D1 节点持久化：订阅列表的 nodeCount/userInfo 以快照为准，
+        // 同时借这次管理端访问做一次到期检查（免费版 Worker 没有可靠定时）。
+        const persistenceEnabled = isNodePersistenceEnabled(env, config);
+        let misubs = rawMisubs;
+        if (persistenceEnabled) {
+            misubs = await decorateSubscriptionsWithSnapshots(env, rawMisubs);
+            const taskContext = context || { env };
+            maybeRefreshAllDueNodes({ ...taskContext, env, config }, { reason: 'admin-api' }).catch(
+                (error) =>
+                    console.warn('[NodePersistence] due refresh failed:', error?.message || error)
+            );
+            // 未完成的全量回填也借这次管理端访问继续推进
+            maybeContinueBackfill({ ...taskContext, env, config }).catch((error) =>
+                console.warn('[NodePersistence] backfill continue failed:', error?.message || error)
+            );
+        }
+
         try {
             const taskContext = context || { env };
             const runPromise = maybeRunScheduledTasks(taskContext, { source: 'admin-api' });
@@ -232,7 +280,13 @@ export async function handleDataRequest(env, context = null) {
                 taskError?.message || taskError
             );
         }
-        return createJsonResponse({ misubs, profiles, ruleTemplates, config });
+        return createJsonResponse({
+            misubs,
+            profiles,
+            ruleTemplates,
+            config,
+            capabilities: getNodePersistenceCapabilities(env, config),
+        });
     } catch (e) {
         console.error('[API Error /data] Failed to read from storage', {
             error: e?.message,
@@ -285,6 +339,8 @@ export async function handleMisubsSave(request, env) {
 
         let finalMisubs = misubs;
         let finalProfiles = profiles;
+        // 校验存量豁免需要「已落库的列表」做基线，diff 分支顺带读取一次
+        let previousProfiles = null;
 
         // 步骤1.5: 检查是否为 Diff 模式
         if (diff) {
@@ -306,6 +362,7 @@ export async function handleMisubsSave(request, env) {
                 finalMisubs = currentMisubs; // 无变动
             }
 
+            previousProfiles = currentProfiles;
             if (diff.profiles) {
                 finalProfiles = applyPatch(currentProfiles, diff.profiles);
             } else {
@@ -364,6 +421,45 @@ export async function handleMisubsSave(request, env) {
                         ...p,
                         sortIndex: profileMap.get(p.id)?.sortIndex,
                     }));
+            }
+        }
+
+        if (Array.isArray(finalProfiles)) {
+            // [新增] 「订阅 ID」统一校验：字符集、长度、全局唯一、保留字
+            // 存量豁免：customId 早期没有长度限制，库里可能留着超长历史值。
+            // 校验覆盖整个列表，若不豁免，一条历史值会让用户保存任何改动都失败。
+            normalizeProfileAliases(finalProfiles);
+            // 全量保存（非 diff）同样需要基线，否则存量豁免不生效
+            if (!Array.isArray(previousProfiles)) {
+                previousProfiles = await Promise.resolve(
+                    typeof storageAdapter.getAllProfiles === 'function'
+                        ? storageAdapter.getAllProfiles()
+                        : storageAdapter.get(KV_KEY_PROFILES)
+                ).catch((error) => {
+                    console.warn('[API /misubs] Failed to load profiles baseline:', error);
+                    return null;
+                });
+            }
+            const aliasSettings = (await SettingsCache.get(env).catch(() => null)) || {};
+            const aliasCheck = validateProfileAliases(finalProfiles, {
+                mytoken: aliasSettings.mytoken,
+                profileToken: aliasSettings.profileToken,
+                previousProfiles,
+            });
+            if (!aliasCheck.ok) {
+                return createJsonResponse(
+                    {
+                        success: false,
+                        code: aliasCheck.code,
+                        message:
+                            aliasCheck.code === 'profile_alias_conflict'
+                                ? `订阅 ID "${aliasCheck.alias}" 已被占用`
+                                : aliasCheck.code === 'profile_alias_reserved'
+                                  ? `订阅 ID "${aliasCheck.alias}" 为系统保留值`
+                                  : `订阅 ID "${aliasCheck.alias}" 不合法：仅允许小写字母、数字、- 和 _，长度 2-${aliasCheck.field === 'linkId' ? 64 : 32}`,
+                    },
+                    400
+                );
             }
         }
 
@@ -441,6 +537,18 @@ export async function handleMisubsSave(request, env) {
                 if (saveTasks.length > 0) {
                     await Promise.all(saveTasks);
                 }
+
+                // 删除订阅时同步清理它的节点快照，避免 D1 里留下孤儿数据。
+                const removedIds = Array.isArray(diff.subscriptions?.removed)
+                    ? diff.subscriptions.removed
+                    : [];
+                if (removedIds.length > 0 && env?.MISUB_DB) {
+                    await Promise.all(
+                        removedIds.map((id) =>
+                            deleteNodeSnapshotsForSubscription(env, id).catch(() => false)
+                        )
+                    );
+                }
             } else {
                 const [subsHandled, profilesHandled] = await Promise.all([
                     syncCollectionRowLevel(storageAdapter, 'subscriptions', finalMisubs),
@@ -517,8 +625,16 @@ function redactSettingsForResponse(settings = {}) {
 
 export async function handleSettingsGet(env) {
     try {
+        const storageType = await StorageFactory.getStorageType(env);
         const settings = (await SettingsCache.get(env)) || {};
-        return createJsonResponse(redactSettingsForResponse({ ...defaultSettings, ...settings }));
+        const merged = { ...defaultSettings, ...settings };
+        return createJsonResponse({
+            ...redactSettingsForResponse(merged),
+            capabilities: getNodePersistenceCapabilities(env, {
+                ...merged,
+                storageType,
+            }),
+        });
     } catch (e) {
         if (isStorageUnavailableError(e)) {
             return createJsonResponse({
@@ -537,9 +653,13 @@ export async function handleSettingsGet(env) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleSettingsSave(request, env) {
+export async function handleSettingsSave(request, env, context = null) {
     try {
         const newSettings = await readJsonWithLimit(request, JSON_BODY_LIMITS.large);
+        // capabilities 是服务端派生的只读描述，任何客户端都不该把它写进设置。
+        if (newSettings && typeof newSettings === 'object') {
+            delete newSettings.capabilities;
+        }
 
         const reservedPathRoots = new Set([
             'settings',
@@ -624,6 +744,26 @@ export async function handleSettingsSave(request, env) {
         }
         const finalSettings = { ...oldSettings, ...newSettings };
 
+        // 节点持久化只能建立在 D1 上；未满足条件时强制关闭，避免 UI 残留脏状态。
+        // 注意：这里必须用「本次保存后」的 storageType，否则用户在系统设置里
+        // 从 KV 切到 D1 的保存请求会被旧值覆盖回去。
+        const previousStorageType = await StorageFactory.getStorageType(env);
+        const nextStorageType =
+            finalSettings.storageType === 'd1' || finalSettings.storageType === 'kv'
+                ? finalSettings.storageType
+                : previousStorageType;
+        finalSettings.storageType = nextStorageType;
+        const persistenceAvailable = isNodePersistenceAvailable(env, {
+            ...finalSettings,
+            storageType: nextStorageType,
+        });
+        if (!persistenceAvailable) {
+            finalSettings.enableNodePersistence = false;
+            finalSettings.autoUpdateInterval = 0;
+        } else if (finalSettings.enableNodePersistence !== true) {
+            finalSettings.autoUpdateInterval = 0;
+        }
+
         // 使用存储适配器保存设置
         try {
             await storageAdapter.put(KV_KEY_SETTINGS, finalSettings);
@@ -655,6 +795,39 @@ export async function handleSettingsSave(request, env) {
             console.warn('[API] Failed to sync settings to KV:', syncError?.message || syncError);
         }
         SettingsCache.clear();
+
+        // 启用节点持久化（首次或关闭后重开）= 立刻做一次全量拉取，等价一次 Cron。
+        // 用户无感：后台通过内部接口自触发链推进，页面关掉也能继续。
+        const persistenceJustEnabled =
+            finalSettings.enableNodePersistence === true &&
+            isNodePersistenceEnabled(env, finalSettings) &&
+            (oldSettings.enableNodePersistence !== true ||
+                oldSettings.storageType !== finalSettings.storageType);
+        if (persistenceJustEnabled) {
+            try {
+                await clearAllNodeCaches(storageAdapter);
+            } catch (cacheError) {
+                console.warn('[API] Failed to purge node caches:', cacheError?.message || cacheError);
+            }
+            const backfillContext = { ...(context || {}), env };
+            const backfillRun = (async () => {
+                const started = await startNodeBackfill(env, { requestUrl: request.url });
+                if (started.started && started.total > 0) {
+                    await runNextBackfillBatch(env, {
+                        requestUrl: request.url,
+                        state: started.state,
+                    });
+                }
+                return started;
+            })().catch((error) =>
+                console.warn('[NodePersistence] backfill start failed:', error?.message || error)
+            );
+            if (typeof backfillContext.waitUntil === 'function') {
+                backfillContext.waitUntil(backfillRun);
+            } else {
+                void backfillRun;
+            }
+        }
 
         // 纯界面偏好的保存（客户端用 X-MiSub-Save-Scope: preferences 声明，
         // 目前只有「忽略的待处理项」走这条路）不需要让整站节点缓存失效，

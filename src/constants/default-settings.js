@@ -25,7 +25,10 @@ export const DEFAULT_SETTINGS = {
     enableFlagEmoji: true,
     enablePublicPage: true,
     storageType: 'kv',
-    autoUpdateInterval: 0, // 分钟，0表示禁用自动更新
+    // D1 节点持久化：开启后订阅组只从 D1 快照读节点，不再实时拉取机场。
+    // 只有 storageType === 'd1' 且绑定了 MISUB_DB 时才允许开启。
+    enableNodePersistence: false,
+    autoUpdateInterval: 0, // 分钟，0 表示不自动刷新（仍从 D1 读取）
     defaultPrefixSettings: {
         enableManualNodes: true,
         enableSubscriptions: true,

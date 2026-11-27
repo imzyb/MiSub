@@ -25,6 +25,28 @@
     const { showToast } = useToastStore();
     const { t } = useI18n();
 
+    // ---- 节点持久化能力 ----
+    // capabilities 由服务端 /api/settings 计算：是否绑定 D1、当前主存储类型。
+    const capabilities = computed(() => props.settings?.capabilities || {});
+    const persistenceAvailable = computed(() => capabilities.value.available === true);
+    const persistenceEnabled = computed(
+        () => persistenceAvailable.value && props.settings?.enableNodePersistence === true
+    );
+    // 禁用原因：PC hover / 手机点击都能看到，页面里也常显一行
+    const persistenceDisabledReason = computed(() => {
+        if (persistenceAvailable.value) return '';
+        if (!capabilities.value.hasD1) return t('settings.nodePersistenceUnavailableNoD1');
+        return t('settings.nodePersistenceUnavailableKv');
+    });
+    const autoUpdateDisabledReason = computed(() =>
+        persistenceEnabled.value ? '' : t('settings.autoUpdateRequiresPersistence')
+    );
+    const setPersistence = (value) => {
+        if (!persistenceAvailable.value) return;
+        props.settings.enableNodePersistence = value === true;
+        if (!value) props.settings.autoUpdateInterval = 0;
+    };
+
     // 系统保留路径列表，这些路径会与前端路由或后端 API 冲突
     const RESERVED_PATHS = [
         'settings',
@@ -293,6 +315,7 @@
         <!-- 功能开关区域 -->
         <div
             class="rounded-xl border border-gray-100/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-gray-900/70"
+            data-testid="feature-control-card"
         >
             <SectionHeader
                 :title="t('settings.featureControlTitle')"
@@ -317,9 +340,60 @@
                 </template>
             </SectionHeader>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- 订阅自动更新间隔 -->
+                <!-- 节点持久化（D1）：始终显示，不满足条件时禁用并给出原因 -->
+                <div
+                    class="p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg md:col-span-2"
+                    data-testid="node-persistence-card"
+                >
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p
+                                class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-200"
+                            >
+                                {{ t('settings.nodePersistenceTitle') }}
+                            </p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {{ t('settings.nodePersistenceDesc') }}
+                            </p>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <Switch
+                                :model-value="persistenceEnabled"
+                                :disabled="!persistenceAvailable"
+                                data-testid="node-persistence-switch"
+                                @update:model-value="setPersistence"
+                            />
+                        </div>
+                    </div>
+                    <p
+                        v-if="persistenceDisabledReason"
+                        class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+                        data-testid="node-persistence-reason"
+                    >
+                        {{ persistenceDisabledReason }}
+                    </p>
+                    <p
+                        v-else
+                        class="mt-2 text-xs"
+                        :class="
+                            persistenceEnabled
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-gray-500 dark:text-gray-400'
+                        "
+                    >
+                        {{
+                            persistenceEnabled
+                                ? t('settings.nodePersistenceEnabledHint')
+                                : t('settings.nodePersistenceDisabledHint')
+                        }}
+                    </p>
+                </div>
+
+                <!-- 订阅自动刷新间隔：始终显示，未启用节点持久化时禁用 -->
                 <div
                     class="p-4 bg-white/70 dark:bg-gray-900/50 border border-gray-200/70 dark:border-white/10 misub-radius-lg"
+                    :class="{ 'opacity-60': !persistenceEnabled }"
+                    data-testid="auto-refresh-card"
                 >
                     <div class="flex items-center justify-between">
                         <div>
@@ -331,7 +405,14 @@
                             </p>
                         </div>
                     </div>
-                    <div class="mt-3 flex flex-wrap gap-3">
+                    <p
+                        v-if="autoUpdateDisabledReason"
+                        class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+                        data-testid="auto-refresh-reason"
+                    >
+                        {{ autoUpdateDisabledReason }}
+                    </p>
+                    <div class="mt-3 space-y-2.5">
                         <div class="flex items-center gap-2">
                             <input
                                 type="number"
@@ -348,40 +429,45 @@
                                 "
                                 :placeholder="t('settings.customInterval')"
                                 min="5"
-                                class="w-24 px-2.5 py-2 text-sm bg-white/70 dark:bg-black/20 border border-gray-200/80 dark:border-white/10 misub-radius-md text-gray-900 dark:text-white placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-primary-500/40 focus:border-primary-500 outline-none transition-all"
+                                :disabled="!persistenceEnabled"
+                                class="w-24 px-2.5 py-2 text-sm bg-white/70 dark:bg-black/20 border border-gray-200/80 dark:border-white/10 misub-radius-md text-gray-900 dark:text-white placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-primary-500/40 focus:border-primary-500 outline-none transition-all disabled:cursor-not-allowed disabled:opacity-60"
                                 :aria-label="t('settings.autoUpdateInterval')"
                             />
                             <span class="text-xs text-gray-500 dark:text-gray-400">{{
                                 t('settings.minutes')
                             }}</span>
+                            <span class="ml-auto text-xs text-gray-500 dark:text-gray-400">{{
+                                t('settings.quickSelect')
+                            }}</span>
                         </div>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 self-center">{{
-                            t('settings.quickSelect')
-                        }}</span>
-                        <button
-                            v-for="option in [
-                                { value: 0, label: t('settings.disabledOption') },
-                                { value: 30, label: t('settings.option30Minutes') },
-                                { value: 60, label: t('settings.option1Hour') },
-                            ]"
-                            :key="option.value"
-                            @click="settings.autoUpdateInterval = option.value"
-                            :aria-pressed="settings.autoUpdateInterval === option.value"
-                            :class="[
-                                'px-3 py-2 text-xs font-medium misub-radius-md border transition-colors',
-                                settings.autoUpdateInterval === option.value
-                                    ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/30'
-                                    : 'bg-white/70 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-gray-800',
-                            ]"
-                        >
-                            {{ option.label }}
-                        </button>
+                        <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                            <button
+                                v-for="option in [
+                                    { value: 0, label: t('settings.disabledOption') },
+                                    { value: 30, label: t('settings.option30Minutes') },
+                                    { value: 60, label: t('settings.option1Hour') },
+                                ]"
+                                :key="option.value"
+                                :disabled="!persistenceEnabled"
+                                @click="settings.autoUpdateInterval = option.value"
+                                :aria-pressed="settings.autoUpdateInterval === option.value"
+                                class="w-full text-center disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                                :class="[
+                                    'px-3 py-2 text-xs font-medium misub-radius-md border transition-colors',
+                                    settings.autoUpdateInterval === option.value
+                                        ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/30'
+                                        : 'bg-white/70 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-gray-800',
+                                ]"
+                            >
+                                {{ option.label }}
+                            </button>
+                        </div>
                     </div>
                     <p
-                        v-if="settings.autoUpdateInterval === 0"
+                        v-if="persistenceEnabled && settings.autoUpdateInterval === 0"
                         class="text-xs text-amber-600 dark:text-amber-400 mt-2"
                     >
-                        {{ t('settings.autoUpdateDisabledHint') }}
+                        {{ t('settings.autoUpdateZeroHint') }}
                     </p>
                 </div>
 

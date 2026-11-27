@@ -8,6 +8,7 @@ import {
 import { KV_KEY_PROFILES } from '../config.js';
 import { handleProfileMode } from './profile-handler.js';
 import { handleSingleSubscriptionMode, handleDirectUrlMode } from './single-subscription.js';
+import { resolvePublicProfile } from './profile-resolver.js';
 
 /**
  * 确定请求模式
@@ -31,7 +32,7 @@ export function determineRequestMode(requestData) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handlePublicPreviewRequest(request, env) {
+export async function handlePublicPreviewRequest(request, env, context = null) {
     if (request.method !== 'POST') {
         return createJsonResponse('Method Not Allowed', 405);
     }
@@ -49,12 +50,12 @@ export async function handlePublicPreviewRequest(request, env) {
             env,
             await StorageFactory.getStorageType(env)
         );
-        const profile =
-            typeof storageAdapter.getProfileById === 'function'
-                ? await storageAdapter.getProfileById(profileId)
-                : ((await storageAdapter.get(KV_KEY_PROFILES)) || []).find(
-                      (p) => (p.customId && p.customId === profileId) || p.id === profileId
-                  );
+        // [Fix #538] 与订阅主链路同一套公开解析规则，退役的标识不能继续预览
+        const allProfiles =
+            typeof storageAdapter.getAllProfiles === 'function'
+                ? await storageAdapter.getAllProfiles()
+                : (await storageAdapter.get(KV_KEY_PROFILES)) || [];
+        const profile = resolvePublicProfile(allProfiles, profileId);
 
         if (!profile || !profile.enabled || !profile.isPublic) {
             return createJsonResponse({ error: 'Profile not found or not public' }, 404);
@@ -75,10 +76,17 @@ export async function handlePublicPreviewRequest(request, env) {
             profile.id,
             userAgent,
             true,
-            shouldSkipCertificateVerify
+            shouldSkipCertificateVerify,
+            0,
+            new Set(),
+            context
         );
 
-        return createJsonResponse(result);
+        return createJsonResponse({
+            ...result,
+            // 预览数据来源：persistence=读 D1 快照；live=本次实时拉取
+            nodeSource: result?.nodeSource || 'live',
+        });
     } catch (e) {
         return createErrorResponse(`Preview failed: ${e.message}`, e.status || 500);
     }
@@ -90,7 +98,7 @@ export async function handlePublicPreviewRequest(request, env) {
  * @param {Object} env - Cloudflare环境对象
  * @returns {Promise<Response>} HTTP响应
  */
-export async function handleSubscriptionNodesRequest(request, env) {
+export async function handleSubscriptionNodesRequest(request, env, context = null) {
     if (request.method !== 'POST') {
         return createJsonResponse('Method Not Allowed', 405);
     }
@@ -131,7 +139,10 @@ export async function handleSubscriptionNodesRequest(request, env) {
                     profileId,
                     userAgent,
                     requestData.applyTransform !== undefined ? requestData.applyTransform : true,
-                    skipCertVerify
+                    skipCertVerify,
+                    0,
+                    new Set(),
+                    context
                 );
                 break;
             case 'subscription':
@@ -160,7 +171,10 @@ export async function handleSubscriptionNodesRequest(request, env) {
                 );
         }
 
-        return createJsonResponse(result);
+        return createJsonResponse({
+            ...result,
+            nodeSource: result?.nodeSource || 'live',
+        });
     } catch (e) {
         return createJsonResponse(
             {

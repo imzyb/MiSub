@@ -4,13 +4,18 @@
  */
 
 // 导出Dashboard相关组件
-export { default as Dashboard } from './Dashboard/Dashboard.vue';
-export { default as DashboardContainer } from './Dashboard/DashboardContainer.vue';
-export { default as SaveIndicator } from './Dashboard/SaveIndicator.vue';
-export { default as Overview } from './Dashboard/Overview.vue';
+import Dashboard from './Dashboard/Dashboard.vue';
+export { Dashboard };
+import DashboardContainer from './Dashboard/DashboardContainer.vue';
+export { DashboardContainer };
+import SaveIndicator from './Dashboard/SaveIndicator.vue';
+export { SaveIndicator };
+import Overview from './Dashboard/Overview.vue';
+export { Overview };
 
 // 导出其他功能组件
-export { default as ThemeToggle } from './ThemeToggle.vue';
+import ThemeToggle from './ThemeToggle.vue';
+export { ThemeToggle };
 
 // 组件列表
 export const FeatureComponents = {

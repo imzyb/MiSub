@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed } from 'vue';
     import { useI18n } from '../../../../i18n/index.js';
+    import CopyButton from '../../../ui/CopyButton.vue';
 
     const { t } = useI18n();
 
@@ -13,6 +14,19 @@
 
     // 折叠状态
     const showCronGuide = ref(false);
+
+    // Cron 只在 D1 + 节点持久化开启时可用；它是独立于自动刷新间隔的强制刷新通道。
+    const cronAvailable = computed(() => {
+        const config = props.settings || {};
+        const capabilities = config.capabilities || {};
+        return capabilities.available === true && config.enableNodePersistence === true;
+    });
+    const cronUnavailableReason = computed(() => {
+        if (cronAvailable.value) return '';
+        const capabilities = props.settings?.capabilities || {};
+        if (!capabilities.hasD1) return t('settings.cronUnavailableNoD1');
+        return t('settings.cronUnavailableNoPersistence');
+    });
 
     // Cron URL
     const cronUrl = computed(() => {
@@ -31,12 +45,6 @@
         return `curl -H "Authorization: Bearer ${secret.replace(/"/g, '\\"')}" ${window.location.origin}/cron`;
     });
 
-    // 复制 Cron URL
-    function copyCronUrl() {
-        if (cronUrl.value) {
-            navigator.clipboard.writeText(cronUrl.value);
-        }
-    }
 </script>
 
 <template>
@@ -44,8 +52,8 @@
     <div
         class="bg-white/90 dark:bg-gray-900/70 misub-radius-lg p-6 space-y-5 border border-gray-100/80 dark:border-white/10 shadow-sm transition-shadow duration-300"
     >
-        <div class="flex justify-between items-start">
-            <div>
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
                 <h3
                     class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2"
                 >
@@ -68,23 +76,38 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {{ t('settings.cronDesc') }}
                 </p>
+                <p
+                    v-if="cronUnavailableReason"
+                    class="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    data-testid="cron-unavailable-reason"
+                >
+                    {{ cronUnavailableReason }}
+                </p>
+                <p
+                    v-else
+                    class="mt-1 text-xs text-emerald-600 dark:text-emerald-400"
+                    data-testid="cron-available-hint"
+                >
+                    {{ t('settings.cronAvailableHint') }}
+                </p>
             </div>
             <button
                 @click="showCronGuide = !showCronGuide"
-                class="text-blue-600 hover:text-blue-500 text-xs font-medium"
+                class="shrink-0 whitespace-nowrap pt-1 text-blue-600 hover:text-blue-500 text-xs font-medium"
             >
                 {{ showCronGuide ? t('settings.cronHideGuide') : t('settings.cronShowGuide') }}
             </button>
         </div>
 
         <!-- Cron Secret 输入框 -->
-        <div>
+        <div :class="{ 'opacity-60': !cronAvailable }">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                 >Cron Secret</label
             >
             <input
                 type="text"
                 v-model="settings.cronSecret"
+                :disabled="!cronAvailable"
                 :placeholder="t('settings.cronSecretPlaceholder')"
                 class="block w-full px-3 py-2.5 bg-white/70 dark:bg-gray-900/50 border border-gray-200/80 dark:border-white/10 misub-radius-lg shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500/40 focus:border-blue-500 sm:text-sm dark:text-white transition-colors"
             />
@@ -94,34 +117,24 @@
         </div>
 
         <!-- Cron 访问链接（自动生成） -->
-        <div v-if="cronUrl" class="space-y-3">
+        <div v-if="cronUrl && cronAvailable" class="space-y-3">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {{ t('settings.cronCompatibleUrl') }}
                 </label>
-                <div class="flex misub-radius-lg shadow-xs">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                     <input
                         type="text"
                         :value="cronUrl"
                         readonly
-                        class="flex-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-xl sm:text-sm dark:text-white font-mono text-xs"
+                        class="flex-1 block w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono dark:text-white"
                         :aria-label="t('settings.cronCompatibleUrl')"
                     />
-                    <button
-                        @click="copyCronUrl"
-                        type="button"
-                        class="inline-flex items-center px-4 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus-visible:outline-hidden"
-                        :aria-label="t('actions.copy')"
-                    >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                        </svg>
-                    </button>
+                    <CopyButton
+                        :value="cronUrl"
+                        :disabled="!cronAvailable"
+                        class="w-full sm:w-auto"
+                    />
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {{ t('settings.cronCopyHint') }}

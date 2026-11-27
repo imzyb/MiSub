@@ -13,6 +13,11 @@
             type: Object,
             required: true,
         },
+        // 只有开启 D1 节点持久化时，「已禁用自动刷新」徽标才有意义。
+        persistenceEnabled: {
+            type: Boolean,
+            default: false,
+        },
     });
 
     const emit = defineEmits([
@@ -40,6 +45,12 @@
     };
 
     const protocol = computed(() => getProtocol(props.misub.url));
+
+    // 暂停自动刷新：只在节点持久化开启时才有意义——
+    // 未启用持久化时没有 D1 快照，徽标会误导用户。
+    const autoUpdatePaused = computed(
+        () => props.persistenceEnabled === true && props.misub?.autoUpdate === false
+    );
 
     // 机场自报名称（订阅响应头的 Profile-Title / Content-Disposition），仅用于展示提示
     const detectedName = computed(() => {
@@ -186,203 +197,216 @@
 
 <template>
     <div
-        class="group relative flex h-full min-h-[200px] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary-500/5 dark:border-white/10 dark:bg-gray-900/70"
+        class="group relative flex h-full min-h-[200px] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary-500/5 sm:p-5 dark:border-white/10 dark:bg-gray-900/70"
         :class="{
             'opacity-75 grayscale-[0.8]': !misub.enabled,
         }"
     >
         <div class="relative z-10 flex flex-col h-full">
             <!-- Header -->
-            <div class="flex items-start justify-between gap-3 mb-4">
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 mb-1.5">
-                        <span
-                            class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                            :class="protocolStyle.style"
-                        >
-                            {{ protocolStyle.text }}
-                        </span>
-                        <span
-                            v-if="expiryInfo"
-                            class="rounded-full border border-transparent bg-gray-100 px-2 py-0.5 text-[10px] font-medium dark:bg-white/5"
-                            :class="expiryInfo.style"
-                        >
-                            {{ expiryInfo.daysRemaining }}
-                        </span>
-                    </div>
-                    <h3
-                        class="truncate text-lg font-semibold leading-tight text-gray-900 dark:text-white"
-                        :title="misub.name || t('subscriptions.unnamed')"
+            <!-- 窄屏：徽标独占一行，不再与 4 个操作按钮抢宽度（原先会把徽标压成一字一行） -->
+            <div class="mb-3 sm:mb-4">
+                <div class="mb-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <span
+                        class="shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                        :class="protocolStyle.style"
                     >
-                        {{ misub.name || t('subscriptions.unnamed') }}
-                    </h3>
-                    <!-- 机场识别结果：优先响应头自报名称，其次官网标题。仅作提示，不覆盖用户命名。 -->
-                    <div
-                        v-if="effectiveDetectedName && effectiveDetectedName !== misub.name"
-                        class="mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"
-                        :title="t('subscriptions.detectedNameHint')"
+                        {{ protocolStyle.text }}
+                    </span>
+                    <span
+                        v-if="autoUpdatePaused"
+                        data-testid="subscription-auto-update-paused"
+                        class="shrink-0 whitespace-nowrap rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold tracking-tight text-amber-600 dark:text-amber-400"
+                        :title="t('subscriptions.autoUpdatePausedHint')"
                     >
-                        <svg
-                            class="h-3 w-3 shrink-0"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            aria-hidden="true"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                        <span class="truncate">{{ effectiveDetectedName }}</span>
-                        <button
-                            type="button"
-                            class="shrink-0 text-[11px] font-medium text-primary-500 hover:text-primary-600 dark:text-primary-400"
-                            :title="t('subscriptions.applyDetectedName')"
-                            @click.stop="emit('applyDetectedName', effectiveDetectedName)"
-                        >
-                            {{ t('subscriptions.applyDetectedNameShort') }}
-                        </button>
-                    </div>
-                    <!-- 未识别到名称时：提供手动触发识别（抓官网标题），按需请求 -->
-                    <div
-                        v-else-if="rootDomain && !localDetectedName"
-                        class="mt-1 flex items-center gap-1"
+                        {{ t('subscriptions.autoUpdatePaused') }}
+                    </span>
+                    <span
+                        v-if="expiryInfo"
+                        class="shrink-0 whitespace-nowrap rounded-full border border-transparent bg-gray-100 px-2 py-0.5 text-[10px] font-medium dark:bg-white/5"
+                        :class="expiryInfo.style"
                     >
-                        <button
-                            type="button"
-                            class="shrink-0 text-[11px] text-gray-500 hover:text-primary-500 dark:text-gray-400 dark:hover:text-primary-400"
-                            :disabled="detecting"
-                            :title="t('subscriptions.detectNameHint')"
-                            @click.stop="handleDetect"
-                        >
-                            {{
-                                detecting
-                                    ? t('subscriptions.detecting')
-                                    : t('subscriptions.detectName')
-                            }}
-                        </button>
-                    </div>
-                    <!-- 机场主域名：可点击访问官网 -->
-                    <a
-                        v-if="rootDomain"
-                        :href="`https://${rootDomain}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="mt-0.5 inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-primary-500 dark:text-gray-400 dark:hover:text-primary-400"
-                        :title="t('subscriptions.visitSite', { domain: rootDomain })"
-                        @click.stop
-                    >
-                        <svg class="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path
-                                d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"
-                            />
-                            <path
-                                d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"
-                            />
-                        </svg>
-                        <span class="truncate">{{ rootDomain }}</span>
-                    </a>
+                        {{ expiryInfo.daysRemaining }}
+                    </span>
                 </div>
 
-                <!-- Action Buttons (Visible on Hover/Touch) -->
-                <div
-                    class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200"
-                >
-                    <button
-                        @click.stop="emit('preview')"
-                        class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center"
-                        :title="t('actions.previewNodes')"
-                        :aria-label="t('actions.previewNodes')"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
+                <div class="flex items-start justify-between gap-2 sm:gap-3">
+                    <div class="min-w-0 flex-1">
+                        <h3
+                            class="truncate text-lg font-semibold leading-tight text-gray-900 dark:text-white"
+                            :title="misub.name || t('subscriptions.unnamed')"
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                        </svg>
-                    </button>
-                    <button
-                        @click.stop="emit('qrcode')"
-                        class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center"
-                        :title="t('actions.showQrCode')"
-                        :aria-label="t('actions.showQrCode')"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="1.5"
+                            {{ misub.name || t('subscriptions.unnamed') }}
+                        </h3>
+                        <!-- 机场识别结果：优先响应头自报名称，其次官网标题。仅作提示，不覆盖用户命名。 -->
+                        <div
+                            v-if="effectiveDetectedName && effectiveDetectedName !== misub.name"
+                            class="mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+                            :title="t('subscriptions.detectedNameHint')"
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z"
-                            />
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z"
-                            />
-                        </svg>
-                    </button>
-                    <button
-                        @click.stop="emit('edit')"
-                        class="p-2.5 rounded-full hover:bg-primary-50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center"
-                        :title="t('actions.edit')"
-                        :aria-label="t('actions.edit')"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
+                            <svg
+                                class="h-3 w-3 shrink-0"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                            <span class="truncate">{{ effectiveDetectedName }}</span>
+                            <button
+                                type="button"
+                                class="shrink-0 text-[11px] font-medium text-primary-500 hover:text-primary-600 dark:text-primary-400"
+                                :title="t('subscriptions.applyDetectedName')"
+                                @click.stop="emit('applyDetectedName', effectiveDetectedName)"
+                            >
+                                {{ t('subscriptions.applyDetectedNameShort') }}
+                            </button>
+                        </div>
+                        <!-- 未识别到名称时：提供手动触发识别（抓官网标题），按需请求 -->
+                        <div
+                            v-else-if="rootDomain && !localDetectedName"
+                            class="mt-1 flex items-center gap-1"
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"
-                            />
-                        </svg>
-                    </button>
-                    <button
-                        @click.stop="emit('delete')"
-                        class="p-2.5 rounded-full hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 flex items-center justify-center"
-                        :title="t('actions.delete')"
-                        :aria-label="t('actions.delete')"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
+                            <button
+                                type="button"
+                                class="shrink-0 text-[11px] text-gray-500 hover:text-primary-500 dark:text-gray-400 dark:hover:text-primary-400"
+                                :disabled="detecting"
+                                :title="t('subscriptions.detectNameHint')"
+                                @click.stop="handleDetect"
+                            >
+                                {{
+                                    detecting
+                                        ? t('subscriptions.detecting')
+                                        : t('subscriptions.detectName')
+                                }}
+                            </button>
+                        </div>
+                        <!-- 机场主域名：可点击访问官网 -->
+                        <a
+                            v-if="rootDomain"
+                            :href="`https://${rootDomain}`"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-0.5 inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-primary-500 dark:text-gray-400 dark:hover:text-primary-400"
+                            :title="t('subscriptions.visitSite', { domain: rootDomain })"
+                            @click.stop
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                        </svg>
-                    </button>
+                            <svg class="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path
+                                    d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"
+                                />
+                                <path
+                                    d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"
+                                />
+                            </svg>
+                            <span class="truncate">{{ rootDomain }}</span>
+                        </a>
+                    </div>
+
+                    <!-- Action Buttons (Visible on Hover/Touch) -->
+                    <!-- 移动端收成紧凑图标组：负外边距抵掉触控留白，避免挤占徽标/标题宽度 -->
+                    <div
+                        class="-mr-2 -mt-1 flex shrink-0 items-center gap-0 opacity-100 sm:mr-0 sm:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200"
+                    >
+                        <button
+                            @click.stop="emit('preview')"
+                            class="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-500 dark:text-gray-400 dark:hover:bg-white/10 sm:min-h-[44px] sm:min-w-[44px] lg:min-h-0 lg:min-w-0"
+                            :title="t('actions.previewNodes')"
+                            :aria-label="t('actions.previewNodes')"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="w-4 h-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            @click.stop="emit('qrcode')"
+                            class="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-500 dark:text-gray-400 dark:hover:bg-white/10 sm:min-h-[44px] sm:min-w-[44px] lg:min-h-0 lg:min-w-0"
+                            :title="t('actions.showQrCode')"
+                            :aria-label="t('actions.showQrCode')"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="w-4 h-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z"
+                                />
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            @click.stop="emit('edit')"
+                            class="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-500 dark:text-gray-400 dark:hover:bg-white/10 sm:min-h-[44px] sm:min-w-[44px] lg:min-h-0 lg:min-w-0"
+                            :title="t('actions.edit')"
+                            :aria-label="t('actions.edit')"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="w-4 h-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            @click.stop="emit('delete')"
+                            class="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-gray-400 dark:hover:bg-red-500/20 sm:min-h-[44px] sm:min-w-[44px] lg:min-h-0 lg:min-w-0"
+                            :title="t('actions.delete')"
+                            :aria-label="t('actions.delete')"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="w-4 h-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 

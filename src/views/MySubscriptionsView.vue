@@ -10,6 +10,7 @@
     import { useToastStore } from '../stores/toast.js';
     import { useI18n } from '../i18n/index.js';
     import { resolveProfileFocus } from '../utils/dashboard-deeplink.js';
+    import { getProfileShareIdentifier } from '../utils/profile-link.js';
 
     const { t } = useI18n();
     const route = useRoute();
@@ -102,6 +103,7 @@
 
     const showLogModal = ref(false);
     const logProfileName = ref('');
+    const logProfileId = ref('');
 
     const showCopyModal = ref(false);
     const showCopyModalProfile = ref(null);
@@ -118,6 +120,7 @@
         const profile = profiles.value.find((p) => p.id === profileId || p.customId === profileId);
         if (profile) {
             logProfileName.value = profile.name;
+            logProfileId.value = profile.id;
             showLogModal.value = true;
         }
     };
@@ -139,7 +142,7 @@
             const token = settings.value.profileToken;
             const baseUrl = window.location.origin;
             // Use customId if available, otherwise use id
-            const idToUse = profile.customId || profile.id;
+            const idToUse = getProfileShareIdentifier(profile);
             qrCodeUrl.value = `${baseUrl}/${token}/${idToUse}`;
             qrCodeTitle.value = profile.name || t('profiles.qrCodeTitle');
             showQRCodeModal.value = true;
@@ -178,6 +181,7 @@
         <LogModal
             :show="showLogModal"
             @update:show="showLogModal = $event"
+            :filter-profile-id="logProfileId"
             :filter-profile-name="logProfileName"
         />
 

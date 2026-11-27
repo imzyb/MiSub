@@ -50,7 +50,9 @@
         class="group flex min-h-[180px] flex-col rounded-xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary-500/5 dark:border-white/10 dark:bg-gray-900/70"
         :class="[compact ? 'p-4' : 'p-5', { 'opacity-60 grayscale-[0.5]': !isEnabled }]"
     >
-        <div class="flex items-start justify-between gap-3" :class="compact ? 'flex-col' : ''">
+        <div
+            class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between"
+        >
             <div class="min-w-0 flex-1 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                     <span
@@ -98,7 +100,7 @@
             </div>
 
             <div
-                class="shrink-0 flex items-center gap-1 opacity-100 transition-opacity duration-200"
+                class="shrink-0 flex flex-wrap items-center justify-end gap-1 self-end opacity-100 transition-opacity duration-200 sm:self-auto"
                 :class="compact ? 'self-end flex-wrap justify-end' : ''"
             >
                 <button

@@ -4,8 +4,14 @@
  * 核心发送逻辑已抽离至 functions/services/notification-service.js
  */
 
-import { formatBytes } from './utils.js';
+import { formatBytes, createJsonResponse } from './utils.js';
+import {
+    completeNodeBackfill,
+    isNodePersistenceEnabled,
+    refreshSubscriptionSnapshot,
+} from '../services/node-persistence-service.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
+import { selectCronSubscriptions } from './cron-selection.js';
 // 导入核心通知服务及工具
 import {
     sendTgNotification as sendCoreTg,
@@ -108,8 +114,13 @@ export async function checkAndNotify(sub, settings, env) {
     }
 }
 
+/** Cron 刷新并发数与单订阅超时，供 /cron 与 /api/cron/trigger 共用 */
+export const CRON_REFRESH_CONCURRENCY = 6;
+export const CRON_REFRESH_TIMEOUT_MS = 15000;
+
 /**
  * 处理定时任务的通知更新（并行处理版本）
+ * 这是 Cron 刷新的唯一实现：/cron、/api/cron/trigger 都走这里。
  */
 export async function handleCronTrigger(env) {
     const { StorageFactory } = await import('../storage-adapter.js');
@@ -118,17 +129,31 @@ export async function handleCronTrigger(env) {
         env,
         await StorageFactory.getStorageType(env)
     );
-    const originalSubs = await loadSubscriptionsForCron(storageAdapter);
-    const allSubs = JSON.parse(JSON.stringify(originalSubs));
     const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 
-    const httpSubscriptions = allSubs.filter((sub) => sub.url.startsWith('http') && sub.enabled);
+    // Cron 只在 D1 + 节点持久化开启时可用；它是独立于 autoUpdateInterval 的强制刷新通道。
+    if (!isNodePersistenceEnabled(env, settings)) {
+        return createJsonResponse({
+            success: true,
+            skipped: true,
+            reason: 'node_persistence_disabled',
+            message: '未启用 D1 节点持久化，Cron 刷新不可用',
+        });
+    }
+    const persistenceActive = true;
+
+    const originalSubs = await loadSubscriptionsForCron(storageAdapter);
+    const allSubs = JSON.parse(JSON.stringify(originalSubs));
+    // Cron 是自动刷新通道：显式禁用自动更新的机场不参与，单独记入 skipped，
+    // 否则会把用户主动停用的订阅当成「刷新失败」报出来。
+    const { todo: httpSubscriptions, skipped: skippedSubscriptions } =
+        selectCronSubscriptions(allSubs);
 
     console.info(`[Cron] Starting parallel update for ${httpSubscriptions.length} subscriptions`);
     const startTime = Date.now();
 
-    const CONCURRENCY = 6;
-    const TIMEOUT = 15000;
+    const CONCURRENCY = CRON_REFRESH_CONCURRENCY;
+    const TIMEOUT = CRON_REFRESH_TIMEOUT_MS;
 
     const nodeRegex =
         /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5|socks):\/\//gm;
@@ -139,6 +164,36 @@ export async function handleCronTrigger(env) {
 
     async function processSubscription(sub) {
         try {
+            if (persistenceActive) {
+                const refreshed = await refreshSubscriptionSnapshot(env, sub, { reason: 'cron' });
+                const originalSub = allSubs.find((s) => s.id === sub.id);
+                if (!refreshed.success) {
+                    if (originalSub) originalSub.lastError = refreshed.error;
+                    return { name: sub.name, success: false, error: refreshed.error };
+                }
+                if (originalSub) {
+                    const previousCount = Number(originalSub.nodeCount) || 0;
+                    originalSub.nodeCount = refreshed.nodeCount;
+                    if (refreshed.userInfo) originalSub.userInfo = refreshed.userInfo;
+                    originalSub.lastError = null;
+                    originalSub.lastUpdate = new Date().toISOString();
+                    if (previousCount > 0) {
+                        const diff = refreshed.nodeCount - previousCount;
+                        const significantChange =
+                            Math.abs(diff) >= 10 || Math.abs(diff) / previousCount >= 0.2;
+                        if (significantChange) {
+                            originalSub.nodeCountChange = {
+                                previous: previousCount,
+                                current: refreshed.nodeCount,
+                                diff,
+                                timestamp: Date.now(),
+                            };
+                        }
+                    }
+                    await checkAndNotify(originalSub, settings, env);
+                }
+                return { name: sub.name, success: true, traffic: true, nodes: true };
+            }
             const fetchWithTimeout = (url, options) => {
                 const { cf, ...requestInit } = options;
                 const fetchCall = cf
@@ -264,20 +319,30 @@ export async function handleCronTrigger(env) {
         }
     }
 
-    if (changesMade) {
+    // 持久化模式下 subscriptions 的 nodeCount/userInfo 不再是事实源，
+    // 唯一写入口是快照；这里只把快照值回填给本次通知使用，不落库。
+    if (changesMade && !persistenceActive) {
         await persistSubscriptionsForCron(storageAdapter, allSubs);
+    }
+    if (persistenceActive) {
+        // Cron 本身就是一次全量刷新，未完成的全量回填可以直接收尾。
+        await completeNodeBackfill(env).catch(() => false);
     }
 
     const duration = Date.now() - startTime;
     const summary = {
         success: true,
         summary: {
-            total: httpSubscriptions.length,
+            // total 覆盖所有参与判断的 HTTP 订阅（含按配置跳过的），
+            // 便于 updated + failed + skipped === total 对得上。
+            total: httpSubscriptions.length + skippedSubscriptions.length,
             updated: updatedCount,
             failed: failedCount,
+            skipped: skippedSubscriptions.length,
             changes: changesMade,
             duration: `${duration}ms`,
             failed_subscriptions: failedSubscriptions,
+            skipped_subscriptions: skippedSubscriptions,
         },
     };
 

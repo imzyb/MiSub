@@ -19,7 +19,7 @@ vi.mock('../../src/stores/toast', () => ({
 }));
 
 const englishGlobal = () => ({
-    plugins: [createI18n({ initialLocale: 'en-US' })],
+    plugins: [createPinia(), createI18n({ initialLocale: 'en-US' })],
     stubs: {
         Teleport: true,
     },

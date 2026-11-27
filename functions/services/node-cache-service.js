@@ -110,7 +110,7 @@ export async function getCache(storageAdapter, cacheKey) {
  * @param {string[]} sources - 来源订阅名称列表
  * @returns {Promise<boolean>}
  */
-export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
+export async function setCache(storageAdapter, cacheKey, nodes, sources = [], flags = null) {
     try {
         const nodeCount = nodes.split('\n').filter((line) => line.trim()).length;
         if (isLikelyPartialAggregateNodeList(nodes)) {
@@ -145,6 +145,9 @@ export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
             timestamp: Date.now(),
             nodeCount,
             sources,
+            // 记录生成这份缓存时的行为开关（目前只有“流量/到期伪节点”），
+            // 命中缓存时与当前设置比对，避免关掉开关后仍返回旧伪节点。
+            ...(flags ? { flags } : {}),
         };
 
         // 计算 TTL（秒），使用 MAX_AGE 作为过期时间

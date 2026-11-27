@@ -12,8 +12,17 @@ export async function onRequest(context) {
     }
 
     if (request.method === 'POST') {
-        // 手动触发同步
-        return triggerManualSync(env);
+        // 仪表盘页面本身不鉴权，这里不接受触发请求；
+        // 手动刷新统一走需要登录的 POST /api/cron/trigger（与 /cron 同一条快照刷新链路）。
+        return new Response(
+            JSON.stringify({
+                success: false,
+                error: 'method_not_allowed',
+                message: '请使用需要登录的 POST /api/cron/trigger 触发同步',
+                timestamp: new Date().toISOString(),
+            }),
+            { status: 405, headers: { 'Content-Type': 'application/json' } }
+        );
     }
 
     return new Response('Method not allowed', { status: 405 });
@@ -46,6 +55,7 @@ function getCronDashboard(env) {
         .log-time { color: #666; font-size: 0.9em; }
         .log-success { border-left-color: #28a745; }
         .log-error { border-left-color: #dc3545; }
+        .log-skipped { border-left-color: #f0ad4e; }
     </style>
 </head>
 <body>
@@ -67,6 +77,10 @@ function getCronDashboard(env) {
             <div class="status-card">
                 <h3>❌ 失败同步</h3>
                 <div class="status-value" id="failedCount">-</div>
+            </div>
+            <div class="status-card">
+                <h3>🚫 按配置跳过</h3>
+                <div class="status-value" id="skippedCount">-</div>
             </div>
             <div class="status-card">
                 <h3>🕐 上次同步</h3>
@@ -97,6 +111,7 @@ function getCronDashboard(env) {
                     totalSubscriptions: data.totalSubscriptions || data.lastExecution?.result?.totalSubscriptions || 0,
                     successfulSyncs: data.successfulSyncs || data.lastExecution?.result?.successfulSyncs || 0,
                     failedSyncs: data.failedSyncs || data.lastExecution?.result?.failedSyncs || 0,
+                    skippedSyncs: data.skippedSyncs || data.lastExecution?.result?.skippedSyncs || 0,
                     lastSync: data.lastSync || data.lastExecution?.timestamp || null,
                     details: data.details || data.lastExecution?.result?.details || []
                 };
@@ -104,6 +119,7 @@ function getCronDashboard(env) {
                 document.getElementById('totalSubs').textContent = status.totalSubscriptions;
                 document.getElementById('successCount').textContent = status.successfulSyncs;
                 document.getElementById('failedCount').textContent = status.failedSyncs;
+                document.getElementById('skippedCount').textContent = status.skippedSyncs;
                 document.getElementById('lastSync').textContent = status.lastSync ?
                     new Date(status.lastSync).toLocaleString() : '从未';
 
@@ -147,13 +163,22 @@ function getCronDashboard(env) {
 
             details.slice(0, 50).forEach(detail => {
                 const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry ' + (detail.status === 'success' ? 'log-success' : 'log-error');
+                const statusClass = detail.status === 'success'
+                    ? 'log-success'
+                    : detail.status === 'skipped'
+                      ? 'log-skipped'
+                      : 'log-error';
+                logEntry.className = 'log-entry ' + statusClass;
+
+                const statusText = detail.status === 'success'
+                    ? \`同步成功 (\${detail.nodeCount} 个节点)\`
+                    : detail.status === 'skipped'
+                      ? \`按配置跳过（已禁用自动更新）\`
+                      : \`同步失败 - \${detail.error}\`;
 
                 logEntry.innerHTML = \`
                     <div class="log-time">\${new Date().toLocaleString()}</div>
-                    <div><strong>\${detail.name}</strong>: \${detail.status === 'success' ?
-                        \`同步成功 (\${detail.nodeCount} 个节点)\` :
-                        \`同步失败 - \${detail.error}\`}</div>
+                    <div><strong>\${detail.name}</strong>: \${statusText}</div>
                 \`;
 
                 logsContainer.appendChild(logEntry);
@@ -169,36 +194,4 @@ function getCronDashboard(env) {
     return new Response(html, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
-}
-
-/**
- * 手动触发同步
- */
-async function triggerManualSync(env) {
-    try {
-        // 手动触发同步的请求应该转发到 _schedule.js
-        // 由于Cloudflare Pages Functions限制，这里只返回成功响应
-        return new Response(
-            JSON.stringify({
-                success: true,
-                message: '同步任务已提交，请查看日志获取进度',
-                timestamp: new Date().toISOString(),
-            }),
-            {
-                headers: { 'Content-Type': 'application/json' },
-            }
-        );
-    } catch (error) {
-        return new Response(
-            JSON.stringify({
-                success: false,
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            }),
-            {
-                status: 500,
-                headers: { 'Content-Type': 'application/json' },
-            }
-        );
-    }
 }

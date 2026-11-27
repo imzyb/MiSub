@@ -58,7 +58,9 @@ describe('dashboard UI components', () => {
         expect(wrapper.text()).toContain('生成链接还需几步');
         expect(wrapper.text()).toContain('固定主 Token');
         expect(wrapper.text()).toContain('创建组合订阅');
-        expect(wrapper.find('input').attributes('disabled')).toBeDefined();
+        // token 不可用时不再渲染只读 input（单行输入会把长文案截断），改为可换行的提示块
+        expect(wrapper.find('input').exists()).toBe(false);
+        expect(wrapper.text()).toContain('请先在“设置”中配置固定的 主 Token');
     });
 
     it('keeps generated link actions enabled when fixed token and profile exist', () => {
@@ -96,11 +98,11 @@ describe('dashboard UI components', () => {
             profiles: [{ id: 'p1', customId: 'daily', name: '日常使用' }],
         });
 
-        const input = wrapper.find('input');
         expect(wrapper.text()).toContain('固定主 Token');
-        expect(input.attributes('disabled')).toBeDefined();
-        expect(input.element.value).toBe('请先在“设置”中配置固定的 主 Token');
-        expect(input.element.value).not.toContain('https://sub.dmorz.com/:');
+        // 无效 token 下不渲染可复制的链接输入框，提示文案以完整可换行的方式展示
+        expect(wrapper.find('input').exists()).toBe(false);
+        expect(wrapper.text()).toContain('请先在“设置”中配置固定的 主 Token');
+        expect(wrapper.text()).not.toContain('https://sub.dmorz.com/:');
     });
 
     it('renders stat cards and generated-link panel in English without leaking i18n keys', () => {

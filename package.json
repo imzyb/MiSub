@@ -1,18 +1,19 @@
 {
   "name": "misub",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:server": "npx wrangler pages dev public --port 8787",
+    "dev": "vite --host 0.0.0.0",
+    "dev:server": "npx wrangler pages dev public --port 8787 --ip 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "format": "prettier --write \"functions/**/*.js\" \"src/**/*.{js,vue}\" \"tests/**/*.js\" \"docs/**/*.md\"",
-    "format:check": "prettier --check \"functions/**/*.js\" \"src/**/*.{js,vue}\" \"tests/**/*.js\" \"docs/**/*.md\""
+    "format:check": "prettier --check \"functions/**/*.js\" \"src/**/*.{js,vue}\" \"tests/**/*.js\" \"docs/**/*.md\"",
+    "lint": "eslint functions src"
   },
   "dependencies": {
     "dompurify": "^3.2.6",
@@ -27,6 +28,8 @@
     "@tailwindcss/vite": "^4.1.18",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.4.6",
+    "eslint": "^9.39.4",
+    "globals": "^16.5.0",
     "happy-dom": "^20.0.11",
     "miniflare": "^4.20250803.0",
     "playwright": "^1.60.0",
@@ -34,7 +37,8 @@
     "tailwindcss": "^4.1.12",
     "terser": "^5.48.0",
     "vite": "^7.1.2",
-    "vitest": "^4.0.16",
-    "wrangler": "^4.56.0"
+    "vitest": "^4.1.12",
+    "vue-eslint-parser": "^10.4.2",
+    "wrangler": "^4.165.0"
   }
 }

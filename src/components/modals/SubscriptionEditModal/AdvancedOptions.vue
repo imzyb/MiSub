@@ -1,13 +1,35 @@
 <script setup>
     import Switch from '../../ui/Switch.vue';
+    import { computed } from 'vue';
     import { useI18n } from '../../../i18n/index.js';
 
     const { t } = useI18n();
+
+    // 单订阅的「禁用自动刷新」只在节点持久化开启后才有意义：
+    // 持久化关闭时没有 D1 快照，自动刷新本身就不存在。
+    const persistenceEnabled = computed(() => props.persistenceEnabled === true);
+    const autoRefreshDisabledReason = computed(() =>
+        persistenceEnabled.value ? '' : t('settings.autoUpdateRequiresPersistence')
+    );
 
     const props = defineProps({
         editingSubscription: {
             type: Object,
             required: true,
+        },
+        persistenceEnabled: {
+            type: Boolean,
+            default: false,
+        },
+    });
+
+    // 开关文案是「禁用自动更新」：勾选 = autoUpdate false。
+    // 存量订阅没有该字段，缺省视为启用自动更新，所以开关默认关闭。
+    const autoUpdateDisabled = computed({
+        get: () => props.editingSubscription?.autoUpdate === false,
+        set: (value) => {
+            if (!props.editingSubscription) return;
+            props.editingSubscription.autoUpdate = value !== true;
         },
     });
 </script>
@@ -111,6 +133,24 @@
                 </p>
             </div>
             <Switch v-model="editingSubscription.excludeTraffic" />
+        </div>
+
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    {{ t('subscriptions.autoUpdateTitle') }}
+                </span>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {{ t('subscriptions.autoUpdateDesc') }}
+                </p>
+                <p
+                    v-if="autoRefreshDisabledReason"
+                    class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+                >
+                    {{ autoRefreshDisabledReason }}
+                </p>
+            </div>
+            <Switch v-model="autoUpdateDisabled" :disabled="!persistenceEnabled" />
         </div>
     </div>
 </template>

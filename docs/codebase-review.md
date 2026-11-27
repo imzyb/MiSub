@@ -1,22 +1,22 @@
 # MiSub Codebase Review
 
-本文记录当前代码库的只读梳理结果，用于后续按“小步、可逆、可验证”的方式持续治理。
+本文记录当前代码库的只读梳理结果，用于后续按“小步、可逆、可验证”的方式持续治理。文中按能力域描述，不涉及具体文件与实现细节。
 
 ## 当前健康状态
 
-- 目标测试通过：10 个测试文件 / 70 个用例。
-- 全量测试通过：73 个测试文件 / 374 个用例。
-- 生产构建成功：`npm run build`。
-- 本轮代码变更只涉及测试治理与测试稳定性，不改业务逻辑。
+- 全量测试通过：190 个测试文件 / 1184 个用例（`npm run test:run`）。
+- 生产构建成功：`npm run build`（Vite 7）。
+- 当前发布版本为 2.8.0。
+- 本轮只做文档校对：按 2.8.0 的实际行为更新描述，不改业务逻辑。
 
 ## 代码规模
 
-| 区域        | 文件数 |   行数 | 说明                               |
-| ----------- | -----: | -----: | ---------------------------------- |
-| `src`       |    207 | 30,752 | Vue 前端、状态管理、组件、协议工具 |
-| `functions` |     90 | 26,476 | Cloudflare Pages Functions 后端    |
-| `tests`     |     73 |  8,368 | Vitest 单元/回归测试               |
-| `docs`      |     13 |  2,642 | 架构、数据模型与运维文档           |
+| 区域 | 说明                                                                    |
+| ---- | ----------------------------------------------------------------------- |
+| 前端 | Vue 前端、状态管理、组件与协议工具，由 JavaScript 与 Vue 单文件组件构成 |
+| 后端 | 基于 Cloudflare Pages Functions 的服务端实现                            |
+| 测试 | Vitest 单元与回归测试，目前全部为单元测试                               |
+| 文档 | 架构、数据模型与运维文档                                                |
 
 主要源码语言：JavaScript 与 Vue 单文件组件。
 
@@ -24,140 +24,170 @@
 
 ### 入口与路由
 
-- `functions/[[path]].js`：Cloudflare Pages Functions 主入口，挂载安全中间件、API 路由、订阅短链、cron 与静态资源 fallback。
-- `functions/modules/api-router.js`：`/api/*` 总路由，负责公开接口、认证接口、调试接口、迁移接口和管理接口分发。
-- `functions/modules/api-handler.js`：核心数据读写、settings、profiles、misubs 保存与公开配置。
+- 统一入口负责安全中间件、API 路由、订阅短链（`/sub/` 与自定义 mytoken / profileToken）、`/cron`（Cron 密钥校验）、静态资源兜底，以及伪装模式下的品牌资源拦截。
+- API 总路由负责公开接口、认证接口、外部管理 API（`/ext/v1`）、内部回填接口、迁移接口与受保护的管理接口分发。
+- 核心数据读写接口负责设置、订阅组、订阅的保存与公开配置；开启节点持久化时会触发全量回填与到期刷新。
+
+### 节点持久化
+
+- 节点持久化服务负责快照的完整生命周期：配置指纹、刷新锁与退避、输出链路懒初始化、启用即全量回填（页面关闭也会继续）、定时刷新完成标记。
+- 存储层的快照实现负责单行快照 + 分片（每片约 256KB，最多 80 片）、按“后写优先”写入、失败保留旧节点、旧库建表与补列。
+- 订阅源级节点治理是机场订阅的唯一入口（操作符链 + 包含 / 排除规则），订阅输出与持久化写库共用，保证库里存的是用户设置后的结果。
 
 ### 存储层
 
-- `functions/storage-adapter.js`：KV / D1 / Noop adapter、SettingsCache、DataMigrator。
-- 当前数据形态兼容 KV 全量数组、D1 行级 JSON，以及旧 D1 `main` 行。
-- 风险：兼容逻辑复杂，旧结构与 row-level 结构并存时需要诊断能力支撑。
+- 存储适配层同时支持 KV / D1 / 无存储降级，并负责设置缓存、旧数据迁移与节点快照存储。
+- 当前数据形态兼容 KV 全量数组、D1 行级 JSON、旧 D1 单行结构，以及新增的快照 / 分片数据。
+- 风险：兼容逻辑复杂，旧结构、行级结构与快照并存时需要诊断能力支撑。
 
 ### 订阅主链路
 
-- `functions/modules/subscription/main-handler.js`：订阅请求主流程，负责 token/profile 解析、浏览器伪装、目标节点集合、缓存、内置/外部转换、响应输出、下载计数和通知。
-- `functions/services/subscription-service.js`：远程订阅拉取、手动节点、per-sub 缓存、过滤、去重、operator chain、运行态信息写回。
-- `functions/services/node-cache-service.js`：节点缓存读写、清理、保护性空覆盖防护。
+- 订阅请求主流程负责标识解析、浏览器伪装、目标节点集合（含嵌套子订阅组）、缓存、内置 / 外部转换、响应输出、下载计数与通知。
+- 公开预览模式负责订阅组的嵌套子组与循环引用拦截。
+- 单订阅 / 单节点预览负责节点来源（持久化开启时读快照）。
+- 订阅服务负责远程订阅拉取、手动节点、按订阅缓存、过滤、去重、操作符链与运行态信息写回。
+- 节点拉取负责单订阅拉取与保护性缓存回退。
+- 节点缓存负责读写、清理与保护性空覆盖防护。
 
 ### 协议转换与模板
 
-- `functions/utils/url-to-clash.js`：URL 节点转 Clash proxy，体量最大、协议分支多。
-- `functions/utils/clash-to-url.js`：Clash proxy 转 URL 节点。
-- `functions/modules/utils/node-parser.js`：节点文本、Base64、Clash YAML、raw line 解析。
-- `functions/modules/subscription/builtin-*-generator.js`：Clash / Sing-box / Surge / Loon / QuanX / Egern 内置输出。
-- `functions/modules/subscription/template-pipeline.js` 与 `template-renderers/*`：模板模型与多目标渲染。
+- URL 节点转 Clash：体量最大、协议分支多。
+- Clash 转 URL 节点。
+- 节点解析：节点文本、Base64、Clash YAML、Sing-Box、v2rayN、Surge / QuanX 与逐行文本。
+- 内置生成器：Clash / Sing-box / Surge / Loon / QuanX / Egern 输出。
+- 模板管线与渲染器：模板模型与多目标渲染。
+
+### 外部管理 API
+
+- 外部管理路由（`/api/ext/v1`）覆盖订阅、手动节点、订阅组及校验、刷新、批量刷新、预览等动作。
+- 鉴权：Bearer Token，需在设置中开启外部 API。
+- 工具与映射：分页、错误结构、对外数据结构映射。
+- 业务处理器：订阅、手动节点、订阅组、预览四个；开启持久化时列表叠加节点快照。
+
+### 备份
+
+- WebDAV 备份 / 恢复与本地导出 / 恢复（`/api/backup/...`），按业务域导出、不写入凭据。
 
 ### 定时与通知
 
-- `functions/modules/notifications.js`：当前 `/cron` 与 `/api/cron/trigger` 使用的主定时检查逻辑。
-- `functions/_cron.js`、`functions/_schedule.js`：疑似遗留定时实现，使用旧绑定/旧 key，需要标记或收敛，避免误用。
+- 定时刷新的主逻辑由 `/cron` 使用，要求 D1 + 节点持久化开启，强制刷新节点快照。
+- 定时任务执行由登录后的 `/api/cron/trigger` 触发。
+- 旧的定时实现已删除，`/cron` 与 `/api/cron/trigger` 现在走同一条节点快照刷新链路；`/cron-dashboard` 页面不再提供触发接口，该地址的 POST 返回 405。
+- 自动更新判定：仅显式关闭自动更新视为暂停。
 
 ### 安全与公开接口
 
-- `functions/modules/auth-middleware.js`：HMAC cookie 登录会话、30 天闲置过期与 7 天活动续期、auth diagnostic 开关。
-- `functions/middleware/cors.js`：CORS、CSRF origin/referrer、安全响应头。
-- `functions/modules/security-utils.js`：敏感字段脱敏、公开 fetch SSRF 防护、redirect 重新校验。
-- 公开接口包括 public profiles/preview/guestbook/error report/Telegram webhook/GitHub release proxy，需要持续关注体积限制和滥用风险。
+- 登录会话：HMAC cookie、30 天闲置过期与 7 天活动续期、认证诊断开关。
+- 跨域与安全头：CORS、CSRF origin / referrer 校验、安全响应头。
+- 安全工具：敏感字段脱敏、公开拉取的私网地址防护、重定向二次校验。
+- 公开接口包括公开订阅组、预览、留言板、错误上报、Telegram webhook、GitHub release 代理，以及外部管理 API 与内部回填接口，需要持续关注体积限制与滥用风险；请求体统一走带大小上限的 JSON 读取。
 
 ## 前端模块地图
 
 ### Views
 
-- `src/views/DashboardView.vue`：主控制台页面容器。
-- `src/views/PublicProfilesView.vue`：公开订阅页，包含 hero/custom page/clients/guestbook/quick import 等逻辑，当前是 view 层复杂热点。
-- `src/views/ManualNodesView.vue`、`SubscriptionGroupsView.vue`、`MySubscriptionsView.vue`、`SettingsView.vue`：分别承载手动节点、订阅组、我的订阅、设置入口。
+- 仪表盘主页面容器。
+- 公开订阅页：包含首屏、自定义页面、客户端下载、留言板、快速导入等逻辑，仍是视图层复杂热点。
+- 手动节点、订阅组、我的订阅、设置四个页面。
+- 首页、入口页与 404 页。
 
 ### Components
 
-- `src/components/modals/*`：编辑、导入、节点预览、二维码、留言、设置等弹窗。
-- `src/components/settings/sections/*`：设置页面各分区，其中 `ClientSettings.vue`、`BasicSettings.vue`、`TelegramCard.vue` 较大。
-- `src/components/features/Dashboard/*`：Dashboard 分块。
-- `src/components/shared/*`：DataGrid、DragDropList、FilterPanel 等通用复杂组件。
-- `src/components/public/*`：公开页面渲染、ProfileGrid、自定义公开页。
+- 基础组件（按钮、卡片、输入框、开关、确认框、确认气泡、分组选择器、保存提示、渐进式展开等），承载全站交互与无障碍基线。
+- 弹窗组件：编辑、导入、节点预览、二维码、留言、设置、迁移、手动节点分组管理与批量分组等。
+- 设置分区：其中客户端设置、基础设置与 Telegram 卡片较大。
+- 功能模块：仪表盘分块与算子链编辑器（筛选 / 改名 / 脚本 / 排序 / 去重）。
+- 共享复杂组件：数据网格、拖拽列表、筛选面板等。
+- 公开页面渲染组件、订阅组网格、自定义公开页。
+- 手动节点面板、订阅组面板与订阅面板（机场分组折叠与批量操作）。
 
 ### 状态与组合式函数
 
-- `src/stores/useDataStore.js`：主数据状态与保存入口，是前端状态热点。
-- `src/composables/useSubscriptions.js`、`useManualNodes.js`、`useProfiles.js`、`useNodePreview.js`：前端业务状态与 API 调用封装。
-- `src/lib/api.js`、`src/lib/http.js`：API facade 与 HTTP 封装。
+- 主数据状态与保存入口，是前端状态热点。
+- 其余状态模块：编辑器、会话、设置、主题、Toast、UI、版本。
+- 组合式函数：业务状态与 API 调用封装（订阅、手动节点、订阅组、节点预览、确认弹窗等），以及手动节点的去重、筛选、分组、排序等纯逻辑模块。
+- API 封装：API facade 与 HTTP 封装。
+
+### i18n 与全局交互
+
+- 全站中英双语（默认简体中文、可选英文），支持语言偏好持久化、浏览器语言探测与缺失 key 回退；语言切换入口为语言切换器，由国际化契约测试约束。
+- 全局确认弹窗：Promise 化、同一时刻只挂一个待确认项、无宿主时回退浏览器原生确认框；在应用根组件挂载。
+- 无障碍与对比度：基础 / 布局 / 共享组件广泛使用 `aria-*`、焦点环与减少动效偏好降级。
 
 ### 前端风险热点
 
-- `PublicProfilesView.vue` 同时处理公开配置、客户端版本、QR、custom page、guestbook 事件，职责偏多。
-- `NodePreviewModal.vue`、`Dashboard.vue`、`ClientSettings.vue`、`DragDropList.vue`、`FilterPanel.vue` 文件较大，改动应先补/定位目标测试。
-- `defineAsyncComponent` 使用较多，测试中需要等待 `vi.dynamicImportSettled()`，否则可能产生未处理异步错误。
-- `window` / `document` / storage 使用分布较广，DOM 测试要注意 unmount 与清理。
+- 公开订阅页同时处理公开配置、客户端版本、二维码、自定义页面、留言板事件，职责偏多。
+- 节点预览弹窗、仪表盘、客户端设置、拖拽列表、筛选面板体量较大，改动应先补 / 定位目标测试。
+- 异步组件使用较多，测试中需要等待动态导入完成，否则可能产生未处理异步错误。
+- `window` / `document` / storage 使用分布较广，DOM 测试要注意卸载与清理。
 
 ## 测试覆盖地图
 
 ### 强覆盖区域
 
 - 内置转换输出：Clash / Surge / QuanX / Sing-box / Loon / Egern。
-- 协议转换和模板 pipeline。
-- 订阅缓存、节点计数、fetch proxy UA、保护性缓存。
-- 安全回归：CSRF/CORS、私网 URL 防护、敏感信息脱敏、auth session。
+- 协议转换与模板管线。
+- 订阅缓存、节点计数、拉取代理与 UA、保护性缓存。
+- 安全回归：CSRF / CORS、私网 URL 防护、敏感信息脱敏、登录会话。
+- 2.7.0 之后新增能力的回归：节点持久化（快照回填、分片重载）、订阅标识迁移、组合订阅嵌套、手动节点分组、外部管理 API 路由与操作、WebDAV 备份、全局确认弹窗、国际化契约、Fork Sync 工作流。
 
 ### 待治理区域
 
-- 覆盖率命令存在但缺少 `@vitest/coverage-v8`，当前不可作为 CI 强制项。
-- 剩余 stdout 噪音主要来自：
-    - `misub-request-regression.test.js` 的 MiSub request 日志。
-    - `api-handler-storage-helpers.test.js` 的 diff/cache clear 日志。
-    - `notifications-cron-storage.test.js` 的 cron start/completed 日志。
-    - `node-handler-batch-update.test.js` 的 storage auto-detect 日志。
-- 时间、fetch、DOM、dynamic import 是主要 flaky 风险来源。
+- 覆盖率命令存在但缺少覆盖率采集依赖，当前不可作为 CI 强制项。
+- 剩余 stdout 噪音主要来自：请求回归测试的请求日志、存储辅助测试的差异 / 缓存清理日志、定时通知测试的启动与完成日志、批量更新测试的存储自动检测日志；另有 Node 的实验性本地存储警告会在大量测试中重复出现。
+- 时间、fetch、DOM、动态导入是主要 flaky 风险来源。
+- 测试目录目前只有一层、190 个测试文件平铺，定位依赖文件名约定，后续可考虑分组（不急）。
 
 ## 最大复杂热点
 
-1. `functions/modules/handlers/telegram-webhook-handler.js`：约 2748 行，Bot 命令、权限、存储、消息格式混合。
-2. `functions/utils/url-to-clash.js`：约 1382 行，协议分支复杂。
-3. `functions/services/subscription-service.js`：约 997 行，拉取、缓存、过滤、统计、写回混合。
-4. `functions/modules/subscription/main-handler.js`：约 919 行，订阅主链路职责集中。
-5. `functions/modules/api-router.js`：约 910 行，路由权限边界需要显式化。
-6. `functions/storage-adapter.js`：约 845 行，KV/D1/legacy 兼容复杂。
-7. `src/components/modals/NodePreview/NodePreviewModal.vue`：约 713 行，前端弹窗复杂热点。
-8. `src/views/PublicProfilesView.vue`：约 578 行，公开页职责偏多。
-9. `src/components/settings/sections/ClientSettings.vue`：约 518 行，设置 UI 热点。
-10. `src/stores/useDataStore.js`：约 433 行，前端主状态热点。
+1. Telegram 机器人消息处理：命令、权限、存储、消息格式混合。
+2. URL 转 Clash 转换：协议分支复杂。
+3. 订阅请求主流程：订阅主链路职责集中。
+4. 存储适配层：KV / D1 / 旧结构与快照 / 分片兼容复杂。
+5. 订阅服务：拉取、缓存、过滤、统计、写回混合。
+6. API 路由层：路由权限边界需要显式化。
+7. 节点预览弹窗：前端弹窗复杂热点。
+8. 客户端设置页：设置 UI 热点。
+9. 公开订阅页：公开页职责偏多。
+10. 前端主数据状态：前端主状态热点。
+
+另有中英双语文案字典体量大但只是文案聚合，结构简单，不按复杂度热点处理。
 
 ## 下一轮小可逆治理建议
 
 ### 优先级 1：继续测试输出治理
 
-- 对剩余 stdout 噪音加局部 console spy，并断言已知日志前缀。
+- 对剩余 stdout 噪音加局部 console spy，并断言已知日志前缀；顺带评估在测试环境屏蔽实验性本地存储警告。
 - 不改业务代码。
 - 每次只处理 1~2 个测试文件，跑目标测试 + 全量测试 + build。
 
-### 优先级 2：标记 legacy cron
+### 优先级 2：定时链路口径（本轮已完成）
 
-- 在 `_cron.js` / `_schedule.js` 顶部加明确注释，说明当前主 cron 入口是 `modules/notifications.js`，这两个文件使用旧绑定/旧 key，禁止作为生产主链路依据。
-- 暂不删除文件，避免破坏部署兼容。
+- `/cron` 与登录后的 `/api/cron/trigger` 现在走同一条节点快照刷新，旧的定时实现已删除；`/cron-dashboard` 不再提供触发接口（POST 返回 405），手动触发请用登录后的 `/api/cron/trigger`。
+- 后续跟踪：确认外部监控与自动化脚本已从 `/cron-dashboard` 的触发方式切换到 `/api/cron/trigger`，避免运维按旧入口操作。
 
 ### 优先级 3：显式化 API 路由权限清单
 
-- 在 `api-router.js` 顶部或文档中维护 public/auth/diagnostic/migration route 分类。
-- 先做文档/注释，不改行为。
+- 在路由层或 API 路由文档中维护 public / auth / diagnostic / migration / external / internal 分类，并与外部管理 API、内部回填接口的鉴权方式对齐。
+- 先做文档 / 注释，不改行为。
 
-### 优先级 4：为协议转换加 fixture 快照
+### 优先级 4：为协议转换加样例数据快照
 
-- 在继续拆 `url-to-clash.js` 或 `node-parser.js` 前，先补典型协议 fixture。
-- 保护 URL → Clash → URL roundtrip 与 Clash YAML/Base64/raw line 解析。
+- 在继续拆分 URL 转 Clash 或节点解析之前，先补典型协议样例数据。
+- 保护 URL → Clash → URL 往返转换与 Clash YAML / Base64 / 逐行文本解析。
 
 ### 优先级 5：前端测试稳定性
 
-- 对使用 `defineAsyncComponent` 的测试统一等待 `vi.dynamicImportSettled()`。
-- 对 DOM/storage 测试引入统一清理习惯。
+- 对使用异步组件的测试统一等待动态导入完成。
+- 对 DOM / storage 测试引入统一清理习惯。
 - 时间相关测试逐步使用 fake timers。
 
-### 优先级 6：公开接口请求体大小限制
+### 优先级 6：公开接口请求体大小限制巡检
 
-- 先新增通用 `readJsonWithLimit` 工具并从公开接口逐个接入。
-- 优先 guestbook、error_report、telegram webhook、parse subscription。
+- 带大小上限的 JSON 读取已覆盖留言板、错误上报、Telegram webhook、订阅解析、节点 / 备份等处理器；后续新增公开入口需逐一体检是否接入。
 
 ## 不建议立即做的事
 
-- 不直接拆 `telegram-webhook-handler.js` 或 `main-handler.js` 的大块业务逻辑。
-- 不直接删除 `_cron.js` / `_schedule.js`。
-- 不在没有 fixture 的情况下重写协议转换器。
-- 不把 coverage 纳入 CI，除非先补齐 `@vitest/coverage-v8` 并跑通。
+- 不直接拆 Telegram 机器人消息处理或订阅主流程的大块业务逻辑。
+- 不在没有样例数据的情况下重写协议转换器。
+- 不把覆盖率纳入 CI，除非先补齐覆盖率采集依赖并跑通。

@@ -7,6 +7,7 @@ import { ref, computed, watch } from 'vue';
 import { api, APIError } from '@/lib/http.js';
 import { t } from '@/i18n/index.js';
 import { isNetworkErrorMessage } from '@/utils/network-error.js';
+import { copyTextToClipboard } from '@/utils/clipboard.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -15,6 +16,8 @@ export function useNodePreview(props) {
     const loading = ref(false);
     const error = ref('');
     const allNodes = ref([]); // 存储所有节点
+    // 预览数据来源：persistence=读 D1 快照；live=本次实时拉取
+    const nodeSource = ref('live');
     const currentPage = ref(1);
     const pageSize = ref(20);
     const viewMode = ref('list'); // 'list' 或 'card'
@@ -134,6 +137,7 @@ export function useNodePreview(props) {
             }
 
             allNodes.value = data.nodes || [];
+            nodeSource.value = data.nodeSource === 'persistence' ? 'persistence' : 'live';
             protocolStats.value = data.stats?.protocols || {};
             regionStats.value = data.stats?.regions || {};
 
@@ -166,25 +170,12 @@ export function useNodePreview(props) {
 
     // 复制节点链接
     const copyNodeUrl = async (node, nodeId) => {
-        try {
-            await navigator.clipboard.writeText(node.url);
-            copiedNodeId.value = nodeId;
-            setTimeout(() => {
-                copiedNodeId.value = '';
-            }, 2000);
-        } catch (err) {
-            // 降级方案
-            const textArea = document.createElement('textarea');
-            textArea.value = node.url;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            copiedNodeId.value = nodeId;
-            setTimeout(() => {
-                copiedNodeId.value = '';
-            }, 2000);
-        }
+        const ok = await copyTextToClipboard(node.url);
+        if (!ok) return;
+        copiedNodeId.value = nodeId;
+        setTimeout(() => {
+            copiedNodeId.value = '';
+        }, 2000);
     };
 
     // 重置过滤器
@@ -224,6 +215,7 @@ export function useNodePreview(props) {
         loading,
         error,
         allNodes,
+        nodeSource,
         filteredNodes,
         paginatedNodes,
         protocolStats,
