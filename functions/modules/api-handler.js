@@ -269,10 +269,7 @@ export async function handleDataRequest(env, context = null) {
                 return [];
             }),
         ]);
-        const [misubs, profiles] = await Promise.all([
-            attachSubscriptionNodeCacheMeta(storageAdapter, rawMisubs),
-            attachProfileDownloadCounts(storageAdapter, rawProfiles),
-        ]);
+        const profiles = await attachProfileDownloadCounts(storageAdapter, rawProfiles);
 
         // 自动迁移旧版 profile ID（去除 'profile_' 前缀）
         // 并为存量订阅组补齐 linkId（= 原 id），保证升级后旧订阅链接不断
@@ -297,8 +294,9 @@ export async function handleDataRequest(env, context = null) {
         // D1 节点持久化：订阅列表的 nodeCount/userInfo 以快照为准，
         // 同时借这次管理端访问做一次到期检查（免费版 Worker 没有可靠定时）。
         const persistenceEnabled = isNodePersistenceEnabled(env, config);
+        let misubs = rawMisubs;
         if (persistenceEnabled) {
-            misubs = await decorateSubscriptionsWithSnapshots(env, misubs);
+            misubs = await decorateSubscriptionsWithSnapshots(env, rawMisubs);
             const taskContext = context || { env };
             maybeRefreshAllDueNodes({ ...taskContext, env, config }, { reason: 'admin-api' }).catch(
                 (error) =>
@@ -309,6 +307,7 @@ export async function handleDataRequest(env, context = null) {
                 console.warn('[NodePersistence] backfill continue failed:', error?.message || error)
             );
         }
+        misubs = await attachSubscriptionNodeCacheMeta(storageAdapter, misubs);
 
         try {
             const taskContext = context || { env };
