@@ -269,7 +269,7 @@ export async function handleDataRequest(env, context = null) {
                 return [];
             }),
         ]);
-        const [misubs, profiles] = await Promise.all([
+        let [misubs, profiles] = await Promise.all([
             attachSubscriptionNodeCacheMeta(storageAdapter, rawMisubs),
             attachProfileDownloadCounts(storageAdapter, rawProfiles),
         ]);
