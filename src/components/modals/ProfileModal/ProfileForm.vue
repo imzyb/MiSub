@@ -4,6 +4,7 @@
     import Input from '../../ui/Input.vue';
     import Switch from '../../ui/Switch.vue';
     import OperatorChain from '../../features/Operators/OperatorChain.vue';
+    import BatchRenamePanel from '../../features/Operators/components/BatchRenamePanel.vue';
     import { getLocalizedTransformAssetByUrl } from '@/constants/transform-assets';
     import { useI18n } from '@/i18n/index.js';
 
@@ -534,6 +535,8 @@
                         t('profileModal.pipelineDesc')
                     }}</span>
                 </div>
+
+                <BatchRenamePanel v-model="localProfile.operators" />
 
                 <OperatorChain v-model="localProfile.operators" />
             </div>
