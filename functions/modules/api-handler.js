@@ -667,9 +667,16 @@ export async function handleSettingsSave(request, env) {
         const preferencesOnly = request.headers.get('x-misub-save-scope') === 'preferences';
 
         if (!preferencesOnly) {
-            // 清除节点缓存（设置变更可能影响节点处理逻辑）
+            // 清除节点缓存（设置变更可能影响节点处理逻辑；保留开启保护性缓存的单源节点缓存）
             try {
-                await clearAllNodeCaches(storageAdapter);
+                const currentMisubs =
+                    typeof storageAdapter.getAllSubscriptions === 'function'
+                        ? await storageAdapter.getAllSubscriptions()
+                        : (await storageAdapter.get(KV_KEY_SUBS)) || [];
+                const preserveKeys = (Array.isArray(currentMisubs) ? currentMisubs : [])
+                    .filter((sub) => sub?.enableNodeCache === true)
+                    .map((sub) => buildSubscriptionNodeCacheKey(sub));
+                await clearAllNodeCaches(storageAdapter, { preserveKeys });
             } catch (cacheError) {
                 console.warn('[API] Failed to clear node caches:', cacheError.message);
             }

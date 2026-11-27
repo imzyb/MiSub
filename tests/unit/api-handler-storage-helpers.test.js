@@ -298,4 +298,58 @@ describe('api-handler storage helper usage', () => {
             '[API] Cleared 0 node caches after subscription update, preserved 0'
         );
     });
+
+    it('handleSettingsSave preserves protective caches for subscriptions with node cache enabled', async () => {
+        const { handleSettingsSave } = await import('../../functions/modules/api-handler.js');
+
+        getAllSubscriptions.mockResolvedValue([
+            {
+                id: 'sub-enabled',
+                name: 'Enabled',
+                url: 'https://a.example.com/sub',
+                enableNodeCache: true,
+            },
+            {
+                id: 'sub-disabled',
+                name: 'Disabled',
+                url: 'https://b.example.com/sub',
+                enableNodeCache: false,
+            },
+        ]);
+        get.mockResolvedValue({});
+        put.mockResolvedValue(true);
+
+        const request = {
+            headers: new Headers(),
+            async json() {
+                return { FileName: 'MiSub' };
+            },
+        };
+
+        const response = await handleSettingsSave(request, { MISUB_DB: {} });
+
+        expect(response.status).toBe(200);
+        expect(clearAllNodeCaches).toHaveBeenCalledWith(expect.any(Object), {
+            preserveKeys: ['node_cache_subscription_sub-enabled'],
+        });
+    });
+
+    it('handleSettingsSave skips cache clearing when save scope is preferences only', async () => {
+        const { handleSettingsSave } = await import('../../functions/modules/api-handler.js');
+
+        get.mockResolvedValue({});
+        put.mockResolvedValue(true);
+
+        const request = {
+            headers: new Headers({ 'x-misub-save-scope': 'preferences' }),
+            async json() {
+                return { dismissedHealthItems: ['item-1'] };
+            },
+        };
+
+        const response = await handleSettingsSave(request, { MISUB_DB: {} });
+
+        expect(response.status).toBe(200);
+        expect(clearAllNodeCaches).not.toHaveBeenCalled();
+    });
 });
